@@ -1,0 +1,171 @@
+openapi: 3.1.0
+info:
+  title: SCX Management API
+  version: 0.1.0-draft
+  description: 管理面契约草案；未覆盖全部资源，不代表已实现。
+servers:
+  - url: https://api.example.invalid/api/v1
+paths:
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 活动列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignPage'
+    post:
+      operationId: createCampaign
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCampaignRequest'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /campaigns/{campaignId}/pause:
+    post:
+      operationId: pauseCampaign
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '200':
+          description: 已暂停或返回同一幂等结果
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CampaignResponse'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /ad-groups:
+    post:
+      operationId: createAdGroup
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdGroupRequest'
+      responses:
+        '201': {description: 已创建}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CampaignId:
+      name: campaignId
+      in: path
+      required: true
+      schema: {type: string, pattern: '^cmp_[A-Za-z0-9]+$'}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 128}
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string}
+  responses:
+    Conflict:
+      description: 资源版本或幂等请求冲突
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+  schemas:
+    CreateCampaignRequest:
+      type: object
+      additionalProperties: false
+      required: [advertiserId, name, objective, currency, totalBudget, startAt, endAt]
+      properties:
+        advertiserId: {type: string}
+        name: {type: string, minLength: 1, maxLength: 120}
+        objective: {type: string, enum: [AWARENESS, TRAFFIC, CONVERSION]}
+        currency: {type: string, pattern: '^[A-Z]{3}$'}
+        totalBudget: {type: integer, minimum: 1, description: 最小货币单位}
+        startAt: {type: string, format: date-time}
+        endAt: {type: string, format: date-time}
+    CreateAdGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [campaignId, name, billingType, dailyBudget]
+      properties:
+        campaignId: {type: string}
+        name: {type: string, minLength: 1, maxLength: 120}
+        billingType: {type: string, enum: [CPM, CPC, CPA]}
+        optimizationEvent: {type: string}
+        dailyBudget: {type: integer, minimum: 1}
+    Campaign:
+      allOf:
+        - $ref: '#/components/schemas/CreateCampaignRequest'
+        - type: object
+          required: [id, status, version]
+          properties:
+            id: {type: string}
+            status: {type: string}
+            version: {type: integer, minimum: 1}
+    CampaignResponse:
+      type: object
+      required: [requestId, code, data]
+      properties:
+        requestId: {type: string}
+        code: {type: string, const: OK}
+        data: {$ref: '#/components/schemas/Campaign'}
+    CampaignPage:
+      type: object
+      properties:
+        requestId: {type: string}
+        code: {type: string}
+        data:
+          type: object
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/Campaign'}}
+            nextCursor: {type: [string, 'null']}
+    ErrorResponse:
+      type: object
+      required: [requestId, code, message]
+      properties:
+        requestId: {type: string}
+        code: {type: string}
+        message: {type: string}
+security:
+  - bearerAuth: []
+

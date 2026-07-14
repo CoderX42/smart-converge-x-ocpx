@@ -1,0 +1,62 @@
+asyncapi: '2.6.0'
+info:
+  title: SCX Internal Domain Events
+  version: 0.1.0-draft
+  description: 内部消息目录草案；采用至少一次交付，消费者必须幂等。
+channels:
+  tracking.event-normalized.v1:
+    publish:
+      message:
+        $ref: '#/components/messages/EventNormalized'
+  attribution.completed.v1:
+    publish:
+      message:
+        $ref: '#/components/messages/AttributionCompleted'
+  billing.fact-confirmed.v1:
+    publish:
+      message:
+        $ref: '#/components/messages/BillingFactConfirmed'
+components:
+  messages:
+    EventNormalized:
+      name: tracking.event-normalized
+      payload: {$ref: '#/components/schemas/EventEnvelope'}
+      bindings:
+        kafka: {key: {type: string}}
+    AttributionCompleted:
+      name: attribution.completed
+      payload: {$ref: '#/components/schemas/EventEnvelope'}
+    BillingFactConfirmed:
+      name: billing.fact-confirmed
+      payload: {$ref: '#/components/schemas/EventEnvelope'}
+  schemas:
+    EventEnvelope:
+      type: object
+      required:
+        - messageId
+        - eventType
+        - schemaVersion
+        - aggregateType
+        - aggregateId
+        - occurredAt
+        - producer
+        - idempotencyKey
+        - partitionKey
+        - payload
+      properties:
+        messageId: {type: string}
+        eventType: {type: string}
+        schemaVersion: {type: string}
+        aggregateType: {type: string}
+        aggregateId: {type: string}
+        subjectId: {type: string}
+        occurredAt: {type: string, format: date-time}
+        receivedAt: {type: string, format: date-time}
+        producer: {type: string}
+        correlationId: {type: string}
+        causationId: {type: string}
+        traceId: {type: string}
+        idempotencyKey: {type: string}
+        partitionKey: {type: string}
+        payload: {type: object}
+

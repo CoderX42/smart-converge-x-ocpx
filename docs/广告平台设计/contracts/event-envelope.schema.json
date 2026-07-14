@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.example.invalid/schemas/event-envelope-1.0.json",
+  "title": "SCX Domain Event Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["messageId", "eventType", "schemaVersion", "aggregateType", "aggregateId", "occurredAt", "producer", "idempotencyKey", "partitionKey", "payload"],
+  "properties": {
+    "messageId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "eventType": {"type": "string", "minLength": 1, "maxLength": 128},
+    "schemaVersion": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+    "aggregateType": {"type": "string", "minLength": 1, "maxLength": 64},
+    "aggregateId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "subjectId": {"type": "string", "maxLength": 128},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "receivedAt": {"type": "string", "format": "date-time"},
+    "producer": {"type": "string", "minLength": 1, "maxLength": 64},
+    "correlationId": {"type": "string", "maxLength": 128},
+    "causationId": {"type": "string", "maxLength": 128},
+    "traceId": {"type": "string", "maxLength": 128},
+    "idempotencyKey": {"type": "string", "minLength": 1, "maxLength": 256},
+    "partitionKey": {"type": "string", "minLength": 1, "maxLength": 256},
+    "payload": {"type": "object"}
+  }
+}
+
