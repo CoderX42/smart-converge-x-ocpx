@@ -13,27 +13,19 @@ dubbo:
     port: -1
   #消费者配置
   consumer:
-    injvm: false
+    injvm: true
     # 启动时不检查服务是否可用
     check: false
     # 超时时间
     timeout: 5000
   #注册中心配置
   registry:
-    address: nacos://${spring.cloud.nacos.discovery.server-addr}
+    address: N/A
     register-mode: instance
-    username: ${spring.cloud.nacos.username}
-    password: ${spring.cloud.nacos.password}
+    username:
+    password:
     parameters:
       namespace: dubbo
       group: DUBBO_GROUP
   provider:
     filter: -exception
-  #元数据中心配置
-  metadata-report:
-    address: nacos://${spring.cloud.nacos.discovery.server-addr}
-    username: ${spring.cloud.nacos.username}
-    password: ${spring.cloud.nacos.password}
-    parameters:
-      namespace: dubbo
-      group: DUBBO_GROUP

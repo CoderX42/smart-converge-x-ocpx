@@ -66,7 +66,7 @@
             <groupId>com.scx</groupId>
             <artifactId>scx-common-sentinel</artifactId>
         </dependency>
-        <!--           seata分布式事务模块-->
+        <!--           seata分布式事务模块 -->
         <dependency>
             <groupId>com.scx</groupId>
             <artifactId>scx-common-seata</artifactId>

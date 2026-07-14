@@ -117,7 +117,7 @@
                 <artifactId>scx-common-dubbo</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!--           seata分布式事务模块-->
+            <!--           seata分布式事务模块（开发环境默认关闭）-->
             <dependency>
                 <groupId>com.scx</groupId>
                 <artifactId>scx-common-seata</artifactId>

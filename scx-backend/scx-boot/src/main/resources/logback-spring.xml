@@ -21,10 +21,10 @@
 
     <appender name="debug"
               class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/debug.log</file>
+        <file>logs/debug.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- 按天数进行压缩 -->
-            <fileNamePattern>${log.dir}/debug_%d{yyyy-MM-dd}_%i.log.zip</fileNamePattern>
+            <fileNamePattern>logs/debug_%d{yyyy-MM-dd}_%i.log.zip</fileNamePattern>
             <!-- 当文件大小超过 50MB 也会进行压缩 -->
             <maxFileSize>50MB</maxFileSize>
             <!-- 做多保存 30 天的日志 -->
@@ -38,10 +38,10 @@
     </appender>
     <appender name="error"
               class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${log.dir}/error.log</file>
+        <file>logs/error.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
             <!-- 按天数进行压缩 -->
-            <fileNamePattern>${log.dir}/error_%d{yyyy-MM-dd}_%i.log.zip</fileNamePattern>
+            <fileNamePattern>logs/error_%d{yyyy-MM-dd}_%i.log.zip</fileNamePattern>
             <!-- 当文件大小超过 50MB 也会进行压缩 -->
             <maxFileSize>50MB</maxFileSize>
             <maxHistory>30</maxHistory>

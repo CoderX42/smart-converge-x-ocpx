@@ -7,10 +7,10 @@ spring:
     type: redis # 缓存类型 Redis
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      password: ${REDIS_PASSWORD:}
-      port: ${REDIS_PORT:6379}
-      database: ${REDIS_DATABASE:0}
+      host: 47.120.19.150
+      password: IWzq76mM8ihEaY17U30P
+      port: 6379
+      database: 2
 
   # 数据库相关配置
   datasource:
@@ -18,14 +18,14 @@ spring:
       primary: master   # 指定默认数据源
       datasource:
         master:         # 注意，这里要嵌套在 datasource 下
-          url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true}
-          username: ${MYSQL_USERNAME:root}
-          password: ${MYSQL_PASSWORD:}
+          url: jdbc:mysql://47.120.19.150:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+          username: smart_converge_x
+          password: yFWYpTEdLC6fW2yN
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
 rocketmq:
-  name-server: 127.0.0.1:9876
+  name-server: 127.0.0.1
   producer:
     group: dev_producer_group
     retry-times-when-send-failed: 5
