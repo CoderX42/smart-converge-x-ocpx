@@ -87,13 +87,13 @@
 
 ```text
 smart-converge-x/
-├── boot-backend/                 # 单体后端（Java 17 / Spring Boot）
-│   ├── boot-auth/                # 认证授权模块
-│   ├── boot-system/              # 系统管理模块（用户、角色、菜单、部门、字典、日志）
-│   ├── boot-common/              # 公共依赖与工具
-│   ├── smart-converge-x-boot/    # 广告平台业务启动入口
+├── scx-backend/                 # 单体后端（Java 17 / Spring Boot）
+│   ├── scx-auth/                # 认证授权模块
+│   ├── scx-system/              # 系统管理模块（用户、角色、菜单、部门、字典、日志）
+│   ├── scx-common/              # 公共依赖与工具
+│   ├── scx-boot/    # 广告平台业务启动入口
 │   └── db/smart-converge-x/      # 数据库初始化脚本
-├── boot-fronted/                 # 后台管理 Web（Vue 3 / TypeScript）
+├── scx-fronted/                 # 后台管理 Web（Vue 3 / TypeScript）
 │   ├── apps/                     # 应用入口
 │   ├── packages/                 # 共享包（组件、请求、状态、工具等）
 │   └── scripts/                  # 构建与部署脚本
@@ -138,21 +138,21 @@ docker-compose up -d mysql redis rocketmq
 #### 3. 初始化数据库
 
 ```bash
-cd ../boot-backend/db/smart-converge-x
+cd ../scx-backend/db/smart-converge-x
 mysql -h 127.0.0.1 -u root -p < init.sql
 ```
 
 #### 4. 编译后端
 
 ```bash
-cd boot-backend
-mvn -pl smart-converge-x-boot -am -DskipTests clean package
+cd scx-backend
+mvn -pl scx-boot -am -DskipTests clean package
 ```
 
 #### 5. 安装前端依赖
 
 ```bash
-cd ../boot-fronted
+cd ../scx-fronted
 pnpm install
 ```
 
@@ -161,7 +161,7 @@ pnpm install
 后端核心配置文件位于：
 
 ```text
-boot-backend/smart-converge-x-boot/src/main/resources/application.yml
+scx-backend/scx-boot/src/main/resources/application.yml
 ```
 
 关键配置项：
@@ -183,8 +183,8 @@ boot-backend/smart-converge-x-boot/src/main/resources/application.yml
 #### 启动后端
 
 ```bash
-cd boot-backend
-java -jar smart-converge-x-boot/target/smart-converge-x-boot.jar
+cd scx-backend
+java -jar scx-boot/target/scx-boot.jar
 ```
 
 健康检查：
@@ -196,7 +196,7 @@ curl http://localhost:9999/actuator/health
 #### 启动前端
 
 ```bash
-cd boot-fronted
+cd scx-fronted
 pnpm dev
 ```
 
@@ -225,7 +225,7 @@ pnpm dev
 
 | 接口类型 | 说明 | 入口 |
 | --- | --- | --- |
-| 管理接口 | 供后台管理 Web 调用，覆盖投放、财务、审核、系统管理。 | `boot-backend` 各模块 Controller |
+| 管理接口 | 供后台管理 Web 调用，覆盖投放、财务、审核、系统管理。 | `scx-backend` 各模块 Controller |
 | 事件接入接口 | 供媒体和广告主回传展示、点击、转化事件。 | `POST /v1/events`（规划中） |
 
 ### 接口认证
@@ -273,11 +273,11 @@ docs/广告平台设计/
 
 ```bash
 # 后端
-cd boot-backend
-mvn -pl smart-converge-x-boot -am clean compile
+cd scx-backend
+mvn -pl scx-boot -am clean compile
 
 # 前端
-cd boot-fronted
+cd scx-fronted
 pnpm lint
 pnpm typecheck
 ```

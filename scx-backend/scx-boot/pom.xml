@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2025 江苏瑶知云科技有限公司
+  All rights reserved.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>scx</artifactId>
+        <groupId>com.scx</groupId>
+        <version>2.1.2</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <description>单体版本启动模块</description>
+    <packaging>jar</packaging>
+
+    <artifactId>scx-boot</artifactId>
+
+    <dependencies>
+        <!--        认证中心-->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-auth</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--                用户权限管理-->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-system-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-pay-biz</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--        代码生成-->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-generator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-undertow</artifactId>
+        </dependency>
+        <!--            安全模块-->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-swagger</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-websocket</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

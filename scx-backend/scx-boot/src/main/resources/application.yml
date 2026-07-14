@@ -1,0 +1,118 @@
+server:
+  port: 9999
+  servlet:
+    context-path: /boot
+
+spring:
+  application:
+    name: scx-boot
+  profiles:
+    active: dev
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        enabled: false
+  main:
+    allow-bean-definition-overriding: true
+
+sa-token:
+  token-name: satoken
+  timeout: 2592000
+  active-timeout: -1
+  is-read-cookie: false
+  token-style: uuid
+  is-log: false
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/*Mapper.xml
+  type-handlers-package: com.yzytech.scx.common.myabtis.handler
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      where-strategy: not_empty
+      insert-strategy: not_empty
+      update-strategy: not_null
+  configuration:
+    jdbc-type-for-null: 'null'
+    call-setters-on-nulls: true
+    shrink-whitespaces-in-sql: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: smart-converge-x
+      paths-to-match: '/**'
+      packages-to-scan: com.yzytech.scx
+
+logging:
+  level:
+    com.yzytech.scx.system.mapper: DEBUG
+    com.yzytech.scx.generator.mapper: DEBUG
+
+dubbo:
+  scan:
+    base-packages: com.yzytech.scx
+  application:
+    name: scx-boot
+    serialize-check-status: WARN
+  protocol:
+    name: injvm
+    port: -1
+  registry:
+    address: N/A
+
+secure:
+  ignore:
+    urls:
+      - /swagger-resources/**
+      - /webjars/**
+      - /v3/api-docs/**
+      - /swagger-ui.html/**
+      - /doc.html/**
+      - /error/**
+      - /favicon.ico/**
+      - /swagger-ui/**
+      - /actuator/**
+      - /token/**
+      - /code/**
+      - /file/local/**
+      - /ws/**
+
+boot:
+  swagger:
+    enabled: true
+    title: Smart Converge X API
+    description: Smart Converge X API Document
+    version: v1.0.0
+    license: MIT
+
+api:
+  sign:
+    enabled: false
+    secret: change-me-before-production
+    expire-ms: 60000
+    clock-skew-ms: 180000
+    replay-protection: true
+    exclude-patterns:
+      - /swagger-resources/**
+      - /webjars/**
+      - /v3/api-docs/**
+      - /swagger-ui.html/**
+      - /doc.html/**
+      - /error/**
+      - /favicon.ico/**
+      - /swagger-ui/**
+      - /actuator/**
+      - /token/**
+      - /code/**
+      - /file/local/**
+
+gen:
+  packageName: com.example.boot
+  autoRemovePre: false

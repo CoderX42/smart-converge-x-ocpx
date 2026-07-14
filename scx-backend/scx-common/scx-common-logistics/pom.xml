@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2025 江苏瑶知云科技有限公司
+  All rights reserved.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>scx-common</artifactId>
+        <groupId>com.scx</groupId>
+        <version>2.1.2</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>scx-common-logistics</artifactId>
+    <packaging>jar</packaging>
+
+    <description>物流模块</description>
+
+    <dependencies>
+        <!--common-->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.kuaidi100-api</groupId>
+            <artifactId>sdk</artifactId>
+        </dependency>
+    </dependencies>
+</project>
