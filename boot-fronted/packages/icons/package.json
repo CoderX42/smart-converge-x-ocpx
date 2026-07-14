@@ -1,0 +1,22 @@
+{
+  "name": "@boot/icons",
+   "version": "2.1.3",
+  "homepage": "https://example.com/repository",
+  "bugs": "https://example.com/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/repository.git",
+    "directory": "packages/icons"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@boot-core/icons": "workspace:*"
+  }
+}

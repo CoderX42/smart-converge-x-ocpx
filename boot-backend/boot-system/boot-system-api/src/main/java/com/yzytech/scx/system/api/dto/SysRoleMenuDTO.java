@@ -1,0 +1,24 @@
+
+
+package com.yzytech.scx.system.api.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.List;
+
+/**
+ */
+@Data
+public class SysRoleMenuDTO implements Serializable {
+
+	@Serial
+	private static final long serialVersionUID = 1L;
+
+	@Schema(description = "角色ID")
+	private String roleId;
+
+	@Schema(description = "菜单权限集合")
+	private List<String> menuIds;}

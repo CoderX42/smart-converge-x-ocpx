@@ -1,0 +1,4 @@
+com.yzytech.scx.common.storage.handler.impl.S3UploadFileHandler
+com.yzytech.scx.common.storage.handler.impl.LocalUploadFileHandler
+com.yzytech.scx.common.storage.handler.StorageFactory
+

@@ -1,0 +1,60 @@
+
+
+package com.yzytech.scx.common.security.entity;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+public class BootUser implements Serializable {
+
+	private static final long serialVersionUID = 1L;
+
+	@Schema(description = "用户id")
+	private String userId;
+
+	@Schema(description = "用户名")
+	private String username;
+
+	@Schema(description = "密码")
+	private String password;
+
+	@Schema(description = "邮箱")
+	private String email;
+
+	@Schema(description = "用户昵称")
+	private String nickname;
+
+	@Schema(description = "头像")
+	private String avatar;
+
+	@Schema(description = "部门ID")
+	private String deptId;
+
+	@Schema(description = "手机号")
+	private String phone;
+
+	@Schema(description = "状态：0.正常；1.停用；")
+	private String status;
+
+	@Schema(description = "openId")
+	private String openId;
+
+	@Schema(description = "账号类型：0.系统主账户（管理全部店铺）；1.店铺账号（关联店铺）")
+	private String type;
+
+	@Schema(description = "店铺ID")
+	private String shopId;
+
+	/** 权限标识 */
+	private List<String> permissions;
+
+	/** 角色 */
+	private List<String> roles;
+
+}

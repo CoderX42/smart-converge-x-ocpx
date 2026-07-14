@@ -1,0 +1,3 @@
+com.yzytech.scx.common.websocket.config.WebSocketHandlerConfig
+com.yzytech.scx.common.websocket.config.WebSocketAutoConfiguration
+

@@ -1,0 +1,52 @@
+{
+  "name": "@boot-core/form-ui",
+  "version": "2.1.3",
+  "homepage": "https://example.com/repository",
+  "bugs": "https://example.com/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/repository.git",
+    "directory": "packages/@boot-core/uikit/form-ui"
+  },
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm unbuild",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "dependencies": {
+    "@boot-core/composables": "workspace:*",
+    "@boot-core/icons": "workspace:*",
+    "@boot-core/shadcn-ui": "workspace:*",
+    "@boot-core/shared": "workspace:*",
+    "@boot-core/typings": "workspace:*",
+    "@vee-validate/zod": "catalog:",
+    "@vueuse/core": "catalog:",
+    "vee-validate": "catalog:",
+    "vue": "^3.5.39",
+    "zod": "catalog:",
+    "zod-defaults": "catalog:"
+  }
+}

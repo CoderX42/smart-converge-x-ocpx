@@ -1,0 +1,19 @@
+
+
+package com.yzytech.scx.common.seata.config;
+
+import com.yzytech.scx.common.core.factory.YamlPropertySourceFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
+
+/**
+ * @description
+ * @date 2024/11/25
+ */
+@Configuration(proxyBeanMethods = false)
+@PropertySource(value = "classpath:seata-config.yml", factory = YamlPropertySourceFactory.class)
+@ConditionalOnProperty(prefix = "boot", value = "cloud.enable", matchIfMissing = true)
+public class BootSeataConfiguration {
+
+}

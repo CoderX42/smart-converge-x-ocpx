@@ -1,0 +1,4 @@
+  com.yzytech.scx.common.security.handler.BootGlobalExceptionHandlerResolver
+  com.yzytech.scx.common.security.config.SaTokenConfigure
+  com.yzytech.scx.common.security.service.impl.BootPermissionsImpl
+  com.yzytech.scx.common.security.aspect.BootInnerAopAspect

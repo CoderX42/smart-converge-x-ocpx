@@ -1,0 +1,23 @@
+/**
+ * Copyright (c) 2025 江苏瑶知云科技有限公司
+ * All rights reserved.
+ */
+
+package ${packageName}.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import ${packageName}.api.entity.${ClassName};
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+/**
+ *  ${functionName}
+ *
+ * @date  ${datetime}
+ */
+@Mapper
+public interface ${ClassName}Mapper extends BaseMapper<${ClassName}> {
+
+}

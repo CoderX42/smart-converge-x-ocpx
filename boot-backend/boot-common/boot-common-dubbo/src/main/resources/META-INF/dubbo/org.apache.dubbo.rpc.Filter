@@ -1,0 +1,1 @@
+bootDubboRequestFilter=com.yzytech.scx.common.dubbo.filter.BootDubboRequestFilter

@@ -1,0 +1,2 @@
+com.yzytech.scx.common.myabtis.config.MybatisPlusConfig
+com.yzytech.scx.common.myabtis.config.BootWebMvcConfigurer

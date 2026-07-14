@@ -1,0 +1,33 @@
+{
+  "name": "@boot/commitlint-config",
+  "version": "2.1.3",
+  "private": true,
+  "homepage": "https://example.com/repository",
+  "bugs": "https://example.com/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/repository.git",
+    "directory": "internal/lint-configs/commitlint-config"
+  },
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./index.mjs",
+  "module": "./index.mjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "default": "./index.mjs"
+    }
+  },
+  "dependencies": {
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
+    "@boot/node-utils": "workspace:*",
+    "commitlint-plugin-function-rules": "catalog:",
+    "cz-git": "catalog:",
+    "czg": "catalog:"
+  }
+}

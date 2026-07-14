@@ -1,0 +1,15 @@
+services:
+  boot-fronted:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: boot-fronted
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - boot-net
+
+networks:
+  boot-net:
+    external: true

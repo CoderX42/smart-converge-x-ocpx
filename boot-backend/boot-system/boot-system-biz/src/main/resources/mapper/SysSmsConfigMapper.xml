@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Copyright (c) 2025 江苏瑶知云科技有限公司
+  All rights reserved.
+-->
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.system.mapper.SysSmsConfigMapper">
+
+    <sql id="base_columns">
+        sys_sms_config.id,
+               sys_sms_config.supplier,
+               sys_sms_config.access_key_id,
+               sys_sms_config.access_key_secret,
+               sys_sms_config.signature,
+               sys_sms_config.extra_params,
+               sys_sms_config.template_id,
+               sys_sms_config.`name`,
+               sys_sms_config.sms_code,
+               sys_sms_config.del_flag,
+               sys_sms_config.create_time,
+               sys_sms_config.update_time,
+               sys_sms_config.`status`,
+               sys_sms_config.create_by,
+               sys_sms_config.update_by
+    </sql>
+
+    <select id="getSmsConfigByCode" resultType="com.yzytech.scx.system.api.vo.SysSmsConfigVO">
+        SELECT
+            <include refid="base_columns" />
+        FROM sys_sms_config AS sys_sms_config
+        WHERE sys_sms_config.del_flag = '0'
+          AND sys_sms_config.sms_code = #{smsCode}
+          AND sys_sms_config.`status` = '0' LIMIT 1
+    </select>
+    <select id="selectDefaultConfig" resultType="com.yzytech.scx.system.api.vo.SysSmsConfigVO">
+        SELECT
+        <include refid="base_columns"/>
+        FROM sys_sms_config AS sys_sms_config
+        WHERE sys_sms_config.del_flag = '0'
+        AND sys_sms_config.`status` = '0' LIMIT 1
+    </select>
+</mapper>

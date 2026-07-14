@@ -1,0 +1,34 @@
+{
+  "name": "@boot/styles",
+   "version": "2.1.3",
+  "homepage": "https://example.com/repository",
+  "bugs": "https://example.com/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/repository.git",
+    "directory": "packages/styles"
+  },
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./antd": {
+      "default": "./src/antd/index.css"
+    },
+    "./ele": {
+      "default": "./src/ele/index.css"
+    },
+    "./naive": {
+      "default": "./src/naive/index.css"
+    },
+    "./global": {
+      "default": "./src/global/index.scss"
+    }
+  },
+  "dependencies": {
+    "@boot-core/design": "workspace:*"
+  }
+}

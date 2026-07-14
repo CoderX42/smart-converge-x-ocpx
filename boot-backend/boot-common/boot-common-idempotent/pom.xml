@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2025 江苏瑶知云科技有限公司
+  All rights reserved.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.boot</groupId>
+        <artifactId>boot-common</artifactId>
+        <version>2.1.2</version>
+    </parent>
+
+    <artifactId>boot-common-idempotent</artifactId>
+    <description>幂等</description>
+    <dependencies>
+        <!--common-->
+        <dependency>
+            <groupId>com.boot</groupId>
+            <artifactId>boot-common-core</artifactId>
+        </dependency>
+        <!--        aop-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!--redisson-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+        </dependency>
+    </dependencies>
+</project>

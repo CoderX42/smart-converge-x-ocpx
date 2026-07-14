@@ -1,0 +1,27 @@
+{
+  "name": "@boot/utils",
+   "version": "2.1.3",
+  "homepage": "https://example.com/repository",
+  "bugs": "https://example.com/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://example.com/repository.git",
+    "directory": "packages/utils"
+  },
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@boot-core/shared": "workspace:*",
+    "@boot-core/typings": "workspace:*",
+    "vue-router": "catalog:"
+  }
+}

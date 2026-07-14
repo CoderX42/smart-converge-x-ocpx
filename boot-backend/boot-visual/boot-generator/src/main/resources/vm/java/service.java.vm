@@ -1,0 +1,18 @@
+/**
+ * Copyright (c) 2025 江苏瑶知云科技有限公司
+ * All rights reserved.
+ *  
+ */
+
+package ${packageName}.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import ${packageName}.api.entity.${ClassName};
+/**
+ *  ${functionName}
+ *
+ * @date  ${datetime}
+ */
+public interface I${ClassName}Service extends IService<${ClassName}> {
+
+}

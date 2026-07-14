@@ -1,0 +1,152 @@
+{
+  "folders": [
+    {
+      "name": "@boot/web-ele",
+      "path": "apps/web-ele",
+    },
+    {
+      "name": "@boot/commitlint-config",
+      "path": "internal/lint-configs/commitlint-config",
+    },
+    {
+      "name": "@boot/eslint-config",
+      "path": "internal/lint-configs/eslint-config",
+    },
+    {
+      "name": "@boot/prettier-config",
+      "path": "internal/lint-configs/prettier-config",
+    },
+    {
+      "name": "@boot/stylelint-config",
+      "path": "internal/lint-configs/stylelint-config",
+    },
+    {
+      "name": "@boot/node-utils",
+      "path": "internal/node-utils",
+    },
+    {
+      "name": "@boot/tailwind-config",
+      "path": "internal/tailwind-config",
+    },
+    {
+      "name": "@boot/tsconfig",
+      "path": "internal/tsconfig",
+    },
+    {
+      "name": "@boot/vite-config",
+      "path": "internal/vite-config",
+    },
+    {
+      "name": "@boot-core/design",
+      "path": "packages/@core/base/design",
+    },
+    {
+      "name": "@boot-core/icons",
+      "path": "packages/@core/base/icons",
+    },
+    {
+      "name": "@boot-core/shared",
+      "path": "packages/@core/base/shared",
+    },
+    {
+      "name": "@boot-core/typings",
+      "path": "packages/@core/base/typings",
+    },
+    {
+      "name": "@boot-core/composables",
+      "path": "packages/@core/composables",
+    },
+    {
+      "name": "@boot-core/preferences",
+      "path": "packages/@core/preferences",
+    },
+    {
+      "name": "@boot-core/form-ui",
+      "path": "packages/@core/ui-kit/form-ui",
+    },
+    {
+      "name": "@boot-core/layout-ui",
+      "path": "packages/@core/ui-kit/layout-ui",
+    },
+    {
+      "name": "@boot-core/menu-ui",
+      "path": "packages/@core/ui-kit/menu-ui",
+    },
+    {
+      "name": "@boot-core/popup-ui",
+      "path": "packages/@core/ui-kit/popup-ui",
+    },
+    {
+      "name": "@boot-core/shadcn-ui",
+      "path": "packages/@core/ui-kit/shadcn-ui",
+    },
+    {
+      "name": "@boot-core/tabs-ui",
+      "path": "packages/@core/ui-kit/tabs-ui",
+    },
+    {
+      "name": "@boot/constants",
+      "path": "packages/constants",
+    },
+    {
+      "name": "@boot/access",
+      "path": "packages/effects/access",
+    },
+    {
+      "name": "@boot/common-ui",
+      "path": "packages/effects/common-ui",
+    },
+    {
+      "name": "@boot/hooks",
+      "path": "packages/effects/hooks",
+    },
+    {
+      "name": "@boot/layouts",
+      "path": "packages/effects/layouts",
+    },
+    {
+      "name": "@boot/plugins",
+      "path": "packages/effects/plugins",
+    },
+    {
+      "name": "@boot/request",
+      "path": "packages/effects/request",
+    },
+    {
+      "name": "@boot/icons",
+      "path": "packages/icons",
+    },
+    {
+      "name": "@boot/locales",
+      "path": "packages/locales",
+    },
+    {
+      "name": "@boot/preferences",
+      "path": "packages/preferences",
+    },
+    {
+      "name": "@boot/stores",
+      "path": "packages/stores",
+    },
+    {
+      "name": "@boot/styles",
+      "path": "packages/styles",
+    },
+    {
+      "name": "@boot/types",
+      "path": "packages/types",
+    },
+    {
+      "name": "@boot/utils",
+      "path": "packages/utils",
+    },
+    {
+      "name": "@boot/turbo-run",
+      "path": "scripts/turbo-run",
+    },
+    {
+      "name": "@boot/vsh",
+      "path": "scripts/vsh",
+    },
+  ],
+}

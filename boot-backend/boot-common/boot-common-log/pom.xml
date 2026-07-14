@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2025 江苏瑶知云科技有限公司
+  All rights reserved.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>boot-common</artifactId>
+        <groupId>com.boot</groupId>
+        <version>2.1.2</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>jar</packaging>
+    <artifactId>boot-common-log</artifactId>
+    <description>日志模块</description>
+    <dependencies>
+        <!--common-->
+        <dependency>
+            <groupId>com.boot</groupId>
+            <artifactId>boot-common-core</artifactId>
+        </dependency>
+        <!--安全工具类模块-->
+        <dependency>
+            <groupId>com.boot</groupId>
+            <artifactId>boot-common-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.boot</groupId>
+            <artifactId>boot-common-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.boot</groupId>
+            <artifactId>boot-system-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.dubbo</groupId>
+            <artifactId>dubbo-spring-boot-starter</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>
