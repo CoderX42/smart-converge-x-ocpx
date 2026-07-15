@@ -8,7 +8,7 @@ spring:
   data:
     redis:
       host: 127.0.0.1
-      password:
+      password: CHANGE_ME
       port: 6379
       database: 0
 
@@ -18,9 +18,9 @@ spring:
       primary: master   # 指定默认数据源
       datasource:
         master:         # 注意，这里要嵌套在 datasource 下
-          url: jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+          url: jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
           username: root
-          password:
+          password: CHANGE_ME
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
@@ -36,15 +36,15 @@ aj:
     cache-type: redis
     water-mark: boot
 
-encode:
-  key: VyBcekSelErhMYN4
-
 xxl:
   job:
-    adminAddresses: http://localhost:8080
-    accessToken: yssadadasdasdasda
+    adminAddresses: http://127.0.0.1:8080
+    accessToken: CHANGE_ME
 
-cert-dir: /root/cert
+cert-dir: ./cert
+
+encode:
+  key: yzytech2026yzytech
 
 #knife4j配置
 knife4j:

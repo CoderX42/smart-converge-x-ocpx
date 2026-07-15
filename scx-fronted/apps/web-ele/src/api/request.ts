@@ -17,7 +17,6 @@ import { useAccessStore } from '@boot/stores';
 import { ElMessage } from 'element-plus';
 
 import { useAuthStore } from '#/store';
-import { createSign, isApiSignEnabled } from '#/utils/apiSign';
 
 import { refreshTokenApi } from './core';
 
@@ -78,15 +77,6 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       if (JSON.parse(import.meta.env.VITE_OPEN_BOOT)) {
         config.url =
           config.url = `/boot/${config.url?.split('/').splice(2).join('/')}`;
-      }
-
-      if (isApiSignEnabled()) {
-        const signObj = createSign();
-        if (signObj) {
-          config.headers['X-Timestamp'] = signObj.timestamp;
-          config.headers['X-Nonce'] = signObj.nonce;
-          config.headers['X-Sign'] = signObj.sign;
-        }
       }
 
       return config;

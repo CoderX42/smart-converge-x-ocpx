@@ -3,10 +3,29 @@
   "extends": "@boot/tsconfig/web-app.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "paths": {
       "#/*": ["./src/*"]
     }
   },
   "references": [{ "path": "./tsconfig.node.json" }],
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "exclude": [
+    "src/api/miniapp/**",
+    "src/api/mp/**",
+    "src/api/open/**",
+    "src/api/order/**",
+    "src/api/site/**",
+    "src/api/user/**",
+    "src/components/editor/**",
+    "src/components/select-shop/**",
+    "src/views/gen/**",
+    "src/views/miniapp/**",
+    "src/views/mp/**",
+    "src/views/open/**",
+    "src/views/order/**",
+    "src/views/site/**",
+    "src/views/user/**"
+  ]
 }

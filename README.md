@@ -91,7 +91,8 @@ smart-converge-x/
 │   ├── scx-auth/                # 认证授权模块
 │   ├── scx-system/              # 系统管理模块（用户、角色、菜单、部门、字典、日志）
 │   ├── scx-common/              # 公共依赖与工具
-│   ├── scx-boot/    # 广告平台业务启动入口
+│   ├── scx-subject/             # 广告主体与对象级授权（首个业务纵切片）
+│   ├── scx-boot/                # 广告平台业务启动入口
 │   └── db/smart-converge-x/      # 数据库初始化脚本
 ├── scx-fronted/                 # 后台管理 Web（Vue 3 / TypeScript）
 │   ├── apps/                     # 应用入口
@@ -100,8 +101,8 @@ smart-converge-x/
 ├── docs/                         # 项目文档
 │   ├── README.md                 # 文档中心入口
 │   └── 广告平台设计/              # 研发设计文档、ADR、契约、数据字典
-├── contracts/                    # OpenAPI / AsyncAPI / JSON Schema 契约（规划中）
-├── docker/                       # Docker Compose 与部署配置（规划中）
+├── .github/workflows/            # CI 质量门
+├── scripts/                      # 契约与本地验证脚本
 └── README.md                     # 本文件
 ```
 
@@ -121,39 +122,28 @@ smart-converge-x/
 
 ### 安装步骤
 
-#### 1. 克隆仓库
+#### 1. 准备本地变量与依赖服务
 
 ```bash
-git clone ssh://git@117.72.57.4:2222/SmartConvergeX/smart-converge-x.git
-cd smart-converge-x
+make dev-up
 ```
 
-#### 2. 启动基础依赖
+Compose 会启动 MySQL、Redis、RocketMQ、MinIO 和回调 mock。后端本地连接参数直接维护在 `scx-backend/scx-boot/src/main/resources/application-dev.yml`；数据库基础表由容器初始化，业务迁移在后端启动时由 Flyway 执行。
+
+#### 2. 编译并启动后端
 
 ```bash
-cd docker
-docker-compose up -d mysql redis rocketmq
-```
-
-#### 3. 初始化数据库
-
-```bash
-cd ../scx-backend/db/smart-converge-x
-mysql -h 127.0.0.1 -u root -p < init.sql
-```
-
-#### 4. 编译后端
-
-```bash
+make backend-build
 cd scx-backend
-mvn -pl scx-boot -am -DskipTests clean package
+java -jar scx-boot/target/scx-boot.jar
 ```
 
-#### 5. 安装前端依赖
+#### 3. 安装并启动前端
 
 ```bash
-cd ../scx-fronted
+cd scx-fronted
 pnpm install
+pnpm dev:ele
 ```
 
 ### 配置说明
@@ -171,10 +161,10 @@ scx-backend/scx-boot/src/main/resources/application.yml
 | `server.port` | 后端服务端口 | `9999` |
 | `spring.datasource.url` | MySQL 连接地址 | `jdbc:mysql://localhost:3306/smart_converge_x` |
 | `spring.datasource.username` | MySQL 用户名 | `root` |
-| `spring.datasource.password` | MySQL 密码 | 空 |
-| `spring.data.redis.host` | Redis 地址 | `localhost` |
+| `spring.datasource.password` | MySQL 密码 | `scx_local_only`（开发环境） |
+| `spring.data.redis.host` | Redis 地址 | `127.0.0.1` |
 | `spring.data.redis.port` | Redis 端口 | `6379` |
-| `rocketmq.name-server` | RocketMQ NameServer | `localhost:9876` |
+| `rocketmq.name-server` | RocketMQ NameServer | `127.0.0.1:9876` |
 
 生产环境请勿将密码、密钥、证书直接写入仓库，应通过环境变量或配置中心注入。
 
@@ -190,14 +180,14 @@ java -jar scx-boot/target/scx-boot.jar
 健康检查：
 
 ```bash
-curl http://localhost:9999/actuator/health
+curl http://localhost:9999/boot/actuator/health
 ```
 
 #### 启动前端
 
 ```bash
 cd scx-fronted
-pnpm dev
+pnpm dev:ele
 ```
 
 默认访问地址：`http://localhost:3000`
@@ -206,14 +196,11 @@ pnpm dev
 
 ## 使用示例
 
-### 创建首个广告主账户
+### 已交付的首个业务切片
 
-1. 登录后台管理 Web（默认管理员账号见初始化脚本）。
-2. 进入【系统管理 / 用户管理】创建平台运营账号。
-3. 进入【广告主管理】创建广告主主体。
-4. 进入【财务中心 / 资金账户】为广告主充值。
-5. 进入【投放管理 / 活动】创建活动 → 计划 → 广告 → 创意。
-6. 提交创意审核，审核通过后到达排期自动开始投放。
+1. 使用初始化脚本中的管理员登录后台。
+2. 进入【广告主体 / 主体列表】查看主体。
+3. 服务端会同时校验菜单权限与 `scx_user_subject_scope` 对象授权；非管理员只会得到已授权主体，详情接口对未授权对象返回统一失败结果。
 
 > 详细操作步骤与接口样例见 [docs/广告平台设计/20-从零到一开发实施手册.md](docs/广告平台设计/20-从零到一开发实施手册.md)。
 
@@ -225,20 +212,20 @@ pnpm dev
 
 | 接口类型 | 说明 | 入口 |
 | --- | --- | --- |
-| 管理接口 | 供后台管理 Web 调用，覆盖投放、财务、审核、系统管理。 | `scx-backend` 各模块 Controller |
+| 管理接口 | 供后台管理 Web 调用；当前已提供系统管理和广告主体只读能力。 | `scx-backend` 各模块 Controller |
 | 事件接入接口 | 供媒体和广告主回传展示、点击、转化事件。 | `POST /v1/events`（规划中） |
 
 ### 接口认证
 
-- 管理接口：JWT / OAuth2 认证。
-- 机器接口：使用 `X-App-Id`、`X-Timestamp`、`X-Nonce`、`X-Signature` 进行 HMAC-SHA256 签名。
+- 管理接口：Sa-Token 会话认证与服务端权限校验。
+- 机器接口：尚未交付；API Key 和服务器到服务器的签名在 M1-05 实现，禁止将任何签名密钥交给浏览器。
 
 ### 接口文档
 
 启动后端后，Swagger 文档地址：
 
 ```text
-http://localhost:9999/swagger-ui/index.html
+http://localhost:9999/boot/swagger-ui/index.html
 ```
 
 完整 OpenAPI 契约草案见 [docs/广告平台设计/contracts/](docs/广告平台设计/contracts/)。
@@ -279,7 +266,7 @@ mvn -pl scx-boot -am clean compile
 # 前端
 cd scx-fronted
 pnpm lint
-pnpm typecheck
+pnpm check:type
 ```
 
 5. 架构或产品重大变更需先提交 ADR 或 RFC，经评审后落地。

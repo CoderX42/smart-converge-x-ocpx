@@ -15,7 +15,16 @@ import { $t } from '#/locales';
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 async function generateAccess(options: GenerateMenuAndRoutesOptions) {
-  const pageMap: ComponentRecordType = import.meta.glob('../views/**/*.vue');
+  // SCX only exposes pages that belong to the active platform boundary. Legacy
+  // commerce, mini-app and website pages remain in the repository for staged
+  // migration but cannot be resolved into runtime routes.
+  const pageMap: ComponentRecordType = import.meta.glob([
+    '../views/_core/**/*.vue',
+    '../views/dashboard/**/*.vue',
+    '../views/pay/**/*.vue',
+    '../views/subject/**/*.vue',
+    '../views/system/**/*.vue',
+  ]);
 
   const layoutMap: ComponentRecordType = {
     BasicLayout,

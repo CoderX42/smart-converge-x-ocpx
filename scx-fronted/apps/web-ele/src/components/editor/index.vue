@@ -71,7 +71,7 @@ const imgDialogRef = ref();
 const state = reactive({
   editorConfig: {
     placeholder: props.placeholder,
-    MENU_CONF: [],
+    MENU_CONF: {} as Record<string, any>,
   },
   editorVal: props.getHtml,
 });

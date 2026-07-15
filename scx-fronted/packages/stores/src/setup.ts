@@ -23,7 +23,9 @@ export async function initStores(app: App, options: InitStoreOptions) {
   const { namespace } = options;
   const ls = new SecureLS({
     encodingType: 'aes',
-    encryptionSecret: import.meta.env.VITE_APP_STORE_SECURE_KEY,
+    // Vite variables are shipped to the browser and cannot be cryptographic
+    // secrets. SecureLS still namespaces/serializes persisted UI state; server
+    // authentication and authorization remain the security boundary.
     isCompression: true,
     // @ts-ignore secure-ls does not have a type definition for this
     metaKey: `${namespace}-secure-meta`,

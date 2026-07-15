@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.subject.mapper.MediaMapper">
+    <sql id="mediaColumns">m.id, m.code, m.name, m.status, m.timezone, m.settlement_currency, m.create_time, m.update_time</sql>
+
+    <select id="findAuthorized" resultType="com.yzytech.scx.subject.entity.Media">
+        SELECT <include refid="mediaColumns" />
+        FROM scx_media m
+        INNER JOIN scx_user_subject_scope scope
+          ON scope.subject_id = m.id AND scope.subject_type = 'MEDIA' AND scope.user_id = #{userId}
+        WHERE m.status = 'ACTIVE'
+        ORDER BY m.name ASC
+    </select>
+
+    <select id="findAuthorizedById" resultType="com.yzytech.scx.subject.entity.Media">
+        SELECT <include refid="mediaColumns" />
+        FROM scx_media m
+        INNER JOIN scx_user_subject_scope scope
+          ON scope.subject_id = m.id AND scope.subject_type = 'MEDIA' AND scope.user_id = #{userId}
+        WHERE m.id = #{mediaId} AND m.status = 'ACTIVE'
+    </select>
+</mapper>

@@ -66,6 +66,11 @@ const initPage = async () => {
       loading.value = false;
     });
 };
+
+const resetQuery = () => {
+	queryRef.value?.resetFields();
+	initPage();
+};
 initPage();
 /**
  * 新增按钮

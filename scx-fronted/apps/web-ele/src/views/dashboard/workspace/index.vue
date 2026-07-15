@@ -7,10 +7,9 @@ import { Page, WorkbenchQuickNav } from '@boot/common-ui';
 
 const router = useRouter();
 const quickNavItems: WorkbenchQuickNavItem[] = [
-  { color: '#1fdaca', icon: 'ion:home-outline', title: '控制台', url: '/analytics' },
-  { color: '#3fb27f', icon: 'ion:md-reorder', title: '订单中心', url: '/order/order-info' },
-  { color: '#00d8ff', icon: 'ion:color-palette-outline', title: '官网装修', url: '/site/page-design' },
-  { color: '#e18525', icon: 'ion:people-outline', title: '会员中心', url: '/user/user-info' },
+  { color: '#1fdaca', icon: 'ion:home-outline', title: 'SCX 看板', url: '/dashboard/analytics' },
+  { color: '#3fb27f', icon: 'carbon:building', title: '广告主体', url: '/subjects/advertisers' },
+  { color: '#00d8ff', icon: 'carbon:network-4', title: '媒体主体', url: '/subjects/media' },
 ];
 
 function navTo(nav: WorkbenchQuickNavItem) {
@@ -21,7 +20,7 @@ function navTo(nav: WorkbenchQuickNavItem) {
 </script>
 
 <template>
-  <Page title="工作台" description="通用 通用项目基座快捷入口">
-    <WorkbenchQuickNav :items="quickNavItems" @click="navTo" />
+  <Page title="工作台" description="Smart Converge X 快捷入口">
+    <WorkbenchQuickNav title="常用入口" :items="quickNavItems" @click="navTo" />
   </Page>
 </template>

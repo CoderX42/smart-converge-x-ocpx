@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.subject.mapper.AdvertiserMapper">
+    <sql id="advertiserColumns">a.id, a.code, a.name, a.status, a.timezone, a.currency, a.create_time, a.update_time</sql>
+
+    <select id="findAuthorized" resultType="com.yzytech.scx.subject.entity.Advertiser">
+        SELECT <include refid="advertiserColumns" />
+        FROM scx_advertiser a
+        INNER JOIN scx_user_subject_scope scope
+          ON scope.subject_id = a.id AND scope.subject_type = 'ADVERTISER' AND scope.user_id = #{userId}
+        WHERE a.status = 'ACTIVE'
+        ORDER BY a.name ASC
+    </select>
+
+    <select id="findAuthorizedById" resultType="com.yzytech.scx.subject.entity.Advertiser">
+        SELECT <include refid="advertiserColumns" />
+        FROM scx_advertiser a
+        INNER JOIN scx_user_subject_scope scope
+          ON scope.subject_id = a.id AND scope.subject_type = 'ADVERTISER' AND scope.user_id = #{userId}
+        WHERE a.id = #{advertiserId} AND a.status = 'ACTIVE'
+    </select>
+</mapper>

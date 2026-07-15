@@ -42,7 +42,7 @@ export const arrEquals = (arr1: any, arr2: any) => {
  */
 export const descartes = (array: any) => {
   if (array.length < 2) return array[0] || [];
-  return Array.prototype.reduce.call(array, (col: any, set: any) => {
+  return array.reduce((col: any, set: any) => {
     const res: any = [];
     col.forEach((c: any) => {
       set.forEach((s: any) => {
@@ -89,7 +89,7 @@ export function deepMerge<
 >(target: T, source: S, options: { skipEmpty?: boolean } = {}): S & T {
   const { skipEmpty = true } = options;
 
-  if (!source || typeof source !== 'object') return target;
+  if (!source || typeof source !== 'object') return target as S & T;
 
   for (const key in source) {
     const val = source[key];
@@ -104,7 +104,7 @@ export function deepMerge<
       if (!target[key] || typeof target[key] !== 'object') {
         target[key] = {} as any;
       }
-      deepMerge(target[key], val, options);
+      deepMerge(target[key] as Record<string, any>, val as Record<string, any>, options);
     } else {
       target[key] = val as any;
     }
@@ -118,10 +118,11 @@ export function downloadBlobFile(url: string, query: any, fileName: string) {
     .download(url, { params: query, responseReturn: 'raw' })
     .then((response) => {
       // 如果 data 不是 Blob，则转换为 Blob
+      const payload = response as unknown as { data: Blob | unknown };
       const blob =
-        response.data instanceof Blob
-          ? response.data
-          : new Blob([response.data], { type: 'application/octet-stream' });
+        payload.data instanceof Blob
+          ? payload.data
+          : new Blob([payload.data as BlobPart], { type: 'application/octet-stream' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

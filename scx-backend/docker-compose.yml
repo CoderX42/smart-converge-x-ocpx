@@ -4,7 +4,7 @@ services:
     container_name: smart-converge-x-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: scx_local_only
       MYSQL_DATABASE: smart_converge_x
       TZ: Asia/Shanghai
     ports:
@@ -22,7 +22,7 @@ services:
     networks:
       - smart-converge-x-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p123456"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -35,11 +35,13 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --requirepass redis
+    command: redis-server --appendonly yes --requirepass scx_local_only
     networks:
       - smart-converge-x-net
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "redis", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDISCLI_AUTH\" ping"]
+    environment:
+      REDISCLI_AUTH: scx_local_only
       interval: 10s
       timeout: 5s
       retries: 5
@@ -72,32 +74,30 @@ services:
     depends_on:
       - smart-converge-x-rocketmq-namesrv
 
-  scx-boot:
-    build:
-      context: ./scx-boot
-      dockerfile: Dockerfile
-    pull_policy: never
-    container_name: scx-boot
-    restart: always
-    ports:
-      - "9999:9999"
+  smart-converge-x-minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: smart-converge-x-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
     environment:
-      SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_URL: jdbc:mysql://smart-converge-x-mysql:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_USERNAME: root
-      SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_PASSWORD: 123456
-      SPRING_DATA_REDIS_HOST: smart-converge-x-redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: redis
-      ROCKETMQ_NAME_SERVER: smart-converge-x-rocketmq-namesrv:9876
+      MINIO_ROOT_USER: scx-local
+      MINIO_ROOT_PASSWORD: scx-local-only-change-me
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
     networks:
       - smart-converge-x-net
-    depends_on:
-      smart-converge-x-mysql:
-        condition: service_healthy
-      smart-converge-x-redis:
-        condition: service_healthy
-      smart-converge-x-rocketmq-broker:
-        condition: service_started
+
+  smart-converge-x-callback-mock:
+    image: wiremock/wiremock:3.13.1
+    container_name: smart-converge-x-callback-mock
+    restart: unless-stopped
+    ports:
+      - "8089:8080"
+    networks:
+      - smart-converge-x-net
 
 networks:
   smart-converge-x-net:
@@ -107,3 +107,4 @@ networks:
 volumes:
   mysql-data:
   redis-data:
+  minio-data:

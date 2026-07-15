@@ -1,0 +1,11 @@
+title = "Smart Converge X secret scan configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local-only examples and documentation placeholders"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''docs/广告平台设计/runbooks/credential-rotation\.md$'''
+]

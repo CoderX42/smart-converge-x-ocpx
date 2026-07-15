@@ -77,7 +77,7 @@ initPage();
       :model="state.queryParams"
       ref="queryRef"
       :inline="true"
-      v-show="state.showSearch"
+      v-show="showSearch"
     >
       <ElFormItem label="操作地址" prop="ipAddr">
         <ElInput v-model="state.queryParams.ipAddr" clearable />

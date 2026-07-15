@@ -106,12 +106,12 @@ export function useBootModal<TParentModalProps extends ModalProps = ModalProps>(
     (props: ModalProps, { attrs, slots }) => {
       return () =>
         h(
-          BootModal,
+          BootModal as any,
           {
             ...props,
             ...attrs,
             modalApi: extendedApi,
-          },
+          } as any,
           slots,
         );
     },

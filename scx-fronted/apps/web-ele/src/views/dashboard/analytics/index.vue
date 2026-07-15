@@ -4,15 +4,15 @@ import { Page } from '@boot/common-ui';
 import { ElCard, ElCol, ElRow, ElStatistic } from 'element-plus';
 
 const stats = [
-  { title: '用户数', value: 0 },
-  { title: '会员数', value: 0 },
-  { title: '通用订单', value: 0 },
-  { title: '开放应用', value: 0 },
+  { title: '广告主体', value: 0 },
+  { title: '投放计划', value: 0 },
+  { title: '归因事件', value: 0 },
+  { title: '待对账金额', value: 0 },
 ];
 </script>
 
 <template>
-  <Page title="系统数据看板" description="通用项目基座的数据总览占位，可接入用户、会员、订单、支付、开放平台指标。">
+  <Page title="SCX 工作台" description="广告平台基础看板；指标将在事件、归因与账本能力上线后逐步接入。">
     <ElRow :gutter="16">
       <ElCol v-for="item in stats" :key="item.title" :xs="24" :sm="12" :lg="6">
         <ElCard class="mb-4">
@@ -21,9 +21,9 @@ const stats = [
       </ElCol>
     </ElRow>
     <ElCard>
-      <div class="text-base font-medium">后续看板接入建议</div>
+      <div class="text-base font-medium">当前实施边界</div>
       <div class="mt-3 text-sm text-gray-500">
-        可接入用户增长、会员活跃、订单转化、支付成功率、开放 API 调用量等通用指标。
+        M1 已提供广告主体对象授权。计划、素材、事件、归因、账本与报表将在后续纵切片中接入。
       </div>
     </ElCard>
   </Page>

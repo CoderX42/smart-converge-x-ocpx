@@ -11,6 +11,7 @@
         <module>scx-common</module>
         <module>scx-system</module>
         <module>scx-pay</module>
+        <module>scx-subject</module>
         <module>scx-visual</module>
         <module>scx-boot</module>
     </modules>

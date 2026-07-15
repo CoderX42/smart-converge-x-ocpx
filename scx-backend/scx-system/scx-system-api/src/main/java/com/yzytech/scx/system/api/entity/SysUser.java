@@ -4,6 +4,7 @@ package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 import com.baomidou.mybatisplus.extension.activerecord.Model;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.yzytech.scx.common.core.annotation.Desensitization;
 import com.yzytech.scx.common.core.desensitization.MobilePhoneDesensitization;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -35,6 +36,7 @@ public class SysUser extends Model<SysUser> {
 	private String username;
 
 	@Schema(description = "密码")
+	@JsonIgnore
 	private String password;
 
 	@Schema(description = "邮箱")

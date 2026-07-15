@@ -8,6 +8,11 @@ spring:
     name: scx-boot
   profiles:
     active: dev
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
   cloud:
     nacos:
       config:
@@ -55,6 +60,16 @@ logging:
     com.yzytech.scx.system.mapper: DEBUG
     com.yzytech.scx.generator.mapper: DEBUG
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 dubbo:
   scan:
     base-packages: com.yzytech.scx
@@ -95,7 +110,7 @@ boot:
 api:
   sign:
     enabled: false
-    secret: change-me-before-production
+    secret: ''
     expire-ms: 60000
     clock-skew-ms: 180000
     replay-protection: true

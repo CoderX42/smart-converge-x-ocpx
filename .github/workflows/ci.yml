@@ -1,0 +1,48 @@
+name: SCX CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Compile and test backend
+        run: cd scx-backend && mvn -pl scx-boot -am test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: scx-fronted/pnpm-lock.yaml
+      - name: Install dependencies
+        run: cd scx-fronted && pnpm install --frozen-lockfile
+      - name: Typecheck, test and build
+        run: cd scx-fronted && pnpm check:type && pnpm test:unit && pnpm build:ele
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate contracts
+        run: bash ./scripts/check-contracts.sh
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@v2

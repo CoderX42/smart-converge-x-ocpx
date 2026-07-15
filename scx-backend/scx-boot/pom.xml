@@ -36,6 +36,11 @@
             <artifactId>scx-pay-biz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-subject</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--        代码生成-->
         <dependency>
             <groupId>com.scx</groupId>
@@ -45,6 +50,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-undertow</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
         </dependency>
         <!--            安全模块-->
         <dependency>

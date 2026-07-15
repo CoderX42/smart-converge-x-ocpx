@@ -1,4 +1,8 @@
 spring:
+  # 当前开发库由人工执行 SQL 迁移；该账号没有 performance_schema
+  # user_variables_by_thread 的查询权限，不能在启动时运行 Flyway。
+  flyway:
+    enabled: false
   servlet:
     multipart:
       maxFileSize: 100MB
@@ -36,15 +40,15 @@ aj:
     cache-type: redis
     water-mark: boot
 
-encode:
-  key: VyBcekSelErhMYN4
-
 xxl:
   job:
     adminAddresses: http://localhost:8080
     accessToken: yssadadasdasdasda
 
 cert-dir: C:\Download
+
+encode:
+  key: yzytech2026yzytech
 
 #knife4j配置
 knife4j:

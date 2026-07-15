@@ -83,7 +83,7 @@ const wxLogin = async () => {
   const windowFeatures = `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`;
   window.open(url, 'WeChatLogin', windowFeatures);
   // 监听来自子窗口的消息
-  const handleMessage = async (event) => {
+  const handleMessage = async (event: MessageEvent) => {
     // 这里建议加安全校验，比如 event.origin === 'https://你的域名'
     if (event.data?.type === 'wechatLoginSuccess') {
       const code = event.data?.code;

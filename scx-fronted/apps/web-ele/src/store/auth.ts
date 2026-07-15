@@ -11,6 +11,7 @@ import { ElNotification } from 'element-plus';
 import { defineStore } from 'pinia';
 
 import {
+  type AuthApi,
   getUserInfoApi,
   loginApi,
   logoutApi,
@@ -34,18 +35,17 @@ export const useAuthStore = defineStore('auth', () => {
    * @param params 登录表单数据
    */
   async function authLogin(
-    params: Recordable<any>,
+    params: AuthApi.LoginParams,
     onSuccess?: () => Promise<void> | void,
   ) {
     // 异步处理用户登录操作并获取 accessToken
     const userInfo: null | UserInfo = null;
     try {
       loginLoading.value = true;
-      params.password = encrypt(
-        params.password,
-        import.meta.env.VITE_PWD_PRIVICE_KEY,
-      );
-      const { tokenValue } = await loginApi(params);
+      const { tokenValue } = await loginApi({
+        ...params,
+        password: encrypt(params.password ?? '', import.meta.env.VITE_PWD_PRIVICE_KEY),
+      });
 
       // 如果成功获取到 accessToken
       if (tokenValue) {

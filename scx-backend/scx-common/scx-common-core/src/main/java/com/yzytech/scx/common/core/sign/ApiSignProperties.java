@@ -30,7 +30,7 @@ public class ApiSignProperties {
 	/**
 	 * 与前端一致的密钥
 	 */
-	private String secret = "通用2026ApiSecret8866";
+	private String secret = "";
 
 	/**
 	 * 请求最大有效期（毫秒）

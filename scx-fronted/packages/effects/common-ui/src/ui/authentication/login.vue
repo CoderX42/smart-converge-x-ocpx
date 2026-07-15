@@ -82,7 +82,7 @@ function handleGo(path: string) {
 }
 
 function handleWxLogin() {
-  emit('wxLogin');
+	emit('wxLogin', {});
 }
 onMounted(() => {
   if (localUsername) {

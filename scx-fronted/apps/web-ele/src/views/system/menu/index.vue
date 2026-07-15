@@ -18,6 +18,7 @@ const [FormDrawer, formDrawerApi] = useBootDrawer({
   destroyOnClose: true,
 });
 
+// @ts-expect-error vxe-table's recursive column schema exceeds vue-tsc's instantiation limit.
 const [Grid, gridApi] = useBootVxeGrid({
   gridOptions: {
     columns: useColumns(),

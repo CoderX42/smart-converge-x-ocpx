@@ -9,6 +9,6 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
     clearable
     disabled
     placeholder="通用 基座已移除业务范围维度"
-    @update:model-value="(value) => emit('update:modelValue', value as string)"
+    @update:model-value="(value: string) => emit('update:modelValue', value)"
   />
 </template>

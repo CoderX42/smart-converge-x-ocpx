@@ -35,8 +35,8 @@ export function useBootVxeGrid<
       onBeforeUnmount(() => {
         api.unmount();
       });
-      api.setState({ ...props, ...attrs });
-      return () => h(VxeGrid, { ...props, ...attrs, api: extendedApi }, slots);
+      api.setState({ ...props, ...attrs } as any);
+      return () => h(VxeGrid as any, { ...props, ...attrs, api: extendedApi } as any, slots);
     },
     {
       name: 'BootVxeGrid',

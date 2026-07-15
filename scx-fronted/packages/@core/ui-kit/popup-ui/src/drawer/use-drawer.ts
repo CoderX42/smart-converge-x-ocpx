@@ -105,7 +105,7 @@ export function useBootDrawer<
   const Drawer = defineComponent(
     (props: DrawerProps, { attrs, slots }) => {
       return () =>
-        h(BootDrawer, { ...props, ...attrs, drawerApi: extendedApi }, slots);
+        h(BootDrawer as any, { ...props, ...attrs, drawerApi: extendedApi } as any, slots);
     },
     // eslint-disable-next-line vue/one-component-per-file
     {
