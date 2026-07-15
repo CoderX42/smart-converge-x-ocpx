@@ -30,6 +30,14 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
 	List<String> listRoleIdsByUserId(String userId);
 
 	/**
+	 * 通过用户 id 查询角色编码，用于构造登录用户的角色集合。
+	 *
+	 * @param userId 用户 id
+	 * @return 角色编码列表
+	 */
+	List<String> listRoleCodesByUserId(String userId);
+
+	/**
 	 * 分页查询
 	 * @param page
 	 * @param sysRole

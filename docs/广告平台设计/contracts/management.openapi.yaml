@@ -74,12 +74,74 @@ paths:
               $ref: '#/components/schemas/CreateAdGroupRequest'
       responses:
         '201': {description: 已创建}
+  /boot/subjects/advertisers:
+    get:
+      operationId: listAuthorizedAdvertisers
+      summary: 查询当前用户有权访问的广告主体
+      security:
+        - saToken: []
+      responses:
+        '200':
+          description: 已授权广告主体列表
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdvertiserListResult'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /boot/subjects/advertisers/{advertiserId}:
+    get:
+      operationId: getAuthorizedAdvertiser
+      summary: 查询一个已授权广告主体
+      security:
+        - saToken: []
+      parameters:
+        - $ref: '#/components/parameters/AdvertiserId'
+      responses:
+        '200':
+          description: 已授权广告主体
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AdvertiserResult'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/SubjectNotFound'}
+  /boot/subjects/media:
+    get:
+      operationId: listAuthorizedMedia
+      summary: 查询当前用户有权访问的媒体主体
+      security:
+        - saToken: []
+      responses:
+        '200':
+          description: 已授权媒体主体列表
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MediaListResult'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /boot/subjects/media/{mediaId}:
+    get:
+      operationId: getAuthorizedMedia
+      summary: 查询一个已授权媒体主体
+      security:
+        - saToken: []
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: 已授权媒体主体
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MediaResult'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/SubjectNotFound'}
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    saToken:
+      type: apiKey
+      in: header
+      name: satoken
   parameters:
     CampaignId:
       name: campaignId
@@ -104,13 +166,92 @@ components:
       in: header
       required: true
       schema: {type: string}
+    AdvertiserId:
+      name: advertiserId
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 64}
+    MediaId:
+      name: mediaId
+      in: path
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 64}
   responses:
     Conflict:
       description: 资源版本或幂等请求冲突
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: 未登录或缺少主体读取权限
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ScxErrorResult'}
+    SubjectNotFound:
+      description: 主体不存在或当前用户无对象访问权限
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ScxErrorResult'}
   schemas:
+    Advertiser:
+      type: object
+      required: [id, code, name, status, timezone, currency]
+      properties:
+        id: {type: string}
+        code: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        timezone: {type: string}
+        currency: {type: string}
+        createTime: {type: string, format: date-time}
+        updateTime: {type: string, format: date-time}
+    Media:
+      type: object
+      required: [id, code, name, status, timezone, settlementCurrency]
+      properties:
+        id: {type: string}
+        code: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        timezone: {type: string}
+        settlementCurrency: {type: string}
+        createTime: {type: string, format: date-time}
+        updateTime: {type: string, format: date-time}
+    AdvertiserListResult:
+      type: object
+      required: [code, data]
+      properties:
+        code: {type: integer, const: 0}
+        msg: {type: [string, 'null']}
+        data: {type: array, items: {$ref: '#/components/schemas/Advertiser'}}
+    AdvertiserResult:
+      type: object
+      required: [code, data]
+      properties:
+        code: {type: integer, const: 0}
+        msg: {type: [string, 'null']}
+        data: {$ref: '#/components/schemas/Advertiser'}
+    MediaListResult:
+      type: object
+      required: [code, data]
+      properties:
+        code: {type: integer, const: 0}
+        msg: {type: [string, 'null']}
+        data: {type: array, items: {$ref: '#/components/schemas/Media'}}
+    MediaResult:
+      type: object
+      required: [code, data]
+      properties:
+        code: {type: integer, const: 0}
+        msg: {type: [string, 'null']}
+        data: {$ref: '#/components/schemas/Media'}
+    ScxErrorResult:
+      type: object
+      required: [code, msg]
+      properties:
+        code: {type: integer}
+        msg: {type: string}
+        data: {type: ['null']}
     CreateCampaignRequest:
       type: object
       additionalProperties: false
@@ -168,4 +309,3 @@ components:
         message: {type: string}
 security:
   - bearerAuth: []
-

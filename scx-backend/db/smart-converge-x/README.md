@@ -8,6 +8,8 @@
 2. `10smart_converge_x_core.sql`：系统、认证、权限、支付、代码生成及当前保留业务表。
 3. `20xxl_job_schema.sql`：XXL-JOB 调度表结构与默认调度管理员。
 4. `smart_converge_x_baseline.sql`：聚合入口脚本，按以上顺序 `SOURCE` 执行。
+5. `init-database.sh`：直连 MySQL 初始化基线，并应用当前主体模块 V1/V2 迁移。
+6. `verify-database.sh`：只读校验基础表、主体表、默认管理员和主体权限。
 
 ## 推荐导入方式
 
@@ -17,6 +19,12 @@ MYSQL_USERNAME=root MYSQL_PASSWORD=你的密码 ./init-database.sh
 ```
 
 可选环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`。脚本导入完成后会校验必需表以及默认管理员角色关系。
+
+仅校验已有数据库而不写入数据：
+
+```bash
+MYSQL_HOST=数据库地址 MYSQL_USERNAME=用户名 MYSQL_PASSWORD=密码 ./verify-database.sh
+```
 
 也可以直接使用 MySQL 客户端：
 

@@ -11,5 +11,5 @@ export interface Advertiser {
 
 /** Returns only advertisers authorized for the current user. */
 export async function getAuthorizedAdvertisers() {
-  return requestClient.get<Advertiser[]>('/subjects/advertisers');
+  return requestClient.get<Advertiser[]>('/boot/subjects/advertisers');
 }

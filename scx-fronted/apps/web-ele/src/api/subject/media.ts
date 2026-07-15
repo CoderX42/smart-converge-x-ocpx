@@ -11,5 +11,5 @@ export interface Media {
 
 /** Returns only media entities authorized for the current user. */
 export async function getAuthorizedMedia() {
-  return requestClient.get<Media[]>('/subjects/media');
+  return requestClient.get<Media[]>('/boot/subjects/media');
 }

@@ -21,6 +21,13 @@
         WHERE sys_role.id = sys_user_role.role_id
         AND sys_user_role.user_id = #{userId}
     </select>
+    <select id="listRoleCodesByUserId" resultType="java.lang.String">
+        SELECT sys_role.role_code
+        FROM sys_role AS sys_role,
+        sys_user_role AS sys_user_role
+        WHERE sys_role.id = sys_user_role.role_id
+        AND sys_user_role.user_id = #{userId}
+    </select>
     <select id="selectRolePage" resultType="com.yzytech.scx.system.api.entity.SysRole">
         SELECT
         sys_role.id,

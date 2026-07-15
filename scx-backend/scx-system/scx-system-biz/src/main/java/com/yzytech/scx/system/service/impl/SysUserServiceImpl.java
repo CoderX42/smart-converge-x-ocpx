@@ -58,7 +58,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
 		// 查询角色
 		List<String> roleIds = sysRoleMapper.listRoleIdsByUserId(sysUser.getId());
-		sysUser.setRoles(roleIds);
+		List<String> roleCodes = sysRoleMapper.listRoleCodesByUserId(sysUser.getId());
+		sysUser.setRoles(roleCodes);
 		// 权限列表
 		Set<String> permissions = new HashSet<>();
 		roleIds.forEach(roleId -> {

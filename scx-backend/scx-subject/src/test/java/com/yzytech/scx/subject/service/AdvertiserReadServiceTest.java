@@ -50,6 +50,23 @@ class AdvertiserReadServiceTest {
 		verify(mapper, never()).findAuthorized(anyString());
 	}
 
+	@Test
+	void nonAdminDetailUsesUserAndSubjectScopeTogether() {
+		AdvertiserMapper mapper = mock(AdvertiserMapper.class);
+		Advertiser advertiser = new Advertiser();
+		advertiser.setId("adv-a");
+		when(mapper.findAuthorizedById("user-a", "adv-a")).thenReturn(java.util.Optional.of(advertiser));
+		AdvertiserReadService service = new AdvertiserReadService(mapper);
+
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			security.when(SecurityUtils::getUser).thenReturn(user("user-a", "ROLE_OPERATOR"));
+			assertThat(service.getForCurrentUser("adv-a")).contains(advertiser);
+		}
+
+		verify(mapper).findAuthorizedById("user-a", "adv-a");
+		verify(mapper, never()).selectById(anyString());
+	}
+
 	private BootUser user(String userId, String role) {
 		BootUser user = new BootUser();
 		user.setUserId(userId);

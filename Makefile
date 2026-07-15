@@ -32,4 +32,4 @@ contract-check:
 	bash ./scripts/check-contracts.sh
 
 db-verify:
-	cd scx-backend/db/smart-converge-x && ./init-database.sh
+	cd scx-backend/db/smart-converge-x && ./verify-database.sh
