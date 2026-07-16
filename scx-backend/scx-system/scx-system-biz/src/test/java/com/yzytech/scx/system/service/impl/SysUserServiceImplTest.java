@@ -28,7 +28,7 @@ class SysUserServiceImplTest {
 		SysUser user = new SysUser();
 		user.setId("user-a");
 		MenuVO menu = new MenuVO();
-		menu.setPermission("subject:advertiser:read");
+		menu.setPermission("system:sysuser:page");
 
 		when(roleMapper.listRoleIdsByUserId("user-a")).thenReturn(List.of("1"));
 		when(roleMapper.listRoleCodesByUserId("user-a")).thenReturn(List.of("ROLE_ADMIN"));
@@ -37,7 +37,7 @@ class SysUserServiceImplTest {
 		SysUser result = service.findUserInfo(user);
 
 		assertThat(result.getRoles()).containsExactly("ROLE_ADMIN");
-		assertThat(result.getPermissions()).containsExactly("subject:advertiser:read");
+		assertThat(result.getPermissions()).containsExactly("system:sysuser:page");
 		verify(menuMapper).listMenuByRoleId("1");
 	}
 }

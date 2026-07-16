@@ -20,7 +20,6 @@ fi
 required_tables=(
   gen_data_source gen_table gen_table_column
   pay_config pay_notify_record pay_refund_order pay_trade_order
-  scx_advertiser scx_media scx_user_subject_scope
   sys_config sys_dept sys_dict sys_dict_value sys_log sys_login_log
   sys_material sys_material_group sys_menu sys_region sys_role sys_role_menu
   sys_sms_config sys_sms_send_record sys_social_account sys_storage_config
@@ -43,14 +42,6 @@ admin_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATA
 
 if [[ "$admin_count" -ne 1 ]]; then
   echo "Database verification failed: default administrator role mapping is missing." >&2
-  exit 1
-fi
-
-subject_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND m.permission IN ('subject:advertiser:read', 'subject:media:read') AND m.del_flag='0';")"
-
-if [[ "$subject_permission_count" -ne 2 ]]; then
-  echo "Database verification failed: administrator subject permissions are incomplete." >&2
   exit 1
 fi
 

@@ -4,7 +4,6 @@ import { Page } from '@boot/common-ui';
 import { ElCard, ElCol, ElRow, ElStatistic } from 'element-plus';
 
 const stats = [
-  { title: '广告主体', value: 0 },
   { title: '投放计划', value: 0 },
   { title: '归因事件', value: 0 },
   { title: '待对账金额', value: 0 },
@@ -23,7 +22,7 @@ const stats = [
     <ElCard>
       <div class="text-base font-medium">当前实施边界</div>
       <div class="mt-3 text-sm text-gray-500">
-        M1 已提供广告主体对象授权。计划、素材、事件、归因、账本与报表将在后续纵切片中接入。
+        计划、素材、事件、归因、账本与报表将在后续纵切片中接入。
       </div>
     </ElCard>
   </Page>

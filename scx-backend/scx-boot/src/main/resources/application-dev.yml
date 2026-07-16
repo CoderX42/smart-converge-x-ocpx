@@ -1,8 +1,4 @@
 spring:
-  # 当前开发库由人工执行 SQL 迁移；该账号没有 performance_schema
-  # user_variables_by_thread 的查询权限，不能在启动时运行 Flyway。
-  flyway:
-    enabled: false
   servlet:
     multipart:
       maxFileSize: 100MB

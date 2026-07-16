@@ -7,9 +7,7 @@ import { Page, WorkbenchQuickNav } from '@boot/common-ui';
 
 const router = useRouter();
 const quickNavItems: WorkbenchQuickNavItem[] = [
-  { color: '#1fdaca', icon: 'ion:home-outline', title: 'SCX 看板', url: '/dashboard/analytics' },
-  { color: '#3fb27f', icon: 'carbon:building', title: '广告主体', url: '/subjects/advertisers' },
-  { color: '#00d8ff', icon: 'carbon:network-4', title: '媒体主体', url: '/subjects/media' },
+  { color: '#1fdaca', icon: 'ion:home-outline', title: 'SCX 看板', url: '/analytics' },
 ];
 
 function navTo(nav: WorkbenchQuickNavItem) {
