@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { BootFormSchema } from '@boot/common-ui';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { AuthenticationLogin, z } from '@boot/common-ui';
 import { $t } from '@boot/locales';
@@ -10,11 +10,9 @@ import { ElMessage } from 'element-plus';
 
 import { getByType } from '#/api/system/social-account';
 import Verify from '#/components/verifition/index.vue';
-import { useAuthStore, useCopyrightStore } from '#/store';
+import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
-
-const cs = useCopyrightStore();
 
 const verifyRef = ref();
 const captchaType = ref('blockPuzzle'); // 1）滑动拼图 blockPuzzle 2）文字点选 clickWord
@@ -102,10 +100,7 @@ const wxCodeLogin = async (code: string) => {
   };
   authStore.authSocialLogin(params);
 };
-onMounted(async () => {
-  await cs.ensureFetched('3');
-});
-const loginTitle = computed(() => (cs.loading ? '' : cs.copyright?.name));
+const loginTitle = computed(() => '瑶知智汇广告平台');
 </script>
 
 <template>

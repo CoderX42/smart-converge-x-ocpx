@@ -2,18 +2,16 @@
 import type { BootFormSchema } from '@boot/common-ui';
 import type { Recordable } from '@boot/types';
 
-import { computed, onMounted } from 'vue';
+import { computed } from 'vue';
 
 import { AuthenticationCodeLogin, z } from '@boot/common-ui';
 import { $t } from '@boot/locales';
 
 import { ElMessage } from 'element-plus';
 
-import { useAuthStore, useCopyrightStore } from '#/store';
+import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'CodeLogin' });
-
-const cs = useCopyrightStore();
 
 const CODE_LENGTH = 4;
 const authStore = useAuthStore();
@@ -91,10 +89,7 @@ async function handleLogin(values: Recordable<any>) {
     console.error(error);
   }
 }
-onMounted(async () => {
-  await cs.ensureFetched('3');
-});
-const loginTitle = computed(() => (cs.loading ? '' : cs.copyright?.name));
+const loginTitle = computed(() => '瑶知智汇广告平台');
 </script>
 
 <template>
