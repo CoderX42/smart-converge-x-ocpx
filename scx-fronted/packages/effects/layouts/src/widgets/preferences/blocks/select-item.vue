@@ -6,12 +6,12 @@ import { useSlots } from 'vue';
 import { CircleHelp } from '@boot/icons';
 
 import {
+  BootTooltip,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  BootTooltip,
 } from '@boot-core/shadcn-ui';
 
 defineOptions({

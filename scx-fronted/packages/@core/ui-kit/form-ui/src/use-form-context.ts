@@ -2,7 +2,7 @@ import type { ZodRawShape } from 'zod';
 
 import type { ComputedRef } from 'vue';
 
-import type { ExtendedFormApi, FormActions, BootFormProps } from './types';
+import type { BootFormProps, ExtendedFormApi, FormActions } from './types';
 
 import { computed, unref, useSlots } from 'vue';
 
@@ -24,7 +24,7 @@ export const [injectComponentRefMap, provideComponentRefMap] =
   createContext<Map<string, unknown>>('ComponentRefMap');
 
 export function useFormInitial(
-  props: ComputedRef<BootFormProps> | BootFormProps,
+  props: BootFormProps | ComputedRef<BootFormProps>,
 ) {
   const slots = useSlots();
   const initialValues = generateInitialValues();

@@ -2,13 +2,13 @@
 import type { AnalysisOverviewItem } from '../typing';
 
 import {
+  BootCountToAnimator,
+  BootIcon,
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-  BootCountToAnimator,
-  BootIcon,
 } from '@boot-core/shadcn-ui';
 
 interface Props {

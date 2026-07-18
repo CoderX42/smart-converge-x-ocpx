@@ -2,9 +2,9 @@ export { setupBootForm } from './config';
 
 export type {
   BaseFormComponentType,
-  ExtendedFormApi,
   BootFormProps,
   FormSchema as BootFormSchema,
+  ExtendedFormApi,
 } from './types';
 
 export * from './use-boot-form';

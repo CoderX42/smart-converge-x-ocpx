@@ -2,8 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { loadScript } from '../resources';
 
-const testJsPath =
-  'https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js';
+const testJsPath = 'data:text/javascript,void%200';
 
 describe('loadScript', () => {
   beforeEach(() => {

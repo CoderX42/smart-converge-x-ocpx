@@ -2,11 +2,11 @@
 import type { WorkbenchProjectItem } from '../typing';
 
 import {
+  BootIcon,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  BootIcon,
 } from '@boot-core/shadcn-ui';
 
 interface Props {

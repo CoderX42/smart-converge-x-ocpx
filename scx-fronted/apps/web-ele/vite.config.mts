@@ -4,6 +4,8 @@ import ElementPlus from 'unplugin-element-plus/vite';
 
 export default defineConfig(async ({ mode }) => {
   const isDev = mode === 'development';
+  const apiProxyTarget =
+    process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:9999';
 
   return {
     application: {},
@@ -20,8 +22,9 @@ export default defineConfig(async ({ mode }) => {
           '/api': {
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/api/, ''),
-            // mock代理目标地址
-            target: 'http://localhost:9999',
+            // Defaults to the standard backend; local MVP checks can override
+            // it without editing a tracked environment file.
+            target: apiProxyTarget,
             ws: true,
           },
         },

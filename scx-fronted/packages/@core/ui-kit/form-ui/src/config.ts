@@ -2,8 +2,8 @@ import type { Component } from 'vue';
 
 import type {
   BaseFormComponentType,
-  FormCommonConfig,
   BootFormAdapterOptions,
+  FormCommonConfig,
 } from './types';
 
 import { h } from 'vue';
@@ -66,8 +66,7 @@ export function setupBootForm<
   const baseModelPropName =
     config?.baseModelPropName ?? DEFAULT_MODEL_PROP_NAME;
   const modelPropNameMap = config?.modelPropNameMap as
-    | Record<BaseFormComponentType, string>
-    | undefined;
+    Record<BaseFormComponentType, string> | undefined;
 
   const components = globalShareState.getComponents();
 

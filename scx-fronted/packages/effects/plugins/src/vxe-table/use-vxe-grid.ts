@@ -14,9 +14,9 @@ import { VxeGridApi } from './api';
 import VxeGrid from './use-vxe-grid.vue';
 
 type FilteredSlots<T> = {
-  [K in keyof VxeGridSlots<T> as K extends 'form'
-    ? never
-    : K]: VxeGridSlots<T>[K];
+  [
+    K in keyof VxeGridSlots<T> as K extends 'form' ? never : K
+  ]: VxeGridSlots<T>[K];
 };
 
 export function useBootVxeGrid<
@@ -36,7 +36,12 @@ export function useBootVxeGrid<
         api.unmount();
       });
       api.setState({ ...props, ...attrs } as any);
-      return () => h(VxeGrid as any, { ...props, ...attrs, api: extendedApi } as any, slots);
+      return () =>
+        h(
+          VxeGrid as any,
+          { ...props, ...attrs, api: extendedApi } as any,
+          slots,
+        );
     },
     {
       name: 'BootVxeGrid',

@@ -11,17 +11,17 @@ import type { DeepPartial } from '@boot-core/typings';
 function defineOverridesPreferences(preferences: DeepPartial<Preferences>) {
   preferences.app = {
     accessMode: 'backend',
-    name: 'Smart Converge X',
+    name: '智汇广告平台',
   };
   preferences.theme = {
     mode: 'light',
   };
   preferences.logo = {
     enable: true,
-    source: '/static/logo.svg',
+    source: '/static/logo.png',
   };
   preferences.copyright = {
-    companyName: 'Smart Converge X',
+    companyName: '智汇广告平台',
     companySiteLink: 'https://example.com',
     date: '2025',
     enable: true,

@@ -6,8 +6,7 @@ import { requestClient } from '#/api/request';
 export async function getPage(query: any) {
   return requestClient.get('/gen/gen-datasource/page', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -17,8 +16,7 @@ export async function getPage(query: any) {
 export async function getList(query: any) {
   return requestClient.get('/gen/gen-datasource/list', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -27,8 +25,7 @@ export async function getList(query: any) {
  */
 export async function getById(id: string) {
   return requestClient.get(`/gen/gen-datasource/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -37,8 +34,7 @@ export async function getById(id: string) {
  */
 export async function addObj(data: any) {
   return requestClient.post('/gen/gen-datasource', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -47,8 +43,7 @@ export async function addObj(data: any) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/gen/gen-datasource', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -57,7 +52,6 @@ export async function editObj(data: any) {
  */
 export async function delObj(id: string) {
   return requestClient.delete(`/gen/gen-datasource/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }

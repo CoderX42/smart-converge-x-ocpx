@@ -2,3 +2,9 @@ dist
 public
 __tests__
 coverage
+
+# Historical third-party verification widget. Its CSS contains legacy browser
+# compatibility declarations and embedded image data; changing it mechanically
+# would risk altering the challenge renderer.
+apps/web-ele/src/components/verifition/index.vue
+apps/web-ele/src/components/verifition/Verify/VerifyPoints.vue

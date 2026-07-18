@@ -29,4 +29,4 @@ interface DropdownMenuProps {
   menus: BootDropdownMenuItem[];
 }
 
-export type { DropdownMenuProps, BootDropdownMenuItem };
+export type { BootDropdownMenuItem, DropdownMenuProps };

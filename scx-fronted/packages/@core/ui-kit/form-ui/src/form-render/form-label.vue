@@ -2,9 +2,9 @@
 import type { CustomRenderType } from '../types';
 
 import {
-  FormLabel,
   BootHelpTooltip,
   BootRenderContent,
+  FormLabel,
 } from '@boot-core/shadcn-ui';
 import { cn } from '@boot-core/shared/utils';
 

@@ -10,9 +10,9 @@ import {
 } from '@boot/preferences';
 
 import {
+  BootTooltip,
   ToggleGroup,
   ToggleGroupItem,
-  BootTooltip,
 } from '@boot-core/shadcn-ui';
 
 import ThemeButton from './theme-button.vue';

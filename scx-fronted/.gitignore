@@ -11,6 +11,7 @@ dist.war
 *-dist.tar
 *-dist.war
 coverage
+apps/web-ele/e2e/.artifacts
 *.local
 **/.vitepress/cache
 .cache

@@ -1,6 +1,6 @@
 {
   "name": "@boot/vite-config",
-   "version": "2.1.3",
+  "version": "2.1.3",
   "private": true,
   "homepage": "https://example.com/repository",
   "bugs": "https://example.com/issues",
@@ -39,10 +39,10 @@
     "vite-plugin-vue-devtools": "catalog:"
   },
   "devDependencies": {
+    "@boot/node-utils": "workspace:*",
     "@pnpm/workspace.read-manifest": "catalog:",
     "@types/archiver": "catalog:",
     "@types/html-minifier-terser": "catalog:",
-    "@boot/node-utils": "workspace:*",
     "@vitejs/plugin-vue": "catalog:",
     "@vitejs/plugin-vue-jsx": "catalog:",
     "dayjs": "catalog:",

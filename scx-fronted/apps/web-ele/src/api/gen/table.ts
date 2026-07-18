@@ -6,15 +6,13 @@ import { requestClient } from '#/api/request';
 export async function getPage(query: any) {
   return requestClient.get('/gen/gen-table/page', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
 export async function genTabledDetail(dsName: string, tableName: string) {
   return requestClient.get(`/gen/gen-table/${dsName}/${tableName}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -23,7 +21,6 @@ export async function genTabledDetail(dsName: string, tableName: string) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/gen/gen-table', data, {
-    headers: {
-    },
+    headers: {},
   });
 }

@@ -15,6 +15,8 @@ import { isWindowsOs } from '@boot/utils';
 import { useBootModal } from '@boot-core/popup-ui';
 import {
   Badge,
+  BootAvatar,
+  BootIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -22,8 +24,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-  BootAvatar,
-  BootIcon,
 } from '@boot-core/shadcn-ui';
 
 import { useMagicKeys, whenever } from '@vueuse/core';

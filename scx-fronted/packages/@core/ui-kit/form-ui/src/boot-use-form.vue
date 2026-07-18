@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Recordable } from '@boot-core/typings';
 
-import type { ExtendedFormApi, BootFormProps } from './types';
+import type { BootFormProps, ExtendedFormApi } from './types';
 
 // import { toRaw, watch } from 'vue';
 import { nextTick, onMounted, watch } from 'vue';

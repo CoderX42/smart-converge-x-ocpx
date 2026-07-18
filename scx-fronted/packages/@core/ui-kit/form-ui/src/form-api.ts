@@ -9,7 +9,7 @@ import type { ComponentPublicInstance } from 'vue';
 
 import type { Recordable } from '@boot-core/typings';
 
-import type { FormActions, FormSchema, BootFormProps } from './types';
+import type { BootFormProps, FormActions, FormSchema } from './types';
 
 import { isRef, toRaw } from 'vue';
 
@@ -54,7 +54,7 @@ export class FormApi {
   public form = {} as FormActions;
   isMounted = false;
 
-  public state: null | BootFormProps = null;
+  public state: BootFormProps | null = null;
   stateHandler: StateHandler;
 
   public store: Store<BootFormProps>;
@@ -67,7 +67,7 @@ export class FormApi {
   // 最后一次点击提交时的表单值
   private latestSubmissionValues: null | Recordable<any> = null;
 
-  private prevState: null | BootFormProps = null;
+  private prevState: BootFormProps | null = null;
 
   constructor(options: BootFormProps = {}) {
     const { ...storeState } = options;

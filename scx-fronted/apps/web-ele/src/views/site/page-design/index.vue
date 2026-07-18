@@ -3,7 +3,15 @@ import { ref } from 'vue';
 
 import { Page } from '@boot/common-ui';
 
-import { ElAlert, ElButton, ElCard, ElInput, ElTable, ElTableColumn, ElTag } from 'element-plus';
+import {
+  ElAlert,
+  ElButton,
+  ElCard,
+  ElInput,
+  ElTable,
+  ElTableColumn,
+  ElTag,
+} from 'element-plus';
 
 import { getPage } from '#/api/site/page-design';
 
@@ -25,7 +33,10 @@ loadData();
 </script>
 
 <template>
-  <Page title="官网页面装修" description="管理公司官网、落地页和动态页面的装修配置">
+  <Page
+    title="官网页面装修"
+    description="管理公司官网、落地页和动态页面的装修配置"
+  >
     <ElAlert
       class="mb-4"
       show-icon
@@ -34,8 +45,18 @@ loadData();
     />
     <ElCard>
       <div class="mb-4 flex gap-3">
-        <ElInput v-model="query.pageCode" clearable placeholder="页面编码" style="width: 220px" />
-        <ElInput v-model="query.pageName" clearable placeholder="页面名称" style="width: 220px" />
+        <ElInput
+          v-model="query.pageCode"
+          clearable
+          placeholder="页面编码"
+          style="width: 220px"
+        />
+        <ElInput
+          v-model="query.pageName"
+          clearable
+          placeholder="页面名称"
+          style="width: 220px"
+        />
         <ElButton type="primary" @click="loadData">查询</ElButton>
       </div>
       <ElTable v-loading="loading" :data="rows" row-key="id">

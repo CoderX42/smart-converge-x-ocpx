@@ -172,8 +172,7 @@ export class ModalApi {
 
   setState(
     stateOrFn:
-      | ((prev: ModalState) => Partial<ModalState>)
-      | Partial<ModalState>,
+      ((prev: ModalState) => Partial<ModalState>) | Partial<ModalState>,
   ) {
     if (isFunction(stateOrFn)) {
       this.store.setState(stateOrFn);
