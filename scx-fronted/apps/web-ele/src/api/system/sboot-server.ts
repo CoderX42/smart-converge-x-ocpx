@@ -5,7 +5,6 @@ import { requestClient } from '#/api/request';
  */
 export async function getServer() {
   return requestClient.get('/system/sysserver', {
-    headers: {
-    },
+    headers: {},
   });
 }

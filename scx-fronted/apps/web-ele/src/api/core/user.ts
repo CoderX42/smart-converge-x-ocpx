@@ -7,7 +7,6 @@ import { requestClient } from '#/api/request';
  */
 export async function getUserInfoApi() {
   return requestClient.get<UserInfo>('/system/user/info', {
-    headers: {
-    },
+    headers: {},
   });
 }

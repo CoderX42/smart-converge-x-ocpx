@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/code")
+@RequestMapping("/auth/code")
 @Tag(description = "code", name = "验证码")
 public class ImageCodeController {
 

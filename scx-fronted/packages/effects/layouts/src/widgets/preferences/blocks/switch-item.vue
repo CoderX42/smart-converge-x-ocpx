@@ -3,7 +3,7 @@ import { useSlots } from 'vue';
 
 import { CircleHelp } from '@boot/icons';
 
-import { Switch, BootTooltip } from '@boot-core/shadcn-ui';
+import { BootTooltip, Switch } from '@boot-core/shadcn-ui';
 
 defineOptions({
   name: 'PreferenceSwitchItem',

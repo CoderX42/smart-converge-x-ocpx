@@ -5,8 +5,7 @@ import { requestClient } from '#/api/request';
  */
 export async function getById(id: string) {
   return requestClient.get(`/system/region/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -15,15 +14,13 @@ export async function getById(id: string) {
  */
 export async function getTree() {
   return requestClient.get('/system/region/tree', {
-    headers: {
-    },
+    headers: {},
   });
 }
 export async function getPage(query: any) {
   return requestClient.get('/system/region/page', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -32,8 +29,7 @@ export async function getPage(query: any) {
  */
 export async function addObj(data: any) {
   return requestClient.post('/system/region', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -42,8 +38,7 @@ export async function addObj(data: any) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/system/region', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -52,7 +47,6 @@ export async function editObj(data: any) {
  */
 export async function delObj(id: string) {
   return requestClient.delete(`/system/region/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }

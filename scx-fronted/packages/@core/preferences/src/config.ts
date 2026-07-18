@@ -15,8 +15,7 @@ const defaultPreferences: Preferences = {
     contentPaddingLeft: 0,
     contentPaddingRight: 0,
     contentPaddingTop: 0,
-    defaultAvatar:
-      '/static/avatar.svg',
+    defaultAvatar: '/static/avatar.svg',
     defaultHomePath: '/analytics',
     dynamicTitle: true,
     enableCheckUpdates: true,

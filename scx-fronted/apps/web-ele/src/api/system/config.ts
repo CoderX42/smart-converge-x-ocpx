@@ -6,8 +6,7 @@ import { requestClient } from '#/api/request';
 export async function getPage(query: any) {
   return requestClient.get('/system/config/page', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -16,8 +15,7 @@ export async function getPage(query: any) {
  */
 export async function getById(clientType: string) {
   return requestClient.get(`/system/config/${clientType}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -26,8 +24,7 @@ export async function getById(clientType: string) {
  */
 export async function addObj(data: any) {
   return requestClient.post('/system/config', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -36,8 +33,7 @@ export async function addObj(data: any) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/system/config', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -46,7 +42,6 @@ export async function editObj(data: any) {
  */
 export async function delObj(id: string) {
   return requestClient.delete(`/system/config/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }

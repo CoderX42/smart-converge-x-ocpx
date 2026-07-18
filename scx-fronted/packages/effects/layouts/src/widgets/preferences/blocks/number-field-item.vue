@@ -6,12 +6,12 @@ import { useSlots } from 'vue';
 import { CircleHelp } from '@boot/icons';
 
 import {
+  BootTooltip,
   NumberField,
   NumberFieldContent,
   NumberFieldDecrement,
   NumberFieldIncrement,
   NumberFieldInput,
-  BootTooltip,
 } from '@boot-core/shadcn-ui';
 
 defineOptions({

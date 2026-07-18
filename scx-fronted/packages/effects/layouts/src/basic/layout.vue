@@ -14,7 +14,7 @@ import {
   updatePreferences,
   usePreferences,
 } from '@boot/preferences';
-import { useAccessStore, useUserStore } from '@boot/stores';
+import { useAccessStore } from '@boot/stores';
 import { cloneDeep, mapTree } from '@boot/utils';
 
 import { SmartConvergeXLayout } from '@boot-core/layout-ui';
@@ -35,8 +35,6 @@ import { LayoutTabbar } from './tabbar';
 defineOptions({ name: 'BasicLayout' });
 
 const emit = defineEmits<{ clearPreferencesAndLogout: []; clickLogo: [] }>();
-
-const userStore = useUserStore();
 
 const {
   isDark,

@@ -128,8 +128,7 @@ getTableInfo();
                   <ElInput v-model="state.form.className" />
                 </ElFormItem>
               </ElCol>
-              <ElCol :span="12">
-              </ElCol>
+              <ElCol :span="12" />
             </ElRow>
           </ElTabPane>
           <ElTabPane label="字段信息" name="column">

@@ -7,7 +7,12 @@ import { Page, WorkbenchQuickNav } from '@boot/common-ui';
 
 const router = useRouter();
 const quickNavItems: WorkbenchQuickNavItem[] = [
-  { color: '#1fdaca', icon: 'ion:home-outline', title: 'SCX 看板', url: '/analytics' },
+  {
+    color: '#1fdaca',
+    icon: 'ion:home-outline',
+    title: 'SCX 看板',
+    url: '/analytics',
+  },
 ];
 
 function navTo(nav: WorkbenchQuickNavItem) {

@@ -5,7 +5,7 @@ import { useSlots } from 'vue';
 
 import { CircleHelp } from '@boot/icons';
 
-import { Input, BootTooltip } from '@boot-core/shadcn-ui';
+import { BootTooltip, Input } from '@boot-core/shadcn-ui';
 
 defineOptions({
   name: 'PreferenceSelectItem',

@@ -4,8 +4,8 @@ import { preferences } from '@boot/preferences';
 
 import { $t } from '#/locales';
 
-const appName = '瑶知智汇广告平台';
-const pageTitle = '瑶知智汇广告平台';
+const appName = '智汇广告平台';
+const pageTitle = '智汇广告平台';
 const pageDesc = '单企业效果广告投放与归因管理平台';
 </script>
 

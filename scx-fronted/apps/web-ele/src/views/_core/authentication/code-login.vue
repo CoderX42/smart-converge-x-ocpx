@@ -89,7 +89,7 @@ async function handleLogin(values: Recordable<any>) {
     console.error(error);
   }
 }
-const loginTitle = computed(() => '瑶知智汇广告平台');
+const loginTitle = computed(() => '智汇广告平台');
 </script>
 
 <template>

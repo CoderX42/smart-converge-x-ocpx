@@ -6,8 +6,7 @@ import { requestClient } from '#/api/request';
 export async function getPage(query: any) {
   return requestClient.get('/system/dictvalue/page', {
     params: query,
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -16,8 +15,7 @@ export async function getPage(query: any) {
  */
 export async function getById(id: string) {
   return requestClient.get(`/system/dictvalue/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -26,8 +24,7 @@ export async function getById(id: string) {
  */
 export async function addObj(data: any) {
   return requestClient.post('/system/dictvalue', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -36,8 +33,7 @@ export async function addObj(data: any) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/system/dictvalue', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -46,8 +42,7 @@ export async function editObj(data: any) {
  */
 export async function delObj(id: string) {
   return requestClient.delete(`/system/dictvalue/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -56,7 +51,6 @@ export async function delObj(id: string) {
  */
 export async function getList(type: string) {
   return requestClient.get(`/system/dictvalue/type/${type}`, {
-    headers: {
-    },
+    headers: {},
   });
 }

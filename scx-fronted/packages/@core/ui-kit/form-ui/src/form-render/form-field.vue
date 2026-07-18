@@ -7,13 +7,13 @@ import { computed, nextTick, onUnmounted, useTemplateRef, watch } from 'vue';
 
 import { CircleAlert } from '@boot-core/icons';
 import {
+  BootRenderContent,
+  BootTooltip,
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormMessage,
-  BootRenderContent,
-  BootTooltip,
 } from '@boot-core/shadcn-ui';
 import { cn, isFunction, isObject, isString } from '@boot-core/shared/utils';
 

@@ -63,8 +63,7 @@ export async function checkPhoneCount(query: any) {
  */
 export async function editPassword(data: any) {
   return requestClient.post('/system/user/password', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -73,8 +72,7 @@ export async function editPassword(data: any) {
  */
 export async function bindOpenId(data: any) {
   return requestClient.post('/system/user/bind-account', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -83,8 +81,7 @@ export async function bindOpenId(data: any) {
  */
 export async function unBindOpenId(data: any) {
   return requestClient.post('/system/user/unbind-account', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -93,8 +90,7 @@ export async function unBindOpenId(data: any) {
  */
 export async function updateInfo(data: any) {
   return requestClient.post('/system/user/update-info', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 /**

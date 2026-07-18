@@ -6,7 +6,6 @@ import { requestClient } from '#/api/request';
 export async function getPage(query: any) {
   return requestClient.get('/auth/token/page', {
     params: query,
-    headers: {
-    }
+    headers: {},
   });
 }

@@ -256,7 +256,7 @@ export default {
           :src="`data:image/png;base64,${pointBackImgBase}`"
           ref="canvas"
           alt=""
-          style="width: 100%; height: 100%; display: block"
+          style="display: block; width: 100%; height: 100%"
           @click="bindingClick ? canvasClick($event) : undefined"
         />
 

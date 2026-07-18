@@ -1,6 +1,6 @@
 import type {
-  BootFormSchema as FormSchema,
   BootFormProps,
+  BootFormSchema as FormSchema,
 } from '@boot/common-ui';
 
 import type { ComponentType } from './component';

@@ -1,5 +1,7 @@
 import type { Recordable, UserInfo } from '@boot/types';
 
+import type { AuthApi } from '#/api';
+
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -11,7 +13,6 @@ import { ElNotification } from 'element-plus';
 import { defineStore } from 'pinia';
 
 import {
-  type AuthApi,
   getUserInfoApi,
   loginApi,
   logoutApi,
@@ -44,7 +45,10 @@ export const useAuthStore = defineStore('auth', () => {
       loginLoading.value = true;
       const { tokenValue } = await loginApi({
         ...params,
-        password: encrypt(params.password ?? '', import.meta.env.VITE_PWD_PRIVICE_KEY),
+        password: encrypt(
+          params.password ?? '',
+          import.meta.env.VITE_PWD_PRIVICE_KEY,
+        ),
       });
 
       // 如果成功获取到 accessToken

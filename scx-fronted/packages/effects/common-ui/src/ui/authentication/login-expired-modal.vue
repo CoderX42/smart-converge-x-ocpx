@@ -6,7 +6,7 @@ import { computed, watch } from 'vue';
 import { $t } from '@boot/locales';
 
 import { useBootModal } from '@boot-core/popup-ui';
-import { Slot, BootAvatar } from '@boot-core/shadcn-ui';
+import { BootAvatar, Slot } from '@boot-core/shadcn-ui';
 
 interface Props extends AuthenticationProps {
   avatar?: string;

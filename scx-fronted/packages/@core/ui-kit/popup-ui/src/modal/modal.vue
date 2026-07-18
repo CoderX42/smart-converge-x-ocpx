@@ -19,16 +19,16 @@ import {
 } from '@boot-core/composables';
 import { Expand, Shrink } from '@boot-core/icons';
 import {
+  BootButton,
+  BootHelpTooltip,
+  BootIconButton,
+  BootLoading,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  BootButton,
-  BootHelpTooltip,
-  BootIconButton,
-  BootLoading,
   VisuallyHidden,
 } from '@boot-core/shadcn-ui';
 import { ELEMENT_ID_MAIN_CONTENT } from '@boot-core/shared/constants';

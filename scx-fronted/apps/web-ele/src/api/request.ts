@@ -75,8 +75,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       config.headers['Accept-Language'] = preferences.app.locale;
 
       if (JSON.parse(import.meta.env.VITE_OPEN_BOOT)) {
-        config.url =
-          config.url = `/boot/${config.url?.split('/').splice(2).join('/')}`;
+        config.url = `/boot${config.url}`;
       }
 
       return config;

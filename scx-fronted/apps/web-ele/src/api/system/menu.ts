@@ -49,8 +49,7 @@ export namespace SystemMenuApi {
  */
 export async function getMenu() {
   return requestClient.get('/system/menu', {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -59,8 +58,7 @@ export async function getMenu() {
  */
 export async function getList() {
   return requestClient.get('/system/menu/tree', {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -69,8 +67,7 @@ export async function getList() {
  */
 export async function getById(id: string) {
   return requestClient.get(`/system/menu/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -79,8 +76,7 @@ export async function getById(id: string) {
  */
 export async function addObj(data: any) {
   return requestClient.post('/system/menu', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -89,8 +85,7 @@ export async function addObj(data: any) {
  */
 export async function editObj(data: any) {
   return requestClient.put('/system/menu', data, {
-    headers: {
-    },
+    headers: {},
   });
 }
 
@@ -99,8 +94,7 @@ export async function editObj(data: any) {
  */
 export async function delObj(id: string) {
   return requestClient.delete(`/system/menu/${id}`, {
-    headers: {
-    },
+    headers: {},
   });
 }
 

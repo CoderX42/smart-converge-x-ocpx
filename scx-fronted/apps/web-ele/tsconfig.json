@@ -3,11 +3,11 @@
   "extends": "@boot/tsconfig/web-app.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
     "paths": {
       "#/*": ["./src/*"]
-    }
+    },
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
   },
   "references": [{ "path": "./tsconfig.node.json" }],
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],

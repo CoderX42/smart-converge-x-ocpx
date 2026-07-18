@@ -1,2 +1,2 @@
-export * from './globals';
 export * from './boot';
+export * from './globals';

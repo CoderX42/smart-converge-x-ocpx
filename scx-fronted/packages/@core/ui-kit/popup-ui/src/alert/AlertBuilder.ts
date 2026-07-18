@@ -7,7 +7,7 @@ import type { AlertProps, BeforeCloseScope, PromptProps } from './alert';
 import { h, nextTick, ref, render } from 'vue';
 
 import { useSimpleLocale } from '@boot-core/composables';
-import { Input, BootRenderContent } from '@boot-core/shadcn-ui';
+import { BootRenderContent, Input } from '@boot-core/shadcn-ui';
 import { isFunction, isString } from '@boot-core/shared/utils';
 
 import Alert from './alert.vue';

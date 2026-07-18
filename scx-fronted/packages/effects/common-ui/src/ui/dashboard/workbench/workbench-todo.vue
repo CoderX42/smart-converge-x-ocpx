@@ -2,11 +2,11 @@
 import type { WorkbenchTodoItem } from '../typing';
 
 import {
+  BootCheckbox,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  BootCheckbox,
 } from '@boot-core/shadcn-ui';
 
 interface Props {

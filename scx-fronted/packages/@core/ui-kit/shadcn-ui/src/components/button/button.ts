@@ -27,8 +27,10 @@ export type CustomRenderType = (() => Component | string) | string;
 
 export type ValueType = boolean | number | string;
 
-export interface BootButtonGroupProps
-  extends Pick<BootButtonProps, 'disabled'> {
+export interface BootButtonGroupProps extends Pick<
+  BootButtonProps,
+  'disabled'
+> {
   /** 单选模式下允许清除选中 */
   allowClear?: boolean;
   /** 值改变前的回调 */

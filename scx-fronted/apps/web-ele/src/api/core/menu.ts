@@ -5,7 +5,6 @@ import { requestClient } from '#/api/request';
  */
 export async function getAllMenusApi() {
   return requestClient.get<any[]>('/system/menu', {
-    headers: {
-    },
+    headers: {},
   });
 }

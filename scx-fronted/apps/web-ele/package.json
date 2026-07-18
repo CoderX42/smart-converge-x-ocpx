@@ -15,13 +15,13 @@
     "build:analyze": "pnpm vite build --mode analyze",
     "dev": "pnpm vite --mode development",
     "preview": "vite preview",
+    "test:e2e": "playwright test --config playwright.config.ts",
     "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },
   "imports": {
     "#/*": "./src/*"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
     "@boot/access": "workspace:*",
     "@boot/common-ui": "workspace:*",
     "@boot/constants": "workspace:*",
@@ -36,6 +36,7 @@
     "@boot/styles": "workspace:*",
     "@boot/types": "workspace:*",
     "@boot/utils": "workspace:*",
+    "@element-plus/icons-vue": "^2.3.2",
     "@vueuse/core": "catalog:",
     "@vueuse/integrations": "catalog:",
     "@wangeditor/editor": "^5.1.23",

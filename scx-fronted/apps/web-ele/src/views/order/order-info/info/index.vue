@@ -1,10 +1,14 @@
 <script lang="ts" setup>
 import { Page } from '@boot/common-ui';
+
 import { ElAlert, ElCard } from 'element-plus';
 </script>
 
 <template>
-  <Page title="通用订单详情" description="展示订单主表、明细快照、支付和退款状态">
+  <Page
+    title="通用订单详情"
+    description="展示订单主表、明细快照、支付和退款状态"
+  >
     <ElCard>
       <ElAlert
         show-icon

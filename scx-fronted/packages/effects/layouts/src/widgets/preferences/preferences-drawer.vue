@@ -414,7 +414,9 @@ async function handleReset() {
               <GlobalShortcutKeys
                 v-model:shortcut-keboot-enable="shortcutKeysEnable"
                 v-model:shortcut-keboot-global-search="shortcutKeysGlobalSearch"
-                v-model:shortcut-keboot-lock-screen="shortcutKeysGlobalLockScreen"
+                v-model:shortcut-keboot-lock-screen="
+                  shortcutKeysGlobalLockScreen
+                "
                 v-model:shortcut-keboot-logout="shortcutKeysGlobalLogout"
               />
             </Block>

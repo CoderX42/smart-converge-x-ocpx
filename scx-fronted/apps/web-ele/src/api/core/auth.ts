@@ -79,8 +79,7 @@ export async function refreshTokenApi() {
  */
 export async function logoutApi() {
   return requestClient.delete('/auth/token/logout', {
-    headers: {
-    },
+    headers: {},
   });
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { Page } from '@boot/common-ui';
+
 import { ElCard, ElCol, ElRow, ElStatistic } from 'element-plus';
 
 const stats = [

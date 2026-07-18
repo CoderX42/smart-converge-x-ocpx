@@ -8,6 +8,9 @@ import { EmptyIcon, Grip, listIcons } from '@boot/icons';
 import { $t } from '@boot/locales';
 
 import {
+  BootIcon,
+  BootIconButton,
+  BootPopover,
   Button,
   Input,
   Pagination,
@@ -18,9 +21,6 @@ import {
   PaginationListItem,
   PaginationNext,
   PaginationPrev,
-  BootIcon,
-  BootIconButton,
-  BootPopover,
 } from '@boot-core/shadcn-ui';
 import { isFunction } from '@boot-core/shared/utils';
 

@@ -42,17 +42,19 @@ export const arrEquals = (arr1: any, arr2: any) => {
  */
 export const descartes = (array: any) => {
   if (array.length < 2) return array[0] || [];
-  return array.reduce((col: any, set: any) => {
+  let product = array[0];
+  for (const set of array.slice(1)) {
     const res: any = [];
-    col.forEach((c: any) => {
+    product.forEach((c: any) => {
       set.forEach((s: any) => {
         const t = [Array.isArray(c) ? c : [c]].flat();
         t.push(s);
         res.push(t);
       });
     });
-    return res;
-  });
+    product = res;
+  }
+  return product;
 };
 
 export const findArray = (array: any, value: string) => {
@@ -104,7 +106,11 @@ export function deepMerge<
       if (!target[key] || typeof target[key] !== 'object') {
         target[key] = {} as any;
       }
-      deepMerge(target[key] as Record<string, any>, val as Record<string, any>, options);
+      deepMerge(
+        target[key] as Record<string, any>,
+        val as Record<string, any>,
+        options,
+      );
     } else {
       target[key] = val as any;
     }
@@ -122,7 +128,9 @@ export function downloadBlobFile(url: string, query: any, fileName: string) {
       const blob =
         payload.data instanceof Blob
           ? payload.data
-          : new Blob([payload.data as BlobPart], { type: 'application/octet-stream' });
+          : new Blob([payload.data as BlobPart], {
+              type: 'application/octet-stream',
+            });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

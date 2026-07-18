@@ -11,8 +11,7 @@ export const BOOT_DOC_URL = 'https://example.com/docs';
 /**
  * @zh_CN Boot Logo
  */
-export const BOOT_LOGO_URL =
-  '/static/logo.svg';
+export const BOOT_LOGO_URL = '/static/logo.svg';
 
 /**
  * @zh_CN Smart Converge X 首页地址

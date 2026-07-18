@@ -8,7 +8,10 @@ import { $t } from '@boot/locales';
 import { ElButton, ElMessage, ElMessageBox } from 'element-plus';
 
 import { useBootVxeGrid } from '#/adapter/vxe-table';
-import { delObj as deleteMenu, getList as getMenuList } from '#/api/system/menu';
+import {
+  delObj as deleteMenu,
+  getList as getMenuList,
+} from '#/api/system/menu';
 
 import { useColumns } from './data';
 import Form from './modules/form.vue';

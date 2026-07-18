@@ -48,6 +48,14 @@ const formSchema = computed((): BootFormSchema[] => {
 const handleSubmit = (val: any) => {
   loginUser.value.username = val.username;
   loginUser.value.password = val.password;
+  // Local MVP development should not be blocked by the visual captcha.
+  // Production builds keep the verification flow below unchanged.
+  if (import.meta.env.DEV) {
+    void authStore.authLogin(loginUser.value).catch((error) => {
+      console.error(error);
+    });
+    return;
+  }
   verifyRef.value.show();
 };
 const verifySuccess = async (params: any) => {
@@ -100,7 +108,7 @@ const wxCodeLogin = async (code: string) => {
   };
   authStore.authSocialLogin(params);
 };
-const loginTitle = computed(() => '瑶知智汇广告平台');
+const loginTitle = computed(() => '智汇广告平台');
 </script>
 
 <template>

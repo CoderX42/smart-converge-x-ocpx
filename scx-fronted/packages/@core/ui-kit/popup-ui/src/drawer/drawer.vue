@@ -18,6 +18,10 @@ import {
 } from '@boot-core/composables';
 import { X } from '@boot-core/icons';
 import {
+  BootButton,
+  BootHelpTooltip,
+  BootIconButton,
+  BootLoading,
   Separator,
   Sheet,
   SheetClose,
@@ -26,10 +30,6 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  BootButton,
-  BootHelpTooltip,
-  BootIconButton,
-  BootLoading,
   VisuallyHidden,
 } from '@boot-core/shadcn-ui';
 import { ELEMENT_ID_MAIN_CONTENT } from '@boot-core/shared/constants';
