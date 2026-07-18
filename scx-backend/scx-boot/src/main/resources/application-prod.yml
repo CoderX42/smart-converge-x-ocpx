@@ -8,7 +8,7 @@ spring:
   data:
     redis:
       host: 127.0.0.1
-      password: CHANGE_ME
+      password: ${SCX_REDIS_PASSWORD}
       port: 6379
       database: 0
 
@@ -20,7 +20,7 @@ spring:
         master:         # 注意，这里要嵌套在 datasource 下
           url: jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
           username: root
-          password: CHANGE_ME
+          password: ${SCX_DATASOURCE_PASSWORD}
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
@@ -39,12 +39,12 @@ aj:
 xxl:
   job:
     adminAddresses: http://127.0.0.1:8080
-    accessToken: CHANGE_ME
+    accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN}
 
 cert-dir: ./cert
 
 encode:
-  key: yzytech2026yzytech
+  key: ${SCX_ENCODE_KEY}
 
 #knife4j配置
 knife4j:
@@ -57,3 +57,8 @@ knife4j:
     enable: false
   setting:
     language: zh_cn
+
+scx:
+  tracking:
+    sandbox-enabled: false
+    attribution-rule-version: last-click-v1

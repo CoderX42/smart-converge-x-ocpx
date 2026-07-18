@@ -1,0 +1,113 @@
+openapi: 3.1.0
+info:
+  title: SCX MVP Sandbox Event API
+  version: 1.0.0
+  description: >-
+    Sandbox-only machine ingress. The signature is lowercase hexadecimal
+    HMAC-SHA256(timestamp + nonce + sha256(SCX canonical envelope)). The
+    canonical envelope uses the schema field order, hashes businessEventKey,
+    sorts attribute keys, and includes an empty attributes object when omitted.
+    occurredAt is a local ISO-8601 timestamp whose fractional seconds remove
+    trailing zeros (and omit the decimal point when the fraction is zero)
+    before the envelope is hashed.
+servers:
+  - url: http://localhost:9999/boot
+    description: Local sandbox
+paths:
+  /open-api/events/v1/clicks:
+    post:
+      operationId: ingestClick
+      summary: Ingest an immutable click fact
+      parameters:
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Nonce'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './event-envelope.schema.json'
+      responses:
+        '200':
+          $ref: '#/components/responses/IngestionResult'
+        '403':
+          description: Sandbox disabled or signature invalid
+  /open-api/events/v1/conversions:
+    post:
+      operationId: ingestConversion
+      summary: Ingest an activate, register, or pay fact
+      parameters:
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Nonce'
+        - $ref: '#/components/parameters/Signature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: './event-envelope.schema.json'
+                - type: object
+                  properties:
+                    eventType:
+                      enum: [ACTIVATE, REGISTER, PAY]
+      responses:
+        '200':
+          $ref: '#/components/responses/IngestionResult'
+        '403':
+          description: Sandbox disabled or signature invalid
+components:
+  parameters:
+    Timestamp:
+      in: header
+      name: X-Timestamp
+      required: true
+      schema:
+        type: string
+      description: Unix epoch milliseconds; accepted clock skew is 180 seconds.
+    Nonce:
+      in: header
+      name: X-Nonce
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    Signature:
+      in: header
+      name: X-Sign
+      required: true
+      schema:
+        type: string
+        pattern: '^[a-fA-F0-9]{64}$'
+  responses:
+    IngestionResult:
+      description: Accepted or idempotently matched event fact
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, data]
+            properties:
+              code:
+                type: integer
+              msg:
+                type: string
+              data:
+                type: object
+                required:
+                  - rawEventId
+                  - duplicateDelivery
+                  - processingStatus
+                properties:
+                  rawEventId:
+                    type: string
+                  duplicateDelivery:
+                    type: boolean
+                  processingStatus:
+                    type: string
+                  reasonCode:
+                    type: [string, 'null']
+                  attributionStatus:
+                    type: [string, 'null']

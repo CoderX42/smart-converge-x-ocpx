@@ -1,0 +1,16 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: local-wiremock
+  group_by:
+    - alertname
+  group_wait: 0s
+  group_interval: 30s
+  repeat_interval: 1h
+
+receivers:
+  - name: local-wiremock
+    webhook_configs:
+      - url: http://smart-converge-x-callback-mock:8080/alertmanager
+        send_resolved: true

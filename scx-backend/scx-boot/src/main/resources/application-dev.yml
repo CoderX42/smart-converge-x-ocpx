@@ -57,3 +57,9 @@ knife4j:
     enable: false
   setting:
     language: zh_cn
+
+scx:
+  tracking:
+    sandbox-enabled: true
+    sandbox-signing-key: scx-sandbox-local-only
+    attribution-rule-version: last-click-v1

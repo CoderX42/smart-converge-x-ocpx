@@ -1,0 +1,70 @@
+asyncapi: 3.0.0
+info:
+  title: SCX MVP Tracking Messages
+  version: 1.0.0
+  description: Logical contracts emitted through the transactional outbox.
+channels:
+  attributionCreated:
+    address: scx.tracking.attribution.created.v1
+    messages:
+      attributionCreated:
+        $ref: '#/components/messages/AttributionCreated'
+  callbackRequested:
+    address: scx.tracking.callback.requested.v1
+    messages:
+      callbackRequested:
+        $ref: '#/components/messages/CallbackRequested'
+operations:
+  publishAttributionCreated:
+    action: send
+    channel:
+      $ref: '#/channels/attributionCreated'
+    messages:
+      - $ref: '#/channels/attributionCreated/messages/attributionCreated'
+  publishCallbackRequested:
+    action: send
+    channel:
+      $ref: '#/channels/callbackRequested'
+    messages:
+      - $ref: '#/channels/callbackRequested/messages/callbackRequested'
+components:
+  messages:
+    AttributionCreated:
+      name: AttributionCreatedV1
+      payload:
+        $ref: '#/components/schemas/AttributionCreatedPayload'
+    CallbackRequested:
+      name: CallbackRequestedV1
+      payload:
+        $ref: '#/components/schemas/CallbackRequestedPayload'
+  schemas:
+    AttributionCreatedPayload:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, attributionResultId, conversionEventId, status]
+      properties:
+        schemaVersion:
+          const: '1.0'
+        attributionResultId:
+          type: string
+        conversionEventId:
+          type: string
+        clickEventId:
+          type: [string, 'null']
+        status:
+          enum: [ATTRIBUTED, UNATTRIBUTED]
+        reasonCode:
+          type: [string, 'null']
+    CallbackRequestedPayload:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, callbackJobId, attributionResultId, targetRef]
+      properties:
+        schemaVersion:
+          const: '1.0'
+        callbackJobId:
+          type: string
+        attributionResultId:
+          type: string
+        targetRef:
+          const: sandbox

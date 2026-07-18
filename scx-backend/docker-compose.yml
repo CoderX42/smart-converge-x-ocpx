@@ -14,6 +14,34 @@ services:
       - ./db/smart-converge-x/00schema.sql:/docker-entrypoint-initdb.d/00schema.sql:ro
       - ./db/smart-converge-x/10smart_converge_x_core.sql:/docker-entrypoint-initdb.d/10smart_converge_x_core.sql:ro
       - ./db/smart-converge-x/20xxl_job_schema.sql:/docker-entrypoint-initdb.d/20xxl_job_schema.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V1__scx_mvp_schema.sql:/docker-entrypoint-initdb.d/30_mvp_v1.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V2__upgrade_legacy_subject_tables.sql:/docker-entrypoint-initdb.d/31_mvp_v2.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V3__seed_mvp_access_and_sandbox_media.sql:/docker-entrypoint-initdb.d/32_mvp_v3.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V4__add_machine_nonce_replay_protection.sql:/docker-entrypoint-initdb.d/33_mvp_v4.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V5__add_restricted_report_export_tasks.sql:/docker-entrypoint-initdb.d/34_mvp_v5.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V6__add_rta_endpoints_and_task_delivery_options.sql:/docker-entrypoint-initdb.d/35_mvp_v6.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V7__add_attribution_review_and_over_limit.sql:/docker-entrypoint-initdb.d/36_mvp_v7.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V8__add_upstream_customer_model.sql:/docker-entrypoint-initdb.d/37_mvp_v8.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V9__add_sensitive_click_detail_permission.sql:/docker-entrypoint-initdb.d/38_mvp_v9.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V10__add_short_link_tool.sql:/docker-entrypoint-initdb.d/39_mvp_v10.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V11__add_ad_platform_config.sql:/docker-entrypoint-initdb.d/40_mvp_v11.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V12__add_impression_to_daily_report.sql:/docker-entrypoint-initdb.d/41_mvp_v12.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V13__add_media_channel_user.sql:/docker-entrypoint-initdb.d/42_mvp_v13.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V14__add_delivery_configuration_history.sql:/docker-entrypoint-initdb.d/43_mvp_v14.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V15__add_full_funnel_report_metrics.sql:/docker-entrypoint-initdb.d/44_mvp_v15.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V16__add_report_customer_document_channel_dimensions.sql:/docker-entrypoint-initdb.d/45_mvp_v16.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V17__add_ad_effect_dashboard_menu.sql:/docker-entrypoint-initdb.d/46_mvp_v17.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V18__add_user_task_scope.sql:/docker-entrypoint-initdb.d/47_mvp_v18.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V19__add_short_link_source_url.sql:/docker-entrypoint-initdb.d/48_mvp_v19.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V20__add_export_task_scope_snapshot.sql:/docker-entrypoint-initdb.d/49_mvp_v20.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V21__seed_sandbox_callback_endpoint.sql:/docker-entrypoint-initdb.d/50_mvp_v21.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V22__add_rta_decision_log.sql:/docker-entrypoint-initdb.d/51_mvp_v22.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V23__add_schema_migration_history.sql:/docker-entrypoint-initdb.d/52_mvp_v23.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V24__add_media_summary_menu.sql:/docker-entrypoint-initdb.d/53_mvp_v24.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V25__seed_sandbox_mvp_demo_chain.sql:/docker-entrypoint-initdb.d/54_mvp_v25.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V26__add_competitor_report_summary_menus.sql:/docker-entrypoint-initdb.d/55_mvp_v26.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V27__add_independent_master_data_menus.sql:/docker-entrypoint-initdb.d/56_mvp_v27.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V28__add_event_mapping_price_and_limit.sql:/docker-entrypoint-initdb.d/57_mvp_v28.sql:ro
     command:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_general_ci
@@ -59,6 +87,9 @@ services:
       - smart-converge-x-net
 
   smart-converge-x-rocketmq-broker:
+    # RocketMQ 5.4.0 ships RocksDB JNI for x86_64 only. Docker Desktop
+    # transparently emulates this image on Apple Silicon development hosts.
+    platform: linux/amd64
     image: apache/rocketmq:5.4.0
     container_name: smart-converge-x-rocketmq-broker
     restart: always
@@ -68,7 +99,9 @@ services:
     environment:
       NAMESRV_ADDR: smart-converge-x-rocketmq-namesrv:9876
       JAVA_OPT_EXT: "-Xms256m -Xmx512m"
-    command: sh mqbroker -n smart-converge-x-rocketmq-namesrv:9876 -c /home/rocketmq/rocketmq-5.4.0/conf/broker.conf
+    volumes:
+      - ./docker/rocketmq/broker-local.conf:/home/rocketmq/rocketmq-5.4.0/conf/broker-local.conf:ro
+    command: sh mqbroker -n smart-converge-x-rocketmq-namesrv:9876 -c /home/rocketmq/rocketmq-5.4.0/conf/broker-local.conf
     networks:
       - smart-converge-x-net
     depends_on:
@@ -96,6 +129,8 @@ services:
     restart: unless-stopped
     ports:
       - "8089:8080"
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings:ro
     networks:
       - smart-converge-x-net
 

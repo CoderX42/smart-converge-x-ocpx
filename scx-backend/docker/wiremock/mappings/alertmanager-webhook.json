@@ -1,0 +1,9 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/alertmanager"
+  },
+  "response": {
+    "status": 200
+  }
+}

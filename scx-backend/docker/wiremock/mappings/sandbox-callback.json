@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/callback",
+    "headers": {
+      "Idempotency-Key": {
+        "matches": ".+"
+      }
+    }
+  },
+  "response": {
+    "status": 204
+  }
+}

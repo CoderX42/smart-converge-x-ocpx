@@ -11,6 +11,10 @@
         <module>scx-common</module>
         <module>scx-system</module>
         <module>scx-pay</module>
+        <module>scx-subject</module>
+        <module>scx-delivery</module>
+        <module>scx-tracking</module>
+        <module>scx-reporting</module>
 
         <module>scx-visual</module>
         <module>scx-boot</module>
@@ -90,6 +94,26 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-subject</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-delivery</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-tracking</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-reporting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.scx</groupId>
                 <artifactId>scx-pay-api</artifactId>

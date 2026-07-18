@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.local/contracts/event-envelope.schema.json",
+  "title": "SCX sandbox event envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "eventId",
+    "source",
+    "taskCode",
+    "eventType",
+    "occurredAt",
+    "deviceKeyHash"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "source": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "taskCode": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "eventType": {
+      "type": "string",
+      "enum": ["CLICK", "ACTIVATE", "REGISTER", "PAY"]
+    },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "deviceKeyHash": {
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 128,
+      "description": "Irreversible device identifier hash; raw device identifiers are forbidden."
+    },
+    "businessEventKey": { "type": "string", "maxLength": 256 },
+    "attributes": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

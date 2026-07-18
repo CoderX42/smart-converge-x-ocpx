@@ -24,6 +24,15 @@ required_tables=(
   sys_material sys_material_group sys_menu sys_region sys_role sys_role_menu
   sys_sms_config sys_sms_send_record sys_social_account sys_storage_config
   sys_user sys_user_role
+  scx_media scx_user_subject_scope scx_partner scx_product
+  scx_media_channel scx_integration_document scx_tracking_link
+  scx_link_event_mapping scx_tracking_task scx_raw_event
+  scx_conversion_identity scx_conversion_dedup_result scx_click_dedup_result
+  scx_attribution_result scx_event_outbox scx_callback_job scx_machine_nonce
+  scx_report_run scx_report_daily scx_export_task scx_rta_endpoint
+  scx_upstream_customer scx_short_link scx_ad_platform_config
+  scx_media_channel_user scx_delivery_config_revision scx_delivery_status_history
+  scx_user_task_scope scx_rta_decision_log scx_schema_migration
 )
 
 table_list="$(printf "'%s'," "${required_tables[@]}")"

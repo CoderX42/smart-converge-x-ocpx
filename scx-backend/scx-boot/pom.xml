@@ -36,6 +36,22 @@
             <artifactId>scx-pay-biz</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-subject</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-delivery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-tracking</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-reporting</artifactId>
+        </dependency>
 
         <!--        代码生成-->
         <dependency>
@@ -46,6 +62,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-undertow</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
         <!--            安全模块-->
         <dependency>

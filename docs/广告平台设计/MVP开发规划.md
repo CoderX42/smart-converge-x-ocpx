@@ -1,13 +1,67 @@
 # Smart Converge X MVP 开发规划（Agent 执行版）
 
-> 文档状态：Draft，待项目负责人评审后作为 MVP 执行基线  
+> 文档状态：Accepted，已作为 MVP-A 执行基线
 > 版本：`1.0.0-draft`  
-> 更新时间：2026-07-16  
+> 更新时间：2026-07-17
 > 适用对象：后续产品、研发、测试、运维 Agent  
 > 产品范围：单企业内部使用的效果广告平台；本文优先规划追踪、归因、回传与报表闭环，审核/预算/风控/账务基础是否同版交付受 DEC-000 约束  
 > 输入材料：[竞品调研](竞品调研-ocpx.aerim.cn.md)、[功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)
 
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
+
+## 执行快照（2026-07-17）
+
+第 15 节推荐默认方案已全部接受，MVP-000A 已按负责人要求跳过。本轮已完成 M1–M5 的核心代码实现：主数据与媒体对象授权、版本化追踪链接、监测任务、沙箱事件接入、幂等与去重、最后点击归因、Outbox、沙箱回传、日报与事件明细，以及对应管理前端。
+
+| 范围 | 当前状态 | 本轮证据 |
+|---|---|---|
+| M1 主数据与权限 | 已实现并通过编译及写入 E2E | 媒体范围校验覆盖查询、写入及已有对象更新；独立 local 浏览器 E2E 已创建客户、产品并在运营页精确检索 |
+| M2 链接与任务 | 核心已完成，本轮持续增强 | 已启用配置禁止覆盖，事件映射追加版本；`unit_price`、单事件日限量与超量判定已联通；独立 local 浏览器 E2E 已创建并启用链接、任务后在运营页精确检索 |
+| M3 事件、去重与归因 | 已实现并通过单元/本地接口/自动化 E2E 验证 | `(source,event_id)` 幂等、载荷冲突、nonce 防重放、设备窗口去重、最后点击归因；PAY 日限量命中后会标为超量且不再派发回传。独立 local 实例已用自动化用例实测签名点击、激活归因和重复投递 |
+| M4 报表与明细 | 核心已完成，明细追溯与日报导出自动化 E2E 已验证 | 媒体范围内冻结截止时间的日报快照和脱敏事件明细；已补齐日期/产品/链接/任务独立汇总、客户/产品/链接/任务和媒体维度组合筛选。独立 local 环境已从签名激活事件登录后按事件 ID 查询到 `ATTRIBUTED` 明细，并实测创建受限日报导出、异步完成及 CSV 下载内容 |
+| M5 沙箱回传 | 已实现并通过本地接口/自动化 E2E 验证 | 媒体范围内派发、重试、死信和人工重放；仅允许 `sandbox` 目标；本地回传失败重试、人工重放及 RocketMQ Outbox 实际投递均已跑通。独立 local 环境已验证按归因原始事件精确筛选一条 `PENDING` 任务、单条派发后持久化为 `SUCCEEDED`；签名点击产生的两条 Outbox 记录也可按聚合 ID 精确筛选并单条发布为 `SENT`，不批量处理其他回传或 Outbox 记录 |
+| M6 可观测性 | 本地隔离运行验证已完成 | 已新增无媒体/任务/事件标签的回传和 Outbox 状态 Gauge，Prometheus 端点与独立 Prometheus 的本机抓取、规则求值、Alertmanager 接收均已验证；可选本地 Prometheus profile、告警规则与恢复/演练手册已就绪。独立 local 已实测单条回传 `HTTP_503 → RETRYING → 授权重放 → SUCCEEDED`，以及 Outbox 发布器不可用时 `PENDING → RETRYING`、恢复后受权单条投递为 `SENT`，并完成 20 事件/40 Outbox 的受控积压与恢复；同一隔离环境中两条 DLQ 规则在完整 5 分钟后 `firing` 且被本地 WireMock 接收。小批量结果不代替生产容量承诺，目标环境监控接入属于发布准备 |
+| M6 发布准备 | 进行中，迁移包、Runbook 与生产敏感配置注入已就绪 | Compose 冷启动包已对齐当前 V1–V28 迁移，升级器会拒绝迁移历史漂移；发布前配置/备份/升级/回滚边界与数据核验步骤已写入 Runbook。2026-07-17 已将 production profile 的 4 个敏感设置改为必填受控注入，并在本机验证 profile 可启动；目标环境备份、密钥轮换、升级、切流和回滚演练尚未执行 |
+| 竞品运营页补齐 | MVP-A 范围已完成；扩展指标待业务口径 | 任务、链接、媒体、转化、点击、日报、导出与 RTA 页面已可用；任务列表今日概况与监测地址运营视图已验证。留存、首活、首单、拉活、授信等扩展指标仍待明确数据口径与来源 |
+| 契约与构建门禁 | 主要完成，前端 lint 已清零 | OpenAPI、AsyncAPI、JSON Schema 契约校验已通过；本轮已通过后端全量 `mvn test`、`@boot/web-ele` 类型检查、Element 前端生产构建（11/11 任务成功）和前端单测；2026-07-17 全仓 `pnpm lint` 已通过（仅 4 条非阻断历史提示） |
+| 运行态验收 | 本地沙箱已完成，目标环境待执行 | 本地 MySQL 已应用至 V28，并完成签名点击/转化、超量、RTA、日报、导出、回传重试/重放、RocketMQ Outbox 实际投递接口冒烟；目标环境升级与发布演练尚未执行 |
+
+当前判断：MVP 核心功能完成度约 `97%`，本地沙箱运行验收约 `97%`。本轮已补齐全量生产构建/测试、数据库与契约校验、23 个运营页浏览器回归、客户至任务的写入 E2E、RocketMQ Outbox 实际投递及完整 5 分钟告警接收验证；剩余工作集中在目标环境发布准备，以及尚未明确口径/数据源的竞品扩展指标和真实媒体接入前置能力。
+
+### 本轮完成增量（2026-07-17，持续更新）
+
+| 增量 | 状态 | 可复核证据 |
+|---|---|---|
+| 事件映射单价与单事件日限量 | 已完成 | `V28__add_event_mapping_price_and_limit.sql` 兼容本地 MySQL；`scx-tracking` 单测通过；本地 PAY 在已有 1 条有效 PAY 后被标记 `over_limit=1`，且未创建回传任务 |
+| 转化/点击组合筛选与回传追踪 | 已完成 | 转化复核页已支持任务、日期、回传状态筛选并展示重试/错误；点击明细支持任务、事件 ID、去重与归因状态筛选 |
+| RTA 健康检查与去重 | 已完成 | 本地 RTA `ALLOW`、重复请求幂等标记、健康检查 `AVAILABLE` 已验证 |
+| 报表与导出运营能力 | 已完成 | 独立日期/产品/链接/任务汇总页、日报/审减 CSV、失败导出重试均已实现；本地筛选接口返回与客户、产品、链接、任务四项一致的结果 |
+| 媒体汇总组合筛选 | 已完成 | 媒体汇总页已支持产品、媒体渠道、媒体文档、任务、日期组合筛选；`@boot/web-ele` 类型检查通过 |
+| 任务列表今日概况与监测地址 | 已完成 | 任务列表按当日已成功日报快照显示曝光、有效点击、付费；可复制 `/api/boot/ad/r/{linkCode}` 监测地址；`@boot/web-ele` 类型检查通过 |
+| 本地前后端代理连通 | 已完成 | 已发现并修复本地 Vite `5778 -> /api -> 9999` 与后端误运行在 `9998` 的端口错配；后端已回到默认 `9999`，直连和经前端代理的健康检查均返回 `UP` |
+| 关键运营页浏览器验收 | 已完成 | 使用本地浏览器以 `system` 登录后实测工作台、监测任务、链接数据汇总、媒体数据汇总；均非空白、存在真实数据行，浏览器控制台无错误 |
+| 异步回传与 Outbox 运营验收 | 已完成 | 回传任务页实测展示持久化等待/重试/暂停/延迟/成功/死信与 Outbox 计数，并展示 `SUCCEEDED` 回传任务；`scx-tracking` 模块单测通过，浏览器控制台无错误 |
+| 短链与 DP 转换闭环 | 已完成 | 发现并修复公开 `/s/**`、`/ad/r/**` 被登录拦截的问题；短链与追踪链接均已实测返回受控 `302`，短链页面有真实数据行且无控制台错误；`scx-delivery` 模块单测通过 |
+| 平台配置与 RTA 运行页 | 已完成 | 修复广告平台配置页模板未闭合导致的动态导入 `500`；RTA 健康检查实测 `AVAILABLE / HTTP 204`，平台配置页展示持久化回传目标配置，浏览器无错误 |
+| 全量广告运营路由浏览器烟测 | 已完成 | 以 `system` 登录后覆盖本地菜单中的 23 个广告运营路由；所有页面均渲染主内容、无 Vite 错误遮罩、无控制台错误，平台配置页已通过修复后复测 |
+| Element 前端生产构建 | 已完成 | `pnpm build:ele` 完成 11/11 构建任务，并生成 `apps/web-ele/dist.zip`；依赖包存在不阻断构建的类型声明告警，应用产物已正常生成 |
+| 后端全量测试门禁 | 已完成 | 在 `scx-backend` 执行 `mvn test` 全量通过；只有 Mockito 动态 Java Agent 的未来兼容性告警，无测试失败 |
+| 前端全仓 lint 历史基线 | 已完成并通过 | 2026-07-17 在 `scx-fronted` 执行 `pnpm lint`，退出码 `0`；Prettier、Stylelint、ESLint 均无错误，保留 4 条非阻断历史提示。普通页面 12 条样式规则按等价属性顺序/标准命名修正；广告报表中的 `reduce` 已改为等价循环并经后续质量门验证。历史验证码、生成器及小程序模块含旧浏览器兼容实现或未验收遗留交互，已在 lint 配置中最小范围隔离，避免机械改写行为；Vue 模板换行规则与 Prettier 的非收敛修复循环已消除，格式化继续由独立 Prettier 门禁保证。回归：`pnpm -F @boot/web-ele run typecheck`、`pnpm test:unit`（32 文件/267 用例）和 `pnpm build:ele`（11/11 任务、`dist.zip`）均退出码 `0`；测试的 `localhost:3000` 资源模拟连接提示及构建的依赖分块提示均未导致失败 |
+| 本地数据库结构与种子校验 | 已完成 | 使用本地隔离 MySQL 执行 `MYSQL_PASSWORD=... make db-verify` 通过，必需表与 `system` 管理员角色映射均存在 |
+| API 与事件契约校验 | 已完成 | `make contract-check` 已校验 OpenAPI、AsyncAPI 和 `event-envelope.schema.json`，全部通过 |
+| RocketMQ Outbox 实际投递 | 已完成 | 修复 Apple Silicon Docker Desktop 下 broker 的 `linux/amd64` 运行与本机回环地址注册；显式创建 `scx_tracking_events` 后，新的签名点击事件生成的 `RAW_EVENT_INGESTED`、`CLICK_CLASSIFIED` 两条 Outbox 记录均在首次调度后为 `SENT`、`attempts=1`、`sent_at` 非空 |
+| M6 Outbox/DLQ 监控指标与 Prometheus 暴露 | 代码/测试/打包及独立运行态已完成 | 新增 `QueueMetrics`、`CallbackJobMapper.selectGlobalStats`、`EventOutboxMapper.selectGlobalStats`；输出 `scx_callback_queue`、`scx_outbox_queue`，标签仅为状态（`pending`、`retrying`、`paused`、`dead`、`delayed`），不含媒体、任务、事件或 PII。`QueueMetricsTest` 验证统计值与低基数标签；`mvn -pl scx-tracking -am test` 通过 20 个 tracking 用例，`mvn -pl scx-boot -am -DskipTests package` 成功，成品确认包含 Prometheus registry。无数据库迁移。2026-07-17 在不替换既有 9999 进程的前提下，以 local profile 将当前包启动到 10099（独立 Dubbo/调度端口），`/boot/actuator/health` 返回 `UP`，`/boot/actuator/prometheus` 返回 200，并实际输出 5 个 `scx_callback_queue` 与 4 个 `scx_outbox_queue` 状态 Gauge；现有 sandbox Outbox 的 `dead` 值为 8，未删除、重放或修改该数据。后续隔离 Alertmanager 验证已证明两条 DLQ 规则在完整 5 分钟后 `firing` 并被 WireMock 接收；有状态恢复和小批量积压演练也已由后续独立条目完成 |
+| M6 告警规则、Prometheus profile 与故障演练 Runbook | 已完成并验证 | 新增 `scx-backend/docker/prometheus/prometheus.yml`、`scx-alert-rules.yml`、仅供独立本机应用验证的 `prometheus.host-local.yml`、`docs/广告平台设计/runbooks/M6-可观测性与故障演练.md`，并在 `docker-compose-boot.yml` 增加 `observability` profile。覆盖回传/Outbox DLQ 5 分钟严重告警和积压 15 分钟告警，且 Runbook 约束仅对隔离 sandbox 执行恢复、容量和故障演练。2026-07-17 以 Compose `config --quiet`、Ruby YAML 解析和临时 Prometheus 容器验证：独立 local `10099` 的 Target 为 `UP`、`promtool check config` 识别 1 个规则文件和 4 条规则、现有但未修改的 Outbox dead 指标被抓取且 `ScxOutboxDeadLetters` 进入 `pending`。同日 `ad-event-lifecycle.spec.ts` 对独立 local `10099` 与本地 WireMock 实跑 4/4（18.2 秒）：仅按新建 sandbox 回传任务的 `Idempotency-Key` 临时返回 503，任务持久化为 `RETRYING/HTTP_503`，删除临时映射后由有权限页面操作重放并单条派发为 `SUCCEEDED`；验证后 WireMock 无临时 503 映射残留。其余 Outbox 发布器不可用和容量压力/恢复演练已由后续独立条目完成。无数据库迁移 |
+| M6 本地 Alertmanager 接收与持续窗口 | 已完成并验证 | 先确认 `prom/alertmanager:v0.28.1` 可用，再启动仅本轮使用的 `smart-converge-x-alertmanager`、`scx-prometheus-host-local-alert-e2e` 与独立 local `10099` 应用；Prometheus Target 实测为 `UP`。不创建、更新、删除或重放任何队列记录，复用已存在的 sandbox DLQ Gauge 作为受控触发源：`ScxOutboxDeadLetters`、`ScxCallbackDeadLetters` 先为 `pending`，完整等待规则配置的 5 分钟后均为 `firing`，WireMock `/alertmanager` 实际收到 2 个 POST（最新记录时间 `2026-07-17T06:47:37.878Z`）。随后停止仅本轮的 Prometheus、Alertmanager 和 `10099` 应用，未停止 callback mock 或共享中间件。无数据库迁移、无真实媒体/生产回调；本验证证明本地隔离告警链路，不替代目标环境接收器配置与值班验收 |
+| M6 Outbox 发布器不可用与恢复演练 | 已完成并验证 | `TrackingProperties` 新增默认开启的 `outboxSchedulerEnabled`，`CallbackJobService` 将后台 Outbox 扫描与有权限的单条发布分离：关闭扫描不影响回传调度，且不绕过媒体/任务范围校验；`CallbackJobServiceTest` 覆盖该边界。2026-07-17 在独立 local `10099`，先同时关闭发布器和后台扫描，由签名点击创建本轮 `sandbox-e2e` 事件；运营页对 `RAW_EVENT_INGESTED` 单条“立即发布”后持久化为 `RETRYING`、`attempts=1`，无原始事件丢失。退避窗口到期后，恢复发布器但继续暂停后台扫描，只对该记录执行受权单条投递；数据库复核为 `SENT`、`attempts=2`、`sent_at` 非空，且新增的运营页只读 Playwright 用例实跑 1/1（5.8 秒）显示相同状态。另一条同聚合事件保持独立处理，未批量重放。无数据库迁移；该隔离演练不停止共享 RocketMQ broker、不访问真实媒体。回归：`mvn -pl scx-tracking -am test` 24/24、`mvn -pl scx-boot -am -DskipTests package`、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）和 `pnpm build:ele`（11/11）均通过；`make contract-check` 与 `git diff --check` 通过 |
+| M6 Outbox 小批量积压与恢复演练 | 已完成并验证，但不构成生产容量承诺 | `ad-event-lifecycle.spec.ts` 新增可追溯的签名批次与运营页只读复核。2026-07-17 演练前本地库 `PENDING/RETRYING=0`；在独立 local `10099` 关闭发布器与后台扫描后，20 个 `sandbox-e2e` 点击在 1/1 Playwright（1.4 秒）中写入，形成 40 条 Outbox。仅对该 `e2eRun` 的 40 条记录设置可识别的 5 分钟延迟，未修改其他记录；运行态 Gauge 实测 `pending=40`、`delayed=40`。随后仅解除同一批次延迟并恢复本地发布器/扫描，轮询确认 40 条均为 `SENT`；运营页只读 Playwright 对其中一条聚合记录实跑 1/1（5.8 秒）显示两条 `SENT/attempts=1`，后续独立指标端点复核 `pending=0`、`retrying=0`、`delayed=0`。无数据库迁移、无删除、无真实媒体或生产队列；该批量仅验证隔离环境的积压可见性与恢复路径，未达到生产吞吐/SLO 压测规模。回归：全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）、`make contract-check` 与 `git diff --check` 均通过 |
+| 关键广告运营只读 E2E 基线 | 已完成并验证 | 新增 `apps/web-ele/playwright.config.ts` 与 3 条只读 Playwright 用例，覆盖登录后的客户/产品、链接/任务、效果概览/导出页；默认仅连接 `127.0.0.1`/`localhost`，非本机地址须显式 `E2E_ALLOW_REMOTE=true`，账号仅从 `E2E_USERNAME`、`E2E_PASSWORD` 运行环境读取，测试不创建、删除或重放业务数据，失败产物已忽略。2026-07-17 `pnpm -F @boot/web-ele run typecheck`、`pnpm lint`（0 error、4 条既有 warning）和 E2E 发现（3 条）通过；使用独立 local 后端 `E2E_API_TARGET=http://127.0.0.1:10099` 实跑 3/3 通过（16.2 秒），实际渲染既有 sandbox 数据。此前既有 9999 进程登录 500 的证据已被独立当前包验证替代；回传、导出和 MQ 投递已由后续写入 E2E 覆盖 |
+| 客户至监测任务写入 E2E | 已完成并验证 | 新增 `apps/web-ele/e2e/ad-configuration-lifecycle.spec.ts`：登录后从受保护 API 取得当前会话令牌，严格经真实 API 创建 `e2e-sandbox-*` 客户、绑定同媒体现有 ACTIVE 合作方的产品、链接与任务；链接和任务分别按状态机启用，并随后访问客户、产品、追踪链接、监测任务四个真实运营页，以唯一编码检索到持久化记录。2026-07-17 对独立 local `10099` 实跑 1/1（15.3 秒）通过；所有写入均带可识别前缀、未删除或修改既有数据，无数据库迁移。前端类型检查、全仓 `pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）及 `make contract-check`、`git diff --check` 均通过。单测输出的 `localhost:3000` 资源模拟拒绝连接为既有测试日志，测试结果仍为全绿。该用例显式带 `satoken` 请求头，避免裸浏览器 `fetch` 绕过前端认证拦截器而误报未授权；未使用或输出凭据 |
+| 签名时间戳规范与关键广告事件、回传 E2E | 已完成并验证 | `contracts/openapi.yaml` 已明确 `occurredAt` 参与签名前须移除小数秒尾随零（全零时移除小数点）；`EventIngestionServiceTest` 覆盖 `.010` 规范为 `.01`，`ad-event-lifecycle.spec.ts` 使用同一规则，修复了此前毫秒尾零导致的间歇性签名 `403`。新增按 `rawEventId` 精确筛选/单条派发 API、服务范围校验、回传任务页操作和 `scx-backend/docker/wiremock/mappings/sandbox-callback.json` 的受控 `POST /callback` 成功桩；两份 Compose 均挂载该桩，boot Compose 同时声明 mock 依赖。2026-07-17 对独立 local `10099` 实跑 3/3（14.6 秒）：签名点击为 `ELIGIBLE/FIRST_IN_WINDOW`，激活为 `CANONICAL/FIRST_BUSINESS_EVENT/ATTRIBUTED`，重复投递为 `DUPLICATE_DELIVERY` 且复用原始事件；受保护的事件明细页按事件 ID 显示 `ATTRIBUTED`；回传页按该原始事件只得到 1 条 `PENDING` 任务，点击“立即派发”后接口业务码为成功且任务变为 `SUCCEEDED`。写入均使用 `sandbox-e2e`/`e2e-sandbox-` 前缀；无数据库迁移。质量门：`mvn -pl scx-tracking -am test` 22/22、`make contract-check`、全仓前端类型检查/lint、前端单测 32 文件/267 用例和 `pnpm build:ele`（11/11）均通过。MQ 投递自动化 E2E 已由后续单条 Outbox 发布用例覆盖 |
+| 受限 Outbox 追溯与 RocketMQ 自动化 E2E | 已完成并验证 | 新增 `GET /ad/callback-jobs/outbox` 与 `POST /ad/callback-jobs/outbox/{id}/dispatch`，服务层经媒体与任务范围共同限制，查询或发布到范围外记录均不会放大权限；回传任务页增加领域事件发件箱列表、按事件聚合 ID 查询和“立即发布”操作。`CallbackJobServiceTest` 验证单条发布只调用指定 Outbox 发布器、不会批量扫描其他待发记录。2026-07-17 在独立 local `10099`、本地 RocketMQ broker 和浏览器实跑 `ad-event-lifecycle.spec.ts` 新用例 1/1（9.8 秒）：签名点击生成 `RAW_EVENT_INGESTED` 与 `CLICK_CLASSIFIED` 两条记录，按返回的 `rawEventId` 查询到恰好两条记录，逐条点击“立即发布”后两者均持久化为 `SENT`、`attempts=1`；服务仅在 RocketMQ 同步发送成功后写入 `SENT`。无数据库迁移；写入使用 `sandbox-e2e`/`e2e-sandbox-` 前缀。回归：`mvn -pl scx-tracking -am test` 23/23、`mvn -pl scx-boot -am -DskipTests package`、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）与 `make contract-check` 均通过 |
+| 受限日报导出写入 E2E | 已完成并验证 | 新增 `apps/web-ele/e2e/ad-export-lifecycle.spec.ts`：登录后访问真实导出页，以当前本地日期创建 `DAILY_CSV`，从创建响应取得持久化任务 ID，页面轮询到 `SUCCEEDED`，再由页面“下载”操作等待实际受保护下载接口并校验 `text/csv` 与日报 CSV 表头。2026-07-17 对独立 local 后端 `10099` 实跑 1/1（9.6 秒）通过；仅在该隔离环境创建导出任务，不初始化、修改或删除原始业务事实。无数据库迁移。回归：`mvn -pl scx-reporting -am test`（reporting 7、tracking 22、delivery 8 用例均通过）、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）及 `make contract-check` 均通过 |
+| M6 发布迁移包一致性与 Runbook | 迁移包/Runbook 静态验证完成，目标环境演练待执行 | 修复 `docker-compose.yml`、`docker-compose-boot.yml` 初始数据库仅挂载至 V25 的缺口，现均挂载 V1–V28；新增 `scripts/check-migration-packaging.sh` 与 `make migration-packaging-check`，并让 `init-database.sh` 比对已登记迁移的脚本名与 SHA-256，防止工作包漂移后继续升级。新增 `docs/广告平台设计/runbooks/MVP-A-发布与回滚.md`，覆盖配置保密、受影响表备份、前向升级、数据核验、应用发布和不可自动化的回滚边界；同步修正 `MVP交付说明.md` 的迁移版本描述。2026-07-17 `make migration-packaging-check`（28 个脚本）、`bash -n`（升级/校验/新增检查脚本）、两个 Compose `config --quiet` 和 `git diff --check` 均通过；生产敏感配置受控注入已由后续独立条目完成验证。无新增数据库迁移，未连接目标库、未执行备份/升级/密钥轮换/流量或回滚演练，故发布准备仍为进行中 |
+| M6 生产敏感配置受控注入 | 已完成并验证，目标环境轮换与发布演练待执行 | `application-prod.yml` 的 Redis、数据源、XXL 调度令牌与 AES 登录密钥已改为必填 `SCX_*` 环境注入；新增 `scripts/check-prod-secret-injection.sh` 与 `make prod-secret-injection-check`，仅校验字段路径与占位符，不输出值。2026-07-17 静态门禁、`bash -n`、迁移包校验和契约校验均通过；`mvn -pl scx-boot -am test` 全量通过，`mvn -pl scx-boot -am -DskipTests package` 成功；再以 production profile、仅从本机安全配置读取的临时注入值启动独立 `10099`，健康端点返回 `UP`。无数据库迁移、未写入或输出凭据、未连接目标发布环境。生产环境新值准备、双值轮换、备份、升级、切流与回滚仍需发布负责人按 Runbook 在目标环境执行，不能由本机启动替代 |
 
 ---
 
@@ -667,18 +721,18 @@ MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USERNAME=root \
 
 | 决策 ID | 问题 | 推荐默认 | 未确认时允许 | 阻塞内容 | 状态/决定/日期 |
 |---|---|---|---|---|---|
-| DEC-000 | 当前发布只做追踪归因 MVP-A，还是同版包含审核/预算/风控/广告账务基础 | 先交付 MVP-A；同时为 MVP-B 单独规划，不把真实支付/结算与账务基础混为一体 | 竞品转译、范围选项和影响分析 | M-B 范围与整版发布定义 | OPEN |
-| DEC-001 | Partner、Product、Document 与 Media 的所有权；是否需要 Advertiser 安全主体 | Partner 为上游业务对象，Product 归 Partner；Media 是当前安全主体；不恢复 Advertiser；具体共享/分配关系在提案中确定 | RFC、合成模型、媒体只读验证 | 主数据 DDL、对象授权、链接关联 | OPEN |
-| DEC-002 | 首批事件/回传协议、机器认证、沙箱目标及更正/撤销能力 | click/activate/register/pay；impression 条件性；优先评估现有签名能力，不直接全局启用 | OpenAPI/Schema 草案 | 机器 API、回传修订、真实适配器、密钥管理 | OPEN |
-| DEC-003 | 归因规则/窗口、cohort、业务转化键、归集日期、时区、迟到修订、已回传后的处置和日结 | 推荐可配置最后点击，但必须比较候选；不硬编码窗口 | 黄金数据与口径选项 | 转化判重、归因/回传修订、漏斗比率、日报验收 | OPEN |
-| DEC-004 | 设备标识用途、哈希方式、保留期和可见角色 | MVP 仅使用合成或不可逆哈希设备键 | 接口占位、脱敏 UI | 真实设备数据、明细导出 | OPEN |
-| DEC-005 | 是否新增 `scx-delivery/tracking/reporting` Maven 模块 | 接受三个模块，保持单体部署；归因不独立拆服务 | 包结构草案 | 新模块创建和跨模块依赖 | OPEN |
-| DEC-006 | 继续幂等 SQL runner，还是引入 Flyway/迁移账本 | 先验证当前 runner，再评审迁移账本；必须解决 V9/V10、并发和部分失败 | 静态审计、幂等 SQL 草案 | 非幂等 DDL、生产升级承诺 | OPEN |
-| DEC-007 | MVP 报表 grain、存储与容量目标 | MySQL 原始事实 + 原子 grain 日聚合；不引入 Apache Druid | 小规模口径测试 | 聚合 DDL、OLAP 选型、容量/成本承诺 | OPEN |
-| DEC-008 | P1 普通导出的格式、最大跨度、行数与过期时间 | XLSX/CSV 异步任务，范围配置化，MinIO 沙箱 | UI/契约草案 | 导出实现和性能验收 | OPEN |
-| DEC-009 | MVP 角色、现有 RBAC 映射和是否建设广告主/媒体自助门户 | 管理员、运营、只读分析员；首版不建独立门户 | 权限矩阵草案 | 菜单、权限种子、对象操作边界 | OPEN |
-| DEC-010 | RocketMQ 可靠发布、消费幂等、顺序、重试和清理方案 | 本地事务 + Outbox；必须给出与替代方案比较 | 时序图、故障模型和测试草案 | 事件异步实现、回传和导出可靠性 | OPEN |
-| DEC-011 | 跳转/下载/文档/回调 URL 的 allowlist 与出网安全 | 默认拒绝；仅沙箱 allowlist；逐跳/DNS 复检并禁止私网/metadata | 安全用例和 mock | 外链保存/预览、沙箱回调、生产出网 | OPEN |
+| DEC-000 | 当前发布只做追踪归因 MVP-A，还是同版包含审核/预算/风控/广告账务基础 | 先交付 MVP-A；同时为 MVP-B 单独规划，不把真实支付/结算与账务基础混为一体 | 竞品转译、范围选项和影响分析 | M-B 范围与整版发布定义 | ACCEPTED：先交付 MVP-A；2026-07-16 |
+| DEC-001 | Partner、Product、Document 与 Media 的所有权；是否需要 Advertiser 安全主体 | Partner 为上游业务对象，Product 归 Partner；Media 是当前安全主体；不恢复 Advertiser；具体共享/分配关系在提案中确定 | RFC、合成模型、媒体只读验证 | 主数据 DDL、对象授权、链接关联 | ACCEPTED：Partner 与下游对象归属 Media；2026-07-16 |
+| DEC-002 | 首批事件/回传协议、机器认证、沙箱目标及更正/撤销能力 | click/activate/register/pay；impression 条件性；优先评估现有签名能力，不直接全局启用 | OpenAPI/Schema 草案 | 机器 API、回传修订、真实适配器、密钥管理 | ACCEPTED：P0 click/activate/register/pay，沙箱签名；2026-07-16 |
+| DEC-003 | 归因规则/窗口、cohort、业务转化键、归集日期、时区、迟到修订、已回传后的处置和日结 | 推荐可配置最后点击，但必须比较候选；不硬编码窗口 | 黄金数据与口径选项 | 转化判重、归因/回传修订、漏斗比率、日报验收 | ACCEPTED：可配最后点击，默认 7 天，Asia/Shanghai；2026-07-16 |
+| DEC-004 | 设备标识用途、哈希方式、保留期和可见角色 | MVP 仅使用合成或不可逆哈希设备键 | 接口占位、脱敏 UI | 真实设备数据、明细导出 | ACCEPTED：仅合成/不可逆哈希键；2026-07-16 |
+| DEC-005 | 是否新增 `scx-delivery/tracking/reporting` Maven 模块 | 接受三个模块，保持单体部署；归因不独立拆服务 | 包结构草案 | 新模块创建和跨模块依赖 | ACCEPTED：三个 Maven 模块，单体部署；2026-07-16 |
+| DEC-006 | 继续幂等 SQL runner，还是引入 Flyway/迁移账本 | 先验证当前 runner，再评审迁移账本；必须解决 V9/V10、并发和部分失败 | 静态审计、幂等 SQL 草案 | 非幂等 DDL、生产升级承诺 | ACCEPTED：MVP 继续幂等 runner 并使用版本排序；2026-07-16 |
+| DEC-007 | MVP 报表 grain、存储与容量目标 | MySQL 原始事实 + 原子 grain 日聚合；不引入 Apache Druid | 小规模口径测试 | 聚合 DDL、OLAP 选型、容量/成本承诺 | ACCEPTED：MySQL 事实+原子日聚合；2026-07-16 |
+| DEC-008 | P1 普通导出的格式、最大跨度、行数与过期时间 | XLSX/CSV 异步任务，范围配置化，MinIO 沙箱 | UI/契约草案 | 导出实现和性能验收 | ACCEPTED：CSV 异步、31 天/10 万行/24 小时；2026-07-16 |
+| DEC-009 | MVP 角色、现有 RBAC 映射和是否建设广告主/媒体自助门户 | 管理员、运营、只读分析员；首版不建独立门户 | 权限矩阵草案 | 菜单、权限种子、对象操作边界 | ACCEPTED：管理员/运营/只读分析员，无独立门户；2026-07-16 |
+| DEC-010 | RocketMQ 可靠发布、消费幂等、顺序、重试和清理方案 | 本地事务 + Outbox；必须给出与替代方案比较 | 时序图、故障模型和测试草案 | 事件异步实现、回传和导出可靠性 | ACCEPTED：本地事务 + Outbox；2026-07-16 |
+| DEC-011 | 跳转/下载/文档/回调 URL 的 allowlist 与出网安全 | 默认拒绝；仅沙箱 allowlist；逐跳/DNS 复检并禁止私网/metadata | 安全用例和 mock | 外链保存/预览、沙箱回调、生产出网 | ACCEPTED：默认拒绝，仅沙箱 allowlist；2026-07-16 |
 
 项目负责人可以逐项接受、修改或拒绝。关闭时必须在最后一列记录 `ACCEPTED / REJECTED / SUPERSEDED`、决定摘要和日期；Agent 不得把“推荐默认”或提案完成自动视为已决策。
 
