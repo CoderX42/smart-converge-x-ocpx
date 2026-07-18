@@ -17,22 +17,34 @@ const userStore = useUserStore();
 const authStore = useAuthStore();
 const accessStore = useAccessStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
-const avatar = computed(() => userStore.userInfo?.avatar ?? preferences.app.defaultAvatar);
-const menus = computed(() => [{
-  handler: () => router.push('/user/profile'), icon: SvgUserIcon, text: '个人中心',
-}]);
+const avatar = computed(
+  () => userStore.userInfo?.avatar ?? preferences.app.defaultAvatar,
+);
+const menus = computed(() => [
+  {
+    handler: () => router.push('/user/profile'),
+    icon: SvgUserIcon,
+    text: '个人中心',
+  },
+]);
 
 async function handleLogout() {
   await authStore.logout(false);
 }
 
-watch(() => preferences.app.watermark, async (enabled) => {
-  if (enabled) {
-    await updateWatermark({ content: `${userStore.userInfo?.username} - ${userStore.userInfo?.realName}` });
-  } else {
-    destroyWatermark();
-  }
-}, { immediate: true });
+watch(
+  () => preferences.app.watermark,
+  async (enabled) => {
+    if (enabled) {
+      await updateWatermark({
+        content: `${userStore.userInfo?.username} - ${userStore.userInfo?.realName}`,
+      });
+    } else {
+      destroyWatermark();
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -47,7 +59,10 @@ watch(() => preferences.app.watermark, async (enabled) => {
       />
     </template>
     <template #extra>
-      <AuthenticationLoginExpiredModal v-model:open="accessStore.loginExpired" :avatar>
+      <AuthenticationLoginExpiredModal
+        v-model:open="accessStore.loginExpired"
+        :avatar
+      >
         <LoginForm />
       </AuthenticationLoginExpiredModal>
     </template>

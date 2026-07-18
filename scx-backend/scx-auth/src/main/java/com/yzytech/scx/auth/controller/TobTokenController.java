@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/token")
+@RequestMapping("/auth/token")
 @Tag(description = "token", name = "授权登录")
 public class TobTokenController {
 

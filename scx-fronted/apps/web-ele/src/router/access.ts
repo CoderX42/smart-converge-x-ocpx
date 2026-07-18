@@ -21,6 +21,9 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
   const pageMap: ComponentRecordType = import.meta.glob([
     '../views/_core/**/*.vue',
     '../views/dashboard/**/*.vue',
+    '../views/delivery/**/*.vue',
+    '../views/reporting/**/*.vue',
+    '../views/operations/**/*.vue',
     '../views/pay/**/*.vue',
     '../views/system/**/*.vue',
   ]);

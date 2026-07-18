@@ -8,7 +8,7 @@ import '@boot/styles';
 import '@boot/styles/ele';
 
 import { useTitle } from '@vueuse/core';
-import { ElLoading } from 'element-plus';
+import ElementPlus from 'element-plus';
 
 import { $t, setupI18n } from '#/locales';
 
@@ -34,8 +34,8 @@ async function bootstrap(namespace: string) {
   // });
   const app = createApp(App);
 
-  // 注册Element Plus提供的v-loading指令
-  app.directive('loading', ElLoading.directive);
+  // Element Plus installs its v-loading directive with the plugin.
+  app.use(ElementPlus);
 
   // 注册Boot提供的v-loading和v-spinning指令
   registerLoadingDirective(app, {
