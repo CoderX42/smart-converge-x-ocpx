@@ -4,3 +4,8 @@
 *.local
 coverage/
 reports/
+
+# Runtime logs and log archives
+logs/
+*.log
+*.log.zip
