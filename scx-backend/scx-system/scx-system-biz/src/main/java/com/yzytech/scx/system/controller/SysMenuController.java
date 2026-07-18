@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/menu")
+@RequestMapping("/system/menu")
 @Tag(description = "menu", name = "菜单管理")
 public class SysMenuController {
 

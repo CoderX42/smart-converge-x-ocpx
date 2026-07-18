@@ -68,8 +68,8 @@ const initPage = async () => {
 };
 
 const resetQuery = () => {
-	queryRef.value?.resetFields();
-	initPage();
+  queryRef.value?.resetFields();
+  initPage();
 };
 initPage();
 /**

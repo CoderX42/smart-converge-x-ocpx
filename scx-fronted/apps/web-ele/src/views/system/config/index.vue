@@ -14,7 +14,6 @@ import {
 } from 'element-plus';
 
 import { delObj, getPage } from '#/api/system/config';
-import { useDict } from '#/utils/dict';
 
 const RightToolbar = defineAsyncComponent(
   () => import('#/components/right-toolbar/index.vue'),
@@ -22,11 +21,7 @@ const RightToolbar = defineAsyncComponent(
 const Pagination = defineAsyncComponent(
   () => import('#/components/pagination/index.vue'),
 );
-const DictTag = defineAsyncComponent(
-  () => import('#/components/dict-tag/index.vue'),
-);
 const Form = defineAsyncComponent(() => import('./form.vue'));
-const { status } = useDict('status');
 const state = reactive({
   queryParams: {
     configKey: '',

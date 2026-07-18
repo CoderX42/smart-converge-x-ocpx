@@ -334,7 +334,7 @@ onUnmounted(() => {
   }
 }
 
-@keyframes fadeInUp {
+@keyframes fade-in-up {
   from {
     opacity: 0;
     transform: translateY(20px);
@@ -346,7 +346,7 @@ onUnmounted(() => {
   }
 }
 
-@keyframes scaleIn {
+@keyframes scale-in {
   from {
     opacity: 0;
     transform: scale(0.5);
@@ -388,7 +388,7 @@ onUnmounted(() => {
 }
 
 /* 高对比度模式支持 */
-@media (prefers-contrast: high) {
+@media (prefers-contrast: more) {
   .auth-card {
     border: 2px solid #000;
   }

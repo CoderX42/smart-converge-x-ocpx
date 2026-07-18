@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { Page } from '@boot/common-ui';
+
 import { ElAlert, ElCard } from 'element-plus';
 </script>
 

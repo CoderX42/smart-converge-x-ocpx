@@ -112,7 +112,7 @@ const resetQuery = () => {
   queryRef.value.resetFields();
   initPage();
 };
-const handleClick = (tab: TabsPaneContext, event: Event) => {
+const handleClick = (_tab: TabsPaneContext, _event: Event) => {
   if (active.value === 'send') {
     nextTick(() => {
       smsSendRecordRef.value?.initPage();

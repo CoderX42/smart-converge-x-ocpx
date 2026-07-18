@@ -38,7 +38,7 @@ import java.util.Objects;
  */
 @RestController
 @AllArgsConstructor
-@RequestMapping("/user")
+@RequestMapping("/system/user")
 @Tag(description = "user", name = "用户管理")
 public class SysUserController {
 
