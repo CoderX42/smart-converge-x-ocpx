@@ -129,16 +129,9 @@ bootstrap().then(async () => {
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M5 / Settlement Control</div>
-        <h1 class="mvp-title">转化审核与审减</h1>
-        <p class="mvp-subtitle">
-          超量转化不会自动回传；审核通过后进入原始回传，审减后从后续日报口径剔除并创建冲正任务。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -148,7 +141,7 @@ bootstrap().then(async () => {
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

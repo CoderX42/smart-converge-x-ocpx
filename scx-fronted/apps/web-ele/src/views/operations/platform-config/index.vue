@@ -77,17 +77,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M5 / Platform Settings</div>
-        <h1 class="mvp-title">广告平台配置</h1>
-        <p class="mvp-subtitle">
-          按媒体范围管理 API
-          域名、点击/曝光路径、事件字段和上下游参数；敏感凭据不在此页面保存。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -97,7 +89,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-alert
       class="mb-4"

@@ -27,7 +27,12 @@ const Pagination = defineAsyncComponent(
 const DictTag = defineAsyncComponent(
   () => import('#/components/dict-tag/index.vue'),
 );
-const { sboot_storage_type, status } = useDict('sboot_storage_type', 'status');
+const { status } = useDict('status');
+
+const storageTypes = [
+  { label: '本机', value: 'local' },
+  { label: 'OSS', value: 'oss' },
+];
 const state = reactive({
   queryParams: {
     type: '',
@@ -125,7 +130,7 @@ initPage();
             placeholder="请选择存储类型"
           >
             <ElOption
-              v-for="item in sboot_storage_type"
+              v-for="item in storageTypes"
               :key="item.value"
               :label="item.label"
               :value="item.value"
@@ -172,7 +177,7 @@ initPage();
         />
         <ElTableColumn prop="type" label="存储类型" width="100">
           <template #default="scope">
-            <DictTag :options="sboot_storage_type" :value="scope.row.type" />
+            <DictTag :options="storageTypes" :value="scope.row.type" />
           </template>
         </ElTableColumn>
         <ElTableColumn prop="type" label="状态" width="100">

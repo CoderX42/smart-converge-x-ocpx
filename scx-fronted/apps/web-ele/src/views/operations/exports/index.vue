@@ -107,17 +107,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">P1 / Restricted CSV Export</div>
-        <h1 class="mvp-title">报表导出任务</h1>
-        <p class="mvp-subtitle">
-          导出按创建与下载两次校验媒体范围；单次最多 31 天、10 万行，产物仅保留
-          24 小时。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -127,7 +119,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

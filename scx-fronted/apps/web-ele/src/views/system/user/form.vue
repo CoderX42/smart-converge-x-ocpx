@@ -32,8 +32,8 @@ const emit = defineEmits(['initPage']);
 const SelectShop = defineAsyncComponent(
   () => import('#/components/select-shop/index.vue'),
 );
-const SelectMaterial = defineAsyncComponent(
-  () => import('#/components/select-material/index.vue'),
+const AvatarPicker = defineAsyncComponent(
+  () => import('./components/avatar-picker.vue'),
 );
 interface UserSate {
   rules: object;
@@ -372,10 +372,7 @@ defineExpose({
           </ElCheckboxGroup>
         </ElFormItem>
         <ElFormItem label="头像" prop="avatar">
-          <SelectMaterial
-            v-model="state.form.avatar"
-            :can-choose-images-num="1"
-          />
+          <AvatarPicker v-model="state.form.avatar" />
         </ElFormItem>
       </ElForm>
       <template #footer>

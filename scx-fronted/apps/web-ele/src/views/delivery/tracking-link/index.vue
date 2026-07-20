@@ -202,16 +202,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M2 / Versioned Links</div>
-        <h1 class="mvp-title">追踪链接编排</h1>
-        <p class="mvp-subtitle">
-          把产品、合作方和受控文档组合成可版本化的事件入口。归档保留历史，启停不会改写已经发生的事实。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -221,7 +214,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

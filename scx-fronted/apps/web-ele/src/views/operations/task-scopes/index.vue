@@ -109,16 +109,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M6 / Server-side Data Scope</div>
-        <h1 class="mvp-title">任务数据授权</h1>
-        <p class="mvp-subtitle">
-          显式授权后，任务列表、配置读取和业务操作都必须通过后端范围检查；未配置任务授权时继承媒体范围。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -128,7 +121,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

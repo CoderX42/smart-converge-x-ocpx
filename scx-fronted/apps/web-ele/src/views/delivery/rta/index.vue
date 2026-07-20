@@ -123,17 +123,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">P1 / Sandbox RTA</div>
-        <h1 class="mvp-title">RTA 配置中心</h1>
-        <p class="mvp-subtitle">
-          后置 RTA
-          只允许当前媒体范围内的沙箱端点；任务启用时会校验端点状态，健康检查不会暴露内部错误细节。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -143,7 +135,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

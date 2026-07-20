@@ -93,17 +93,9 @@ bootstrap().then(load);
 </script>
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M5 / Link Utilities</div>
-        <h1 class="mvp-title">短链与 DP 转换</h1>
-        <p class="mvp-subtitle">
-          通用短链仅跳转至沙箱地址；DP 链接仅接受淘宝、京东受控 HTTPS
-          域名，并在保存前完成规范化。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -113,7 +105,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">

@@ -37,6 +37,11 @@ export function saveMaster(type: MasterType, data: Record<string, any>) {
     ? requestClient.put(`/ad/${type}/${data.id}`, data)
     : requestClient.post(`/ad/${type}`, data);
 }
+export function uploadIntegrationDocument(data: FormData) {
+  return requestClient.post<string>('/ad/integration-documents/upload', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
 export function getTrackingLinks(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/tracking-links', { params });
 }

@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { UploadProps, UploadRequestOptions } from 'element-plus';
+
 import type { MasterType, Media } from '#/api/ad';
 
 import { computed, reactive, ref, watch } from 'vue';
@@ -11,6 +13,7 @@ import {
   getMedia,
   getUpstreamCustomers,
   saveMaster,
+  uploadIntegrationDocument,
 } from '#/api/ad';
 
 import '../components/mvp-page.css';
@@ -49,14 +52,6 @@ const currentTab = computed(() =>
   tabs.find((item) => item.key === active.value)!,
 );
 const directEntry = computed(() => Boolean(routeMasterType[route.path]));
-const pageTitle = computed(() =>
-  directEntry.value ? `${currentTab.value.label}管理` : '投放主数据控制台',
-);
-const pageSubtitle = computed(() =>
-  directEntry.value
-    ? `${currentTab.value.label}在当前媒体安全范围内独立维护，并与追踪链接、监测任务形成可追溯关联。`
-    : '合作方、产品、渠道与接入文档共用同一媒体安全边界。所有下游配置都从这里获得清晰且可追溯的归属。',
-);
 
 async function bootstrap() {
   const result = await getMedia();
@@ -140,6 +135,48 @@ async function submit() {
   }
 }
 
+const beforeDocumentUpload: UploadProps['beforeUpload'] = (file) => {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const allowedExtensions = [
+    'csv',
+    'doc',
+    'docx',
+    'json',
+    'md',
+    'pdf',
+    'txt',
+    'xlsx',
+    'yaml',
+    'yml',
+  ];
+  if (!extension || !allowedExtensions.includes(extension)) {
+    ElMessage.warning('仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档');
+    return false;
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    ElMessage.warning('文档大小不能超过 20MB');
+    return false;
+  }
+  return true;
+};
+
+async function uploadDocumentFile(options: UploadRequestOptions) {
+  const data = new FormData();
+  data.append('file', options.file);
+  data.append('mediaId', mediaId.value);
+  try {
+    const objectUrl = await uploadIntegrationDocument(data);
+    form.objectKey = objectUrl;
+    form.externalUrl = undefined;
+    form.storageType = 'OBJECT';
+    options.onSuccess(objectUrl);
+    ElMessage.success('文档已上传至对象存储，请保存文档信息');
+  } catch (error) {
+    options.onError(error as Parameters<typeof options.onError>[0]);
+    ElMessage.error('文档上传失败');
+  }
+}
+
 watch([mediaId, active], async () => {
   current.value = 1;
   await Promise.all([load(), loadOptions()]);
@@ -156,14 +193,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M1 / Control Registry</div>
-        <h1 class="mvp-title">{{ pageTitle }}</h1>
-        <p class="mvp-subtitle">{{ pageSubtitle }}</p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">当前媒体范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">当前媒体范围</div>
         <el-select v-model="mediaId" class="w-full" placeholder="选择媒体主体">
           <el-option
             v-for="item in media"
@@ -173,7 +205,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <el-tabs v-if="!directEntry" v-model="active">
@@ -355,10 +387,24 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           </el-form-item>
           <el-form-item
             v-if="form.storageType === 'OBJECT'"
-            label="对象 Key"
+            label="对象存储文档"
             required
           >
-            <el-input v-model="form.objectKey" />
+            <el-upload
+              accept=".csv,.doc,.docx,.json,.md,.pdf,.txt,.xlsx,.yaml,.yml"
+              :before-upload="beforeDocumentUpload"
+              :disabled="!mediaId || saving"
+              :http-request="uploadDocumentFile"
+              :show-file-list="false"
+            >
+              <el-button type="primary">上传至对象存储</el-button>
+            </el-upload>
+            <div v-if="form.objectKey" class="mt-2 break-all text-sm text-gray-500">
+              已上传：{{ form.objectKey }}
+            </div>
+            <div v-else class="mt-2 text-sm text-gray-500">
+              支持 PDF、Office、文本、CSV、JSON、YAML，单文件不超过 20MB。
+            </div>
           </el-form-item>
           <el-form-item v-else label="沙箱外链" required>
             <el-input

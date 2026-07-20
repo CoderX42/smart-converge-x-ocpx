@@ -86,16 +86,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M1 / Upstream Registry</div>
-        <h1 class="mvp-title">上游客户</h1>
-        <p class="mvp-subtitle">
-          客户独立于合作方管理，可关联产品、追踪链接与下游监测任务。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -105,7 +98,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">

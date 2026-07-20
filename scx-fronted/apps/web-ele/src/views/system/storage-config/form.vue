@@ -19,21 +19,28 @@ import { useDict } from '#/utils/dict';
 
 const emit = defineEmits(['initPage']);
 
-const { sboot_storage_type, status } = useDict('sboot_storage_type', 'status');
+const { status } = useDict('status');
+
+const storageTypes = [
+  { label: '本机', value: 'local' },
+  { label: 'OSS', value: 'oss' },
+];
+
+const createDefaultForm = () => ({
+  id: '',
+  type: 'local',
+  accessKey: '',
+  accessSecret: '',
+  endpoint: '',
+  bucket: '',
+  dir: '',
+  status: '0',
+  styleAccessEnabled: '0',
+  domain: '',
+});
 
 const state = reactive({
-  form: {
-    id: '',
-    type: '',
-    accessKey: '',
-    accessSecret: '',
-    endpoint: '',
-    bucket: '',
-    dir: '',
-    status: '',
-    styleAccessEnabled: '0',
-    domain: '',
-  },
+  form: createDefaultForm(),
   rules: {
     type: [
       {
@@ -110,6 +117,8 @@ const formRef = ref();
 const initForm = (row: any) => {
   if (row && row.id) {
     getDetail(row.id);
+  } else {
+    state.form = createDefaultForm();
   }
   dialog.value = true;
 };
@@ -136,7 +145,7 @@ const handleClose = () => {
  */
 const resetForm = (formEl: FormInstance | undefined) => {
   if (!formEl) return;
-  state.form.id = '';
+  state.form = createDefaultForm();
   loading.value = false;
   dialog.value = false;
   formEl.resetFields();
@@ -208,7 +217,7 @@ defineExpose({
       <ElFormItem label="存储配置类型" prop="type">
         <ElRadioGroup v-model="state.form.type">
           <ElRadio
-            v-for="item in sboot_storage_type"
+            v-for="item in storageTypes"
             :key="item.value"
             :value="item.value"
           >
@@ -217,28 +226,49 @@ defineExpose({
         </ElRadioGroup>
       </ElFormItem>
       <ElFormItem
+        v-if="state.form.type === 'oss'"
         label="AccessKey"
         prop="accessKey"
-        v-if="state.form.type === 'oss'"
       >
-        <ElInput v-model="state.form.accessKey" />
+        <ElInput
+          v-model="state.form.accessKey"
+          placeholder="请输入 AccessKey"
+        />
       </ElFormItem>
       <ElFormItem
+        v-if="state.form.type === 'oss'"
         label="AccessKeySecret"
         prop="accessSecret"
-        v-if="state.form.type === 'oss'"
       >
-        <ElInput v-model="state.form.accessSecret" />
+        <ElInput
+          v-model="state.form.accessSecret"
+          type="password"
+          show-password
+          placeholder="请输入 AccessKeySecret"
+        />
       </ElFormItem>
       <ElFormItem
+        v-if="state.form.type === 'oss'"
         label="endpoint"
         prop="endpoint"
-        v-if="state.form.type === 'oss'"
       >
-        <ElInput v-model="state.form.endpoint" />
+        <ElInput
+          v-model="state.form.endpoint"
+          placeholder="例如：oss-cn-hangzhou.aliyuncs.com 或 http://minio:9000"
+        />
       </ElFormItem>
-      <ElFormItem label="bucket" prop="bucket">
-        <ElInput v-model="state.form.bucket" />
+      <ElFormItem
+        :label="state.form.type === 'local' ? '本地存储路径' : 'Bucket 名称'"
+        prop="bucket"
+      >
+        <ElInput
+          v-model="state.form.bucket"
+          :placeholder="
+            state.form.type === 'local'
+              ? '例如：/data/uploads'
+              : '请输入 Bucket 名称'
+          "
+        />
         <div v-if="state.form.type === 'local'" class="form-tip">
           地址示例：Windows：C:\upload；Linux：/home/upload
         </div>
@@ -246,7 +276,21 @@ defineExpose({
           桶名称（Bucket Name）
         </div>
       </ElFormItem>
-      <ElFormItem label="是否 path-style" prop="styleAccessEnabled">
+      <ElFormItem
+        v-if="state.form.type === 'oss'"
+        label="指定文件夹"
+        prop="dir"
+      >
+        <ElInput
+          v-model="state.form.dir"
+          placeholder="可选，例如：images；留空则上传到 Bucket 根目录"
+        />
+      </ElFormItem>
+      <ElFormItem
+        v-if="state.form.type === 'oss'"
+        label="是否 path-style"
+        prop="styleAccessEnabled"
+      >
         <ElRadioGroup v-model="state.form.styleAccessEnabled">
           <ElRadio value="0">否</ElRadio>
           <ElRadio value="1">是</ElRadio>
@@ -258,7 +302,10 @@ defineExpose({
         </div>
       </ElFormItem>
       <ElFormItem label="自定义域名" prop="domain">
-        <ElInput v-model="state.form.domain" />
+        <ElInput
+          v-model="state.form.domain"
+          placeholder="可选，需以 http:// 或 https:// 开头"
+        />
       </ElFormItem>
       <ElFormItem label="状态" prop="status">
         <ElRadioGroup v-model="state.form.status">

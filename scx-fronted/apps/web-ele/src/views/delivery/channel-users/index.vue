@@ -98,14 +98,9 @@ bootstrap().then(async () => {
 </script>
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M1 / Channel Operations</div>
-        <h1 class="mvp-title">渠道用户</h1>
-        <p class="mvp-subtitle">按媒体与渠道归属管理运营联系人和账户状态。</p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="x in media"
@@ -115,7 +110,7 @@ bootstrap().then(async () => {
           />
         </el-select>
       </div>
-    </header>
+    </div>
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">

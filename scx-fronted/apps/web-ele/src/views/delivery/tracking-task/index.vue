@@ -201,16 +201,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M2 / Runtime Tasks</div>
-        <h1 class="mvp-title">监测任务控制台</h1>
-        <p class="mvp-subtitle">
-          将已启用的追踪链接挂接到媒体渠道，统一管理去重窗口、归因窗口和沙箱回传目标。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -220,7 +213,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

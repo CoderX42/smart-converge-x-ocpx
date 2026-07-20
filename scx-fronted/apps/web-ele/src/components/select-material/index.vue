@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue';
 
-import { Close, Edit } from '@element-plus/icons-vue';
-import { ElIcon, ElImage } from 'element-plus';
+import { Close, Edit, Picture } from '@element-plus/icons-vue';
+import { ElButton, ElIcon, ElImage } from 'element-plus';
 
 import ImgDialog from './img-dialog/index.vue';
 
@@ -26,6 +26,14 @@ const props = defineProps({
   height: {
     type: Number,
     default: 80,
+  },
+  showPreview: {
+    type: Boolean,
+    default: true,
+  },
+  triggerText: {
+    type: String,
+    default: '从素材库选择',
   },
 });
 const emit = defineEmits(['update:modelValue', 'change']);
@@ -78,7 +86,10 @@ watch(
 </script>
 <template>
   <div>
-    <div class="material-pic-list">
+    <ElButton v-if="!showPreview" :icon="Picture" @click="addPic">
+      {{ triggerText }}
+    </ElButton>
+    <div v-else class="material-pic-list">
       <template v-if="imageUrl && imageUrl.length > 0">
         <div
           v-for="(item, index) in imageUrl"

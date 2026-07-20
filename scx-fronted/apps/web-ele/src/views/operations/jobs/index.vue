@@ -152,16 +152,9 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M5 / Sandbox Delivery</div>
-        <h1 class="mvp-title">回传任务</h1>
-        <p class="mvp-subtitle">
-          同时观察领域事件发件箱与媒体回传队列；状态均来自持久化任务，不使用模拟运行数据。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -171,7 +164,7 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
       <div class="mvp-metric">
