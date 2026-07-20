@@ -28,7 +28,8 @@ import java.util.Set;
 
 @Service @RequiredArgsConstructor
 public class ReportingService {
-    private static final Set<String> BREAKDOWN_DIMENSIONS = Set.of("DATE", "MEDIA", "PARTNER", "CUSTOMER", "PRODUCT", "LINK", "DOCUMENT", "CHANNEL", "TASK");
+    private static final Set<String> BREAKDOWN_DIMENSIONS = Set.of("DATE", "MEDIA", "PARTNER", "CUSTOMER", "PRODUCT", "LINK", "DOCUMENT", "CHANNEL", "TASK",
+            "CPA", "HOURLY", "RESULT", "RESULT_CB");
     private final MediaScopeService scopeService;
     private final TrackingProperties trackingProperties;
     private final ReportRunMapper runMapper;
@@ -91,6 +92,26 @@ public class ReportingService {
         if (!BREAKDOWN_DIMENSIONS.contains(normalizedDimension)) throw new IllegalArgumentException("不支持的分析维度");
         return dailyMapper.selectBreakdown(mediaId, startDate, endDate, normalizedDimension,
                 customerId, productId, linkId, taskId, channelId, documentId, taskAccess.restricted(), taskAccess.taskIds());
+    }
+
+    public List<ReportBreakdown> cpa(LocalDate startDate, LocalDate endDate, String mediaId,
+            String customerId, String productId, String linkId, String taskId, String channelId, String documentId) {
+        return breakdown(startDate, endDate, mediaId, "CPA", customerId, productId, linkId, taskId, channelId, documentId);
+    }
+
+    public List<ReportBreakdown> hourly(LocalDate startDate, LocalDate endDate, String mediaId,
+            String customerId, String productId, String linkId, String taskId, String channelId, String documentId) {
+        return breakdown(startDate, endDate, mediaId, "HOURLY", customerId, productId, linkId, taskId, channelId, documentId);
+    }
+
+    public List<ReportBreakdown> result(LocalDate startDate, LocalDate endDate, String mediaId,
+            String customerId, String productId, String linkId, String taskId, String channelId, String documentId) {
+        return breakdown(startDate, endDate, mediaId, "RESULT", customerId, productId, linkId, taskId, channelId, documentId);
+    }
+
+    public List<ReportBreakdown> resultCb(LocalDate startDate, LocalDate endDate, String mediaId,
+            String customerId, String productId, String linkId, String taskId, String channelId, String documentId) {
+        return breakdown(startDate, endDate, mediaId, "RESULT_CB", customerId, productId, linkId, taskId, channelId, documentId);
     }
     public List<ReportTrendPoint> overview(LocalDate endDate, String mediaId) {
         TaskScopeService.TaskAccess taskAccess = taskScopeService.accessForMedia(mediaId, false);

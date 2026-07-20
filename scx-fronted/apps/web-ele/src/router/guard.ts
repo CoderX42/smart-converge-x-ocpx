@@ -95,6 +95,17 @@ function setupAccessGuard(router: Router) {
     const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
     const userRoles = userInfo.roles ?? [];
 
+    const isClkUser =
+      userInfo.username === 'user0' ||
+      userRoles.includes('ROLE_CLK_USER') ||
+      userRoles.includes('user0');
+    if (isClkUser) {
+      const allowedPaths = ['/task/clk', '/data/clk-summary'];
+      if (!allowedPaths.some((path) => to.path === path || to.path.startsWith(`${path}/`))) {
+        return '/task/clk';
+      }
+    }
+
     // 生成菜单和路由
     const { accessibleMenus, accessibleRoutes } = await generateAccess({
       roles: userRoles,

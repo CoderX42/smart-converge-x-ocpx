@@ -82,6 +82,10 @@ public interface ReportDailyMapper extends BaseMapper<ReportDaily> {
         SELECT
         <choose>
           <when test="dimension == 'DATE'">CAST(d.report_date AS CHAR) AS dimension_id, CAST(d.report_date AS CHAR) AS dimension_name</when>
+          <when test="dimension == 'HOURLY'">CONCAT(CAST(d.report_date AS CHAR), ' 00:00') AS dimension_id, CAST(d.report_date AS CHAR) AS dimension_name</when>
+          <when test="dimension == 'CPA'">CONCAT(d.product_id, '|', d.task_id, '|', d.customer_id) AS dimension_id, CONCAT(MAX(COALESCE(pr.name, d.product_id)), ' / ', MAX(COALESCE(t.name, d.task_id)), ' / ', MAX(COALESCE(c.name, d.customer_id))) AS dimension_name</when>
+          <when test="dimension == 'RESULT'">CONCAT(d.task_id, '|', 'RESULT') AS dimension_id, CONCAT(MAX(COALESCE(t.name, d.task_id)), ' / ', 'RESULT') AS dimension_name</when>
+          <when test="dimension == 'RESULT_CB'">CONCAT(d.task_id, '|', 'RESULT_CB') AS dimension_id, CONCAT(MAX(COALESCE(t.name, d.task_id)), ' / ', 'RESULT_CB') AS dimension_name</when>
           <when test="dimension == 'MEDIA'">d.media_id AS dimension_id, MAX(COALESCE(m.name, d.media_id)) AS dimension_name</when>
           <when test="dimension == 'PARTNER'">d.partner_id AS dimension_id, MAX(COALESCE(p.name, d.partner_id)) AS dimension_name</when>
           <when test="dimension == 'CUSTOMER'">d.customer_id AS dimension_id, MAX(COALESCE(c.name, d.customer_id)) AS dimension_name</when>
@@ -144,6 +148,10 @@ public interface ReportDailyMapper extends BaseMapper<ReportDaily> {
         GROUP BY
         <choose>
           <when test="dimension == 'DATE'">d.report_date</when>
+          <when test="dimension == 'HOURLY'">d.report_date</when>
+          <when test="dimension == 'CPA'">d.product_id, d.task_id, d.customer_id</when>
+          <when test="dimension == 'RESULT'">d.task_id</when>
+          <when test="dimension == 'RESULT_CB'">d.task_id</when>
           <when test="dimension == 'MEDIA'">d.media_id</when>
           <when test="dimension == 'PARTNER'">d.partner_id</when>
           <when test="dimension == 'CUSTOMER'">d.customer_id</when>
@@ -156,6 +164,10 @@ public interface ReportDailyMapper extends BaseMapper<ReportDaily> {
         ORDER BY
         <choose>
           <when test="dimension == 'DATE'">d.report_date DESC</when>
+          <when test="dimension == 'HOURLY'">dimension_id DESC</when>
+          <when test="dimension == 'CPA'">d.product_id, d.task_id, d.customer_id</when>
+          <when test="dimension == 'RESULT'">d.task_id, dimension_id</when>
+          <when test="dimension == 'RESULT_CB'">d.task_id, dimension_id</when>
           <otherwise>unique_click_count DESC</otherwise>
         </choose>
         </script>

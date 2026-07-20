@@ -22,6 +22,7 @@ async function generateAccess(options: GenerateMenuAndRoutesOptions) {
     '../views/_core/**/*.vue',
     '../views/dashboard/**/*.vue',
     '../views/delivery/**/*.vue',
+    '../views/toolbox/**/*.vue',
     '../views/reporting/**/*.vue',
     '../views/operations/**/*.vue',
     '../views/pay/**/*.vue',

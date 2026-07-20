@@ -2,10 +2,15 @@
 import type { Media } from '#/api/ad';
 
 import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import {
   getMaster,
   getMedia,
+  getCpaReport,
+  getHourlyReport,
+  getResultCbReport,
+  getResultReport,
   getReportBreakdown,
   getTrackingLinks,
   getTrackingTasks,
@@ -13,9 +18,12 @@ import {
 } from '#/api/ad';
 
 import '../../delivery/components/mvp-page.css';
+import SummaryExportButton from './SummaryExportButton.vue';
+import SummaryToolbar from './SummaryToolbar.vue';
 
 const props = defineProps<{
-  dimension: 'DATE' | 'LINK' | 'PRODUCT' | 'TASK';
+  dimension: 'DATE' | 'LINK' | 'PRODUCT' | 'TASK' | 'HOURLY' | 'RESULT' | 'RESULT_CB' | 'CPA';
+  eventType?: string;
 }>();
 
 const media = ref<Media[]>([]);
@@ -25,12 +33,15 @@ const customers = ref<any[]>([]);
 const products = ref<any[]>([]);
 const links = ref<any[]>([]);
 const tasks = ref<any[]>([]);
+const channelId = ref('');
+const documentId = ref('');
 const customerId = ref('');
 const productId = ref('');
 const linkId = ref('');
 const taskId = ref('');
 const loading = ref(false);
 const rows = ref<any[]>([]);
+const route = useRoute();
 
 const totals = computed(() => {
   const total = { activate: 0, click: 0, impression: 0, pay: 0, register: 0 };
@@ -44,6 +55,35 @@ const totals = computed(() => {
   return total;
 });
 
+function queryString(raw?: unknown): string {
+  if (!raw) return '';
+  if (Array.isArray(raw)) {
+    const [first] = raw;
+    return queryString(first);
+  }
+  if (typeof raw === 'string') return raw.trim();
+  return '';
+}
+
+function isDate(value: string) {
+  return /^(\d{4})-(\d{2})-(\d{2})$/.test(value);
+}
+
+function applyQuery() {
+  const qCustomerId = queryString(route.query.customerId);
+  const qProductId = queryString(route.query.productId);
+  const qLinkId = queryString(route.query.linkId);
+  const qTaskId = queryString(route.query.taskId);
+  const qStart = queryString(route.query.startDate);
+  const qEnd = queryString(route.query.endDate);
+
+  if (qCustomerId) customerId.value = qCustomerId;
+  if (qProductId) productId.value = qProductId;
+  if (qLinkId) linkId.value = qLinkId;
+  if (qTaskId) taskId.value = qTaskId;
+  if (isDate(qStart) && isDate(qEnd)) dates.value = [qStart, qEnd];
+}
+
 function rate(numerator: number, denominator: number) {
   return denominator ? `${((numerator / denominator) * 100).toFixed(2)}%` : '—';
 }
@@ -53,7 +93,7 @@ async function load() {
   if (!mediaId.value || !startDate || !endDate) return;
   loading.value = true;
   try {
-    rows.value = await getReportBreakdown({
+    const commonParams = {
       dimension: props.dimension,
       endDate,
       customerId: customerId.value || undefined,
@@ -62,7 +102,21 @@ async function load() {
       productId: productId.value || undefined,
       startDate,
       taskId: taskId.value || undefined,
-    });
+      eventType: props.eventType || undefined,
+      channelId: channelId.value || undefined,
+      documentId: documentId.value || undefined,
+    };
+    if (props.dimension === 'CPA') {
+      rows.value = await getCpaReport(commonParams);
+    } else if (props.dimension === 'HOURLY') {
+      rows.value = await getHourlyReport(commonParams);
+    } else if (props.dimension === 'RESULT') {
+      rows.value = await getResultReport(commonParams);
+    } else if (props.dimension === 'RESULT_CB') {
+      rows.value = await getResultCbReport(commonParams);
+    } else {
+      rows.value = await getReportBreakdown(commonParams);
+    }
   } finally {
     loading.value = false;
   }
@@ -73,11 +127,14 @@ async function bootstrap() {
   media.value = result.records || [];
   mediaId.value = media.value[0]?.id || '';
   await loadOptions();
-  const end = new Date().toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 6 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-  dates.value = [start, end];
+  applyQuery();
+  if (!dates.value?.[0] || !dates.value?.[1]) {
+    const end = new Date().toISOString().slice(0, 10);
+    const start = new Date(Date.now() - 6 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    dates.value = [start, end];
+  }
   await load();
 }
 
@@ -102,6 +159,8 @@ function resetFilters() {
   productId.value = '';
   linkId.value = '';
   taskId.value = '';
+  channelId.value = '';
+  documentId.value = '';
 }
 
 watch(mediaId, async () => {
@@ -115,27 +174,12 @@ bootstrap();
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control space-y-2">
-        <div class="mvp-scope-label text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-        <el-date-picker
-          v-model="dates"
-          class="!w-full"
-          end-placeholder="结束日期"
-          start-placeholder="开始日期"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-        />
-      </div>
-    </div>
+    <SummaryToolbar
+      v-model:media-id="mediaId"
+      v-model:dates="dates"
+      :media="media"
+      @reset="resetFilters"
+    />
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
       <div class="mvp-metric">
@@ -170,8 +214,13 @@ bootstrap();
             </div>
           </div>
           <div class="flex gap-2">
-            <el-button plain @click="resetFilters">清空筛选</el-button>
             <el-button @click="load">刷新</el-button>
+            <SummaryExportButton
+              :media-id="mediaId"
+              :dimension="props.dimension"
+              :end-date="dates[1]"
+              :start-date="dates[0]"
+            />
           </div>
         </div>
         <div

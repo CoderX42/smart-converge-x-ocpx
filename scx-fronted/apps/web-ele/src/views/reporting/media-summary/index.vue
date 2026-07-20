@@ -11,6 +11,8 @@ import {
 } from '#/api/ad';
 
 import '../../delivery/components/mvp-page.css';
+import SummaryExportButton from '../components/SummaryExportButton.vue';
+import SummaryToolbar from '../components/SummaryToolbar.vue';
 
 defineOptions({ name: 'AdMediaSummary' });
 
@@ -127,26 +129,12 @@ bootstrap();
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control space-y-2">
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-        <el-date-picker
-          v-model="dates"
-          class="!w-full"
-          end-placeholder="结束日期"
-          start-placeholder="开始日期"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-        />
-      </div>
-    </div>
+    <SummaryToolbar
+      v-model:media-id="mediaId"
+      v-model:dates="dates"
+      :media="media"
+      @reset="resetFilters"
+    />
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
       <div class="mvp-metric">
@@ -202,6 +190,12 @@ bootstrap();
               </el-button>
             </el-button-group>
             <el-button @click="load">刷新</el-button>
+            <SummaryExportButton
+              :media-id="mediaId"
+              dimension="MEDIA"
+              :end-date="dates[1]"
+              :start-date="dates[0]"
+            />
           </div>
         </div>
         <div
@@ -263,7 +257,6 @@ bootstrap();
               :value="item.id"
             />
           </el-select>
-          <el-button plain @click="resetFilters">清空筛选</el-button>
         </div>
       </template>
       <el-table :data="rows" row-key="dimensionId">

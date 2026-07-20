@@ -2,6 +2,7 @@
 import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -22,6 +23,7 @@ import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdTrackingTask' });
 
+const router = useRouter();
 const media = ref<Media[]>([]);
 const mediaId = ref('');
 const rows = ref<any[]>([]);
@@ -44,6 +46,10 @@ const revisions = ref<any[]>([]);
 const statusHistory = ref<any[]>([]);
 const historyTask = ref<any>();
 const todayMetrics = ref<Record<string, any>>({});
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 async function bootstrap() {
   const result = await getMedia();
@@ -190,6 +196,70 @@ async function openHistory(row: any) {
   revisions.value = revisionResult || [];
   statusHistory.value = statusResult || [];
   historyDrawer.value = true;
+}
+
+function openHourlyReport(row: any) {
+  router.push({
+    path: '/reporting/task-summary',
+    query: {
+      endDate: todayDate(),
+      startDate: todayDate(),
+      taskId: row.id,
+    },
+  });
+}
+
+function openDailyReport(row: any) {
+  router.push({
+    path: '/reporting/daily',
+    query: {
+      date: todayDate(),
+      taskId: row.id,
+    },
+  });
+}
+
+function openLinkDailyReport(row: any) {
+  router.push({
+    path: '/reporting/link-summary',
+    query: {
+      endDate: todayDate(),
+      linkId: row.linkId || '',
+      startDate: todayDate(),
+      taskId: row.id,
+    },
+  });
+}
+
+function openIntegrationTest(row: any) {
+  router.push({
+    path: '/operations/jobs',
+    query: {
+      taskId: row.id,
+    },
+  });
+}
+
+function openClickDetail(row: any) {
+  router.push({
+    path: '/reporting/event-detail',
+    query: {
+      date: todayDate(),
+      eventType: 'CLICK',
+      taskId: row.id,
+    },
+  });
+}
+
+function openConversionDetail(row: any) {
+  router.push({
+    path: '/reporting/event-detail',
+    query: {
+      date: todayDate(),
+      eventType: 'PAY',
+      taskId: row.id,
+    },
+  });
 }
 
 watch(mediaId, async () => {
@@ -348,8 +418,56 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column align="right" fixed="right" label="操作" width="310">
+        <el-table-column align="right" fixed="right" label="操作" width="430">
           <template #default="{ row }">
+            <el-button
+              v-access:code="'ad:report:read'"
+              link
+              type="primary"
+              @click="openHourlyReport(row)"
+            >
+              时报
+            </el-button>
+            <el-button
+              v-access:code="'ad:report:read'"
+              link
+              type="primary"
+              @click="openDailyReport(row)"
+            >
+              日报
+            </el-button>
+            <el-button
+              v-access:code="'ad:report:read'"
+              link
+              type="primary"
+              @click="openLinkDailyReport(row)"
+            >
+              链接日报
+            </el-button>
+            <el-button
+              v-access:code="'ad:event-detail:read'"
+              link
+              type="primary"
+              @click="openIntegrationTest(row)"
+            >
+              联调
+            </el-button>
+            <el-button
+              v-access:code="'ad:event-detail:read'"
+              link
+              type="primary"
+              @click="openClickDetail(row)"
+            >
+              点击明细
+            </el-button>
+            <el-button
+              v-access:code="'ad:event-detail:read'"
+              link
+              type="primary"
+              @click="openConversionDetail(row)"
+            >
+              转化明细
+            </el-button>
             <el-button link type="primary" @click="copyTrackingAddress(row)">
               监测地址
             </el-button>

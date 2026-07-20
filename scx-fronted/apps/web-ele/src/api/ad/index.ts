@@ -128,6 +128,18 @@ export function getDailyReport(params: Record<string, any>) {
 export function getReportBreakdown(params: Record<string, any>) {
   return requestClient.get<any[]>('/ad/reports/breakdowns', { params });
 }
+export function getCpaReport(params: Record<string, any>) {
+  return requestClient.get<any[]>('/ad/reports/cpa', { params });
+}
+export function getHourlyReport(params: Record<string, any>) {
+  return requestClient.get<any[]>('/ad/reports/hourly', { params });
+}
+export function getResultReport(params: Record<string, any>) {
+  return requestClient.get<any[]>('/ad/reports/result', { params });
+}
+export function getResultCbReport(params: Record<string, any>) {
+  return requestClient.get<any[]>('/ad/reports/result/cb', { params });
+}
 export function getReportOverview(params: Record<string, any>) {
   return requestClient.get<any[]>('/ad/reports/overview', { params });
 }
@@ -166,6 +178,29 @@ export function getCallbackQueueStats(mediaId: string) {
 }
 export function getOutboxEvents(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/callback-jobs/outbox', {
+    params,
+  });
+}
+export type AsyncServicesQueueType = 'callback' | 'export' | 'outbox';
+export type AsyncServicesQueueStats = {
+  waitingCount: number;
+  runningCount: number;
+  succeededCount: number;
+  failedCount: number;
+  delayedCount: number;
+  pausedCount: number;
+  deadCount: number;
+};
+export function getAsyncServicesStats(
+  queueType: AsyncServicesQueueType,
+  mediaId: string,
+) {
+  return requestClient.get<AsyncServicesQueueStats>('/system/async-services/stats', {
+    params: { queueType, mediaId },
+  });
+}
+export function getAsyncServicesList(params: Record<string, any>) {
+  return requestClient.get<PageResult<any>>('/system/async-services/list', {
     params,
   });
 }

@@ -10,6 +10,7 @@ import {
   getEventMappings,
   getMaster,
   getMedia,
+  getReportBreakdown,
   getTrackingLinkRevisions,
   getTrackingLinks,
   getTrackingLinkStatusHistory,
@@ -43,9 +44,15 @@ const documentFilter = ref('');
 const form = reactive<any>({});
 const mappingLink = ref<any>();
 const mappings = ref<any[]>([]);
+const todayMetrics = ref<Record<string, any>>({});
+const linkMappingSummaries = ref<Record<string, any[]>>({});
 const revisions = ref<any[]>([]);
 const statusHistory = ref<any[]>([]);
 const historyLink = ref<any>();
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 async function bootstrap() {
   const result = await getMedia();
@@ -75,18 +82,52 @@ async function load() {
   if (!mediaId.value) return;
   loading.value = true;
   try {
-    const result = await getTrackingLinks({
-      current: current.value,
-      size: size.value,
-      mediaId: mediaId.value,
-      keyword: keyword.value,
-      status: status.value,
-      partnerId: partnerFilter.value,
-      productId: productFilter.value,
-      documentId: documentFilter.value,
-    });
+    const today = todayDate();
+    const [result, todayReport] = await Promise.all([
+      getTrackingLinks({
+        current: current.value,
+        size: size.value,
+        mediaId: mediaId.value,
+        keyword: keyword.value,
+        status: status.value,
+        partnerId: partnerFilter.value,
+        productId: productFilter.value,
+        documentId: documentFilter.value,
+      }),
+      getReportBreakdown({
+        dimension: 'LINK',
+        mediaId: mediaId.value,
+        startDate: today,
+        endDate: today,
+      }).catch(() => []),
+    ]);
+
     rows.value = result.records || [];
     total.value = result.total || 0;
+
+    todayMetrics.value = Object.fromEntries(
+      (todayReport || []).map((item: any) => [item.dimensionId, item]),
+    );
+
+    if (rows.value.length === 0) {
+      linkMappingSummaries.value = {};
+      return;
+    }
+
+    const summaryData = await Promise.all(
+      rows.value.map(async (row) => {
+        try {
+          const data = await getEventMappings(row.id);
+          return { linkId: row.id, mappings: data || [] };
+        } catch {
+          return { linkId: row.id, mappings: [] };
+        }
+      }),
+    );
+
+    linkMappingSummaries.value = Object.fromEntries(
+      summaryData.map((item) => [item.linkId, item.mappings]),
+    );
   } finally {
     loading.value = false;
   }
@@ -150,7 +191,8 @@ async function changeStatus(row: any, next: string) {
 
 async function openMappings(row: any) {
   mappingLink.value = row;
-  const result = await getEventMappings(row.id);
+  const cached = linkMappingSummaries.value[row.id];
+  const result = cached?.length ? cached : await getEventMappings(row.id);
   mappings.value = result.map((item) => ({
     ...item,
   }));
@@ -172,6 +214,14 @@ async function submitMappings() {
   ElMessage.success('已生成新的事件映射版本');
   mappingDrawer.value = false;
   await load();
+}
+
+function todayMetric(row: any, field: string) {
+  return Number(todayMetrics.value[row.id]?.[field] || 0);
+}
+
+function mappingSummary(row: any) {
+  return linkMappingSummaries.value[row.id] || [];
 }
 
 async function openHistory(row: any) {
@@ -299,6 +349,49 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           </template>
         </el-table-column>
         <el-table-column label="设备" prop="deviceType" width="110" />
+        <el-table-column label="今日概况" min-width="250">
+          <template #default="{ row }">
+            <div class="flex gap-3 text-xs">
+              <span
+                >曝光
+                <strong>{{ todayMetric(row, 'impressionCount') }}</strong></span
+              >
+              <span
+                >有效点击
+                <strong>{{ todayMetric(row, 'eligibleClickCount') }}</strong></span
+              >
+              <span
+                >付费
+                <strong>{{ todayMetric(row, 'attributedPayCount') }}</strong></span
+              >
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="事件映射摘要" min-width="250">
+          <template #default="{ row }">
+            <template v-if="mappingSummary(row).length">
+              <div
+                v-for="(
+                  item, index
+                ) in mappingSummary(row).slice(0, 2)"
+                :key="`${row.id}-${index}`"
+                class="text-xs"
+              >
+                {{ item.internalEvent }} → {{ item.externalEvent }}
+                （¥{{ item.unitPrice || 0 }} · 限量 {{
+                  item.dailyLimit || '不限制'
+                }}）
+              </div>
+              <div
+                v-if="mappingSummary(row).length > 2"
+                class="text-xs text-gray-400"
+              >
+                其余 {{ mappingSummary(row).length - 2 }} 条
+              </div>
+            </template>
+            <span v-else class="text-xs text-gray-400">未配置</span>
+          </template>
+        </el-table-column>
         <el-table-column label="配置版本" width="110">
           <template #default="{ row }"> v{{ row.configVersion }} </template>
         </el-table-column>

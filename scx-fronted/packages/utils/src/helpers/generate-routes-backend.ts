@@ -42,7 +42,7 @@ function convertRoutes(
   layoutMap: ComponentRecordType,
   pageMap: ComponentRecordType,
 ): RouteRecordRaw[] {
-  return mapTree(routes, (node) => {
+  const resultRoutes = mapTree(routes, (node) => {
     const route = node as unknown as RouteRecordRaw;
     const { component, name } = node;
 
@@ -69,6 +69,58 @@ function convertRoutes(
 
     return route;
   });
+
+  ensureRouteNameUnique(resultRoutes, new Set());
+  return resultRoutes;
+}
+
+function ensureRouteNameUnique(
+  routes: RouteRecordRaw[],
+  usedNames: Set<string>,
+  ancestorNames: Set<string> = new Set(),
+) {
+  routes.forEach((route) => {
+    const currentName = typeof route.name === 'string' ? route.name : '';
+    const baseName = currentName || (route.meta?.title as string) || route.path || '';
+    const pathForSuffix =
+      (route.path as string) ||
+      (route.component && typeof route.component === 'string'
+        ? route.component
+        : `${(route as { id?: string }).id || 'route'}`);
+    const routeNameSuffix = normalizePathToNameSuffix(pathForSuffix);
+    const defaultName =
+      typeof baseName === 'string' && baseName.trim() ? baseName.trim() : 'Route';
+
+    let normalizedName = defaultName;
+    if (!currentName || usedNames.has(currentName) || ancestorNames.has(currentName)) {
+      normalizedName = `${defaultName}-${routeNameSuffix}`;
+      let duplicatedIndex = 1;
+      while (usedNames.has(normalizedName) || ancestorNames.has(normalizedName)) {
+        duplicatedIndex += 1;
+        normalizedName = `${defaultName}-${routeNameSuffix}-${duplicatedIndex}`;
+      }
+    }
+
+    route.name = normalizedName;
+    usedNames.add(normalizedName);
+
+    const childAncestorNames = new Set<string>(ancestorNames);
+    childAncestorNames.add(normalizedName);
+    if (route.children && route.children.length > 0) {
+      ensureRouteNameUnique(route.children as RouteRecordRaw[], usedNames, childAncestorNames);
+    }
+  });
+}
+
+function normalizePathToNameSuffix(pathLike: string | undefined): string {
+  if (!pathLike) return 'route';
+  return pathLike
+    .toString()
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/[^\w\u4e00-\u9fff-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'route';
 }
 
 function normalizeViewPath(path: string): string {

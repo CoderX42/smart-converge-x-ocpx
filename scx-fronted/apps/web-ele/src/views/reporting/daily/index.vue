@@ -2,6 +2,7 @@
 import type { Media } from '#/api/ad';
 
 import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { ElMessage } from 'element-plus';
 
@@ -20,6 +21,7 @@ const media = ref<Media[]>([]);
 const mediaId = ref('');
 const reportDate = ref(new Date().toISOString().slice(0, 10));
 const rows = ref<any[]>([]);
+const taskId = ref('');
 const loading = ref(false);
 const refreshing = ref(false);
 const current = ref(1);
@@ -68,10 +70,34 @@ const totals = computed(() => {
   return sum;
 });
 
+const route = useRoute();
+
 function rate(numerator: number, denominator: number) {
   return denominator > 0
     ? `${((numerator / denominator) * 100).toFixed(2)}%`
     : '—';
+}
+
+function queryString(raw?: unknown): string {
+  if (!raw) return '';
+  if (Array.isArray(raw)) {
+    const [first] = raw;
+    return queryString(first);
+  }
+  if (typeof raw === 'string') return raw.trim();
+  return '';
+}
+
+function queryDate(raw?: unknown): string {
+  const value = queryString(raw);
+  return /^(\d{4})-(\d{2})-(\d{2})$/.test(value) ? value : '';
+}
+
+function applyQuery() {
+  const qTaskId = queryString(route.query.taskId);
+  const qDate = queryDate(route.query.date);
+  if (qTaskId) taskId.value = qTaskId;
+  if (qDate) reportDate.value = qDate;
 }
 
 async function bootstrap() {
@@ -88,6 +114,7 @@ async function load() {
       current: current.value,
       date: reportDate.value,
       mediaId: mediaId.value,
+      taskId: taskId.value || undefined,
       size: size.value,
     });
     rows.value = result.records || [];
@@ -133,6 +160,7 @@ watch([mediaId, breakdownDimension, breakdownDates], loadBreakdown, {
   deep: true,
 });
 bootstrap().then(async () => {
+  applyQuery();
   const end = reportDate.value;
   const start = new Date(Date.now() - 6 * 86_400_000)
     .toISOString()

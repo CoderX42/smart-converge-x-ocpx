@@ -2,6 +2,7 @@
 import type { Media } from '#/api/ad';
 
 import { ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import {
   getEventDetails,
@@ -31,6 +32,37 @@ const total = ref(0);
 const sensitive = ref<any>({});
 const sensitiveVisible = ref(false);
 const sensitiveLoading = ref(false);
+const route = useRoute();
+
+function queryString(raw?: unknown): string {
+  if (!raw) return '';
+  if (Array.isArray(raw)) {
+    const [first] = raw;
+    return queryString(first);
+  }
+  if (typeof raw === 'string') return raw.trim();
+  return '';
+}
+
+function queryDate(raw?: unknown): string {
+  const value = queryString(raw);
+  return /^(\d{4})-(\d{2})-(\d{2})$/.test(value) ? value : '';
+}
+
+function applyQuery() {
+  const qDate = queryDate(route.query.date || route.query.reportDate);
+  const qTaskId = queryString(route.query.taskId);
+  const qEventType = queryString(route.query.eventType);
+  const qDedup = queryString(route.query.dedupStatus);
+  const qAttribution = queryString(route.query.attributionStatus);
+  const qEventId = queryString(route.query.eventId);
+  if (qDate) reportDate.value = qDate;
+  if (qTaskId) taskId.value = qTaskId;
+  if (qEventType) eventType.value = qEventType;
+  if (qDedup) dedupStatus.value = qDedup;
+  if (qAttribution) attributionStatus.value = qAttribution;
+  if (qEventId) eventId.value = qEventId;
+}
 
 async function bootstrap() {
   const result = await getMedia();
@@ -100,6 +132,7 @@ watch(
 );
 watch(mediaId, loadTasks);
 bootstrap().then(async () => {
+  applyQuery();
   await loadTasks();
   await load();
 });

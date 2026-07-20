@@ -44,6 +44,34 @@ public class ReportingController {
         return call(() -> service.breakdown(startDate, endDate, mediaId, dimension, customerId, productId, linkId, taskId,
                 channelId, documentId));
     }
+    @GetMapping("/cpa") @SaCheckPermission("ad:report:read")
+    public Result<List<ReportBreakdown>> cpa(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
+            String documentId) {
+        return call(() -> service.cpa(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
+    }
+    @GetMapping("/hourly") @SaCheckPermission("ad:report:read")
+    public Result<List<ReportBreakdown>> hourly(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
+            String documentId) {
+        return call(() -> service.hourly(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
+    }
+    @GetMapping("/result") @SaCheckPermission("ad:report:read")
+    public Result<List<ReportBreakdown>> result(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
+            String documentId) {
+        return call(() -> service.result(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
+    }
+    @GetMapping("/result/cb") @SaCheckPermission("ad:report:read")
+    public Result<List<ReportBreakdown>> resultCb(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
+            String documentId) {
+        return call(() -> service.resultCb(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
+    }
 
     @GetMapping("/overview") @SaCheckPermission("ad:report:read")
     public Result<List<ReportTrendPoint>> overview(LocalDate endDate, String mediaId) {

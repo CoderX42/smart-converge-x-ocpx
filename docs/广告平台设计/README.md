@@ -9,8 +9,9 @@
 1. 仓库根目录 `AGENTS.md`。
 2. [MVP 开发规划（Agent 执行版）](MVP开发规划.md)。
 3. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
-4. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
-5. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+4. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
+5. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
+6. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
 当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
 
@@ -23,6 +24,7 @@
 | `contracts/` | 沙箱事件 OpenAPI、异步消息 AsyncAPI、事件信封 JSON Schema | `make contract-check` 已启用 |
 | [MVP-A 发布、回滚与数据核验手册](runbooks/MVP-A-发布与回滚.md) | 发布前检查、迁移包一致性、数据库备份/升级、回滚边界与运行态核验 | Runbook 已就绪；目标环境演练待执行 |
 | [功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md) | 竞品全路由、交互和安全边界的较新证据 | 参考输入，不证明竞品后端实现，也不替代 SCX 决策 |
+| [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md) | 目标菜单、功能差距、分里程碑待办与验收条件 | Draft；对标实施输入，待负责人确认后进入迭代基线 |
 | [竞品调研](竞品调研-ocpx.aerim.cn.md) | 较早的页面、字段和功能面盘点 | 参考输入；与审计或仓库事实冲突时取较新证据 |
 | [Agent 与交付模板](templates/README.md) | 任务、交接、ADR、RFC、迁移、测试、发布和事故模板 | 格式约束，不决定业务范围 |
 
