@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/onlineuser")
+@RequestMapping({ "/onlineuser", "/system/onlineuser" })
 @Tag(description = "onlineuser", name = "系统在线用户")
 public class SysOnlineUserController {
 

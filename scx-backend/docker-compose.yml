@@ -42,6 +42,9 @@ services:
       - ./scx-boot/src/main/resources/db/migration/V26__add_competitor_report_summary_menus.sql:/docker-entrypoint-initdb.d/55_mvp_v26.sql:ro
       - ./scx-boot/src/main/resources/db/migration/V27__add_independent_master_data_menus.sql:/docker-entrypoint-initdb.d/56_mvp_v27.sql:ro
       - ./scx-boot/src/main/resources/db/migration/V28__add_event_mapping_price_and_limit.sql:/docker-entrypoint-initdb.d/57_mvp_v28.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V29__reconcile_v28_schema_gap.sql:/docker-entrypoint-initdb.d/58_mvp_v29.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V30__seed_sandbox_basic_test_data.sql:/docker-entrypoint-initdb.d/59_mvp_v30.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V31__reconcile_mvp_access_control_seeds.sql:/docker-entrypoint-initdb.d/60_mvp_v31.sql:ro
     command:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_general_ci

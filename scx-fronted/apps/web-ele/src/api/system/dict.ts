@@ -4,7 +4,7 @@ import { requestClient } from '#/api/request';
  * 获取字典分页
  */
 export async function getPage(query: any) {
-  return requestClient.get('/system/dict/page', {
+  return requestClient.get('/dict/page', {
     params: query,
     headers: {},
   });
@@ -14,7 +14,7 @@ export async function getPage(query: any) {
  * 根据ID获取字典
  */
 export async function getById(id: string) {
-  return requestClient.get(`/system/dict/${id}`, {
+  return requestClient.get(`/dict/${id}`, {
     headers: {},
   });
 }
@@ -23,7 +23,7 @@ export async function getById(id: string) {
  * 添加字典
  */
 export async function addObj(data: any) {
-  return requestClient.post('/system/dict', data, {
+  return requestClient.post('/dict', data, {
     headers: {},
   });
 }
@@ -32,7 +32,7 @@ export async function addObj(data: any) {
  * 编辑字典
  */
 export async function editObj(data: any) {
-  return requestClient.put('/system/dict', data, {
+  return requestClient.put('/dict', data, {
     headers: {},
   });
 }
@@ -41,7 +41,7 @@ export async function editObj(data: any) {
  * 删除字典
  */
 export async function delObj(id: string) {
-  return requestClient.delete(`/system/dict/${id}`, {
+  return requestClient.delete(`/dict/${id}`, {
     headers: {},
   });
 }
@@ -50,7 +50,7 @@ export async function delObj(id: string) {
  * 刷新字典缓存
  */
 export async function refresh() {
-  return requestClient.get('/system/dict/refresh', {
+  return requestClient.get('/dict/refresh', {
     headers: {},
   });
 }

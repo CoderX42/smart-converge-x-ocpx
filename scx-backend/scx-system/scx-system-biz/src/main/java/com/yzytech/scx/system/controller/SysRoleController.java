@@ -31,7 +31,7 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/sysrole")
+@RequestMapping({ "/sysrole", "/system/sysrole" })
 @Tag(description = "sysrole", name = "角色管理")
 public class SysRoleController {
 

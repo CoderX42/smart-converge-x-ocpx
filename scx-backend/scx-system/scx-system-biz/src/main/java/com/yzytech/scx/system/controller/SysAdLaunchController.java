@@ -24,7 +24,7 @@ import java.util.Objects;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/ad-launch")
+@RequestMapping({ "/ad-launch", "/system/ad-launch" })
 @Tag(description = "ad-launch", name = "启动广告配置")
 public class SysAdLaunchController {
 

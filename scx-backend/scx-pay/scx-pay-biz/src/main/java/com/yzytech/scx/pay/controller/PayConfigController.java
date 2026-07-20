@@ -34,7 +34,7 @@ import java.io.IOException;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/payconfig")
+@RequestMapping({ "/payconfig", "/pay/payconfig" })
 @Tag(description = "payconfig", name = "支付配置")
 public class PayConfigController {
 

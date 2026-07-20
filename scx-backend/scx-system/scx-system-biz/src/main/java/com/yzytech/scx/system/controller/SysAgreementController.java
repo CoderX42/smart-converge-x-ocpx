@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/agreement")
+@RequestMapping({ "/agreement", "/system/agreement" })
 @Tag(description = "agreement", name = "系统协议")
 public class SysAgreementController {
 

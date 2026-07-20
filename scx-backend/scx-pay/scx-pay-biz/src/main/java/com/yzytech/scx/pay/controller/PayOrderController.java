@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/pay")
+@RequestMapping({ "/pay", "/pay/pay" })
 @RequiredArgsConstructor
 @Tag(description = "pay", name = "支付订单")
 public class PayOrderController {

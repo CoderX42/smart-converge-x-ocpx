@@ -107,16 +107,9 @@ bootstrap().then(async () => {
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M3 / Evidence Ledger</div>
-        <h1 class="mvp-title">事件明细</h1>
-        <p class="mvp-subtitle">
-          从原始接入事实追溯到去重与归因结论。设备标识仅展示脱敏值，失败原因保留可解释码。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control">
-        <div class="mb-2 text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -126,7 +119,7 @@ bootstrap().then(async () => {
           />
         </el-select>
       </div>
-    </header>
+    </div>
 
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">

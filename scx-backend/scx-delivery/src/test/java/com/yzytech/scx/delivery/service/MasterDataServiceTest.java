@@ -7,7 +7,9 @@ import com.yzytech.scx.delivery.mapper.ProductMapper;
 import com.yzytech.scx.delivery.mapper.UpstreamCustomerMapper;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import com.yzytech.scx.subject.service.MediaScopeService;
+import com.yzytech.scx.system.api.service.StorageUploadService;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,8 +20,9 @@ import static org.mockito.Mockito.when;
 class MasterDataServiceTest {
     private final MediaScopeService scopeService = mock(MediaScopeService.class);
     private final UpstreamCustomerMapper customerMapper = mock(UpstreamCustomerMapper.class);
+    private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
     private final MasterDataService service = new MasterDataService(scopeService, mock(PartnerMapper.class), customerMapper,
-            mock(ProductMapper.class), mock(IntegrationDocumentMapper.class), mock(MediaChannelMapper.class));
+            mock(ProductMapper.class), mock(IntegrationDocumentMapper.class), mock(MediaChannelMapper.class), storageUploadService);
 
     @Test
     void sandboxUrlAllowsOnlyExplicitLocalHosts() {
@@ -52,5 +55,30 @@ class MasterDataServiceTest {
 
         assertThatCode(() -> { if (!"ACTIVE".equals(customer.getStatus())) throw new AssertionError(); }).doesNotThrowAnyException();
         verify(customerMapper).insert(customer);
+    }
+
+    @Test
+    void uploadsAllowedDocumentOnlyWithinWritableMediaScope() {
+        MockMultipartFile file = new MockMultipartFile("file", "integration-guide.pdf", "application/pdf", "guide".getBytes());
+        when(scopeService.canWrite("media-1")).thenReturn(true);
+        when(storageUploadService.upload(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
+                org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L)))
+            .thenReturn("https://oss.example/documents/integration-guide.pdf");
+
+        String url = service.uploadDocument("media-1", file);
+
+        org.assertj.core.api.Assertions.assertThat(url).isEqualTo("https://oss.example/documents/integration-guide.pdf");
+        verify(storageUploadService).upload(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
+                org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L));
+    }
+
+    @Test
+    void rejectsUnsupportedDocumentUpload() {
+        when(scopeService.canWrite("media-1")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.uploadDocument("media-1",
+                new MockMultipartFile("file", "script.exe", "application/octet-stream", new byte[1])))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档");
     }
 }

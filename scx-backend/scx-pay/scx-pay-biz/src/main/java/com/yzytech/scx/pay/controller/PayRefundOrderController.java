@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/refundorder")
+@RequestMapping({ "/refundorder", "/pay/refundorder" })
 @RequiredArgsConstructor
 @Tag(description = "refundorder", name = "退款订单")
 public class PayRefundOrderController {

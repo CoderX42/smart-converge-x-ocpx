@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/material")
+@RequestMapping({ "/material", "/system/material" })
 @Tag(description = "material", name = "素材")
 public class SysMaterialController {
 

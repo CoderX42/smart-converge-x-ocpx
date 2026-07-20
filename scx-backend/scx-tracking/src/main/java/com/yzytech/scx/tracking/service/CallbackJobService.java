@@ -149,9 +149,9 @@ public class CallbackJobService {
 		if (!"PENDING".equals(event.getStatus()) && !"RETRYING".equals(event.getStatus())) {
 			throw new IllegalArgumentException("当前发件箱记录不可发布");
 		}
-		if (event.getNextRetryAt() != null && event.getNextRetryAt().isAfter(LocalDateTime.now())) {
-			throw new IllegalArgumentException("发件箱记录尚未到发布时机");
-		}
+		// An explicitly authorized single-record dispatch is a recovery operation.
+		// It may bypass the scheduler backoff; the scheduler itself still honours
+		// nextRetryAt through selectPendingByMedia(...).
 		return dispatchOutbox(event) == 1;
 	}
 

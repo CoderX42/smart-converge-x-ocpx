@@ -144,17 +144,10 @@ bootstrap().then(async () => {
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M4 / Frozen Snapshot</div>
-        <h1 class="mvp-title">效果日报</h1>
-        <p class="mvp-subtitle">
-          每次刷新都冻结输入截止时间与规则版本；页面只读取最新成功快照，避免历史口径被悄然覆盖。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control grid grid-cols-2 gap-2">
         <div>
-          <div class="mb-2 text-xs text-white/50">媒体范围</div>
+          <div class="mvp-scope-label mb-2 text-xs">媒体范围</div>
           <el-select v-model="mediaId" class="w-full">
             <el-option
               v-for="item in media"
@@ -165,7 +158,7 @@ bootstrap().then(async () => {
           </el-select>
         </div>
         <div>
-          <div class="mb-2 text-xs text-white/50">报告日期</div>
+          <div class="mvp-scope-label mb-2 text-xs">报告日期</div>
           <el-date-picker
             v-model="reportDate"
             class="!w-full"
@@ -174,7 +167,7 @@ bootstrap().then(async () => {
           />
         </div>
       </div>
-    </header>
+    </div>
 
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
       <div class="mvp-metric">

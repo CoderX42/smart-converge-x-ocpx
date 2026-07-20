@@ -25,7 +25,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/materialgroup")
+@RequestMapping({ "/materialgroup", "/system/materialgroup" })
 @Tag(description = "materialgroup", name = "素材分组")
 public class SysMaterialGroupController {
 

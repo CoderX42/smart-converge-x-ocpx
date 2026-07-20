@@ -29,7 +29,7 @@ import java.util.Map;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/sysloginlog")
+@RequestMapping({ "/sysloginlog", "/system/sysloginlog" })
 @Tag(description = "sysloginlog", name = "登录日志")
 public class SysLoginLogController {
 

@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/dict")
+@RequestMapping({ "/dict", "/system/dict" })
 @Tag(description = "dict", name = "字典")
 public class SysDictController {
 

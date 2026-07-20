@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/article")
+@RequestMapping({ "/article", "/system/article" })
 @Tag(description = "article", name = "文章")
 public class SysArticleController {
 

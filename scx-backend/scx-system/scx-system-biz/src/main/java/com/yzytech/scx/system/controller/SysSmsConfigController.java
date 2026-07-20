@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/sms-config")
+@RequestMapping({ "/sms-config", "/system/sms-config" })
 @Tag(description = "sms-config", name = "短信配置")
 public class SysSmsConfigController {
 

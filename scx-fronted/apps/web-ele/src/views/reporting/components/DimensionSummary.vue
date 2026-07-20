@@ -16,9 +16,6 @@ import '../../delivery/components/mvp-page.css';
 
 const props = defineProps<{
   dimension: 'DATE' | 'LINK' | 'PRODUCT' | 'TASK';
-  kicker: string;
-  subtitle: string;
-  title: string;
 }>();
 
 const media = ref<Media[]>([]);
@@ -118,14 +115,9 @@ bootstrap();
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">{{ kicker }}</div>
-        <h1 class="mvp-title">{{ title }}</h1>
-        <p class="mvp-subtitle">{{ subtitle }}</p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control space-y-2">
-        <div class="text-xs text-white/50">媒体安全范围</div>
+        <div class="mvp-scope-label text-xs">媒体安全范围</div>
         <el-select v-model="mediaId" class="w-full">
           <el-option
             v-for="item in media"
@@ -143,7 +135,7 @@ bootstrap();
           value-format="YYYY-MM-DD"
         />
       </div>
-    </header>
+    </div>
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
       <div class="mvp-metric">

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/config")
+@RequestMapping({ "/config", "/system/config" })
 @Tag(description = "config", name = "全局系统配置")
 public class SysConfigController {
 

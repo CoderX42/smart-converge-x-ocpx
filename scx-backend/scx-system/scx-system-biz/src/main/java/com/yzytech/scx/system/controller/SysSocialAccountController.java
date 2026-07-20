@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/social-account")
+@RequestMapping({ "/social-account", "/system/social-account" })
 @Tag(description = "social-account", name = "三方平台账号")
 public class SysSocialAccountController {
 

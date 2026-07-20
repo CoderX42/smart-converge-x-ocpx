@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/storage-config")
+@RequestMapping({ "/storage-config", "/system/storage-config" })
 @Tag(description = "storageconfig", name = "文件存储配置")
 public class SysStorageConfigController {
 

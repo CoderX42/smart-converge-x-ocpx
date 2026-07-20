@@ -97,15 +97,7 @@ onMounted(bootstrap);
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M5 / Operating Signal</div>
-        <h1 class="mvp-title">广告效果概览</h1>
-        <p class="mvp-subtitle">
-          从已成功的日报快照读取最近 7
-          天运营信号；没有快照时明确展示空态，不展示模拟数据。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control grid grid-cols-2 gap-2">
         <el-select v-model="mediaId">
           <el-option
@@ -121,7 +113,7 @@ onMounted(bootstrap);
           value-format="YYYY-MM-DD"
         />
       </div>
-    </header>
+    </div>
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
       <div class="mvp-metric">

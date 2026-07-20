@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/region")
+@RequestMapping({ "/region", "/system/region" })
 @Tag(description = "region", name = "行政区划")
 public class SysRegionController {
 

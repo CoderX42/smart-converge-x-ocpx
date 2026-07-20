@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.function.Function;
 
@@ -69,6 +70,10 @@ public class MasterDataController {
     }
     @PostMapping("/integration-documents") @SaCheckPermission("ad:master:write")
     public Result<Boolean> saveDocument(@Valid @RequestBody IntegrationDocument value) { return call(() -> service.saveDocument(value)); }
+    @PostMapping("/integration-documents/upload") @SaCheckPermission("ad:master:write")
+    public Result<String> uploadDocument(@RequestParam String mediaId, @RequestPart("file") MultipartFile file) {
+        return callValue(() -> service.uploadDocument(mediaId, file));
+    }
     @PutMapping("/integration-documents/{id}") @SaCheckPermission("ad:master:write")
     public Result<Boolean> updateDocument(@PathVariable String id, @Valid @RequestBody IntegrationDocument value) { value.setId(id); return call(() -> service.saveDocument(value)); }
 
@@ -87,5 +92,10 @@ public class MasterDataController {
         try { return Result.success(action.call()); }
         catch (IllegalArgumentException e) { return Result.fail(e.getMessage()); }
         catch (Exception e) { return Result.fail("保存失败"); }
+    }
+    private <T> Result<T> callValue(java.util.concurrent.Callable<T> action) {
+        try { return Result.success(action.call()); }
+        catch (IllegalArgumentException | IllegalStateException e) { return Result.fail(e.getMessage()); }
+        catch (Exception e) { return Result.fail("文件上传失败"); }
     }
 }

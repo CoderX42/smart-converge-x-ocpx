@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Hidden
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/sysserver")
+@RequestMapping({ "/sysserver", "/system/sysserver" })
 public class SysServerController {
 
 	@GetMapping

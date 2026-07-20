@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/syslog")
+@RequestMapping({ "/syslog", "/system/syslog" })
 @Tag(description = "syslog", name = "日志管理")
 
 public class SysLogController {

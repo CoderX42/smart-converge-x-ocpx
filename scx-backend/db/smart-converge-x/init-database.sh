@@ -12,6 +12,8 @@ SCX_MIGRATION_BASELINE_VERSION="${SCX_MIGRATION_BASELINE_VERSION:-0}"
 
 mysql_args=(
   --commands
+  # Keep CHAR(9) delimiters intact for migration history parsing below.
+  --raw
   --default-character-set=utf8mb4
   --host="$MYSQL_HOST"
   --port="$MYSQL_PORT"

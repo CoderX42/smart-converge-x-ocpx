@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping("/notify")
+@RequestMapping({ "/notify", "/pay/notify" })
 @RequiredArgsConstructor
 @Tag(description = "notify", name = "支付回调")
 public class PayNotifyRecordController {

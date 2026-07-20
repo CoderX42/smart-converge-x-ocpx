@@ -3,24 +3,33 @@ package com.yzytech.scx.delivery.service;
 import com.yzytech.scx.delivery.entity.*;
 import com.yzytech.scx.delivery.mapper.*;
 import com.yzytech.scx.subject.service.MediaScopeService;
+import com.yzytech.scx.system.api.service.StorageUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.util.Locale;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class MasterDataService {
     private static final Set<String> SANDBOX_HOSTS = Set.of("localhost", "127.0.0.1", "callback-mock", "minio");
+    private static final Set<String> DOCUMENT_EXTENSIONS = Set.of(
+            "csv", "doc", "docx", "json", "md", "pdf", "txt", "xlsx", "yaml", "yml");
+    private static final long MAX_DOCUMENT_SIZE = 20L * 1024 * 1024;
     private final MediaScopeService scopeService;
     private final PartnerMapper partnerMapper;
     private final UpstreamCustomerMapper customerMapper;
     private final ProductMapper productMapper;
     private final IntegrationDocumentMapper documentMapper;
     private final MediaChannelMapper channelMapper;
+    private final StorageUploadService storageUploadService;
 
     public boolean readable(String mediaId) { return scopeService.canRead(mediaId); }
     public boolean writable(String mediaId) { return scopeService.canWrite(mediaId); }
@@ -75,6 +84,22 @@ public class MasterDataService {
         if (value.getDocumentVersion() == null) value.setDocumentVersion(1);
         if (value.getVersion() == null) value.setVersion(0);
         return value.getId() == null ? documentMapper.insert(value) == 1 : documentMapper.updateById(value) == 1;
+    }
+    public String uploadDocument(String mediaId, MultipartFile file) {
+        requireWrite(mediaId);
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("请选择需要上传的文档");
+        if (file.getSize() > MAX_DOCUMENT_SIZE) throw new IllegalArgumentException("文档大小不能超过 20MB");
+        String fileName = StringUtils.cleanPath(file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
+        if (!StringUtils.hasText(fileName) || fileName.contains("..")) throw new IllegalArgumentException("文件名无效");
+        int extensionIndex = fileName.lastIndexOf('.');
+        String extension = extensionIndex < 1 ? "" : fileName.substring(extensionIndex + 1).toLowerCase(Locale.ROOT);
+        if (!DOCUMENT_EXTENSIONS.contains(extension)) throw new IllegalArgumentException("仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档");
+        try (InputStream inputStream = file.getInputStream()) {
+            return storageUploadService.upload(inputStream, fileName, file.getContentType(), file.getSize());
+        }
+        catch (IOException e) {
+            throw new IllegalArgumentException("读取上传文档失败");
+        }
     }
     @Transactional
     public boolean saveChannel(MediaChannel value) {

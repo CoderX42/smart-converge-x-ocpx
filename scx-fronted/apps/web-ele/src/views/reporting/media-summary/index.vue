@@ -127,14 +127,7 @@ bootstrap();
 
 <template>
   <main class="mvp-page">
-    <header class="mvp-hero">
-      <div>
-        <div class="mvp-kicker">M4 / Channel Intelligence</div>
-        <h1 class="mvp-title">媒体数据汇总</h1>
-        <p class="mvp-subtitle">
-          以媒体渠道为主线交叉查看接入文档与任务表现，所有数据均来自已成功生成的日报快照。
-        </p>
-      </div>
+    <div class="mvp-scope-toolbar">
       <div class="mvp-control space-y-2">
         <el-select v-model="mediaId" class="w-full">
           <el-option
@@ -153,7 +146,7 @@ bootstrap();
           value-format="YYYY-MM-DD"
         />
       </div>
-    </header>
+    </div>
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
       <div class="mvp-metric">

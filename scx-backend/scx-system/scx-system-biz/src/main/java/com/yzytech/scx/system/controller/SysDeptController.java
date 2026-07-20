@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/sysdept")
+@RequestMapping({ "/sysdept", "/system/sysdept" })
 @Tag(description = "sysdept", name = "部门管理")
 public class SysDeptController {
 

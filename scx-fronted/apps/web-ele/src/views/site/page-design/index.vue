@@ -4,7 +4,6 @@ import { ref } from 'vue';
 import { Page } from '@boot/common-ui';
 
 import {
-  ElAlert,
   ElButton,
   ElCard,
   ElInput,
@@ -37,12 +36,6 @@ loadData();
     title="官网页面装修"
     description="管理公司官网、落地页和动态页面的装修配置"
   >
-    <ElAlert
-      class="mb-4"
-      show-icon
-      title="通用 基座已将官网装修迁移为官网装修。当前页面保留列表与配置入口，后续可继续接入可视化拖拽编辑器。"
-      type="info"
-    />
     <ElCard>
       <div class="mb-4 flex gap-3">
         <ElInput

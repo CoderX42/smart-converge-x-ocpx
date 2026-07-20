@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/sms-send-record")
+@RequestMapping({ "/sms-send-record", "/system/sms-send-record" })
 @Tag(description = "sms-send-record", name = "短信发送记录")
 public class SysSmsSendRecordController {
 

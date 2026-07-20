@@ -32,7 +32,7 @@ import java.io.IOException;
 @Slf4j
 @AllArgsConstructor
 @RestController
-@RequestMapping("/file")
+@RequestMapping({ "/file", "/system/file" })
 @Tag(description = "file", name = "文件上传")
 public class SysUploadController {
 
