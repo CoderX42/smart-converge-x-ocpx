@@ -1,12 +1,10 @@
 <script lang="ts" setup>
-import type { Media } from '#/api/ad';
-import type { AsyncServicesQueueStats } from '#/api/ad';
+import type { AsyncServicesQueueStats, Media  } from '#/api/ad';
 
 import { computed, ref, watch } from 'vue';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { downloadBlobFile } from '#/utils/util';
 import {
   dispatchCallbackJob,
   dispatchCallbackJobs,
@@ -19,17 +17,18 @@ import {
   resumeCallbackJob,
   retryExportTask,
 } from '#/api/ad';
+import { downloadBlobFile } from '#/utils/util';
 
-import '../../delivery/components/mvp-page.css';
+import '../../../delivery/components/mvp-page.css';
 
-type QueueMode = 'queue' | 'async';
+type QueueMode = 'async' | 'queue';
 type QueueType = 'callback' | 'export' | 'outbox';
 
 type QueueModeTab = 'callback' | 'export' | 'outbox';
 
-const props = defineProps<{ tab?: QueueMode }>();
-
 defineOptions({ name: 'AdQueueOverview' });
+
+const props = defineProps<{ tab?: QueueMode }>();
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
@@ -95,10 +94,16 @@ async function load() {
     const [statResult, listResult] = await Promise.all([
       getAsyncServicesStats(queueType.value, mediaId.value),
       getAsyncServicesList({
-        aggregateId: queueType.value === 'outbox' ? aggregateId.value.trim() || undefined : undefined,
+        aggregateId:
+          queueType.value === 'outbox'
+            ? aggregateId.value.trim() || undefined
+            : undefined,
         current: current.value,
         mediaId: mediaId.value,
-        rawEventId: queueType.value === 'callback' ? rawEventId.value.trim() || undefined : undefined,
+        rawEventId:
+          queueType.value === 'callback'
+            ? rawEventId.value.trim() || undefined
+            : undefined,
         queueType: queueType.value,
         size: size.value,
         status: status.value,
@@ -130,9 +135,13 @@ async function dispatchAll() {
 }
 
 async function replay(row: any) {
-  await ElMessageBox.confirm('重放只会将任务恢复为待发送，不会绕过去重。', '确认重放', {
-    type: 'warning',
-  });
+  await ElMessageBox.confirm(
+    '重放只会将任务恢复为待发送，不会绕过去重。',
+    '确认重放',
+    {
+      type: 'warning',
+    },
+  );
   await replayCallbackJob(row.id, mediaId.value);
   ElMessage.success('回传任务已恢复为待发送');
   await load();
@@ -241,7 +250,11 @@ bootstrap().then(load);
           />
         </el-select>
       </div>
-      <el-tabs v-model="queueType" class="mt-2 w-full" @tab-change="onTabChange">
+      <el-tabs
+        v-model="queueType"
+        class="mt-2 w-full"
+        @tab-change="onTabChange"
+      >
         <el-tab-pane label="回传队列" name="callback" />
         <el-tab-pane label="导出队列" name="export" />
         <el-tab-pane label="领域事件队列" name="outbox" />
@@ -250,7 +263,8 @@ bootstrap().then(load);
 
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-7">
       <div v-for="item in metricCards" :key="item.label" class="mvp-metric">
-        <strong>{{ item.value }}</strong><span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong
+        ><span>{{ item.label }}</span>
       </div>
     </div>
 
@@ -320,7 +334,11 @@ bootstrap().then(load);
             </template>
           </el-table-column>
           <el-table-column label="尝试次数" prop="attempts" width="110" />
-          <el-table-column label="下次重试" prop="nextRetryAt" min-width="180" />
+          <el-table-column
+            label="下次重试"
+            prop="nextRetryAt"
+            min-width="180"
+          />
           <el-table-column label="最近错误" min-width="240">
             <template #default="{ row }">
               <span v-if="row.lastErrorCode" class="mvp-code">

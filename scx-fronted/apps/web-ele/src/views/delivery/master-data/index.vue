@@ -399,7 +399,10 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             >
               <el-button type="primary">上传至对象存储</el-button>
             </el-upload>
-            <div v-if="form.objectKey" class="mt-2 break-all text-sm text-gray-500">
+            <div
+              v-if="form.objectKey"
+              class="mt-2 break-all text-sm text-gray-500"
+            >
               已上传：{{ form.objectKey }}
             </div>
             <div v-else class="mt-2 text-sm text-gray-500">

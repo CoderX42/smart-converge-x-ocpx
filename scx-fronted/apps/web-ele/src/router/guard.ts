@@ -101,7 +101,11 @@ function setupAccessGuard(router: Router) {
       userRoles.includes('user0');
     if (isClkUser) {
       const allowedPaths = ['/task/clk', '/data/clk-summary'];
-      if (!allowedPaths.some((path) => to.path === path || to.path.startsWith(`${path}/`))) {
+      if (
+        !allowedPaths.some(
+          (path) => to.path === path || to.path.startsWith(`${path}/`),
+        )
+      ) {
         return '/task/clk';
       }
     }

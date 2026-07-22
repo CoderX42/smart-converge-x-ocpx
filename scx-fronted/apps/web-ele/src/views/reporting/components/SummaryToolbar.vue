@@ -23,7 +23,12 @@ const emit = defineEmits<{
         class="w-full"
         @update:model-value="(value: string) => emit('update:mediaId', value)"
       >
-        <el-option v-for="item in media" :key="item.id" :label="item.name" :value="item.id" />
+        <el-option
+          v-for="item in media"
+          :key="item.id"
+          :label="item.name"
+          :value="item.id"
+        />
       </el-select>
       <el-date-picker
         :model-value="dates"
@@ -32,7 +37,9 @@ const emit = defineEmits<{
         start-placeholder="开始日期"
         type="daterange"
         value-format="YYYY-MM-DD"
-        @update:model-value="(value: string[] | undefined) => emit('update:dates', value || [])"
+        @update:model-value="
+          (value: string[] | undefined) => emit('update:dates', value || [])
+        "
       />
       <el-button plain @click="emit('reset')">清空筛选</el-button>
     </div>

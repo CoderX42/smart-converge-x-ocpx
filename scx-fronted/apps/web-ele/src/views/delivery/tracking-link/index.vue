@@ -358,11 +358,15 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
               >
               <span
                 >有效点击
-                <strong>{{ todayMetric(row, 'eligibleClickCount') }}</strong></span
+                <strong>{{
+                  todayMetric(row, 'eligibleClickCount')
+                }}</strong></span
               >
               <span
                 >付费
-                <strong>{{ todayMetric(row, 'attributedPayCount') }}</strong></span
+                <strong>{{
+                  todayMetric(row, 'attributedPayCount')
+                }}</strong></span
               >
             </div>
           </template>
@@ -371,16 +375,14 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           <template #default="{ row }">
             <template v-if="mappingSummary(row).length">
               <div
-                v-for="(
-                  item, index
-                ) in mappingSummary(row).slice(0, 2)"
+                v-for="(item, index) in mappingSummary(row).slice(0, 2)"
                 :key="`${row.id}-${index}`"
                 class="text-xs"
               >
-                {{ item.internalEvent }} → {{ item.externalEvent }}
-                （¥{{ item.unitPrice || 0 }} · 限量 {{
-                  item.dailyLimit || '不限制'
-                }}）
+                {{ item.internalEvent }} → {{ item.externalEvent }} （¥{{
+                  item.unitPrice || 0
+                }}
+                · 限量 {{ item.dailyLimit || '不限制' }}）
               </div>
               <div
                 v-if="mappingSummary(row).length > 2"

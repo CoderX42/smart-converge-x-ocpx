@@ -6,7 +6,12 @@ import { reactive, ref, watch } from 'vue';
 
 import { ElMessage } from 'element-plus';
 
-import { getMedia, getMaster, saveMaster, uploadIntegrationDocument } from '#/api/ad';
+import {
+  getMedia,
+  getMaster,
+  saveMaster,
+  uploadIntegrationDocument,
+} from '#/api/ad';
 
 import '../components/mvp-page.css';
 
@@ -63,7 +68,18 @@ function open(row?: any) {
 
 const beforeDocumentUpload: UploadProps['beforeUpload'] = (file) => {
   const extension = file.name.split('.').pop()?.toLowerCase();
-  const allowed = ['csv', 'doc', 'docx', 'json', 'md', 'pdf', 'txt', 'xlsx', 'yaml', 'yml'];
+  const allowed = [
+    'csv',
+    'doc',
+    'docx',
+    'json',
+    'md',
+    'pdf',
+    'txt',
+    'xlsx',
+    'yaml',
+    'yml',
+  ];
   if (!extension || !allowed.includes(extension)) {
     ElMessage.warning('仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档');
     return false;
@@ -108,7 +124,10 @@ async function submit() {
 
   saving.value = true;
   try {
-    await saveMaster('integration-documents', { ...form, mediaId: mediaId.value });
+    await saveMaster('integration-documents', {
+      ...form,
+      mediaId: mediaId.value,
+    });
     ElMessage.success('接入文档已保存');
     drawer.value = false;
     await load();
@@ -161,7 +180,14 @@ bootstrap().then(load);
         </el-button>
       </div>
       <el-table v-loading="loading" :data="rows" row-key="id">
-        <el-table-column label="文档名称" prop="name" min-width="220" />
+        <el-table-column label="文档名称" prop="name" min-width="180" />
+        <el-table-column label="文档类型" width="140">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" type="info">
+              {{ row.type || '未分类' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="文档版本" prop="documentVersion" width="110" />
         <el-table-column label="受控引用" min-width="240">
           <template #default="{ row }">
@@ -217,7 +243,13 @@ bootstrap().then(load);
           <el-input v-model="form.name" maxlength="128" />
         </el-form-item>
         <el-form-item label="文档类型">
-          <el-input v-model="form.type" placeholder="MEDIA_API / PRODUCT_API" />
+          <el-select v-model="form.type" class="w-full" clearable placeholder="选择文档类型">
+            <el-option label="媒体回传协议" value="MEDIA_CALLBACK" />
+            <el-option label="媒体接口规范" value="MEDIA_API" />
+            <el-option label="产品接口规范" value="PRODUCT_API" />
+            <el-option label="RTA 决策协议" value="RTA_SPEC" />
+            <el-option label="其他" value="OTHER" />
+          </el-select>
         </el-form-item>
         <el-form-item label="存储方式">
           <el-radio-group v-model="form.storageType">
@@ -225,7 +257,11 @@ bootstrap().then(load);
             <el-radio-button value="OBJECT">对象存储</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.storageType === 'OBJECT'" label="对象存储文档" required>
+        <el-form-item
+          v-if="form.storageType === 'OBJECT'"
+          label="对象存储文档"
+          required
+        >
           <el-upload
             accept=".csv,.doc,.docx,.json,.md,.pdf,.txt,.xlsx,.yaml,.yml"
             :before-upload="beforeDocumentUpload"
@@ -235,7 +271,10 @@ bootstrap().then(load);
           >
             <el-button type="primary">上传至对象存储</el-button>
           </el-upload>
-          <div v-if="form.objectKey" class="mt-2 break-all text-sm text-gray-500">
+          <div
+            v-if="form.objectKey"
+            class="mt-2 break-all text-sm text-gray-500"
+          >
             已上传：{{ form.objectKey }}
           </div>
           <div v-else class="mt-2 text-sm text-gray-500">
@@ -243,7 +282,10 @@ bootstrap().then(load);
           </div>
         </el-form-item>
         <el-form-item v-else label="沙箱外链" required>
-          <el-input v-model="form.externalUrl" placeholder="http://localhost/..." />
+          <el-input
+            v-model="form.externalUrl"
+            placeholder="http://localhost/..."
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="form.status" class="w-full">
@@ -256,7 +298,9 @@ bootstrap().then(load);
       </el-form>
       <template #footer>
         <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit">保存</el-button>
+        <el-button :loading="saving" type="primary" @click="submit"
+          >保存</el-button
+        >
       </template>
     </el-drawer>
   </main>

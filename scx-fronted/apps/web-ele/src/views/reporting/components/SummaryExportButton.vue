@@ -19,8 +19,8 @@ const props = withDefaults(
 );
 
 const creating = ref(false);
-const canExport = computed(
-  () => Boolean(props.mediaId && props.startDate && props.endDate),
+const canExport = computed(() =>
+  Boolean(props.mediaId && props.startDate && props.endDate),
 );
 
 async function createExport() {

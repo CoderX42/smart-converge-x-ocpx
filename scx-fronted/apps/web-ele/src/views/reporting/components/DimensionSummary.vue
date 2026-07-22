@@ -22,7 +22,15 @@ import SummaryExportButton from './SummaryExportButton.vue';
 import SummaryToolbar from './SummaryToolbar.vue';
 
 const props = defineProps<{
-  dimension: 'DATE' | 'LINK' | 'PRODUCT' | 'TASK' | 'HOURLY' | 'RESULT' | 'RESULT_CB' | 'CPA';
+  dimension:
+    | 'DATE'
+    | 'LINK'
+    | 'PRODUCT'
+    | 'TASK'
+    | 'HOURLY'
+    | 'RESULT'
+    | 'RESULT_CB'
+    | 'CPA';
   eventType?: string;
 }>();
 

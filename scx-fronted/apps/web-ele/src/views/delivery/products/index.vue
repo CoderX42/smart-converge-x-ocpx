@@ -5,7 +5,12 @@ import { reactive, ref, watch } from 'vue';
 
 import { ElMessage } from 'element-plus';
 
-import { getMaster, getMedia, getUpstreamCustomers, saveMaster } from '#/api/ad';
+import {
+  getMaster,
+  getMedia,
+  getUpstreamCustomers,
+  saveMaster,
+} from '#/api/ad';
 
 import '../components/mvp-page.css';
 
@@ -240,7 +245,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
       </el-form>
       <template #footer>
         <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit">保存</el-button>
+        <el-button :loading="saving" type="primary" @click="submit"
+          >保存</el-button
+        >
       </template>
     </el-drawer>
   </main>

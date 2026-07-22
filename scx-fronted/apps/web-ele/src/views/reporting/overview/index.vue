@@ -6,7 +6,6 @@ import type { Media } from '#/api/ad';
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { EchartsUI, useEcharts } from '@boot/plugins/echarts';
-import { Page } from '@boot/common-ui';
 
 import { getMedia, getReportBreakdown } from '#/api/ad';
 
@@ -15,22 +14,22 @@ import '../../delivery/components/mvp-page.css';
 defineOptions({ name: 'AdReportingOverview' });
 
 type ReportTrendPoint = {
+  attributedActivateCount?: null | number;
+  attributedOrderCount?: null | number;
+  attributedPayCount?: null | number;
+  attributedRegisterCount?: null | number;
+  firstActivateCount?: null | number;
+  impressionCount?: null | number;
+  nextDayReturnCount?: null | number;
   reportDate: string;
-  impressionCount?: number | null;
-  uniqueClickCount?: number | null;
-  uniqueDeduplicatedClickCount?: number | null;
-  attributedActivateCount?: number | null;
-  attributedRegisterCount?: number | null;
-  attributedPayCount?: number | null;
-  attributedOrderCount?: number | null;
-  nextDayReturnCount?: number | null;
-  firstActivateCount?: number | null;
+  uniqueClickCount?: null | number;
+  uniqueDeduplicatedClickCount?: null | number;
 };
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
 const dateRange = ref<[string, string]>([
-  toDateString(new Date(Date.now() - 6 * 86400000)),
+  toDateString(new Date(Date.now() - 6 * 86_400_000)),
   toDateString(new Date()),
 ]);
 const trend = ref<ReportTrendPoint[]>([]);
@@ -44,11 +43,15 @@ const end = computed(() => dateRange.value[1]);
 const selectedRangeDays = computed(() => {
   const start = new Date(`${startDate.value}T00:00:00`);
   const finish = new Date(`${end.value}T00:00:00`);
-  return Math.floor((finish.getTime() - start.getTime()) / 86400000) + 1;
+  return Math.floor((finish.getTime() - start.getTime()) / 86_400_000) + 1;
 });
 
-const today = computed<ReportTrendPoint>(() => trend.value.at(-1) ?? ({} as ReportTrendPoint));
-const yesterday = computed<ReportTrendPoint>(() => trend.value.at(-2) ?? ({} as ReportTrendPoint));
+const today = computed<ReportTrendPoint>(
+  () => trend.value.at(-1) ?? ({} as ReportTrendPoint),
+);
+const yesterday = computed<ReportTrendPoint>(
+  () => trend.value.at(-2) ?? ({} as ReportTrendPoint),
+);
 
 const isRangeTooLong = computed(() => selectedRangeDays.value > 31);
 
@@ -67,7 +70,10 @@ const metricCards = computed(() => [
   },
   {
     label: '当日首活',
-    value: today.value.firstActivateCount ?? today.value.attributedRegisterCount ?? 0,
+    value:
+      today.value.firstActivateCount ??
+      today.value.attributedRegisterCount ??
+      0,
     delta: percentChange('firstActivateCount'),
     note: '口径：report_daily.first_activate_count；无首活数据时回退到 attributed_register_count。',
   },
@@ -133,7 +139,10 @@ function renderTrend() {
         type: 'line',
       },
       {
-        data: trend.value.map((item) => item.firstActivateCount || item.attributedRegisterCount || 0),
+        data: trend.value.map(
+          (item) =>
+            item.firstActivateCount || item.attributedRegisterCount || 0,
+        ),
         name: '首活',
         smooth: true,
         type: 'line',
@@ -249,14 +258,26 @@ onMounted(bootstrap);
 
     <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       <div v-for="item in metricCards" :key="item.label" class="mvp-metric">
-        <strong>{{ item.value }}</strong
-        ><span>
-          {{ item.label }}
-          <template v-if="item.delta">
-            · {{ item.delta }}
-          </template>
-        </span>
-        <div class="mt-1 text-xs text-gray-500">{{ item.note }}</div>
+        <strong>{{ item.value.toLocaleString() }}</strong>
+        <span>{{ item.label }}</span>
+        <div
+          v-if="item.delta && item.delta !== '—'"
+          class="mt-1 text-xs"
+          :class="
+            item.delta.startsWith('+')
+              ? 'text-green-600'
+              : item.delta.startsWith('-')
+                ? 'text-red-500'
+                : 'text-gray-500'
+          "
+        >
+          较昨日 {{ item.delta.startsWith('-') ? '↓' : '↑' }}
+          {{ item.delta.replace('-', '') }}
+        </div>
+        <div v-else-if="item.delta === '—'" class="mt-1 text-xs text-gray-400">
+          较昨日 —
+        </div>
+        <div class="mt-1 text-xs text-gray-400">{{ item.note }}</div>
       </div>
     </section>
 
@@ -264,10 +285,14 @@ onMounted(bootstrap);
       <template #header>
         <div class="mvp-toolbar">
           <div>
-            <div class="font-semibold">指标趋势（{{ startDate }} ~ {{ end }}）</div>
+            <div class="font-semibold">
+              指标趋势（{{ startDate }} ~ {{ end }}）
+            </div>
             <div class="mt-1 text-xs text-gray-500">
               范围内共 {{ selectedRangeDays }} 天；来源：成功快照
-              <template v-if="!isRangeTooLong">，点击量为空时请先生成对应日期的日报。</template>
+              <template v-if="!isRangeTooLong"
+                >，点击量为空时请先生成对应日期的日报。</template
+              >
             </div>
           </div>
           <el-button size="small" @click="load">刷新</el-button>
@@ -278,7 +303,9 @@ onMounted(bootstrap);
       </div>
       <div v-else class="mvp-empty">
         当前筛选范围内无成功日报快照。
-        <div class="mt-1 text-xs text-gray-500">请先在“效果日报”触发汇总，再返回此页查看。</div>
+        <div class="mt-1 text-xs text-gray-500">
+          请先在“效果日报”触发汇总，再返回此页查看。
+        </div>
       </div>
     </el-card>
 

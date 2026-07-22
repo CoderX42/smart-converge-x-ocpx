@@ -78,7 +78,12 @@ async function bootstrap() {
 
 async function loadOptions() {
   if (!mediaId.value) return;
-  const params = { current: 1, mediaId: mediaId.value, size: 200, status: 'ACTIVE' };
+  const params = {
+    current: 1,
+    mediaId: mediaId.value,
+    size: 200,
+    status: 'ACTIVE',
+  };
   const [linkResult, channelResult] = await Promise.all([
     getTrackingLinks(params),
     getMaster('media-channels', params),
@@ -256,9 +261,22 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         <el-table-column label="今日概况" min-width="235">
           <template #default="{ row }">
             <div class="flex gap-3 text-xs">
-              <span>曝光 <strong>{{ ratePerTask(row, 'impressionCount') }}</strong></span>
-              <span>有效点击 <strong>{{ ratePerTask(row, 'eligibleClickCount') }}</strong></span>
-              <span>付费 <strong>{{ ratePerTask(row, 'attributedPayCount') }}</strong></span>
+              <span
+                >曝光
+                <strong>{{ ratePerTask(row, 'impressionCount') }}</strong></span
+              >
+              <span
+                >有效点击
+                <strong>{{
+                  ratePerTask(row, 'eligibleClickCount')
+                }}</strong></span
+              >
+              <span
+                >付费
+                <strong>{{
+                  ratePerTask(row, 'attributedPayCount')
+                }}</strong></span
+              >
             </div>
             <div
               class="mt-1 truncate text-xs text-gray-400"
@@ -275,11 +293,21 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </el-table-column>
         <el-table-column align="right" fixed="right" label="操作" width="360">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openHourly(row)">时报</el-button>
-            <el-button link type="primary" @click="openDaily(row)">日报</el-button>
-            <el-button link type="primary" @click="openClickDetail(row)">点击明细</el-button>
-            <el-button link type="primary" @click="openConversionDetail(row)">转化明细</el-button>
-            <el-button link type="primary" @click="copyTrackingAddress(row)">监测地址</el-button>
+            <el-button link type="primary" @click="openHourly(row)"
+              >时报</el-button
+            >
+            <el-button link type="primary" @click="openDaily(row)"
+              >日报</el-button
+            >
+            <el-button link type="primary" @click="openClickDetail(row)"
+              >点击明细</el-button
+            >
+            <el-button link type="primary" @click="openConversionDetail(row)"
+              >转化明细</el-button
+            >
+            <el-button link type="primary" @click="copyTrackingAddress(row)"
+              >监测地址</el-button
+            >
             <el-button link @click="openHistory(row)">版本记录</el-button>
           </template>
         </el-table-column>

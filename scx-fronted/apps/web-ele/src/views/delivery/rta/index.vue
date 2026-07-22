@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import type { Media } from '#/api/ad';
 
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -17,6 +18,19 @@ import {
 import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdRtaEndpoint' });
+
+const router = useRouter();
+
+const stats = computed(() => {
+  const data = rows.value;
+  const total = data.length;
+  const active = data.filter((r) => r.status === 'ACTIVE').length;
+  const unhealthy = data.filter(
+    (r) => r.status === 'ACTIVE' && r.lastHealthStatus === 'UNAVAILABLE',
+  ).length;
+  const healthy = data.filter((r) => r.lastHealthStatus === 'AVAILABLE').length;
+  return { total, active, healthy, unhealthy };
+});
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
@@ -137,6 +151,29 @@ bootstrap().then(load);
       </div>
     </div>
 
+    <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div class="mvp-metric">
+        <strong>{{ stats.total }}</strong
+        ><span>RTA 配置</span>
+      </div>
+      <div class="mvp-metric">
+        <strong>{{ stats.active }}</strong
+        ><span>已启用</span>
+      </div>
+      <div class="mvp-metric">
+        <strong
+          :class="stats.unhealthy > 0 ? 'text-orange-500' : 'text-green-600'"
+        >
+          {{ stats.healthy }} </strong
+        ><span>健康</span>
+      </div>
+      <div class="mvp-metric">
+        <strong :class="stats.unhealthy > 0 ? 'text-red-500' : ''">
+          {{ stats.unhealthy }} </strong
+        ><span>异常</span>
+      </div>
+    </div>
+
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
@@ -203,7 +240,7 @@ bootstrap().then(load);
             {{ row.lastHealthCheckedAt || '—' }}
           </template>
         </el-table-column>
-        <el-table-column align="right" fixed="right" label="操作" width="310">
+        <el-table-column align="right" fixed="right" label="操作" width="370">
           <template #default="{ row }">
             <el-button
               v-if="row.status === 'DRAFT'"
@@ -241,8 +278,30 @@ bootstrap().then(load);
               检测
             </el-button>
             <el-button link type="primary" @click="openDecisionLogs(row)">
-              运行记录
+              日志
             </el-button>
+            <el-dropdown
+              v-if="row.status === 'ACTIVE'"
+              trigger="click"
+              @command="
+                (cmd: string) =>
+                  router.push({
+                    path: `/reporting/${cmd}`,
+                    query: { mediaId, startDate: '', endDate: '' },
+                  })
+              "
+            >
+              <el-button link type="info"> 报表 ▾ </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="hourly-summary">
+                    时报
+                  </el-dropdown-item>
+                  <el-dropdown-item command="daily"> 日报 </el-dropdown-item>
+                  <el-dropdown-item command="summary"> 汇总 </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
         <template #empty>

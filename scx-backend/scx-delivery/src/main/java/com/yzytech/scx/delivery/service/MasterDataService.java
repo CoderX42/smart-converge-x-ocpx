@@ -78,6 +78,8 @@ public class MasterDataService {
             IntegrationDocument existing = documentMapper.selectById(value.getId());
             requireSameMedia(existing == null ? null : existing.getMediaId(), value.getMediaId());
         }
+        if (value.getType() != null && !IntegrationDocumentType.isValid(value.getType()))
+            throw new IllegalArgumentException("不支持的文档类型: " + value.getType());
         if (StringUtils.hasText(value.getObjectKey()) == StringUtils.hasText(value.getExternalUrl())) throw new IllegalArgumentException("对象键与外部 URL 必须二选一");
         if (StringUtils.hasText(value.getExternalUrl())) validateSandboxUrl(value.getExternalUrl());
         if (value.getStatus() == null) value.setStatus("DRAFT");

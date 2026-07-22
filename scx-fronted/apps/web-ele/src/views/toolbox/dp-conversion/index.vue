@@ -15,7 +15,9 @@ const tabs = [
 ];
 
 const current = ref<Platform>('TAOBAO_DP');
-const form = reactive<Record<Platform, { sourceUrl: string; targetUrl: string }>>({
+const form = reactive<
+  Record<Platform, { sourceUrl: string; targetUrl: string }>
+>({
   TAOBAO_DP: { sourceUrl: '', targetUrl: '' },
   JD_DP: { sourceUrl: '', targetUrl: '' },
 });
@@ -86,11 +88,7 @@ function reset(platform: Platform) {
               </el-form-item>
             </el-form>
             <div class="flex gap-2">
-              <el-button
-                plain
-                type="default"
-                @click="reset(current)"
-              >
+              <el-button plain type="default" @click="reset(current)">
                 清空
               </el-button>
               <el-button

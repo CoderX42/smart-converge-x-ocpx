@@ -195,9 +195,12 @@ export function getAsyncServicesStats(
   queueType: AsyncServicesQueueType,
   mediaId: string,
 ) {
-  return requestClient.get<AsyncServicesQueueStats>('/system/async-services/stats', {
-    params: { queueType, mediaId },
-  });
+  return requestClient.get<AsyncServicesQueueStats>(
+    '/system/async-services/stats',
+    {
+      params: { queueType, mediaId },
+    },
+  );
 }
 export function getAsyncServicesList(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/system/async-services/list', {

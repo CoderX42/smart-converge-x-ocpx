@@ -196,4 +196,3 @@ public class AsyncServicesController {
 		return value == null ? 0L : value;
 	}
 }
-*** End Patch

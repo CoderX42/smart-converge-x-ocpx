@@ -209,7 +209,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
       </el-form>
       <template #footer>
         <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit">保存</el-button>
+        <el-button :loading="saving" type="primary" @click="submit"
+          >保存</el-button
+        >
       </template>
     </el-drawer>
   </main>
