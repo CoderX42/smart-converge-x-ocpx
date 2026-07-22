@@ -5,32 +5,33 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import {
-  getMaster,
-  getMedia,
   getCpaReport,
   getHourlyReport,
+  getMaster,
+  getMedia,
+  getReportBreakdown,
   getResultCbReport,
   getResultReport,
-  getReportBreakdown,
   getTrackingLinks,
   getTrackingTasks,
   getUpstreamCustomers,
 } from '#/api/ad';
 
-import '../../delivery/components/mvp-page.css';
 import SummaryExportButton from './SummaryExportButton.vue';
 import SummaryToolbar from './SummaryToolbar.vue';
 
+import '../../delivery/components/mvp-page.css';
+
 const props = defineProps<{
   dimension:
+    | 'CPA'
     | 'DATE'
+    | 'HOURLY'
     | 'LINK'
     | 'PRODUCT'
-    | 'TASK'
-    | 'HOURLY'
     | 'RESULT'
     | 'RESULT_CB'
-    | 'CPA';
+    | 'TASK';
   eventType?: string;
 }>();
 
@@ -74,7 +75,7 @@ function queryString(raw?: unknown): string {
 }
 
 function isDate(value: string) {
-  return /^(\d{4})-(\d{2})-(\d{2})$/.test(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function applyQuery() {
@@ -114,16 +115,30 @@ async function load() {
       channelId: channelId.value || undefined,
       documentId: documentId.value || undefined,
     };
-    if (props.dimension === 'CPA') {
-      rows.value = await getCpaReport(commonParams);
-    } else if (props.dimension === 'HOURLY') {
-      rows.value = await getHourlyReport(commonParams);
-    } else if (props.dimension === 'RESULT') {
-      rows.value = await getResultReport(commonParams);
-    } else if (props.dimension === 'RESULT_CB') {
-      rows.value = await getResultCbReport(commonParams);
-    } else {
-      rows.value = await getReportBreakdown(commonParams);
+    switch (props.dimension) {
+      case 'CPA': {
+        rows.value = await getCpaReport(commonParams);
+
+        break;
+      }
+      case 'HOURLY': {
+        rows.value = await getHourlyReport(commonParams);
+
+        break;
+      }
+      case 'RESULT': {
+        rows.value = await getResultReport(commonParams);
+
+        break;
+      }
+      case 'RESULT_CB': {
+        rows.value = await getResultCbReport(commonParams);
+
+        break;
+      }
+      default: {
+        rows.value = await getReportBreakdown(commonParams);
+      }
     }
   } finally {
     loading.value = false;

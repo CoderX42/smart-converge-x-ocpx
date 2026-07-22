@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import type { UploadProps, UploadRequestOptions } from 'element-plus';
+
 import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
@@ -7,8 +8,8 @@ import { reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import {
-  getMedia,
   getMaster,
+  getMedia,
   saveMaster,
   uploadIntegrationDocument,
 } from '#/api/ad';
@@ -243,7 +244,12 @@ bootstrap().then(load);
           <el-input v-model="form.name" maxlength="128" />
         </el-form-item>
         <el-form-item label="文档类型">
-          <el-select v-model="form.type" class="w-full" clearable placeholder="选择文档类型">
+          <el-select
+            v-model="form.type"
+            class="w-full"
+            clearable
+            placeholder="选择文档类型"
+          >
             <el-option label="媒体回传协议" value="MEDIA_CALLBACK" />
             <el-option label="媒体接口规范" value="MEDIA_API" />
             <el-option label="产品接口规范" value="PRODUCT_API" />

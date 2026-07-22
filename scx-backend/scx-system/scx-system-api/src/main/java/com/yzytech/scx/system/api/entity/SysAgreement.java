@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
@@ -53,4 +52,6 @@ public class SysAgreement extends Model<SysAgreement> {
 	@TableLogic
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "逻辑删除：0.显示；1.隐藏；")
-	private String delFlag;}
+	private String delFlag;
+
+}

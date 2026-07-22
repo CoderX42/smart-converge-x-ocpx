@@ -90,7 +90,7 @@ function queryString(raw?: unknown): string {
 
 function queryDate(raw?: unknown): string {
   const value = queryString(raw);
-  return /^(\d{4})-(\d{2})-(\d{2})$/.test(value) ? value : '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
 }
 
 function applyQuery() {

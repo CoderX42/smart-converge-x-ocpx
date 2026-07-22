@@ -5,8 +5,10 @@ import java.io.InputStream;
 /**
  * Uploads a file through the currently active system storage configuration.
  *
- * <p>Callers receive only the stored object's address. Storage credentials remain
- * inside the system storage module.</p>
+ * <p>
+ * Callers receive only the stored object's address. Storage credentials remain inside the
+ * system storage module.
+ * </p>
  */
 public interface StorageUploadService {
 

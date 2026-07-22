@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,4 +20,6 @@ public class SysRoleMenuDTO implements Serializable {
 	private String roleId;
 
 	@Schema(description = "菜单权限集合")
-	private List<String> menuIds;}
+	private List<String> menuIds;
+
+}

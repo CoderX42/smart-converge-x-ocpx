@@ -8,6 +8,7 @@ import com.yzytech.scx.tracking.dto.OutboxQueueStats;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -122,5 +123,41 @@ public interface EventOutboxMapper extends BaseMapper<EventOutbox> {
 			FROM scx_event_outbox
 			""")
 	OutboxQueueStats selectGlobalStats();
+
+	@Select("""
+			SELECT id FROM scx_event_outbox FORCE INDEX (idx_scx_outbox_lease_claim)
+			WHERE status IN ('PENDING','RETRYING')
+			  AND (next_retry_at IS NULL OR next_retry_at <= NOW(3))
+			  AND (locked_until IS NULL OR locked_until < NOW(3))
+			ORDER BY locked_until, status, next_retry_at, create_time, id LIMIT #{limit} FOR UPDATE SKIP LOCKED
+			""")
+	List<String> selectClaimableIdsForUpdate(@Param("limit") int limit);
+
+	@Update("""
+			<script>
+			UPDATE scx_event_outbox SET locked_by=#{owner}, locked_until=#{lockedUntil}
+			WHERE id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+			</script>
+			""")
+	int claim(@Param("ids") List<String> ids, @Param("owner") String owner,
+			@Param("lockedUntil") java.time.LocalDateTime lockedUntil);
+
+	@Select("""
+			<script>
+			SELECT * FROM scx_event_outbox WHERE locked_by=#{owner}
+			AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+			ORDER BY create_time
+			</script>
+			""")
+	List<EventOutbox> selectOwned(@Param("ids") List<String> ids, @Param("owner") String owner);
+
+	@Update("""
+			UPDATE scx_event_outbox SET status=#{value.status}, attempts=#{value.attempts},
+			next_retry_at=#{value.nextRetryAt}, sent_at=#{value.sentAt},
+			last_error_code=#{value.lastErrorCode}, last_error_message=#{value.lastErrorMessage},
+			locked_by=NULL, locked_until=NULL
+			WHERE id=#{value.id} AND locked_by=#{owner}
+			""")
+	int completeOwned(@Param("value") EventOutbox value, @Param("owner") String owner);
 
 }

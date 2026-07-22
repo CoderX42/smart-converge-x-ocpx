@@ -11,16 +11,26 @@ import lombok.Data;
 @Data
 @TableName("scx_delivery_status_history")
 public class DeliveryStatusHistory {
-    @TableId(type = IdType.ASSIGN_ID)
-    private String id;
-    private String resourceType;
-    private String resourceId;
-    private String previousStatus;
-    private String nextStatus;
-    private String reason;
-    private Integer operationVersion;
-    @TableField(fill = FieldFill.INSERT)
-    private String createBy;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
+
+	@TableId(type = IdType.ASSIGN_ID)
+	private String id;
+
+	private String resourceType;
+
+	private String resourceId;
+
+	private String previousStatus;
+
+	private String nextStatus;
+
+	private String reason;
+
+	private Integer operationVersion;
+
+	@TableField(fill = FieldFill.INSERT)
+	private String createBy;
+
+	@TableField(fill = FieldFill.INSERT)
+	private LocalDateTime createTime;
+
 }

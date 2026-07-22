@@ -5,4 +5,6 @@ import com.yzytech.scx.delivery.entity.UserTaskScope;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface UserTaskScopeMapper extends BaseMapper<UserTaskScope> {}
+public interface UserTaskScopeMapper extends BaseMapper<UserTaskScope> {
+
+}

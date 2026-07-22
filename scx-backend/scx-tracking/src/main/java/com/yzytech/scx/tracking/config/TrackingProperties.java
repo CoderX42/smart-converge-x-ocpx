@@ -14,11 +14,55 @@ public class TrackingProperties {
 
 	private String sandboxSigningKey;
 
+	/** Base64 encoded AES-256 key used only to encrypt channel credentials and URLs. */
+	private String channelMasterKey;
+
+	/** Base64 encoded HMAC key used to derive non-exportable internal device keys. */
+	private String deviceHmacKey;
+
+	private String deviceKeyVersion = "v1";
+
+	private boolean imeiEnabled;
+
+	private long machineClockSkewMs = 180_000;
+
+	private long nonceTtlSeconds = 300;
+
+	private String feedbackStore = "memory";
+
+	private int feedbackQueueCapacity = 10_000;
+
+	private int feedbackStreamPartitions = 64;
+
+	private int feedbackBatchSize = 200;
+
+	private long feedbackIdempotencyTtlSeconds = 604_800;
+
+	private long feedbackPendingIdleMs = 30_000;
+
+	private int feedbackMaxDeliveries = 5;
+
+	private boolean ingressEnabled = true;
+
+	private boolean workerEnabled = true;
+
+	private int workerBatchSize = 200;
+
 	private String attributionRuleVersion = "last-click-v1";
 
 	private String callbackSandboxEndpoint = "http://callback-mock:8080/callback";
 
 	private List<String> callbackAllowedHosts = List.of("localhost", "127.0.0.1", "callback-mock");
+
+	private int callbackConnectTimeoutMs = 1_000;
+
+	private int callbackReadTimeoutMs = 3_000;
+
+	private int workerLeaseSeconds = 30;
+
+	private long rtaReservationTtlSeconds = 10;
+
+	private long rtaResultTtlSeconds = 86_400;
 
 	private boolean outboxPublisherEnabled;
 

@@ -21,36 +21,44 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/ad/task-scopes")
 public class TaskScopeController {
-    private final TaskScopeService service;
 
-    @GetMapping
-    @SaCheckPermission("ad:task-scope:read")
-    public Result<Page<UserTaskScope>> page(Page<UserTaskScope> page, @RequestParam String mediaId, String userId) {
-        return call(() -> service.page(page, mediaId, userId));
-    }
+	private final TaskScopeService service;
 
-    @PostMapping
-    @SaCheckPermission("ad:task-scope:write")
-    public Result<Boolean> grant(@Valid @RequestBody UserTaskScope value) {
-        return call(() -> service.grant(value));
-    }
+	@GetMapping
+	@SaCheckPermission("ad:task-scope:read")
+	public Result<Page<UserTaskScope>> page(Page<UserTaskScope> page, @RequestParam String mediaId, String userId) {
+		return call(() -> service.page(page, mediaId, userId));
+	}
 
-    @PutMapping("/{id}")
-    @SaCheckPermission("ad:task-scope:write")
-    public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody UserTaskScope value) {
-        value.setId(id);
-        return call(() -> service.grant(value));
-    }
+	@PostMapping
+	@SaCheckPermission("ad:task-scope:write")
+	public Result<Boolean> grant(@Valid @RequestBody UserTaskScope value) {
+		return call(() -> service.grant(value));
+	}
 
-    @DeleteMapping("/{id}")
-    @SaCheckPermission("ad:task-scope:write")
-    public Result<Boolean> revoke(@PathVariable String id, @RequestParam String mediaId) {
-        return call(() -> service.revoke(id, mediaId));
-    }
+	@PutMapping("/{id}")
+	@SaCheckPermission("ad:task-scope:write")
+	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody UserTaskScope value) {
+		value.setId(id);
+		return call(() -> service.grant(value));
+	}
 
-    private <T> Result<T> call(java.util.concurrent.Callable<T> action) {
-        try { return Result.success(action.call()); }
-        catch (IllegalArgumentException e) { return Result.fail(e.getMessage()); }
-        catch (Exception e) { return Result.fail("任务授权操作失败"); }
-    }
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ad:task-scope:write")
+	public Result<Boolean> revoke(@PathVariable String id, @RequestParam String mediaId) {
+		return call(() -> service.revoke(id, mediaId));
+	}
+
+	private <T> Result<T> call(java.util.concurrent.Callable<T> action) {
+		try {
+			return Result.success(action.call());
+		}
+		catch (IllegalArgumentException e) {
+			return Result.fail(e.getMessage());
+		}
+		catch (Exception e) {
+			return Result.fail("任务授权操作失败");
+		}
+	}
+
 }

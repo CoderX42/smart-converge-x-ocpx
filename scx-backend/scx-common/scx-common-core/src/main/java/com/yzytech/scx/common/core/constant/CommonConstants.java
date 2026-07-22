@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.core.constant;
 
 /**
@@ -81,12 +80,10 @@ public interface CommonConstants {
 	 */
 	String ROLE_ADMIN_NAME = "系统管理员";
 
-
 	/**
 	 * 请求头店铺ID
 	 */
 	String SHOP_ID = "shop-id";
-
 
 	/**
 	 * token key
@@ -102,7 +99,6 @@ public interface CommonConstants {
 	 * 文字点选验证码类型
 	 */
 	String IMAGE_CODE_TYPE_CW = "clickWord";
-
 
 	// 默认部门ID
 	String DEFAULT_DEPT_ID = "1";

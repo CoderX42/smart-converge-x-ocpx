@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.core.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -51,7 +50,9 @@ public class OrderRefundSuccessEvent {
 	private String refundId;
 
 	@Schema(description = "用户Id")
-	private String userId;@Schema(description = "店铺ID")
+	private String userId;
+
+	@Schema(description = "店铺ID")
 	private String shopId;
 
 	@Schema(description = "退款类型")

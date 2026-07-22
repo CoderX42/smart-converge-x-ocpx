@@ -1,194 +1,137 @@
 package com.yzytech.scx.tracking.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yzytech.scx.delivery.entity.TrackingTask;
-import com.yzytech.scx.delivery.entity.LinkEventMapping;
-import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
-import com.yzytech.scx.delivery.mapper.LinkEventMappingMapper;
-import com.yzytech.scx.tracking.config.TrackingProperties;
-import com.yzytech.scx.tracking.dto.EventIngestionRequest;
-import com.yzytech.scx.tracking.dto.EventIngestionResponse;
-import com.yzytech.scx.tracking.entity.RawEvent;
-import com.yzytech.scx.tracking.mapper.AttributionResultMapper;
-import com.yzytech.scx.tracking.mapper.CallbackJobMapper;
-import com.yzytech.scx.tracking.mapper.ClickDedupResultMapper;
-import com.yzytech.scx.tracking.mapper.ConversionDedupResultMapper;
-import com.yzytech.scx.tracking.mapper.ConversionIdentityMapper;
-import com.yzytech.scx.tracking.mapper.EventOutboxMapper;
-import com.yzytech.scx.tracking.mapper.RawEventMapper;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
-import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yzytech.scx.delivery.entity.TrackingTask;
+import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
+import com.yzytech.scx.tracking.dto.DeviceIdentifier;
+import com.yzytech.scx.tracking.dto.EventIngestionRequest;
+import com.yzytech.scx.tracking.dto.EventIngestionResponse;
+import com.yzytech.scx.tracking.entity.ChannelClient;
+import com.yzytech.scx.tracking.mapper.RawEventMapper;
+import com.yzytech.scx.tracking.config.TrackingProperties;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class EventIngestionServiceTest {
 
 	private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
 
-	private final RawEventMapper rawEventMapper = mock(RawEventMapper.class);
+	private final ChannelRequestAuthenticator authenticator = mock(ChannelRequestAuthenticator.class);
 
-	private final LinkEventMappingMapper mappingMapper = mock(LinkEventMappingMapper.class);
+	private final DeviceIdentifierService deviceService = mock(DeviceIdentifierService.class);
 
-	private final AttributionResultMapper attributionMapper = mock(AttributionResultMapper.class);
+	private final FeedbackBuffer feedbackBuffer = mock(FeedbackBuffer.class);
+
+	private final AcceptedEventPersistenceService persistenceService = mock(AcceptedEventPersistenceService.class);
 
 	private EventIngestionService service;
 
 	@BeforeEach
 	void setUp() {
-		service = new EventIngestionService(new TrackingProperties(), new ObjectMapper().findAndRegisterModules(),
-				taskMapper, mappingMapper, rawEventMapper, mock(ClickDedupResultMapper.class),
-				mock(ConversionIdentityMapper.class), mock(ConversionDedupResultMapper.class), attributionMapper,
-				mock(EventOutboxMapper.class), mock(CallbackJobMapper.class));
+		service = new EventIngestionService(new ObjectMapper().findAndRegisterModules(), new TrackingProperties(),
+				taskMapper, mock(RawEventMapper.class), authenticator, deviceService,
+				mock(ChannelCredentialCrypto.class), feedbackBuffer, persistenceService);
 	}
 
 	@Test
-	void canonicalPayloadSortsAttributeKeys() {
-		EventIngestionRequest first = request();
-		Map<String, Object> firstAttributes = new LinkedHashMap<>();
-		firstAttributes.put("z", 1);
-		firstAttributes.put("a", 2);
-		first.setAttributes(firstAttributes);
-		EventIngestionRequest second = request();
+	void canonicalPayloadSortsAttributesAndKeepsTimezone() {
+		EventIngestionRequest first = request("CLICK");
+		Map<String, Object> attributes = new LinkedHashMap<>();
+		attributes.put("z", 1);
+		attributes.put("a", 2);
+		first.setAttributes(attributes);
+		EventIngestionRequest second = request("CLICK");
 		second.setAttributes(Map.of("a", 2, "z", 1));
 
 		assertThat(service.canonicalPayload(first)).isEqualTo(service.canonicalPayload(second));
-		assertThat(service.canonicalPayload(first)).contains("\"occurredAt\":\"2026-07-16T12:00:00\"");
+		assertThat(service.canonicalPayload(first)).contains("\"occurredAt\":\"2026-07-16T12:00+08:00\"");
 	}
 
 	@Test
-	void canonicalPayloadNormalizesTrailingFractionalSecondZeros() {
-		EventIngestionRequest request = request();
-		request.setOccurredAt(LocalDateTime.of(2026, 7, 16, 12, 0, 0, 10_000_000));
+	void rejectsOldSchemaBeforeAuthentication() {
+		EventIngestionRequest request = request("CLICK");
+		request.setSchemaVersion("1.0");
 
-		assertThat(service.canonicalPayload(request)).contains("\"occurredAt\":\"2026-07-16T12:00:00.01\"");
+		assertThatThrownBy(() -> service.accept("client-1", "v1", "1", "nonce", "sign", "/open-api/events/v1/clicks",
+				"CLICK", request))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("仅支持 schemaVersion=1.1");
 	}
 
 	@Test
-	void duplicateEventIdWithDifferentPayloadIsRejected() {
+	void clickIsAcknowledgedOnlyAfterFeedbackBufferAcceptsIt() {
+		prepareDependencies();
+		when(feedbackBuffer.enqueue(any())).thenAnswer(invocation -> {
+			AcceptedEventCommand command = invocation.getArgument(0);
+			return new FeedbackBuffer.EnqueueResult(FeedbackBuffer.Status.ACCEPTED, command.receiptId());
+		});
+
+		EventIngestionResponse response = service.accept("client-1", "v1", "1", "nonce-1234567890123456", "sign",
+				"/open-api/events/v1/clicks", "CLICK", request("CLICK"));
+
+		assertThat(response.acceptanceStatus()).isEqualTo("BUFFERED");
+		assertThat(response.duplicateDelivery()).isFalse();
+		verify(feedbackBuffer).enqueue(any(AcceptedEventCommand.class));
+	}
+
+	@Test
+	void conversionPersistsRawFactBeforeReturningAccepted() {
+		prepareDependencies();
+		OffsetDateTime receivedAt = OffsetDateTime.of(2026, 7, 16, 4, 0, 1, 0, ZoneOffset.UTC);
+		when(persistenceService.persist(any()))
+			.thenReturn(new AcceptedEventPersistenceService.PersistenceResult("raw-1", "receipt-1", false, receivedAt));
+		EventIngestionRequest request = request("PAY");
+		request.setBusinessEventKey("order-1");
+
+		EventIngestionResponse response = service.accept("client-1", "v1", "1", "nonce-1234567890123456", "sign",
+				"/open-api/events/v1/conversions", null, request);
+
+		assertThat(response.receiptId()).isEqualTo("receipt-1");
+		assertThat(response.acceptanceStatus()).isEqualTo("ACCEPTED");
+		verify(persistenceService).persist(any(AcceptedEventCommand.class));
+	}
+
+	private void prepareDependencies() {
+		ChannelClient client = new ChannelClient();
+		client.setClientId("client-1");
+		client.setSourceCode("channel-a");
+		when(authenticator.authenticate(eq("client-1"), eq("v1"), any(), any(), any(), eq("POST"), any(), any()))
+			.thenReturn(new ChannelAuthContext(client, "v1", "secret"));
 		TrackingTask task = new TrackingTask();
 		task.setId("task-1");
+		task.setCode("TASK-1");
 		task.setStatus("ACTIVE");
+		task.setDedupWindowSec(300);
 		when(taskMapper.selectOne(any())).thenReturn(task);
-		RawEvent existing = new RawEvent();
-		existing.setId("raw-1");
-		existing.setPayloadHash("different-payload-hash");
-		when(rawEventMapper.selectOne(any())).thenReturn(existing);
-
-		assertThatThrownBy(() -> service.ingest(request())).isInstanceOf(IllegalArgumentException.class)
-			.hasMessage("event_id 已被不同载荷占用");
+		when(deviceService.resolve(any(), eq("client-1")))
+			.thenReturn(new DeviceIdentifierService.ResolvedDevice("ANDROID", "OAID", "", "v1", "b".repeat(64)));
 	}
 
-	@Test
-	void impressionIsRecordedWithoutEnteringConversionAttribution() {
-		TrackingTask task = new TrackingTask();
-		task.setId("task-1");
-		task.setStatus("ACTIVE");
-		task.setImpressionEnabled(true);
-		when(taskMapper.selectOne(any())).thenReturn(task);
-		when(rawEventMapper.selectOne(any())).thenReturn(null);
-		doAnswer(invocation -> {
-			RawEvent stored = invocation.getArgument(0);
-			stored.setId("impression-1");
-			return 1;
-		}).when(rawEventMapper).insert(any(RawEvent.class));
-		EventIngestionRequest request = request();
-		request.setEventType("IMPRESSION");
-
-		EventIngestionResponse response = service.ingest(request);
-
-		assertThat(response.rawEventId()).isEqualTo("impression-1");
-		assertThat(response.reasonCode()).isEqualTo("IMPRESSION_RECORDED");
-	}
-
-	@Test
-	void rejectsImpressionWhenTaskDidNotEnableExposureCollection() {
-		TrackingTask task = new TrackingTask();
-		task.setId("task-1");
-		task.setStatus("ACTIVE");
-		task.setImpressionEnabled(false);
-		when(taskMapper.selectOne(any())).thenReturn(task);
-		EventIngestionRequest request = request();
-		request.setEventType("IMPRESSION");
-
-		assertThatThrownBy(() -> service.ingest(request)).isInstanceOf(IllegalArgumentException.class)
-			.hasMessage("监测任务未开启曝光上报");
-	}
-
-	@Test
-	void acceptsOrderAsAttributedBusinessConversion() {
-		TrackingTask task = new TrackingTask();
-		task.setId("task-1");
-		task.setStatus("ACTIVE");
-		task.setAttributionWindowHours(168);
-		when(taskMapper.selectOne(any())).thenReturn(task);
-		when(rawEventMapper.selectOne(any())).thenReturn(null);
-		doAnswer(invocation -> {
-			RawEvent stored = invocation.getArgument(0);
-			stored.setId("order-1");
-			return 1;
-		}).when(rawEventMapper).insert(any(RawEvent.class));
-		EventIngestionRequest request = request();
-		request.setEventType("ORDER");
-		request.setBusinessEventKey("order-identity-1");
-
-		EventIngestionResponse response = service.ingest(request);
-
-		assertThat(response.reasonCode()).isEqualTo("FIRST_BUSINESS_EVENT");
-	}
-
-	@Test
-	void marksConversionOverLimitWhenItsEventMappingQuotaIsReached() {
-		TrackingTask task = new TrackingTask();
-		task.setId("task-1");
-		task.setLinkId("link-1");
-		task.setStatus("ACTIVE");
-		task.setAttributionWindowHours(168);
-		when(taskMapper.selectOne(any())).thenReturn(task);
-		when(rawEventMapper.selectOne(any())).thenReturn(null);
-		doAnswer(invocation -> {
-			RawEvent stored = invocation.getArgument(0);
-			stored.setId("pay-1");
-			return 1;
-		}).when(rawEventMapper).insert(any(RawEvent.class));
-		RawEvent click = new RawEvent();
-		click.setId("click-1");
-		when(rawEventMapper.findLastEligibleClick(any(), any(), any(), any())).thenReturn(click);
-		LinkEventMapping mapping = new LinkEventMapping();
-		mapping.setDailyLimit(1);
-		when(mappingMapper.selectOne(any())).thenReturn(mapping);
-		when(attributionMapper.countSettlementEligibleForTaskEventDate(any(), any(), any())).thenReturn(1L);
-		EventIngestionRequest request = request();
-		request.setEventType("PAY");
-		request.setBusinessEventKey("pay-identity-1");
-
-		service.ingest(request);
-
-		ArgumentCaptor<com.yzytech.scx.tracking.entity.AttributionResult> captured = ArgumentCaptor
-			.forClass(com.yzytech.scx.tracking.entity.AttributionResult.class);
-		verify(attributionMapper).insert(captured.capture());
-		assertThat(captured.getValue().getOverLimit()).isTrue();
-	}
-
-	private EventIngestionRequest request() {
+	private EventIngestionRequest request(String eventType) {
 		EventIngestionRequest value = new EventIngestionRequest();
-		value.setSchemaVersion("1.0");
+		value.setSchemaVersion("1.1");
 		value.setEventId("evt-1");
-		value.setSource("sandbox-test");
 		value.setTaskCode("TASK-1");
-		value.setEventType("CLICK");
-		value.setOccurredAt(LocalDateTime.of(2026, 7, 16, 12, 0));
-		value.setDeviceKeyHash("a".repeat(64));
+		value.setEventType(eventType);
+		value.setOccurredAt(OffsetDateTime.parse("2026-07-16T12:00:00+08:00"));
+		DeviceIdentifier device = new DeviceIdentifier();
+		device.setPlatform("ANDROID");
+		device.setIdType("OAID");
+		device.setHashAlgorithm("SHA256");
+		device.setIdHash("a".repeat(64));
+		value.setDevice(device);
 		return value;
 	}
 

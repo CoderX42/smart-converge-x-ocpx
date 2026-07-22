@@ -5,9 +5,11 @@ import lombok.Data;
 
 @Data
 public class DpConversionRequest {
-    @NotBlank
-    private String linkType;
 
-    @NotBlank
-    private String sourceUrl;
+	@NotBlank
+	private String linkType;
+
+	@NotBlank
+	private String sourceUrl;
+
 }

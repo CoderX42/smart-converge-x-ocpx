@@ -5,4 +5,6 @@ import com.yzytech.scx.delivery.entity.DeliveryConfigRevision;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface DeliveryConfigRevisionMapper extends BaseMapper<DeliveryConfigRevision> {}
+public interface DeliveryConfigRevisionMapper extends BaseMapper<DeliveryConfigRevision> {
+
+}

@@ -62,4 +62,8 @@ scx:
   tracking:
     sandbox-enabled: true
     sandbox-signing-key: scx-sandbox-local-only
+    ingress-enabled: ${SCX_OCPX_INGRESS_ENABLED:false}
+    feedback-store: ${SCX_FEEDBACK_STORE:memory}
+    channel-master-key: ${SCX_CHANNEL_MASTER_KEY:}
+    device-hmac-key: ${SCX_DEVICE_HMAC_KEY:}
     attribution-rule-version: last-click-v1

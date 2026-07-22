@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -48,4 +47,6 @@ public class SysLogReqDTO implements Serializable {
 	private String exMsg;
 
 	@Schema(description = "创建ID")
-	private String createId;}
+	private String createId;
+
+}

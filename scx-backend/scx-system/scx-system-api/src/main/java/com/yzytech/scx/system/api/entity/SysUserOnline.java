@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -36,4 +35,6 @@ public class SysUserOnline implements Serializable {
 	private String browser;
 
 	@Schema(description = "操作系统")
-	private String os;}
+	private String os;
+
+}

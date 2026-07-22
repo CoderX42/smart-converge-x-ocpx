@@ -18,67 +18,78 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class MasterDataServiceTest {
-    private final MediaScopeService scopeService = mock(MediaScopeService.class);
-    private final UpstreamCustomerMapper customerMapper = mock(UpstreamCustomerMapper.class);
-    private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
-    private final MasterDataService service = new MasterDataService(scopeService, mock(PartnerMapper.class), customerMapper,
-            mock(ProductMapper.class), mock(IntegrationDocumentMapper.class), mock(MediaChannelMapper.class), storageUploadService);
 
-    @Test
-    void sandboxUrlAllowsOnlyExplicitLocalHosts() {
-        assertThatCode(() -> service.validateSandboxUrl("http://localhost/landing"))
-            .doesNotThrowAnyException();
-        assertThatCode(() -> service.validateSandboxUrl("https://callback-mock/callback"))
-            .doesNotThrowAnyException();
-    }
+	private final MediaScopeService scopeService = mock(MediaScopeService.class);
 
-    @Test
-    void sandboxUrlRejectsCredentialsAndExternalHosts() {
-        assertThatThrownBy(() -> service.validateSandboxUrl("https://user:pass@localhost/callback"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("仅允许沙箱 allowlist URL");
-        assertThatThrownBy(() -> service.validateSandboxUrl("https://example.com/callback"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("仅允许沙箱 allowlist URL");
-    }
+	private final UpstreamCustomerMapper customerMapper = mock(UpstreamCustomerMapper.class);
 
-    @Test
-    void savesCustomerOnlyWithinWritableMediaScope() {
-        UpstreamCustomer customer = new UpstreamCustomer();
-        customer.setMediaId("media-1");
-        customer.setCode("C-1");
-        customer.setName("客户一");
-        when(scopeService.canWrite("media-1")).thenReturn(true);
-        when(customerMapper.insert(customer)).thenReturn(1);
+	private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
 
-        service.saveCustomer(customer);
+	private final MasterDataService service = new MasterDataService(scopeService, mock(PartnerMapper.class),
+			customerMapper, mock(ProductMapper.class), mock(IntegrationDocumentMapper.class),
+			mock(MediaChannelMapper.class), storageUploadService);
 
-        assertThatCode(() -> { if (!"ACTIVE".equals(customer.getStatus())) throw new AssertionError(); }).doesNotThrowAnyException();
-        verify(customerMapper).insert(customer);
-    }
+	@Test
+	void sandboxUrlAllowsOnlyExplicitLocalHosts() {
+		assertThatCode(() -> service.validateSandboxUrl("http://localhost/landing")).doesNotThrowAnyException();
+		assertThatCode(() -> service.validateSandboxUrl("https://callback-mock/callback")).doesNotThrowAnyException();
+	}
 
-    @Test
-    void uploadsAllowedDocumentOnlyWithinWritableMediaScope() {
-        MockMultipartFile file = new MockMultipartFile("file", "integration-guide.pdf", "application/pdf", "guide".getBytes());
-        when(scopeService.canWrite("media-1")).thenReturn(true);
-        when(storageUploadService.upload(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
-                org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L)))
-            .thenReturn("https://oss.example/documents/integration-guide.pdf");
+	@Test
+	void sandboxUrlRejectsCredentialsAndExternalHosts() {
+		assertThatThrownBy(() -> service.validateSandboxUrl("https://user:pass@localhost/callback"))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("仅允许沙箱 allowlist URL");
+		assertThatThrownBy(() -> service.validateSandboxUrl("https://example.com/callback"))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("仅允许沙箱 allowlist URL");
+	}
 
-        String url = service.uploadDocument("media-1", file);
+	@Test
+	void savesCustomerOnlyWithinWritableMediaScope() {
+		UpstreamCustomer customer = new UpstreamCustomer();
+		customer.setMediaId("media-1");
+		customer.setCode("C-1");
+		customer.setName("客户一");
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(customerMapper.insert(customer)).thenReturn(1);
 
-        org.assertj.core.api.Assertions.assertThat(url).isEqualTo("https://oss.example/documents/integration-guide.pdf");
-        verify(storageUploadService).upload(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
-                org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L));
-    }
+		service.saveCustomer(customer);
 
-    @Test
-    void rejectsUnsupportedDocumentUpload() {
-        when(scopeService.canWrite("media-1")).thenReturn(true);
+		assertThatCode(() -> {
+			if (!"ACTIVE".equals(customer.getStatus()))
+				throw new AssertionError();
+		}).doesNotThrowAnyException();
+		verify(customerMapper).insert(customer);
+	}
 
-        assertThatThrownBy(() -> service.uploadDocument("media-1",
-                new MockMultipartFile("file", "script.exe", "application/octet-stream", new byte[1])))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档");
-    }
+	@Test
+	void uploadsAllowedDocumentOnlyWithinWritableMediaScope() {
+		MockMultipartFile file = new MockMultipartFile("file", "integration-guide.pdf", "application/pdf",
+				"guide".getBytes());
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(storageUploadService.upload(org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
+				org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L)))
+			.thenReturn("https://oss.example/documents/integration-guide.pdf");
+
+		String url = service.uploadDocument("media-1", file);
+
+		org.assertj.core.api.Assertions.assertThat(url)
+			.isEqualTo("https://oss.example/documents/integration-guide.pdf");
+		verify(storageUploadService).upload(org.mockito.ArgumentMatchers.any(),
+				org.mockito.ArgumentMatchers.eq("integration-guide.pdf"),
+				org.mockito.ArgumentMatchers.eq("application/pdf"), org.mockito.ArgumentMatchers.eq(5L));
+	}
+
+	@Test
+	void rejectsUnsupportedDocumentUpload() {
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+
+		assertThatThrownBy(() -> service.uploadDocument("media-1",
+				new MockMultipartFile("file", "script.exe", "application/octet-stream", new byte[1])))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("仅支持 PDF、Office、文本、CSV、JSON 和 YAML 文档");
+	}
+
 }

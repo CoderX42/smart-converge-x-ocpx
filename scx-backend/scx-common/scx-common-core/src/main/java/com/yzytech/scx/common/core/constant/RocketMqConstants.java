@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.core.constant;
 
 /**
@@ -53,7 +52,6 @@ public interface RocketMqConstants {
 
 	/** 店铺余额解冻 topic */
 	String SHOP_BALANCE_TOPIC = "shop-balance-topic";
-
 
 	/** 支付通知group */
 	String PAY_GROUP = "pay-group";

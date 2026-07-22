@@ -5,4 +5,6 @@ import com.yzytech.scx.subject.entity.Media;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface MediaMapper extends BaseMapper<Media> {}
+public interface MediaMapper extends BaseMapper<Media> {
+
+}

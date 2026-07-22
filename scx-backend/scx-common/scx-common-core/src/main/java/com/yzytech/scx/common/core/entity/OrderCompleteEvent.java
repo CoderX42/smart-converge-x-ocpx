@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.core.entity;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,7 +22,9 @@ public class OrderCompleteEvent {
 	private String spuId;
 
 	@Schema(description = "店铺ID")
-	private String shopId;@Schema(description = "赠送积分数量")
+	private String shopId;
+
+	@Schema(description = "赠送积分数量")
 	private Integer earnedPoint;
 
 	@Schema(description = "用户ID")

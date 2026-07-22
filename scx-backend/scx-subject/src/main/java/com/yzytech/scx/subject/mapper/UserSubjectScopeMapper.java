@@ -5,4 +5,6 @@ import com.yzytech.scx.subject.entity.UserSubjectScope;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface UserSubjectScopeMapper extends BaseMapper<UserSubjectScope> {}
+public interface UserSubjectScopeMapper extends BaseMapper<UserSubjectScope> {
+
+}

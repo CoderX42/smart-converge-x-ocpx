@@ -4,11 +4,12 @@ import { reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 
 import { convertDpShortLink } from '#/api/ad';
+
 import '../../delivery/components/mvp-page.css';
 
 defineOptions({ name: 'AdToolboxDpConversion' });
 
-type Platform = 'TAOBAO_DP' | 'JD_DP';
+type Platform = 'JD_DP' | 'TAOBAO_DP';
 const tabs = [
   { label: '淘宝 DP', value: 'TAOBAO_DP' },
   { label: '京东 DP', value: 'JD_DP' },

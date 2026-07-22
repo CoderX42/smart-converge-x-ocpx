@@ -5,4 +5,6 @@ import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface UpstreamCustomerMapper extends BaseMapper<UpstreamCustomer> {}
+public interface UpstreamCustomerMapper extends BaseMapper<UpstreamCustomer> {
+
+}

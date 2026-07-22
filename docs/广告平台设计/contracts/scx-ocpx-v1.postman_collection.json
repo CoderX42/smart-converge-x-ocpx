@@ -1,0 +1,64 @@
+{
+  "info": {
+    "name": "SCX 通用渠道 OCPX v1.1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:9999/boot" },
+    { "key": "clientId", "value": "" },
+    { "key": "keyVersion", "value": "" },
+    { "key": "channelSecret", "value": "", "type": "secret" },
+    { "key": "taskCode", "value": "" },
+    { "key": "deviceHash", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const CryptoJS = pm.require('npm:crypto-js@4.2.0');",
+          "const body = pm.request.body && pm.request.body.raw ? JSON.parse(pm.variables.replaceIn(pm.request.body.raw)) : null;",
+          "const canonical = body ? JSON.stringify({schemaVersion: body.schemaVersion, eventId: body.eventId, taskCode: body.taskCode, eventType: body.eventType.toUpperCase(), occurredAt: body.occurredAt, device: body.device, businessEventKey: body.businessEventKey || null, callbackRef: body.callbackRef || null, callbackUrl: body.callbackUrl || null, attributes: Object.fromEntries(Object.entries(body.attributes || {}).sort(([a],[b]) => a.localeCompare(b)))}) : '';",
+          "const timestamp = Date.now().toString();",
+          "const nonce = pm.variables.replaceIn('{{$guid}}').replaceAll('-', '');",
+          "const path = pm.request.url.getPath().replace(/^\\/boot/, '');",
+          "const payloadHash = CryptoJS.SHA256(canonical).toString(CryptoJS.enc.Hex);",
+          "const input = [pm.request.method.toUpperCase(), path, timestamp, nonce, payloadHash].join('\\n');",
+          "const sign = CryptoJS.HmacSHA256(input, pm.variables.get('channelSecret')).toString(CryptoJS.enc.Hex);",
+          "pm.request.headers.upsert({key: 'X-Client-Id', value: pm.variables.get('clientId')});",
+          "pm.request.headers.upsert({key: 'X-Key-Version', value: pm.variables.get('keyVersion')});",
+          "pm.request.headers.upsert({key: 'X-Timestamp', value: timestamp});",
+          "pm.request.headers.upsert({key: 'X-Nonce', value: nonce});",
+          "pm.request.headers.upsert({key: 'X-Sign', value: sign});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Feedback 点击",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"schemaVersion\": \"1.1\",\n  \"eventId\": \"click-{{$guid}}\",\n  \"taskCode\": \"{{taskCode}}\",\n  \"eventType\": \"CLICK\",\n  \"occurredAt\": \"2026-07-22T20:00:00+08:00\",\n  \"device\": {\"platform\": \"ANDROID\", \"idType\": \"OAID\", \"hashAlgorithm\": \"SHA256\", \"idHash\": \"{{deviceHash}}\", \"idVersion\": null},\n  \"attributes\": {}\n}"
+        },
+        "url": "{{baseUrl}}/open-api/events/v1/clicks"
+      }
+    },
+    {
+      "name": "广告主转化 Callback",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"schemaVersion\": \"1.1\",\n  \"eventId\": \"conversion-{{$guid}}\",\n  \"taskCode\": \"{{taskCode}}\",\n  \"eventType\": \"ACTIVATE\",\n  \"occurredAt\": \"2026-07-22T20:05:00+08:00\",\n  \"device\": {\"platform\": \"ANDROID\", \"idType\": \"OAID\", \"hashAlgorithm\": \"SHA256\", \"idHash\": \"{{deviceHash}}\", \"idVersion\": null},\n  \"businessEventKey\": \"business-{{$guid}}\",\n  \"attributes\": {}\n}"
+        },
+        "url": "{{baseUrl}}/open-api/events/v1/conversions"
+      }
+    }
+  ]
+}

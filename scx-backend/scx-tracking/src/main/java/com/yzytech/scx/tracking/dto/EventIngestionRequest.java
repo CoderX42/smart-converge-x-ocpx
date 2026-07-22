@@ -1,11 +1,9 @@
 package com.yzytech.scx.tracking.dto;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.yzytech.scx.tracking.serialization.EventOccurredAtDeserializer;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 @Data
@@ -18,22 +16,22 @@ public class EventIngestionRequest {
 	private String eventId;
 
 	@NotBlank
-	private String source;
-
-	@NotBlank
 	private String taskCode;
 
 	@NotBlank
 	private String eventType;
 
 	@NotNull
-	@JsonDeserialize(using = EventOccurredAtDeserializer.class)
-	private LocalDateTime occurredAt;
+	private OffsetDateTime occurredAt;
 
-	@NotBlank
-	private String deviceKeyHash;
+	@NotNull
+	private DeviceIdentifier device;
 
 	private String businessEventKey;
+
+	private String callbackRef;
+
+	private String callbackUrl;
 
 	private Map<String, Object> attributes;
 

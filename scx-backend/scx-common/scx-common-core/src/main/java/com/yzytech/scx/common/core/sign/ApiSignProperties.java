@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * 开放接口请求头签名校验（X-Timestamp、X-Nonce、X-Sign）。 配置在 {@code application.yml} 的 {@code api.sign}
  * 下；单体与网关共用同一前缀。
-
+ *
  * 经网关转发时：若网关已启用 {@link #replayProtection} 且使用 Redis 记录 nonce，下游服务建议关闭防重放， 否则网关已消费的 nonce
  * 会导致下游验签失败。
  */

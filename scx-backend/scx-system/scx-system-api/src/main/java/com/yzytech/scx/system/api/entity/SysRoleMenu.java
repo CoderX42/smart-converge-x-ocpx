@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -34,4 +33,6 @@ public class SysRoleMenu extends Model<SysRoleMenu> {
 	private String menuId;
 
 	@Schema(description = "创建时间")
-	private LocalDateTime createTime;}
+	private LocalDateTime createTime;
+
+}

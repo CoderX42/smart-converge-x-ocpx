@@ -10,21 +10,24 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.delivery.mapper.AdPlatformConfigMapper;
-import com.yzytech.scx.delivery.mapper.LinkEventMappingMapper;
 import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
 import com.yzytech.scx.delivery.entity.TrackingTask;
 import com.yzytech.scx.delivery.service.TaskScopeService;
 import com.yzytech.scx.subject.service.MediaScopeService;
 import com.yzytech.scx.tracking.config.TrackingProperties;
 import com.yzytech.scx.tracking.dto.CallbackQueueStats;
-import com.yzytech.scx.tracking.dto.CallbackPayloadContext;
 import com.yzytech.scx.tracking.dto.OutboxQueueStats;
 import com.yzytech.scx.tracking.entity.CallbackJob;
 import com.yzytech.scx.tracking.entity.EventOutbox;
+import com.yzytech.scx.tracking.entity.ClickCallbackTarget;
+import com.yzytech.scx.tracking.entity.ChannelClient;
+import com.yzytech.scx.tracking.entity.RawEvent;
 import com.yzytech.scx.tracking.mapper.CallbackJobMapper;
 import com.yzytech.scx.tracking.mapper.EventOutboxMapper;
+import com.yzytech.scx.tracking.mapper.ClickCallbackTargetMapper;
+import com.yzytech.scx.tracking.mapper.RawEventMapper;
+import com.yzytech.scx.tracking.mapper.ChannelClientMapper;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -40,17 +43,30 @@ class CallbackJobServiceTest {
 
 	private final AdPlatformConfigMapper configMapper = mock(AdPlatformConfigMapper.class);
 
-	private final LinkEventMappingMapper mappingMapper = mock(LinkEventMappingMapper.class);
-
 	private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
 
 	private final CallbackTransport transport = mock(CallbackTransport.class);
 
 	private final TaskScopeService taskScopeService = mock(TaskScopeService.class);
 
+	private final ClickCallbackTargetMapper callbackTargetMapper = mock(ClickCallbackTargetMapper.class);
+
+	private final RawEventMapper rawEventMapper = mock(RawEventMapper.class);
+
+	private final ChannelClientMapper channelClientMapper = mock(ChannelClientMapper.class);
+
+	private final ChannelCredentialCrypto credentialCrypto = mock(ChannelCredentialCrypto.class);
+
+	private final CallbackPayloadSnapshotService payloadSnapshotService = mock(CallbackPayloadSnapshotService.class);
+
+	private final ChannelCredentialCache credentialCache = mock(ChannelCredentialCache.class);
+
+	private final WorkLeaseService leaseService = mock(WorkLeaseService.class);
+
 	private final CallbackJobService service = new CallbackJobService(callbackMapper, outboxMapper, scopeService,
-			taskScopeService, taskMapper, configMapper, mappingMapper, new TrackingProperties(), transport,
-			new ObjectMapper(), Optional.empty());
+			taskScopeService, taskMapper, configMapper, new TrackingProperties(), transport, Optional.empty(),
+			callbackTargetMapper, rawEventMapper, channelClientMapper, credentialCrypto, payloadSnapshotService,
+			credentialCache, leaseService);
 
 	@Test
 	void postsConfiguredCallbackWithIdempotencyKey() {
@@ -64,9 +80,11 @@ class CallbackJobServiceTest {
 
 		assertThat(service.dispatchSandbox("media-1")).isEqualTo(1);
 
-		ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
-		verify(transport).post(eq("http://localhost:8089/callback"), eq("job-1"), payload.capture());
-		assertThat(payload.getValue()).contains("\"eventType\":\"activate\"");
+		ArgumentCaptor<PostbackRequest> request = ArgumentCaptor.forClass(PostbackRequest.class);
+		verify(transport).post(request.capture());
+		assertThat(request.getValue().endpoint()).isEqualTo("http://localhost:8089/callback");
+		assertThat(request.getValue().idempotencyKey()).isEqualTo("job-1");
+		assertThat(request.getValue().payload()).contains("\"eventType\":\"activate\"");
 		assertThat(job.getStatus()).isEqualTo("SUCCEEDED");
 		assertThat(job.getAttempts()).isEqualTo(1);
 		verify(callbackMapper).updateById(job);
@@ -81,8 +99,7 @@ class CallbackJobServiceTest {
 		when(configMapper.selectActiveValue("media-1", "callback.endpoint.partner-a"))
 			.thenReturn("http://localhost:8089/callback");
 		stubCallbackContext("activate");
-		doThrow(new CallbackDeliveryException(true, "HTTP_503", "temporary failure")).when(transport)
-			.post(any(), any(), any());
+		doThrow(new CallbackDeliveryException(true, "HTTP_503", "temporary failure")).when(transport).post(any());
 
 		service.dispatchSandbox("media-1");
 
@@ -102,9 +119,39 @@ class CallbackJobServiceTest {
 
 		service.dispatchSandbox("media-1");
 
-		verify(transport, never()).post(any(), any(), any());
+		verify(transport, never()).post(any());
 		assertThat(job.getStatus()).isEqualTo("DEAD");
 		assertThat(job.getLastErrorCode()).isEqualTo("TARGET_NOT_ALLOWED");
+	}
+
+	@Test
+	void rejectsDynamicCallbackResolvingToPrivateAddress() {
+		CallbackJob job = job();
+		job.setTargetRef("dynamic.click-1");
+		allowAllTasks();
+		when(callbackMapper.selectDispatchableByMedia("media-1", false, List.of())).thenReturn(List.of(job));
+		when(callbackMapper.updateById(job)).thenReturn(1);
+		ClickCallbackTarget target = new ClickCallbackTarget();
+		target.setClickEventId("click-1");
+		target.setEncryptedUrl("ciphertext");
+		target.setUrlIv("iv");
+		target.setUrlHost("127.0.0.1");
+		target.setUrlFingerprint(com.yzytech.scx.common.core.sign.SignUtils.sha256("https://127.0.0.1/callback"));
+		when(callbackTargetMapper.selectById("click-1")).thenReturn(target);
+		RawEvent click = new RawEvent();
+		click.setClientId("client-1");
+		when(rawEventMapper.selectById("click-1")).thenReturn(click);
+		ChannelClient client = new ChannelClient();
+		client.setDynamicCallbackEnabled(true);
+		client.setCallbackAllowedHosts("127.0.0.1");
+		when(channelClientMapper.selectActiveByClientId("client-1")).thenReturn(client);
+		when(credentialCrypto.decrypt("ciphertext", "iv")).thenReturn("https://127.0.0.1/callback");
+
+		service.dispatchSandbox("media-1");
+
+		verify(transport, never()).post(any());
+		assertThat(job.getStatus()).isEqualTo("DEAD");
+		assertThat(job.getLastErrorCode()).isEqualTo("TARGET_PRIVATE_ADDRESS");
 	}
 
 	@Test
@@ -114,8 +161,9 @@ class CallbackJobServiceTest {
 		OutboxPublisher publisher = mock(OutboxPublisher.class);
 		TaskScopeService outboxTaskScopeService = mock(TaskScopeService.class);
 		CallbackJobService outboxService = new CallbackJobService(callbackMapper, outboxMapper, scopeService,
-				outboxTaskScopeService, mock(TrackingTaskMapper.class), configMapper, mappingMapper, properties,
-				transport, new ObjectMapper(), Optional.of(publisher));
+				outboxTaskScopeService, mock(TrackingTaskMapper.class), configMapper, properties, transport,
+				Optional.of(publisher), callbackTargetMapper, rawEventMapper, channelClientMapper, credentialCrypto,
+				payloadSnapshotService, credentialCache, leaseService);
 		EventOutbox event = new EventOutbox();
 		event.setId("outbox-1");
 		event.setAggregateId("event-1");
@@ -143,8 +191,9 @@ class CallbackJobServiceTest {
 		OutboxPublisher publisher = mock(OutboxPublisher.class);
 		TaskScopeService outboxTaskScopeService = mock(TaskScopeService.class);
 		CallbackJobService outboxService = new CallbackJobService(callbackMapper, outboxMapper, scopeService,
-				outboxTaskScopeService, mock(TrackingTaskMapper.class), configMapper, mappingMapper, properties,
-				transport, new ObjectMapper(), Optional.of(publisher));
+				outboxTaskScopeService, mock(TrackingTaskMapper.class), configMapper, properties, transport,
+				Optional.of(publisher), callbackTargetMapper, rawEventMapper, channelClientMapper, credentialCrypto,
+				payloadSnapshotService, credentialCache, leaseService);
 		EventOutbox event = new EventOutbox();
 		event.setId("outbox-1");
 		event.setAggregateId("event-1");
@@ -169,8 +218,9 @@ class CallbackJobServiceTest {
 	void returnsCallbackAndOutboxRuntimeCountersInTheSameMediaScope() {
 		TaskScopeService taskScopeService = mock(TaskScopeService.class);
 		CallbackJobService queueService = new CallbackJobService(callbackMapper, outboxMapper, scopeService,
-				taskScopeService, mock(TrackingTaskMapper.class), configMapper, mappingMapper, new TrackingProperties(),
-				transport, new ObjectMapper(), Optional.empty());
+				taskScopeService, mock(TrackingTaskMapper.class), configMapper, new TrackingProperties(), transport,
+				Optional.empty(), callbackTargetMapper, rawEventMapper, channelClientMapper, credentialCrypto,
+				payloadSnapshotService, credentialCache, leaseService);
 		CallbackQueueStats callbackStats = new CallbackQueueStats();
 		callbackStats.setPendingCount(3L);
 		OutboxQueueStats outboxStats = new OutboxQueueStats();
@@ -202,15 +252,15 @@ class CallbackJobServiceTest {
 		properties.setOutboxPublisherEnabled(true);
 		properties.setOutboxSchedulerEnabled(false);
 		CallbackJobService scheduledService = new CallbackJobService(callbackMapper, outboxMapper, scopeService,
-				taskScopeService, taskMapper, configMapper, mappingMapper, properties, transport, new ObjectMapper(),
-				Optional.of(mock(OutboxPublisher.class)));
-		when(callbackMapper.selectMediaIdsWithDispatchableJobs()).thenReturn(List.of("media-1"));
-		when(callbackMapper.selectDispatchableByMedia("media-1", false, List.of())).thenReturn(List.of());
+				taskScopeService, taskMapper, configMapper, properties, transport,
+				Optional.of(mock(OutboxPublisher.class)), callbackTargetMapper, rawEventMapper, channelClientMapper,
+				credentialCrypto, payloadSnapshotService, credentialCache, leaseService);
+		when(leaseService.claimCallbacks(any(Integer.class))).thenReturn(List.of());
 
 		scheduledService.dispatchReadySandboxJobs();
 
-		verify(callbackMapper).selectDispatchableByMedia("media-1", false, List.of());
-		verify(outboxMapper, never()).selectMediaIdsWithDispatchableOutbox();
+		verify(leaseService).claimCallbacks(any(Integer.class));
+		verify(leaseService, never()).claimOutbox(any(Integer.class));
 		verify(outboxMapper, never()).selectPendingByMedia(any(), anyBoolean(), any());
 	}
 
@@ -232,7 +282,7 @@ class CallbackJobServiceTest {
 
 		assertThat(service.dispatchSandboxJob("job-1", "media-1")).isTrue();
 
-		verify(transport).post(eq("http://localhost:8089/callback"), eq("job-1"), any());
+		verify(transport).post(any(PostbackRequest.class));
 		verify(callbackMapper, never()).selectDispatchableByMedia(any(), anyBoolean(), any());
 		verify(outboxMapper, never()).selectPendingByMedia(any(), anyBoolean(), any());
 	}
@@ -253,16 +303,8 @@ class CallbackJobServiceTest {
 	}
 
 	private void stubCallbackContext(String externalEvent) {
-		CallbackPayloadContext context = new CallbackPayloadContext();
-		context.setTaskCode("TASK-1");
-		context.setLinkId("link-1");
-		context.setLinkConfigVersion(1);
-		context.setInternalEvent("ACTIVATE");
-		context.setOccurredAt(java.time.LocalDateTime.of(2026, 7, 16, 12, 0));
-		com.yzytech.scx.delivery.entity.LinkEventMapping mapping = new com.yzytech.scx.delivery.entity.LinkEventMapping();
-		mapping.setExternalEvent(externalEvent);
-		when(callbackMapper.selectPayloadContext("job-1")).thenReturn(context);
-		when(mappingMapper.selectOne(any())).thenReturn(mapping);
+		when(payloadSnapshotService.snapshot("job-1")).thenReturn(
+				new CallbackPayloadSnapshotService.Snapshot("{\"eventType\":\"" + externalEvent + "\"}", "hash", null));
 	}
 
 }

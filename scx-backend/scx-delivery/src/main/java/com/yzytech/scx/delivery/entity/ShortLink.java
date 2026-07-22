@@ -11,15 +11,32 @@ import lombok.Data;
 @Data
 @TableName("scx_short_link")
 public class ShortLink {
-    @TableId(type = IdType.ASSIGN_ID) private String id;
-    @NotBlank private String mediaId;
-    private String code;
-    @NotBlank private String name;
-    @NotBlank private String targetUrl;
-    private String sourceUrl;
-    private String linkType;
-    private String status;
-    @Version private Integer version;
-    private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+
+	@TableId(type = IdType.ASSIGN_ID)
+	private String id;
+
+	@NotBlank
+	private String mediaId;
+
+	private String code;
+
+	@NotBlank
+	private String name;
+
+	@NotBlank
+	private String targetUrl;
+
+	private String sourceUrl;
+
+	private String linkType;
+
+	private String status;
+
+	@Version
+	private Integer version;
+
+	private LocalDateTime createTime;
+
+	private LocalDateTime updateTime;
+
 }

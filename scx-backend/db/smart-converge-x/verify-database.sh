@@ -33,6 +33,8 @@ required_tables=(
   scx_upstream_customer scx_short_link scx_ad_platform_config
   scx_media_channel_user scx_delivery_config_revision scx_delivery_status_history
   scx_user_task_scope scx_rta_decision_log scx_schema_migration
+  scx_channel_client scx_channel_credential scx_click_callback_target
+  scx_click_dedup_guard
 )
 
 table_list="$(printf "'%s'," "${required_tables[@]}")"

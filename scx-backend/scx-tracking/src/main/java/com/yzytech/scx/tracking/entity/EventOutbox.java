@@ -25,6 +25,14 @@ public class EventOutbox {
 
 	private LocalDateTime nextRetryAt;
 
+	private String lockedBy;
+
+	private LocalDateTime lockedUntil;
+
+	private String lastErrorCode;
+
+	private String lastErrorMessage;
+
 	private LocalDateTime createTime;
 
 	private LocalDateTime sentAt;

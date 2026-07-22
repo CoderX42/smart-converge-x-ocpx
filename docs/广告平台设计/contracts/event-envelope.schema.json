@@ -1,38 +1,81 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://scx.local/contracts/event-envelope.schema.json",
-  "title": "SCX sandbox event envelope v1",
+  "title": "SCX OCPX event envelope v1.1",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schemaVersion",
     "eventId",
-    "source",
     "taskCode",
     "eventType",
     "occurredAt",
-    "deviceKeyHash"
+    "device"
   ],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "schemaVersion": { "const": "1.1" },
     "eventId": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "source": { "type": "string", "minLength": 1, "maxLength": 64 },
     "taskCode": { "type": "string", "minLength": 1, "maxLength": 64 },
     "eventType": {
       "type": "string",
-      "enum": ["CLICK", "ACTIVATE", "REGISTER", "PAY"]
+      "enum": [
+        "CLICK",
+        "ACTIVATE",
+        "REGISTER",
+        "PAY",
+        "ORDER",
+        "NEXT_DAY_RETURN",
+        "RETAIN_3D",
+        "RETAIN_7D",
+        "FIRST_ACTIVATE",
+        "FIRST_ORDER",
+        "REACTIVATE",
+        "CUSTOM",
+        "CREDIT"
+      ]
     },
-    "occurredAt": { "type": "string", "format": "date-time" },
-    "deviceKeyHash": {
+    "occurredAt": {
       "type": "string",
-      "minLength": 32,
-      "maxLength": 128,
-      "description": "Irreversible device identifier hash; raw device identifiers are forbidden."
+      "format": "date-time",
+      "description": "RFC3339 timestamp with an explicit UTC offset."
     },
-    "businessEventKey": { "type": "string", "maxLength": 256 },
-    "attributes": {
+    "device": {
       "type": "object",
-      "additionalProperties": true
-    }
-  }
+      "additionalProperties": false,
+      "required": ["platform", "idType", "hashAlgorithm", "idHash"],
+      "properties": {
+        "platform": { "type": "string", "enum": ["ANDROID", "IOS"] },
+        "idType": {
+          "type": "string",
+          "enum": ["OAID", "GAID", "ANDROID_ID", "IMEI", "IDFA", "IDFV", "CAID"]
+        },
+        "hashAlgorithm": { "const": "SHA256" },
+        "idHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256(lowercase(canonicalRawId)); raw IDs and MD5 are forbidden."
+        },
+        "idVersion": { "type": "string", "minLength": 1, "maxLength": 32 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "platform": { "const": "ANDROID" } } },
+          "then": { "properties": { "idType": { "enum": ["OAID", "GAID", "ANDROID_ID", "IMEI"] } } }
+        },
+        {
+          "if": { "properties": { "platform": { "const": "IOS" } } },
+          "then": { "properties": { "idType": { "enum": ["IDFA", "IDFV", "CAID"] } } }
+        },
+        {
+          "if": { "properties": { "idType": { "const": "CAID" } } },
+          "then": { "required": ["idVersion"] }
+        }
+      ]
+    },
+    "businessEventKey": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "callbackRef": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+    "callbackUrl": { "type": "string", "format": "uri", "maxLength": 2000 },
+    "attributes": { "type": "object", "additionalProperties": true }
+  },
+  "not": { "required": ["callbackRef", "callbackUrl"] }
 }

@@ -2,15 +2,15 @@
 import type { Media } from '#/api/ad';
 
 defineProps<{
+  dates: string[];
   media: Media[];
   mediaId: string;
-  dates: string[];
 }>();
 
 const emit = defineEmits<{
-  'update:mediaId': [string];
-  'update:dates': [string[]];
   reset: [];
+  'update:dates': [string[]];
+  'update:mediaId': [string];
 }>();
 </script>
 

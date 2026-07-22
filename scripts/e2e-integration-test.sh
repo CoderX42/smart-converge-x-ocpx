@@ -8,7 +8,9 @@
 set -euo pipefail
 
 BASE="${1:-http://localhost:9999/boot}"
-SIGN_KEY="scx-sandbox-local-only"
+CHANNEL_CLIENT_ID="${SCX_CHANNEL_CLIENT_ID:?必须通过环境变量提供 SCX_CHANNEL_CLIENT_ID}"
+CHANNEL_KEY_VERSION="${SCX_CHANNEL_KEY_VERSION:?必须通过环境变量提供 SCX_CHANNEL_KEY_VERSION}"
+CHANNEL_SECRET="${SCX_CHANNEL_SECRET:?必须通过环境变量提供 SCX_CHANNEL_SECRET}"
 MEDIA="media_sandbox"
 TASK="demo-task"
 USERNAME="system"
@@ -109,32 +111,32 @@ info "3. 事件上报链路（HMAC签名 → 点击 → 幂等 → 转化）"
 
 # 签名工具
 hmac_sign() {
-  local body="$1"
+	local endpoint="$1" body="$2"
   local ts="$(date +%s)000"
   local nc="nc-${ts}-$(openssl rand -hex 4)"
   local canon=$(python3 -c "
 import json,hashlib
 r=json.loads('''$body''')
 et=r['eventType'].upper()
-oa=r.get('occurredAt','')
-if '.' in oa: oa=oa.rstrip('0').rstrip('.')
-bk=r.get('businessEventKey')
-p={'schemaVersion':r['schemaVersion'],'eventId':r['eventId'],'source':r['source'],'taskCode':r['taskCode'],'eventType':et,'occurredAt':oa,'deviceKeyHash':r['deviceKeyHash'],'businessEventKeyHash':hashlib.sha256(bk.encode()).hexdigest() if bk else None,'attributes':dict(sorted(r.get('attributes',{}).items()))}
+p={'schemaVersion':r['schemaVersion'],'eventId':r['eventId'],'taskCode':r['taskCode'],'eventType':et,'occurredAt':r['occurredAt'],'device':r['device'],'businessEventKey':r.get('businessEventKey'),'callbackRef':r.get('callbackRef'),'callbackUrl':r.get('callbackUrl'),'attributes':dict(sorted(r.get('attributes',{}).items()))}
 print(json.dumps(p,separators=(',',':'),ensure_ascii=False))
 " 2>/dev/null)
   local ph=$(echo -n "$canon" | openssl dgst -sha256 | awk '{print $2}')
-  local sg=$(echo -n "${ts}${nc}${ph}" | openssl dgst -sha256 -hmac "$SIGN_KEY" | awk '{print $2}')
+	local signing_input=$(printf 'POST\n%s\n%s\n%s\n%s' "$endpoint" "$ts" "$nc" "$ph")
+	local sg=$(echo -n "$signing_input" | openssl dgst -sha256 -hmac "$CHANNEL_SECRET" | awk '{print $2}')
   echo "$ts|$nc|$sg"
 }
 
 send_event() {
   local endpoint="$1" body="$2"
-  local sig=$(hmac_sign "$body")
+	local sig=$(hmac_sign "$endpoint" "$body")
   local ts=$(echo "$sig" | cut -d'|' -f1)
   local nc=$(echo "$sig" | cut -d'|' -f2)
   local sg=$(echo "$sig" | cut -d'|' -f3)
   curl -s -X POST "$BASE$endpoint" \
     -H "Content-Type: application/json" \
+		-H "X-Client-Id: $CHANNEL_CLIENT_ID" \
+		-H "X-Key-Version: $CHANNEL_KEY_VERSION" \
     -H "X-Timestamp: $ts" \
     -H "X-Nonce: $nc" \
     -H "X-Sign: $sg" \
@@ -144,16 +146,16 @@ send_event() {
 # 生成设备哈希
 DEVICE_RAW="e2e-device-$(date +%s)"
 DEVICE_HASH=$(echo -n "$DEVICE_RAW" | openssl dgst -sha256 | awk '{print $2}')
-echo "  设备: $DEVICE_RAW → $DEVICE_HASH"
+echo "  已生成不可逆测试设备哈希"
 
 # 3.1 发送 CLICK
 CLICK_ID="e2e-click-$(date +%s)"
-CLICK_BODY='{"schemaVersion":"1.0","eventId":"'$CLICK_ID'","source":"e2e-test","taskCode":"'$TASK'","eventType":"CLICK","occurredAt":"2026-07-21T16:00:00","deviceKeyHash":"'$DEVICE_HASH'","attributes":{"ip":"1.2.3.4","os":"android","model":"TestPhone"}}'
+CLICK_BODY='{"schemaVersion":"1.1","eventId":"'$CLICK_ID'","taskCode":"'$TASK'","eventType":"CLICK","occurredAt":"2026-07-21T16:00:00+08:00","device":{"platform":"ANDROID","idType":"OAID","hashAlgorithm":"SHA256","idHash":"'$DEVICE_HASH'","idVersion":null},"attributes":{"model":"TestPhone","os":"android"}}'
 
 RESP=$(send_event "/open-api/events/v1/clicks" "$CLICK_BODY")
 C=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])" 2>/dev/null)
 DUP=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['duplicateDelivery'])" 2>/dev/null)
-STS=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['processingStatus'])" 2>/dev/null)
+STS=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['acceptanceStatus'])" 2>/dev/null)
 check "$C" "CLICK上报 → $STS" "$RESP"
 
 # 3.2 幂等测试 — 相同 eventId 再次发送
@@ -165,17 +167,16 @@ if [ "$DUP2" = "True" ]; then check "0" "幂等保护: duplicateDelivery=true"; 
 # 3.3 发送 ACTIVATE（带 businessEventKey）
 ACT_ID="e2e-activate-$(date +%s)"
 BIZ_KEY="e2e-biz-$(date +%s)"
-ACT_BODY='{"schemaVersion":"1.0","eventId":"'$ACT_ID'","source":"e2e-test","taskCode":"'$TASK'","eventType":"ACTIVATE","occurredAt":"2026-07-21T16:05:00","deviceKeyHash":"'$DEVICE_HASH'","businessEventKey":"'$BIZ_KEY'","attributes":{}}'
+ACT_BODY='{"schemaVersion":"1.1","eventId":"'$ACT_ID'","taskCode":"'$TASK'","eventType":"ACTIVATE","occurredAt":"2026-07-21T16:05:00+08:00","device":{"platform":"ANDROID","idType":"OAID","hashAlgorithm":"SHA256","idHash":"'$DEVICE_HASH'","idVersion":null},"businessEventKey":"'$BIZ_KEY'","attributes":{}}'
 
 RESP3=$(send_event "/open-api/events/v1/conversions" "$ACT_BODY")
 C3=$(echo "$RESP3" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])" 2>/dev/null)
-ATTR=$(echo "$RESP3" | python3 -c "import sys,json; print(json.load(sys.stdin)['data'].get('attributionStatus','?'))" 2>/dev/null)
-check "$C3" "ACTIVATE转化 → 归因=$ATTR" "$RESP3"
+check "$C3" "ACTIVATE转化已可靠受理" "$RESP3"
 
 # 3.4 发送 REGISTER
 REG_ID="e2e-register-$(date +%s)"
 BIZ_KEY2="e2e-biz2-$(date +%s)"
-REG_BODY='{"schemaVersion":"1.0","eventId":"'$REG_ID'","source":"e2e-test","taskCode":"'$TASK'","eventType":"REGISTER","occurredAt":"2026-07-21T16:10:00","deviceKeyHash":"'$DEVICE_HASH'","businessEventKey":"'$BIZ_KEY2'","attributes":{}}'
+REG_BODY='{"schemaVersion":"1.1","eventId":"'$REG_ID'","taskCode":"'$TASK'","eventType":"REGISTER","occurredAt":"2026-07-21T16:10:00+08:00","device":{"platform":"ANDROID","idType":"OAID","hashAlgorithm":"SHA256","idHash":"'$DEVICE_HASH'","idVersion":null},"businessEventKey":"'$BIZ_KEY2'","attributes":{}}'
 
 RESP4=$(send_event "/open-api/events/v1/conversions" "$REG_BODY")
 C4=$(echo "$RESP4" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])" 2>/dev/null)
@@ -184,7 +185,7 @@ check "$C4" "REGISTER转化" "$RESP4"
 # 3.5 发送 PAY
 PAY_ID="e2e-pay-$(date +%s)"
 BIZ_KEY3="e2e-biz3-$(date +%s)"
-PAY_BODY='{"schemaVersion":"1.0","eventId":"'$PAY_ID'","source":"e2e-test","taskCode":"'$TASK'","eventType":"PAY","occurredAt":"2026-07-21T16:15:00","deviceKeyHash":"'$DEVICE_HASH'","businessEventKey":"'$BIZ_KEY3'","attributes":{}}'
+PAY_BODY='{"schemaVersion":"1.1","eventId":"'$PAY_ID'","taskCode":"'$TASK'","eventType":"PAY","occurredAt":"2026-07-21T16:15:00+08:00","device":{"platform":"ANDROID","idType":"OAID","hashAlgorithm":"SHA256","idHash":"'$DEVICE_HASH'","idVersion":null},"businessEventKey":"'$BIZ_KEY3'","attributes":{}}'
 
 RESP5=$(send_event "/open-api/events/v1/conversions" "$PAY_BODY")
 C5=$(echo "$RESP5" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])" 2>/dev/null)

@@ -5,4 +5,6 @@ import com.yzytech.scx.delivery.entity.DeliveryStatusHistory;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface DeliveryStatusHistoryMapper extends BaseMapper<DeliveryStatusHistory> {}
+public interface DeliveryStatusHistoryMapper extends BaseMapper<DeliveryStatusHistory> {
+
+}

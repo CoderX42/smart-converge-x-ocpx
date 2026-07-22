@@ -373,7 +373,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </el-table-column>
         <el-table-column label="事件映射摘要" min-width="250">
           <template #default="{ row }">
-            <template v-if="mappingSummary(row).length">
+            <template v-if="mappingSummary(row).length > 0">
               <div
                 v-for="(item, index) in mappingSummary(row).slice(0, 2)"
                 :key="`${row.id}-${index}`"

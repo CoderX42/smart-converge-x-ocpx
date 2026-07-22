@@ -16,8 +16,8 @@ public class RtaDecisionRequest {
 	@NotBlank
 	private String taskCode;
 
-	@NotBlank
-	private String deviceKeyHash;
+	@jakarta.validation.constraints.NotNull
+	private DeviceIdentifier device;
 
 	private Map<String, Object> attributes;
 

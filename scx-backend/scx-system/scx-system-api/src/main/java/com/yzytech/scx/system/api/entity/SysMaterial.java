@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
@@ -56,7 +55,9 @@ public class SysMaterial extends Model<SysMaterial> {
 	@TableLogic
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "逻辑删除：0.显示；1.隐藏；")
-	private String delFlag;@Schema(description = "店铺ID")
+	private String delFlag;
+
+	@Schema(description = "店铺ID")
 	private String shopId;
 
 	@Schema(description = "素材大小")

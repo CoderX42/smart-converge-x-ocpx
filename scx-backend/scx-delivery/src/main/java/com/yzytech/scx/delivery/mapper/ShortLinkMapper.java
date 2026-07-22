@@ -5,4 +5,6 @@ import com.yzytech.scx.delivery.entity.ShortLink;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper
-public interface ShortLinkMapper extends BaseMapper<ShortLink> {}
+public interface ShortLinkMapper extends BaseMapper<ShortLink> {
+
+}

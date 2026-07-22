@@ -37,7 +37,29 @@ INSERT INTO sys_menu (
   'app_base',
   NOW(),
   '0'
-),
+)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  path = VALUES(path),
+  parent_id = VALUES(parent_id),
+  icon = VALUES(icon),
+  component = VALUES(component),
+  sort = VALUES(sort),
+  type = VALUES(type),
+  application_key = VALUES(application_key),
+  del_flag = '0';
+
+INSERT INTO sys_menu (
+  id,
+  name,
+  permission,
+  parent_id,
+  sort,
+  type,
+  application_key,
+  create_time,
+  del_flag
+) VALUES
 (
   'perm_toolbox_dp_read',
   '查询DP转换',
@@ -62,10 +84,8 @@ INSERT INTO sys_menu (
 )
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
-  path = VALUES(path),
+  permission = VALUES(permission),
   parent_id = VALUES(parent_id),
-  icon = VALUES(icon),
-  component = VALUES(component),
   sort = VALUES(sort),
   type = VALUES(type),
   application_key = VALUES(application_key),

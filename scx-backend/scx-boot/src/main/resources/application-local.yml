@@ -36,6 +36,10 @@ scx:
   tracking:
     sandbox-enabled: true
     sandbox-signing-key: scx-local-only-signing-key
+    ingress-enabled: ${SCX_OCPX_INGRESS_ENABLED:false}
+    feedback-store: ${SCX_FEEDBACK_STORE:memory}
+    channel-master-key: ${SCX_CHANNEL_MASTER_KEY:}
+    device-hmac-key: ${SCX_DEVICE_HMAC_KEY:}
     callback-sandbox-endpoint: http://127.0.0.1:8089/callback
     callback-allowed-hosts:
       - localhost

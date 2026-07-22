@@ -2,17 +2,18 @@ package com.yzytech.scx.tracking.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.delivery.mapper.AdPlatformConfigMapper;
-import com.yzytech.scx.delivery.mapper.LinkEventMappingMapper;
-import com.yzytech.scx.delivery.entity.LinkEventMapping;
 import com.yzytech.scx.tracking.entity.CallbackJob;
 import com.yzytech.scx.tracking.entity.EventOutbox;
 import com.yzytech.scx.tracking.dto.CallbackQueueStats;
-import com.yzytech.scx.tracking.dto.CallbackPayloadContext;
 import com.yzytech.scx.tracking.mapper.CallbackJobMapper;
 import com.yzytech.scx.tracking.mapper.EventOutboxMapper;
+import com.yzytech.scx.tracking.mapper.ClickCallbackTargetMapper;
+import com.yzytech.scx.tracking.mapper.RawEventMapper;
+import com.yzytech.scx.tracking.mapper.ChannelClientMapper;
+import com.yzytech.scx.tracking.entity.ClickCallbackTarget;
+import com.yzytech.scx.tracking.entity.RawEvent;
+import com.yzytech.scx.tracking.entity.ChannelClient;
 import com.yzytech.scx.subject.service.MediaScopeService;
 import com.yzytech.scx.delivery.entity.TrackingTask;
 import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
@@ -22,13 +23,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.net.URI;
+import java.net.InetAddress;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.HashSet;
 
 @Service
 @RequiredArgsConstructor
@@ -46,15 +47,25 @@ public class CallbackJobService {
 
 	private final AdPlatformConfigMapper platformConfigMapper;
 
-	private final LinkEventMappingMapper mappingMapper;
-
 	private final TrackingProperties trackingProperties;
 
 	private final CallbackTransport callbackTransport;
 
-	private final ObjectMapper objectMapper;
-
 	private final Optional<OutboxPublisher> outboxPublisher;
+
+	private final ClickCallbackTargetMapper callbackTargetMapper;
+
+	private final RawEventMapper rawEventMapper;
+
+	private final ChannelClientMapper channelClientMapper;
+
+	private final ChannelCredentialCrypto credentialCrypto;
+
+	private final CallbackPayloadSnapshotService payloadSnapshotService;
+
+	private final ChannelCredentialCache credentialCache;
+
+	private final WorkLeaseService leaseService;
 
 	public IPage<CallbackJob> page(Page<CallbackJob> page, String mediaId, String status, String rawEventId) {
 		TaskScopeService.TaskAccess access = taskScopeService.accessForMedia(mediaId, false);
@@ -117,13 +128,11 @@ public class CallbackJobService {
 		return callbackMapper.updateById(job) == 1;
 	}
 
-	@Transactional
 	public int dispatchSandbox(String mediaId) {
 		TaskScopeService.TaskAccess access = taskScopeService.accessForMedia(mediaId, true);
 		return dispatchInternal(mediaId, access, true);
 	}
 
-	@Transactional
 	public boolean dispatchSandboxJob(String id, String mediaId) {
 		requireWrite(mediaId);
 		if (!mediaId.equals(callbackMapper.selectMediaId(id)))
@@ -140,7 +149,6 @@ public class CallbackJobService {
 		return callbackMapper.updateById(job) == 1;
 	}
 
-	@Transactional
 	public boolean dispatchSandboxOutbox(String id, String mediaId) {
 		TaskScopeService.TaskAccess access = taskScopeService.accessForMedia(mediaId, true);
 		EventOutbox event = outboxMapper.selectScopedById(id, mediaId, access.restricted(), access.taskIds());
@@ -157,18 +165,22 @@ public class CallbackJobService {
 
 	@Scheduled(fixedDelayString = "${scx.tracking.callback-dispatch-delay-ms:30000}")
 	public void dispatchReadySandboxJobs() {
-		Set<String> mediaIds = new HashSet<>(callbackMapper.selectMediaIdsWithDispatchableJobs());
-		boolean dispatchOutbox = trackingProperties.isOutboxPublisherEnabled()
-				&& trackingProperties.isOutboxSchedulerEnabled();
-		if (dispatchOutbox) {
-			mediaIds.addAll(outboxMapper.selectMediaIdsWithDispatchableOutbox());
+		if (trackingProperties.isOutboxPublisherEnabled() && trackingProperties.isOutboxSchedulerEnabled()) {
+			for (EventOutbox value : leaseService.claimOutbox(trackingProperties.getWorkerBatchSize())) {
+				deliverOutbox(value);
+				leaseService.completeOutbox(value);
+			}
 		}
-		for (String mediaId : mediaIds) {
-			dispatchInternal(mediaId, TaskScopeService.TaskAccess.unrestricted(), dispatchOutbox);
+		for (CallbackJob job : leaseService.claimCallbacks(trackingProperties.getWorkerBatchSize())) {
+			String mediaId = callbackMapper.selectMediaId(job.getId());
+			if (mediaId == null)
+				failDelivery(job, false, "MEDIA_CONTEXT_MISSING", "回传任务媒体上下文不存在");
+			else
+				dispatchJob(job, mediaId);
+			leaseService.completeCallback(job);
 		}
 	}
 
-	@Transactional
 	protected int dispatchInternal(String mediaId, TaskScopeService.TaskAccess taskAccess, boolean dispatchOutbox) {
 		int changed = 0;
 		if (dispatchOutbox && trackingProperties.isOutboxPublisherEnabled()) {
@@ -186,6 +198,11 @@ public class CallbackJobService {
 	}
 
 	private int dispatchOutbox(EventOutbox value) {
+		deliverOutbox(value);
+		return outboxMapper.updateById(value);
+	}
+
+	private void deliverOutbox(EventOutbox value) {
 		value.setAttempts(value.getAttempts() + 1);
 		try {
 			OutboxPublisher publisher = outboxPublisher.orElseThrow(() -> new IllegalStateException("Outbox 发布器未启用"));
@@ -193,19 +210,32 @@ public class CallbackJobService {
 			value.setStatus("SENT");
 			value.setSentAt(LocalDateTime.now());
 			value.setNextRetryAt(null);
+			value.setLastErrorCode(null);
+			value.setLastErrorMessage(null);
 		}
 		catch (Exception exception) {
 			boolean dead = value.getAttempts() >= 5;
 			value.setStatus(dead ? "DEAD" : "RETRYING");
-			value.setNextRetryAt(dead ? null : LocalDateTime.now().plusMinutes(1L << Math.min(value.getAttempts(), 6)));
+			long[] delays = { 1, 2, 5, 10 };
+			value.setNextRetryAt(dead ? null : LocalDateTime.now()
+				.plusMinutes(delays[Math.max(0, Math.min(value.getAttempts() - 1, delays.length - 1))]));
+			value.setLastErrorCode("OUTBOX_PUBLISH_FAILED");
+			value.setLastErrorMessage("发件箱发布失败");
 		}
-		return outboxMapper.updateById(value);
 	}
 
 	private void dispatchJob(CallbackJob job, String mediaId) {
 		job.setAttempts(job.getAttempts() + 1);
 		try {
-			callbackTransport.post(resolveEndpoint(mediaId, job.getTargetRef()), job.getId(), payload(job));
+			String endpoint = resolveEndpoint(mediaId, job.getTargetRef());
+			CallbackPayloadSnapshotService.Snapshot snapshot = payloadSnapshotService.snapshot(job.getId());
+			ChannelCredentialCache.CachedCredential credential = snapshot.clientId() == null ? null
+					: credentialCache.resolveCurrent(snapshot.clientId());
+			if (snapshot.clientId() != null && credential == null)
+				throw new CallbackDeliveryException(false, "CHANNEL_CREDENTIAL_UNAVAILABLE", "渠道回传密钥不可用");
+			callbackTransport.post(new PostbackRequest(endpoint, job.getId(), snapshot.payload(), snapshot.clientId(),
+					credential == null ? null : credential.keyVersion(),
+					credential == null ? null : credential.secret()));
 			job.setStatus("SUCCEEDED");
 			job.setNextRetryAt(null);
 			job.setLastErrorCode(null);
@@ -220,6 +250,8 @@ public class CallbackJobService {
 	}
 
 	private String resolveEndpoint(String mediaId, String targetRef) {
+		if (targetRef != null && targetRef.startsWith("dynamic."))
+			return resolveDynamicEndpoint(targetRef.substring("dynamic.".length()));
 		if (targetRef == null || !targetRef.matches("[A-Za-z0-9._-]{1,64}")) {
 			throw new CallbackDeliveryException(false, "TARGET_INVALID", "回传目标标识无效");
 		}
@@ -249,30 +281,46 @@ public class CallbackJobService {
 		}
 	}
 
-	private String payload(CallbackJob job) {
+	private String resolveDynamicEndpoint(String clickEventId) {
+		ClickCallbackTarget target = callbackTargetMapper.selectById(clickEventId);
+		RawEvent click = rawEventMapper.selectById(clickEventId);
+		if (target == null || click == null || !StringUtils.hasText(target.getEncryptedUrl()))
+			throw new CallbackDeliveryException(false, "TARGET_MISSING", "动态回传目标不存在");
+		ChannelClient client = channelClientMapper.selectActiveByClientId(click.getClientId());
+		if (client == null || !Boolean.TRUE.equals(client.getDynamicCallbackEnabled()))
+			throw new CallbackDeliveryException(false, "TARGET_DISABLED", "动态回传目标已停用");
+		String endpoint;
 		try {
-			CallbackPayloadContext context = callbackMapper.selectPayloadContext(job.getId());
-			if (context == null || context.getInternalEvent() == null || context.getLinkId() == null
-					|| context.getLinkConfigVersion() == null) {
-				throw new CallbackDeliveryException(false, "PAYLOAD_CONTEXT_MISSING", "回传上下文不存在");
+			endpoint = credentialCrypto.decrypt(target.getEncryptedUrl(), target.getUrlIv());
+		}
+		catch (IllegalStateException exception) {
+			throw new CallbackDeliveryException(false, "TARGET_DECRYPT_FAILED", "动态回传目标无法解密");
+		}
+		try {
+			URI uri = URI.create(endpoint);
+			String host = uri.getHost() == null ? null : uri.getHost().toLowerCase(Locale.ROOT);
+			Set<String> allowedHosts = java.util.Arrays
+				.stream(client.getCallbackAllowedHosts() == null ? new String[0]
+						: client.getCallbackAllowedHosts().split(","))
+				.map(String::trim)
+				.map(value -> value.toLowerCase(Locale.ROOT))
+				.collect(java.util.stream.Collectors.toSet());
+			if (!"https".equals(uri.getScheme()) || uri.getUserInfo() != null || host == null
+					|| !host.equals(target.getUrlHost()) || !allowedHosts.contains(host)
+					|| !com.yzytech.scx.common.core.sign.SignUtils.sha256(endpoint).equals(target.getUrlFingerprint()))
+				throw new CallbackDeliveryException(false, "TARGET_NOT_ALLOWED", "动态回传目标不在允许范围");
+			for (InetAddress address : InetAddress.getAllByName(host)) {
+				if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
+						|| address.isSiteLocalAddress() || address.isMulticastAddress())
+					throw new CallbackDeliveryException(false, "TARGET_PRIVATE_ADDRESS", "动态回传目标解析到非公网地址");
 			}
-			LinkEventMapping mapping = mappingMapper
-				.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers.<LinkEventMapping>lambdaQuery()
-					.eq(LinkEventMapping::getLinkId, context.getLinkId())
-					.eq(LinkEventMapping::getConfigVersion, context.getLinkConfigVersion())
-					.eq(LinkEventMapping::getInternalEvent, context.getInternalEvent())
-					.last("LIMIT 1"));
-			String externalEvent = mapping == null ? context.getInternalEvent() : mapping.getExternalEvent();
-			return objectMapper.writeValueAsString(Map.of("callbackJobId", job.getId(), "attributionResultId",
-					job.getAttributionResultId(), "actionType", job.getActionType(), "attempt", job.getAttempts(),
-					"taskCode", context.getTaskCode(), "internalEvent", context.getInternalEvent(), "eventType",
-					externalEvent, "occurredAt", context.getOccurredAt().toString()));
+			return endpoint;
 		}
 		catch (CallbackDeliveryException exception) {
 			throw exception;
 		}
-		catch (JsonProcessingException exception) {
-			throw new CallbackDeliveryException(false, "PAYLOAD_ERROR", "回传载荷生成失败");
+		catch (Exception exception) {
+			throw new CallbackDeliveryException(true, "TARGET_DNS_ERROR", "动态回传目标解析失败");
 		}
 	}
 
@@ -281,7 +329,9 @@ public class CallbackJobService {
 		job.setStatus(dead ? "DEAD" : "RETRYING");
 		job.setLastErrorCode(code);
 		job.setLastErrorMessage(message);
-		job.setNextRetryAt(dead ? null : LocalDateTime.now().plusMinutes(1L << Math.min(job.getAttempts(), 6)));
+		long[] delays = { 1, 2, 5, 10 };
+		job.setNextRetryAt(dead ? null : LocalDateTime.now()
+			.plusMinutes(delays[Math.max(0, Math.min(job.getAttempts() - 1, delays.length - 1))]));
 	}
 
 	private void requireRead(String mediaId) {

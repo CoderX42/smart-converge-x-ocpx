@@ -1,10 +1,9 @@
 
-
 package com.yzytech.scx.common.core.config;
 
 import cn.hutool.core.date.DatePattern;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.fasterxml.jackson.datatype.jsr310.PackageVersion;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalTimeDeserializer;
@@ -39,7 +38,8 @@ public class DateFormatConfig {
 			builder.locale(Locale.CHINA);
 			builder.timeZone(TimeZone.getTimeZone(ZoneId.systemDefault()));
 			builder.simpleDateFormat(PATTERN);
-			builder.modules(new JavaTimeModule());
+			builder.featuresToDisable(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE);
+			builder.modules(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule(), new ScxJavaTimeModule());
 		};
 	}
 
@@ -48,10 +48,10 @@ public class DateFormatConfig {
 	 *
 	 * @since 2022/5/20 17:54
 	 */
-	static class JavaTimeModule extends SimpleModule {
+	static class ScxJavaTimeModule extends SimpleModule {
 
-		public JavaTimeModule() {
-			super(PackageVersion.VERSION);
+		public ScxJavaTimeModule() {
+			super("scx-java-time");
 			this.addSerializer(LocalDateTime.class,
 					new LocalDateTimeSerializer(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
 			this.addSerializer(LocalDate.class,

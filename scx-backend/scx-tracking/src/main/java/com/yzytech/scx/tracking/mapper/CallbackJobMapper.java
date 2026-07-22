@@ -9,6 +9,7 @@ import com.yzytech.scx.tracking.dto.CallbackPayloadContext;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -58,15 +59,19 @@ public interface CallbackJobMapper extends BaseMapper<CallbackJob> {
 
 	@Select("""
 			SELECT t.code AS task_code, l.id AS link_id, l.config_version AS link_config_version,
-			       e.event_type AS internal_event, e.occurred_at
+			       e.event_type AS internal_event, e.occurred_at, click.client_id
 			FROM scx_callback_job j
 			JOIN scx_attribution_result a ON a.id = j.attribution_result_id
 			JOIN scx_raw_event e ON e.id = a.conversion_event_id
+			LEFT JOIN scx_raw_event click ON click.id = a.click_event_id
 			JOIN scx_tracking_task t ON t.id = e.task_id
 			JOIN scx_tracking_link l ON l.id = t.link_id
 			WHERE j.id = #{id}
 			""")
 	CallbackPayloadContext selectPayloadContext(@Param("id") String id);
+
+	@Select("SELECT * FROM scx_callback_job WHERE id=#{id} FOR UPDATE")
+	CallbackJob selectByIdForUpdate(@Param("id") String id);
 
 	@Select("""
 			<script>
@@ -134,5 +139,40 @@ public interface CallbackJobMapper extends BaseMapper<CallbackJob> {
 			LIMIT 100
 			""")
 	List<String> selectMediaIdsWithDispatchableJobs();
+
+	@Select("""
+			SELECT id FROM scx_callback_job FORCE INDEX (idx_scx_callback_lease_claim)
+			WHERE status IN ('PENDING','RETRYING')
+			  AND (next_retry_at IS NULL OR next_retry_at <= NOW(3))
+			  AND (locked_until IS NULL OR locked_until < NOW(3))
+			ORDER BY locked_until, status, next_retry_at, create_time, id LIMIT #{limit} FOR UPDATE SKIP LOCKED
+			""")
+	List<String> selectClaimableIdsForUpdate(@Param("limit") int limit);
+
+	@Update("""
+			<script>
+			UPDATE scx_callback_job SET locked_by=#{owner}, locked_until=#{lockedUntil}
+			WHERE id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+			</script>
+			""")
+	int claim(@Param("ids") List<String> ids, @Param("owner") String owner,
+			@Param("lockedUntil") java.time.LocalDateTime lockedUntil);
+
+	@Select("""
+			<script>
+			SELECT * FROM scx_callback_job WHERE locked_by=#{owner}
+			AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+			ORDER BY create_time
+			</script>
+			""")
+	List<CallbackJob> selectOwned(@Param("ids") List<String> ids, @Param("owner") String owner);
+
+	@Update("""
+			UPDATE scx_callback_job SET status=#{job.status}, attempts=#{job.attempts},
+			next_retry_at=#{job.nextRetryAt}, last_error_code=#{job.lastErrorCode},
+			last_error_message=#{job.lastErrorMessage}, locked_by=NULL, locked_until=NULL
+			WHERE id=#{job.id} AND locked_by=#{owner}
+			""")
+	int completeOwned(@Param("job") CallbackJob job, @Param("owner") String owner);
 
 }

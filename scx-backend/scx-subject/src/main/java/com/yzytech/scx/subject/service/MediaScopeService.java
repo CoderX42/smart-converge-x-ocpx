@@ -15,29 +15,37 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MediaScopeService {
-    private final UserSubjectScopeMapper scopeMapper;
 
-    public boolean isAdmin() {
-        BootUser user = SecurityUtils.getUser();
-        return user != null && user.getRoles() != null && user.getRoles().contains(CommonConstants.ROLE_ADMIN_CODE);
-    }
+	private final UserSubjectScopeMapper scopeMapper;
 
-    public List<String> readableMediaIds() {
-        if (isAdmin()) return Collections.emptyList();
-        BootUser user = SecurityUtils.getUser();
-        if (user == null) return List.of();
-        return scopeMapper.selectList(Wrappers.<UserSubjectScope>lambdaQuery()
-                .eq(UserSubjectScope::getUserId, user.getUserId())
-                .eq(UserSubjectScope::getSubjectType, "MEDIA"))
-            .stream().map(UserSubjectScope::getSubjectId).toList();
-    }
+	public boolean isAdmin() {
+		BootUser user = SecurityUtils.getUser();
+		return user != null && user.getRoles() != null && user.getRoles().contains(CommonConstants.ROLE_ADMIN_CODE);
+	}
 
-    public boolean canRead(String mediaId) {
-        return isAdmin() || readableMediaIds().contains(mediaId);
-    }
+	public List<String> readableMediaIds() {
+		if (isAdmin())
+			return Collections.emptyList();
+		BootUser user = SecurityUtils.getUser();
+		if (user == null)
+			return List.of();
+		return scopeMapper
+			.selectList(Wrappers.<UserSubjectScope>lambdaQuery()
+				.eq(UserSubjectScope::getUserId, user.getUserId())
+				.eq(UserSubjectScope::getSubjectType, "MEDIA"))
+			.stream()
+			.map(UserSubjectScope::getSubjectId)
+			.toList();
+	}
 
-    public boolean canWrite(String mediaId) {
-        BootUser user = SecurityUtils.getUser();
-        return user != null && (isAdmin() || (user.getRoles() != null && user.getRoles().contains("ROLE_OPERATOR") && canRead(mediaId)));
-    }
+	public boolean canRead(String mediaId) {
+		return isAdmin() || readableMediaIds().contains(mediaId);
+	}
+
+	public boolean canWrite(String mediaId) {
+		BootUser user = SecurityUtils.getUser();
+		return user != null && (isAdmin()
+				|| (user.getRoles() != null && user.getRoles().contains("ROLE_OPERATOR") && canRead(mediaId)));
+	}
+
 }

@@ -11,14 +11,22 @@ import lombok.Data;
 @Data
 @TableName("scx_delivery_config_revision")
 public class DeliveryConfigRevision {
-    @TableId(type = IdType.ASSIGN_ID)
-    private String id;
-    private String resourceType;
-    private String resourceId;
-    private Integer configVersion;
-    private String snapshotJson;
-    @TableField(fill = FieldFill.INSERT)
-    private String createBy;
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
+
+	@TableId(type = IdType.ASSIGN_ID)
+	private String id;
+
+	private String resourceType;
+
+	private String resourceId;
+
+	private Integer configVersion;
+
+	private String snapshotJson;
+
+	@TableField(fill = FieldFill.INSERT)
+	private String createBy;
+
+	@TableField(fill = FieldFill.INSERT)
+	private LocalDateTime createTime;
+
 }

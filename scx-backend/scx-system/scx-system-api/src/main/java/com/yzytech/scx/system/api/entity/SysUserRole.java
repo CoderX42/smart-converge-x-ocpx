@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
@@ -33,4 +32,6 @@ public class SysUserRole extends Model<SysUserRole> {
 
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "创建时间")
-	private LocalDateTime createTime;}
+	private LocalDateTime createTime;
+
+}

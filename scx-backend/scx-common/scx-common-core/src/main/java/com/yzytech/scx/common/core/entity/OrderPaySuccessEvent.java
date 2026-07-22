@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.core.entity;
 
 import lombok.Data;
@@ -38,7 +37,9 @@ public class OrderPaySuccessEvent implements Serializable {
 
 	private Integer paymentPoint;
 
-	private String couponUserId;private BigDecimal totalPrice;
+	private String couponUserId;
+
+	private BigDecimal totalPrice;
 
 	private String orderType;
 

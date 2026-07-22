@@ -183,13 +183,13 @@ export function getOutboxEvents(params: Record<string, any>) {
 }
 export type AsyncServicesQueueType = 'callback' | 'export' | 'outbox';
 export type AsyncServicesQueueStats = {
-  waitingCount: number;
+  deadCount: number;
+  delayedCount: number;
+  failedCount: number;
+  pausedCount: number;
   runningCount: number;
   succeededCount: number;
-  failedCount: number;
-  delayedCount: number;
-  pausedCount: number;
-  deadCount: number;
+  waitingCount: number;
 };
 export function getAsyncServicesStats(
   queueType: AsyncServicesQueueType,
@@ -240,6 +240,39 @@ export function saveChannelUser(data: Record<string, any>) {
   return data.id
     ? requestClient.put(`/ad/channel-users/${data.id}`, data)
     : requestClient.post('/ad/channel-users', data);
+}
+export function getChannelClients(params: Record<string, any>) {
+  return requestClient.get<PageResult<any>>('/ad/channel-clients', { params });
+}
+export function createChannelClient(data: Record<string, any>) {
+  return requestClient.post<Record<string, any>>('/ad/channel-clients', data);
+}
+export function updateChannelClient(id: string, data: Record<string, any>) {
+  return requestClient.put(`/ad/channel-clients/${id}`, data);
+}
+export function getChannelCredentials(id: string, mediaId: string) {
+  return requestClient.get<Record<string, any>[]>(
+    `/ad/channel-clients/${id}/credentials`,
+    { params: { mediaId } },
+  );
+}
+export function rotateChannelCredential(id: string, mediaId: string) {
+  return requestClient.post<Record<string, any>>(
+    `/ad/channel-clients/${id}/credentials/rotate`,
+    undefined,
+    { params: { mediaId } },
+  );
+}
+export function revokeChannelCredential(
+  id: string,
+  keyVersion: string,
+  mediaId: string,
+) {
+  return requestClient.post(
+    `/ad/channel-clients/${id}/credentials/${keyVersion}/revoke`,
+    undefined,
+    { params: { mediaId } },
+  );
 }
 export function getAttributionReviews(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/attributions', { params });

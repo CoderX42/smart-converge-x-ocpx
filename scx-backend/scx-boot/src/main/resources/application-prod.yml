@@ -62,3 +62,8 @@ scx:
   tracking:
     sandbox-enabled: false
     attribution-rule-version: last-click-v1
+    feedback-store: redis
+    ingress-enabled: ${SCX_OCPX_INGRESS_ENABLED:true}
+    worker-enabled: ${SCX_OCPX_WORKER_ENABLED:true}
+    channel-master-key: ${SCX_CHANNEL_MASTER_KEY}
+    device-hmac-key: ${SCX_DEVICE_HMAC_KEY}

@@ -15,7 +15,11 @@ public class RawEvent {
 
 	private String source;
 
+	private String clientId;
+
 	private String eventId;
+
+	private String receiptId;
 
 	private String taskId;
 
@@ -27,6 +31,14 @@ public class RawEvent {
 
 	private LocalDateTime receivedAt;
 
+	private String devicePlatform;
+
+	private String deviceIdType;
+
+	private String deviceIdVersion;
+
+	private String deviceKeyVersion;
+
 	private String deviceKeyHash;
 
 	private String payloadHash;
@@ -34,5 +46,13 @@ public class RawEvent {
 	private String payloadJson;
 
 	private String status;
+
+	private String processingStatus;
+
+	private LocalDateTime processedAt;
+
+	private String lockedBy;
+
+	private LocalDateTime lockedUntil;
 
 }

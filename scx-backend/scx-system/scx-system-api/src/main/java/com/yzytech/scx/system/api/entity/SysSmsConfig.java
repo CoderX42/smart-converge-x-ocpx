@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
@@ -75,7 +74,9 @@ public class SysSmsConfig extends Model<SysSmsConfig> {
 	@TableLogic
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "逻辑删除：0.显示；1.隐藏；")
-	private String delFlag;@Schema(description = "状态：0.正常；1.停用；")
+	private String delFlag;
+
+	@Schema(description = "状态：0.正常；1.停用；")
 	private String status;
 
 }

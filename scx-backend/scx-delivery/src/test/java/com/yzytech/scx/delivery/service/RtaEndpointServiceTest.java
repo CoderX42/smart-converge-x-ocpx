@@ -11,36 +11,41 @@ import com.yzytech.scx.subject.service.MediaScopeService;
 import org.junit.jupiter.api.Test;
 
 class RtaEndpointServiceTest {
-    private final RtaEndpointMapper mapper = mock(RtaEndpointMapper.class);
-    private final MediaScopeService scopeService = mock(MediaScopeService.class);
-    private final MasterDataService masterDataService = mock(MasterDataService.class);
-    private final RtaEndpointService service = new RtaEndpointService(mapper, scopeService, masterDataService);
 
-    @Test
-    void createsOnlyWithinWritableMediaScope() {
-        RtaEndpoint endpoint = endpoint();
-        when(scopeService.canWrite("media-1")).thenReturn(true);
-        when(mapper.insert(endpoint)).thenReturn(1);
+	private final RtaEndpointMapper mapper = mock(RtaEndpointMapper.class);
 
-        service.save(endpoint);
+	private final MediaScopeService scopeService = mock(MediaScopeService.class);
 
-        verify(masterDataService).validateSandboxUrl("http://localhost:8080/sandbox/rta");
-        verify(mapper).insert(endpoint);
-    }
+	private final MasterDataService masterDataService = mock(MasterDataService.class);
 
-    @Test
-    void rejectsRtaWhenMediaScopeIsNotWritable() {
-        when(scopeService.canWrite("media-1")).thenReturn(false);
+	private final RtaEndpointService service = new RtaEndpointService(mapper, scopeService, masterDataService);
 
-        assertThatThrownBy(() -> service.save(endpoint())).hasMessage("资源不存在");
-    }
+	@Test
+	void createsOnlyWithinWritableMediaScope() {
+		RtaEndpoint endpoint = endpoint();
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(mapper.insert(endpoint)).thenReturn(1);
 
-    private RtaEndpoint endpoint() {
-        RtaEndpoint endpoint = new RtaEndpoint();
-        endpoint.setMediaId("media-1");
-        endpoint.setCode("RTA-1");
-        endpoint.setName("sandbox rta");
-        endpoint.setEndpointUrl("http://localhost:8080/sandbox/rta");
-        return endpoint;
-    }
+		service.save(endpoint);
+
+		verify(masterDataService).validateSandboxUrl("http://localhost:8080/sandbox/rta");
+		verify(mapper).insert(endpoint);
+	}
+
+	@Test
+	void rejectsRtaWhenMediaScopeIsNotWritable() {
+		when(scopeService.canWrite("media-1")).thenReturn(false);
+
+		assertThatThrownBy(() -> service.save(endpoint())).hasMessage("资源不存在");
+	}
+
+	private RtaEndpoint endpoint() {
+		RtaEndpoint endpoint = new RtaEndpoint();
+		endpoint.setMediaId("media-1");
+		endpoint.setCode("RTA-1");
+		endpoint.setName("sandbox rta");
+		endpoint.setEndpointUrl("http://localhost:8080/sandbox/rta");
+		return endpoint;
+	}
+
 }

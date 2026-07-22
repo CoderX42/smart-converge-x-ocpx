@@ -21,12 +21,22 @@ public class CallbackJob {
 
 	private String targetRef;
 
+	private String adapterCode;
+
+	private String payloadJson;
+
+	private String payloadHash;
+
 	private String status;
 
 	private Integer attempts;
 
 	@TableField(updateStrategy = FieldStrategy.ALWAYS)
 	private LocalDateTime nextRetryAt;
+
+	private String lockedBy;
+
+	private LocalDateTime lockedUntil;
 
 	@TableField(updateStrategy = FieldStrategy.ALWAYS)
 	private String lastErrorCode;

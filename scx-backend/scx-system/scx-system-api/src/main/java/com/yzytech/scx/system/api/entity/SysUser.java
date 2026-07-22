@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
@@ -77,7 +76,9 @@ public class SysUser extends Model<SysUser> {
 	@TableLogic
 	@TableField(fill = FieldFill.INSERT)
 	@Schema(description = "逻辑删除：0.显示；1.隐藏；")
-	private String delFlag;@Schema(description = "账号类型：0.系统主账户（管理全部店铺）；1.店铺账号（关联店铺）")
+	private String delFlag;
+
+	@Schema(description = "账号类型：0.系统主账户（管理全部店铺）；1.店铺账号（关联店铺）")
 	private String type;
 
 	@Schema(description = "店铺ID")

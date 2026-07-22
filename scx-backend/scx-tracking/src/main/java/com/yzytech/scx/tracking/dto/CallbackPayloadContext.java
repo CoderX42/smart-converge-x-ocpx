@@ -17,4 +17,6 @@ public class CallbackPayloadContext {
 
 	private LocalDateTime occurredAt;
 
+	private String clientId;
+
 }

@@ -10,9 +10,10 @@ import {
   getTrackingTasks,
 } from '#/api/ad';
 
-import '../../delivery/components/mvp-page.css';
 import SummaryExportButton from '../components/SummaryExportButton.vue';
 import SummaryToolbar from '../components/SummaryToolbar.vue';
+
+import '../../delivery/components/mvp-page.css';
 
 defineOptions({ name: 'AdMediaSummary' });
 

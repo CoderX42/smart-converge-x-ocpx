@@ -7,10 +7,10 @@ import { createExportTask } from '#/api/ad';
 
 const props = withDefaults(
   defineProps<{
-    mediaId: string;
     dimension: string;
-    startDate?: string;
     endDate?: string;
+    mediaId: string;
+    startDate?: string;
   }>(),
   {
     startDate: '',

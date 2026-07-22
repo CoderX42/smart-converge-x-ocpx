@@ -80,13 +80,14 @@ function ensureRouteNameUnique(
   ancestorNames: Set<string> = new Set(),
 ) {
   routes.forEach((route) => {
+    const rawComponent = (route as { component?: unknown }).component;
     const currentName = typeof route.name === 'string' ? route.name : '';
     const baseName =
       currentName || (route.meta?.title as string) || route.path || '';
     const pathForSuffix =
       (route.path as string) ||
-      (route.component && typeof route.component === 'string'
-        ? route.component
+      (rawComponent && typeof rawComponent === 'string'
+        ? rawComponent
         : `${(route as { id?: string }).id || 'route'}`);
     const routeNameSuffix = normalizePathToNameSuffix(pathForSuffix);
     const defaultName =
@@ -131,10 +132,10 @@ function normalizePathToNameSuffix(pathLike: string | undefined): string {
   return (
     pathLike
       .toString()
-      .replace(/^\/+|\/+$/g, '')
-      .replace(/[^\w\u4e00-\u9fff-]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'route'
+      .replaceAll(/^\/+|\/+$/g, '')
+      .replaceAll(/[^\w\u4E00-\u9FFF-]+/g, '-')
+      .replaceAll(/-+/g, '-')
+      .replaceAll(/^-+|-+$/g, '') || 'route'
   );
 }
 

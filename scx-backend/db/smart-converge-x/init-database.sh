@@ -9,6 +9,8 @@ MYSQL_USERNAME="${MYSQL_USERNAME:-root}"
 MYSQL_DATABASE="smart_converge_x"
 SCX_SKIP_BASELINE="${SCX_SKIP_BASELINE:-false}"
 SCX_MIGRATION_BASELINE_VERSION="${SCX_MIGRATION_BASELINE_VERSION:-0}"
+SCX_MIGRATION_MAX_VERSION="${SCX_MIGRATION_MAX_VERSION:-999999}"
+SCX_SKIP_VERIFY="${SCX_SKIP_VERIFY:-false}"
 
 mysql_args=(
   --commands
@@ -67,11 +69,19 @@ if ! [[ "$SCX_MIGRATION_BASELINE_VERSION" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
+if ! [[ "$SCX_MIGRATION_MAX_VERSION" =~ ^[0-9]+$ ]]; then
+  echo "SCX_MIGRATION_MAX_VERSION must be a non-negative integer." >&2
+  exit 1
+fi
+
 while IFS= read -r script; do
   [[ -e "$script" ]] || continue
   script_name="$(basename "$script")"
   version="${script_name%%__*}"
   version_number="${version#V}"
+  if [[ "$version_number" -gt "$SCX_MIGRATION_MAX_VERSION" ]]; then
+    continue
+  fi
   checksum="$(shasum -a 256 "$script" | awk '{print $1}')"
   applied_record="$(mysql "${mysql_args[@]}" "$MYSQL_DATABASE" --batch --skip-column-names \
     --execute="SELECT CONCAT(script_name, CHAR(9), checksum) FROM scx_schema_migration WHERE version='${version}';")"
@@ -95,4 +105,6 @@ while IFS= read -r script; do
   mysql "${mysql_args[@]}" "$MYSQL_DATABASE" --execute="INSERT INTO scx_schema_migration (version, script_name, checksum) VALUES ('${version}', '${script_name}', '${checksum}')"
 done < <(find "${SCHEMA_DIR}" -maxdepth 1 -type f -name 'V*.sql' -print | awk -F/ '{file=$NF; sub(/^V/, "", file); sub(/__.*/, "", file); print file "\t" $0}' | sort -n -k1,1 | cut -f2-)
 
-"${SCRIPT_DIR}/verify-database.sh"
+if [[ "$SCX_SKIP_VERIFY" != "true" ]]; then
+  "${SCRIPT_DIR}/verify-database.sh"
+fi
