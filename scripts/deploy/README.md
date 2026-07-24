@@ -1,0 +1,157 @@
+# SCX 服务器部署指南
+
+目标机示例：`root@42.81.102.181`  
+仓库：`git@gitea.smartcute.cn:karl419/smart-converge-x.git`
+
+## 架构
+
+```text
+浏览器
+  │  :80
+  ▼
+Nginx  ──静态──▶ /var/www/scx          (前端 dist)
+  │
+  └── /api/* 代理 ──▶ 127.0.0.1:9999/boot/*   (scx-boot.jar, systemd)
+                           │
+              MySQL / Redis / RocketMQ（application-prod.yml）
+```
+
+| 组件 | 默认 |
+| --- | --- |
+| 代码目录 | `/opt/smart-converge-x` |
+| 环境变量 | `/etc/scx/scx.env` |
+| 前端静态 | `/var/www/scx` |
+| 后端服务 | `scx-boot.service` |
+| 后端端口 | `9999`，context-path `/boot` |
+| 日志 | `journalctl -u scx-boot` 与 `/var/log/scx/` |
+
+## 部署前准备
+
+### 1. 依赖中间件（必须先就绪）
+
+当前 `application-prod.yml` 直连：
+
+- MySQL：`127.0.0.1:3306` / `root` / `123456`，库名 `smart_converge_x`
+- Redis：`127.0.0.1:6379`
+- RocketMQ NameServer：`127.0.0.1:9876`
+
+若中间件不在本机，请先改 `application-prod.yml`（或部署前改好再推送），并同步改 `/etc/scx/scx.env` 里的 `MYSQL_*`。
+
+### 2. Gitea SSH 权限
+
+服务器需要能 `git clone` 私有仓库。首次 `install.sh` 会生成 `/root/.ssh/id_ed25519`，把 **公钥** 加到 Gitea：
+
+- 用户 SSH Keys，或  
+- 仓库 Deploy Keys（只读即可）
+
+### 3. 安全组 / 防火墙
+
+放行：
+
+- `22` SSH  
+- `80`（及可选 `443`）HTTP  
+
+**不要** 对公网放行 `9999`（后端仅本机 Nginx 反代）。
+
+---
+
+## 首次部署（在 42.81.102.181 上）
+
+```bash
+# 1) 登录
+ssh root@42.81.102.181
+
+# 2) 若本机还没有仓库，可先临时拉脚本；或直接 clone 后执行 install
+# 推荐：先配置好 SSH 能访问 Gitea，再：
+git clone -b main git@gitea.smartcute.cn:karl419/smart-converge-x.git /opt/smart-converge-x
+
+# 3) 执行首次安装（装 JDK/Maven/Node/Nginx、迁移、构建、systemd、启动）
+bash /opt/smart-converge-x/scripts/deploy/install.sh
+```
+
+按提示：
+
+1. 若打印了 SSH 公钥 → 加到 Gitea 后 **再跑一次** `install.sh`  
+2. 确认 MySQL/Redis/RocketMQ 已可用后回车继续  
+3. 按需编辑 `/etc/scx/scx.env`（数据库密码等）
+
+验证：
+
+```bash
+curl -s http://127.0.0.1:9999/boot/actuator/health
+# 浏览器打开 http://42.81.102.181/
+# 默认管理员 system / 123456（登录后立刻改密）
+```
+
+---
+
+## 日常一键更新重启
+
+代码推到 `main` 后，在服务器执行：
+
+```bash
+bash /opt/smart-converge-x/scripts/deploy/update.sh
+```
+
+流程：`git pull` → 数据库迁移 → 后端打包 → 前端构建并同步 Nginx → 重启 `scx-boot` → 健康检查。
+
+常用开关：
+
+```bash
+# 只更新后端
+SCX_SKIP_FRONTEND=true bash /opt/smart-converge-x/scripts/deploy/update.sh
+
+# 跳过库迁移
+SCX_RUN_DB_MIGRATE=false bash /opt/smart-converge-x/scripts/deploy/update.sh
+```
+
+可做成别名：
+
+```bash
+echo "alias scx-update='bash /opt/smart-converge-x/scripts/deploy/update.sh'" >> /root/.bashrc
+```
+
+---
+
+## 运维命令
+
+```bash
+bash /opt/smart-converge-x/scripts/deploy/scxctl.sh status
+bash /opt/smart-converge-x/scripts/deploy/scxctl.sh restart
+bash /opt/smart-converge-x/scripts/deploy/scxctl.sh logs
+bash /opt/smart-converge-x/scripts/deploy/scxctl.sh health
+bash /opt/smart-converge-x/scripts/deploy/scxctl.sh version
+```
+
+或直接：
+
+```bash
+systemctl status scx-boot
+journalctl -u scx-boot -f
+```
+
+---
+
+## 回滚
+
+```bash
+cd /opt/smart-converge-x
+git log --oneline -20
+git checkout <旧 commit>
+SCX_RUN_DB_MIGRATE=false bash scripts/deploy/update.sh
+# 注意：已执行的 DB 迁移不可随意回退，需按 runbook 前向修复
+```
+
+---
+
+## 脚本清单
+
+| 文件 | 作用 |
+| --- | --- |
+| `install.sh` | 首次装依赖、clone、迁移、构建、systemd、Nginx、启动 |
+| `update.sh` | 一键拉取、构建、迁移、重启 |
+| `scxctl.sh` | start/stop/restart/status/logs/health/version |
+| `scx-boot.service` | systemd 单元 |
+| `nginx-scx.conf` | Nginx 站点（`/api` → `/boot`） |
+| `env.example` | `/etc/scx/scx.env` 模板 |
+| `common.sh` | 公共函数 |
