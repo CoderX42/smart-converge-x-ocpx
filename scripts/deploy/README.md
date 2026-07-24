@@ -29,13 +29,34 @@ Nginx  ──静态──▶ /var/www/scx          (前端 dist)
 
 ### 1. 依赖中间件（必须先就绪）
 
-当前 `application-prod.yml` 直连：
+当前 `application-prod.yml` 直连内网：
 
-- MySQL：`127.0.0.1:3306` / `root` / `123456`，库名 `smart_converge_x`
-- Redis：`127.0.0.1:6379`
-- RocketMQ NameServer：`127.0.0.1:9876`
+- MySQL：`mysqle379be1ffea9.rds.ivolces.com:3306` / `ocpxuser`，库名 `smart_converge_x`
+- Redis：`redis-cnlfagupdyxgrkgqy.redis.ivolces.com:6379` / `ocpxuser`
+- RocketMQ NameServer：仍为 `127.0.0.1:9876`（若本机未装 MQ，相关异步能力会受影响）
 
-若中间件不在本机，请先改 `application-prod.yml`（或部署前改好再推送），并同步改 `/etc/scx/scx.env` 里的 `MYSQL_*`。
+### 单独初始化数据库
+
+部署机须能访问内网 RDS，并安装 `mysql` 客户端：
+
+```bash
+# 仓库已 clone 到 /opt/smart-converge-x 时
+bash /opt/smart-converge-x/scripts/deploy/db-init.sh
+```
+
+脚本会：连通性检查 → 创建库（若有权限）→ `init-database.sh` 建表/迁移 → `verify-database.sh` 校验。
+
+也可手动：
+
+```bash
+export MYSQL_HOST=mysqle379be1ffea9.rds.ivolces.com
+export MYSQL_PORT=3306
+export MYSQL_USERNAME=ocpxuser
+export MYSQL_PASSWORD='OqS5ZRBU1wBuEqLeHAQ3'
+cd /opt/smart-converge-x/scx-backend/db/smart-converge-x
+bash ./init-database.sh
+bash ./verify-database.sh
+```
 
 ### 2. Gitea SSH 权限
 
