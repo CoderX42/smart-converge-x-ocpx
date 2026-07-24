@@ -55,6 +55,7 @@ services:
       - ./scx-boot/src/main/resources/db/migration/V39__add_platform_credentials_menu.sql:/docker-entrypoint-initdb.d/68_ocpx_v39.sql:ro
       - ./scx-boot/src/main/resources/db/migration/V40__add_ocpx_channel_ingress.sql:/docker-entrypoint-initdb.d/69_ocpx_v40.sql:ro
       - ./scx-boot/src/main/resources/db/migration/V41__add_ocpx_channel_management.sql:/docker-entrypoint-initdb.d/70_ocpx_v41.sql:ro
+      - ./scx-boot/src/main/resources/db/migration/V42__reconcile_sandbox_basic_test_data.sql:/docker-entrypoint-initdb.d/71_sandbox_v42.sql:ro
     command:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_general_ci

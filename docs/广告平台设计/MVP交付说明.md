@@ -1,6 +1,6 @@
 # Smart Converge X MVP-A 交付说明
 
-> 更新时间：2026-07-17  
+> 更新时间：2026-07-24
 > 交付判断：代码完成；发布 Runbook 与迁移包一致性检查已就绪，运行态验收待受控目标环境执行
 
 ## 已交付范围
@@ -16,7 +16,7 @@
 
 ## 数据库升级
 
-已有数据库可执行幂等初始化入口，它会按版本顺序应用当前 V1–V28；已登记迁移会比对脚本名和 SHA-256，发现历史与工作包不一致即停止：
+已有数据库可执行幂等初始化入口，它会按版本顺序应用当前 V1–V42；已登记迁移会比对脚本名和 SHA-256，发现历史与工作包不一致即停止：
 
 ```bash
 cd scx-backend/db/smart-converge-x
@@ -24,7 +24,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_USERNAME=root MYSQL_PASSWORD=本地密码 ./init-data
 MYSQL_HOST=127.0.0.1 MYSQL_USERNAME=root MYSQL_PASSWORD=本地密码 ./verify-database.sh
 ```
 
-全新 Docker 数据卷执行 `make dev-up` 或 `docker-compose-boot.yml` 时，Compose 已挂载 V1–V28。已存在的数据卷不会自动重放初始化目录，应使用上面的升级入口。发布前可用 `make migration-packaging-check` 确认两个 Compose 启动包与迁移目录一致；实际发布、备份、回滚和数据核验按 [MVP-A 发布、回滚与数据核验手册](runbooks/MVP-A-发布与回滚.md) 执行。
+全新 Docker 数据卷执行 `make dev-up` 或 `docker-compose-boot.yml` 时，Compose 已挂载 V1–V42。全新非 Compose 空库可从数据库目录执行 `smart_converge_x_mvp_v42_init.sql`；V30 基础测试数据另有 `smart_converge_x_mvp_test_data.sql` 可重复入口，并由 V42 对账重叠种子的业务引用，且只能用于 sandbox/dev。已存在的数据卷不会自动重放初始化目录，应使用上面的升级入口。发布前可用 `make migration-packaging-check` 确认两个 Compose 启动包与迁移目录一致；实际发布、备份、回滚和数据核验按 [MVP-A 发布、回滚与数据核验手册](runbooks/MVP-A-发布与回滚.md) 执行。
 
 ## 已通过的验证
 

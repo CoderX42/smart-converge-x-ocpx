@@ -3,3 +3,4 @@
 -- Do not import this file into a production tenant/database.
 
 source ../../scx-boot/src/main/resources/db/migration/V30__seed_sandbox_basic_test_data.sql
+source ../../scx-boot/src/main/resources/db/migration/V42__reconcile_sandbox_basic_test_data.sql

@@ -61,15 +61,24 @@ docker compose up -d --build scx-boot
 
 ## 配置方式
 
-默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。常用环境变量包括：
+默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。两个远程运行 profile 都只从环境变量读取 MySQL/Redis 连接；`application-local.yml` 保留为隔离本机 Compose profile。先复制模板并在 Git 外填写真实值：
 
-- `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_URL`
-- `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_USERNAME`
-- `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_PASSWORD`
-- `SPRING_DATA_REDIS_HOST`、`SPRING_DATA_REDIS_PASSWORD`
-- `ROCKETMQ_NAME_SERVER`
+```bash
+cp ../.env.example ../.env.local
+set -a
+source ../.env.local
+set +a
+```
 
-不要将真实支付证书、访问密钥和生产密码提交到 Git。
+连接变量包括：
+
+- `SCX_DATASOURCE_URL`、`SCX_DATASOURCE_USERNAME`、`SCX_DATASOURCE_PASSWORD`
+- `SCX_REDIS_HOST`、`SCX_REDIS_PORT`、`SCX_REDIS_USERNAME`、`SCX_REDIS_PASSWORD`
+- 可选 `SCX_REDIS_DATABASE`；未设置时 dev 使用 DB 2，prod 使用 DB 0
+
+`make prod-secret-injection-check` 会检查 dev/prod 配置没有回退为内联地址、用户名或密码，但不会输出变量值。
+
+不要将真实数据源地址、用户名、密码、支付证书或访问密钥提交到 Git；线上应由部署平台的密钥管理能力注入。
 
 ## 验证
 
