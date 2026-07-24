@@ -1,25 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROD_CONFIG="scx-backend/scx-boot/src/main/resources/application-prod.yml"
+CONFIGS=(
+  "scx-backend/scx-boot/src/main/resources/application-dev.yml"
+  "scx-backend/scx-boot/src/main/resources/application-prod.yml"
+)
 
-ruby -ryaml - "$PROD_CONFIG" <<'RUBY'
-config_path = ARGV.fetch(0)
-config = YAML.load_file(config_path)
-
-expected = {
+ruby -ryaml - "${CONFIGS[@]}" <<'RUBY'
+common_expected = {
+  %w[spring data redis host] => '${SCX_REDIS_HOST}',
+  %w[spring data redis username] => '${SCX_REDIS_USERNAME}',
   %w[spring data redis password] => '${SCX_REDIS_PASSWORD}',
+  %w[spring datasource dynamic datasource master url] => '${SCX_DATASOURCE_URL}',
+  %w[spring datasource dynamic datasource master username] => '${SCX_DATASOURCE_USERNAME}',
   %w[spring datasource dynamic datasource master password] => '${SCX_DATASOURCE_PASSWORD}',
-  %w[xxl job accessToken] => '${SCX_XXL_JOB_ACCESS_TOKEN}',
-  %w[encode key] => '${SCX_ENCODE_KEY}',
 }
 
-expected.each do |path, placeholder|
-  actual = path.reduce(config) { |node, key| node.is_a?(Hash) ? node[key] : nil }
-  next if actual == placeholder
+ARGV.each do |config_path|
+  config = YAML.load_file(config_path)
+  expected = common_expected.dup
+  if config_path.end_with?('application-prod.yml')
+    expected[%w[xxl job accessToken]] = '${SCX_XXL_JOB_ACCESS_TOKEN}'
+    expected[%w[encode key]] = '${SCX_ENCODE_KEY}'
+  end
 
-  abort("Production sensitive setting is not injected: #{path.join('.')}")
+  expected.each do |path, placeholder|
+    actual = path.reduce(config) { |node, key| node.is_a?(Hash) ? node[key] : nil }
+    next if actual == placeholder
+
+    abort("Runtime sensitive setting is not injected in #{config_path}: #{path.join('.')}")
+  end
 end
 
-puts "Production sensitive settings use required environment injection."
+puts "Development and production connection settings use required environment injection."
 RUBY
