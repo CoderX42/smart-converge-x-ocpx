@@ -150,9 +150,47 @@ curl -s http://127.0.0.1:9999/boot/actuator/health
 
 ---
 
-## 日常一键更新重启
+## 日常一键重启（后端 + XXL-JOB + 前端/Nginx）
 
-代码推到 `main` 后，在服务器执行：
+在服务器 `root@42.81.102.181` 执行：
+
+```bash
+# 仅重启（不重新构建）——最常用
+bash /opt/smart-converge-x/scripts/deploy/restart-all.sh
+
+# 拉代码后重启
+bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --pull
+
+# 拉代码 + 构建后端/前端/xxl-job + 重启（完整热更）
+bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --build
+```
+
+| 组件 | 重启方式 |
+| --- | --- |
+| 后端 scx-boot | `systemctl restart scx-boot` |
+| XXL-JOB Admin | `systemctl restart xxl-job-admin`（未安装则跳过） |
+| 前端 | 静态目录 `/var/www/scx`，`systemctl reload nginx` |
+
+单独重启：
+
+```bash
+systemctl restart scx-boot
+systemctl restart xxl-job-admin
+systemctl reload nginx
+```
+
+建议别名：
+
+```bash
+echo "alias scx-restart='bash /opt/smart-converge-x/scripts/deploy/restart-all.sh'" >> /root/.bashrc
+echo "alias scx-update='bash /opt/smart-converge-x/scripts/deploy/update.sh'" >> /root/.bashrc
+source /root/.bashrc
+# 之后: scx-restart
+```
+
+## 日常一键更新重启（含迁移）
+
+代码推到 `main` 后，需要库迁移 + 全量构建时：
 
 ```bash
 bash /opt/smart-converge-x/scripts/deploy/update.sh
@@ -168,12 +206,6 @@ SCX_SKIP_FRONTEND=true bash /opt/smart-converge-x/scripts/deploy/update.sh
 
 # 跳过库迁移
 SCX_RUN_DB_MIGRATE=false bash /opt/smart-converge-x/scripts/deploy/update.sh
-```
-
-可做成别名：
-
-```bash
-echo "alias scx-update='bash /opt/smart-converge-x/scripts/deploy/update.sh'" >> /root/.bashrc
 ```
 
 ---
