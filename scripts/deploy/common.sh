@@ -128,7 +128,9 @@ db_migrate() {
 }
 
 restart_backend() {
-  if systemctl list-unit-files | grep -q '^scx-boot.service'; then
+  # 用 unit 文件判断，避免 pipefail + grep -q 提前关闭管道导致误判
+  if [[ -f /etc/systemd/system/scx-boot.service ]] \
+    || systemctl cat scx-boot.service >/dev/null 2>&1; then
     log "重启 scx-boot.service"
     systemctl daemon-reload
     systemctl restart scx-boot

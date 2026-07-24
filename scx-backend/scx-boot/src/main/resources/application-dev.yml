@@ -18,9 +18,10 @@ spring:
       primary: master   # 指定默认数据源
       datasource:
         master:         # 注意，这里要嵌套在 datasource 下
-          url: jdbc:mysql://47.120.19.150:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
-          username: smart_converge_x
-          password: yFWYpTEdLC6fW2yN
+          # 本机已能访问的 MySQL 公网地址
+          url: jdbc:mysql://mysql-e379be1ffea9-public.rds.volces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia%2FShanghai&allowMultiQueries=true
+          username: ocpxuser
+          password: OqS5ZRBU1wBuEqLeHAQ3
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
@@ -41,7 +42,7 @@ xxl:
     adminAddresses: http://localhost:8080
     accessToken: yssadadasdasdasda
 
-cert-dir: C:\Download
+cert-dir: ./cert
 
 encode:
   key: yzytech2026yzytech
