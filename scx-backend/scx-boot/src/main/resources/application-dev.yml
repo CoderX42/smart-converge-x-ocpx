@@ -7,26 +7,25 @@ spring:
     type: redis # 缓存类型 Redis
   data:
     redis:
-      host: ${SCX_REDIS_HOST}
-      username: ${SCX_REDIS_USERNAME}
-      password: ${SCX_REDIS_PASSWORD}
-      port: ${SCX_REDIS_PORT:6379}
-      database: ${SCX_REDIS_DATABASE:2}
+      host: 47.120.19.150
+      password: IWzq76mM8ihEaY17U30P
+      port: 6379
+      database: 2
 
   # 数据库相关配置
   datasource:
     dynamic:
-      primary: master
+      primary: master   # 指定默认数据源
       datasource:
-        master:
-          url: ${SCX_DATASOURCE_URL}
-          username: ${SCX_DATASOURCE_USERNAME}
-          password: ${SCX_DATASOURCE_PASSWORD}
+        master:         # 注意，这里要嵌套在 datasource 下
+          url: jdbc:mysql://47.120.19.150:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+          username: smart_converge_x
+          password: yFWYpTEdLC6fW2yN
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
 rocketmq:
-  name-server: 127.0.0.1
+  name-server: 127.0.0.1:9876
   producer:
     group: dev_producer_group
     retry-times-when-send-failed: 5
@@ -63,8 +62,8 @@ scx:
   tracking:
     sandbox-enabled: true
     sandbox-signing-key: scx-sandbox-local-only
-    ingress-enabled: ${SCX_OCPX_INGRESS_ENABLED:false}
-    feedback-store: ${SCX_FEEDBACK_STORE:memory}
-    channel-master-key: ${SCX_CHANNEL_MASTER_KEY:}
-    device-hmac-key: ${SCX_DEVICE_HMAC_KEY:}
+    ingress-enabled: false
+    feedback-store: memory
+    channel-master-key: scx-dev-channel-key
+    device-hmac-key: scx-dev-device-key
     attribution-rule-version: last-click-v1

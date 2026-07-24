@@ -7,21 +7,20 @@ spring:
     type: redis # 缓存类型 Redis
   data:
     redis:
-      host: ${SCX_REDIS_HOST}
-      username: ${SCX_REDIS_USERNAME}
-      password: ${SCX_REDIS_PASSWORD}
-      port: ${SCX_REDIS_PORT:6379}
-      database: ${SCX_REDIS_DATABASE:0}
+      host: 127.0.0.1
+      password: 
+      port: 6379
+      database: 0
 
   # 数据库相关配置
   datasource:
     dynamic:
-      primary: master
+      primary: master   # 指定默认数据源
       datasource:
-        master:
-          url: ${SCX_DATASOURCE_URL}
-          username: ${SCX_DATASOURCE_USERNAME}
-          password: ${SCX_DATASOURCE_PASSWORD}
+        master:         # 注意，这里要嵌套在 datasource 下
+          url: jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
+          username: root
+          password: 123456
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
@@ -40,12 +39,12 @@ aj:
 xxl:
   job:
     adminAddresses: http://127.0.0.1:8080
-    accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN}
+    accessToken: scx-prod-xxl-token
 
 cert-dir: ./cert
 
 encode:
-  key: ${SCX_ENCODE_KEY}
+  key: yzytech2026yzytech
 
 #knife4j配置
 knife4j:
@@ -64,7 +63,7 @@ scx:
     sandbox-enabled: false
     attribution-rule-version: last-click-v1
     feedback-store: redis
-    ingress-enabled: ${SCX_OCPX_INGRESS_ENABLED:true}
-    worker-enabled: ${SCX_OCPX_WORKER_ENABLED:true}
-    channel-master-key: ${SCX_CHANNEL_MASTER_KEY}
-    device-hmac-key: ${SCX_DEVICE_HMAC_KEY}
+    ingress-enabled: true
+    worker-enabled: true
+    channel-master-key: scx-prod-channel-key
+    device-hmac-key: scx-prod-device-key
