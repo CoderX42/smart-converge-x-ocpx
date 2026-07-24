@@ -11,7 +11,7 @@
   ▼
 Nginx  ──静态──▶ /var/www/scx          (前端 dist)
   │
-  └── /api/* 代理 ──▶ 127.0.0.1:9999/boot/*   (scx-boot.jar, systemd)
+  └── /api/boot/* 代理 ──▶ 127.0.0.1:9999/boot/*   (scx-boot.jar, systemd)
                            │
               MySQL / Redis / RocketMQ（application-prod.yml）
 ```
@@ -85,16 +85,29 @@ bash ./verify-database.sh
 | 反向代理 | 系统 Nginx：`/etc/nginx/conf.d/scx.conf` |
 | 更新 | `scripts/deploy/update.sh` |
 
-Nginx 配置文件：`scripts/deploy/nginx-scx.conf`（完整 `server {}`，直接拷到 conf.d）。
+Nginx 配置文件：
+
+| 文件 | 用途 |
+| --- | --- |
+| `scripts/deploy/nginx-scx.conf` | 完整 `server {}`，拷到 `/etc/nginx/conf.d/scx.conf`（本机推荐） |
+| `scripts/deploy/nginx-scx-baota-rewrite.conf` | 宝塔「伪静态」粘贴用（**不要**用其它商城项目的伪静态） |
+| `scripts/deploy/nginx-scx-rewrite.conf` | 仅 location 片段备用 |
+
+**样式丢失排查**：网站根目录必须是 dist 根目录（含 `css/`、`js/`、`jse/`）。  
+若 `.css` 请求返回的是 `index.html`（Content-Type: `text/html`），浏览器会拒绝应用样式。  
+静态 location 必须使用 `try_files $uri =404`，不能让缺失资源回退 SPA。
 
 **路径约定（不要改错）：**
 
+前端 `VITE_GLOB_API_URL=/api` 且 `VITE_OPEN_BOOT=true` 时，请求拦截器会再拼 `/boot`：
+
 ```text
-浏览器 /api/xxx  →  Nginx  →  http://127.0.0.1:9999/boot/xxx
-浏览器 /         →  /var/www/scx （SPA 静态文件）
+浏览器 /api/boot/xxx  →  Nginx 剥掉 /api  →  http://127.0.0.1:9999/boot/xxx
+浏览器 /              →  /var/www/scx （SPA 静态文件）
 ```
 
-`proxy_pass` 必须是 `http://127.0.0.1:9999/boot/;`，不能写成 `http://127.0.0.1:9999/;`。
+`proxy_pass` 必须是 `http://127.0.0.1:9999/;`（只去掉 `/api`）。  
+若写成 `http://127.0.0.1:9999/boot/;`，会变成 `/boot/boot/...`，白名单接口（如验证码）返回 401。
 
 手动安装 / 重载 Nginx：
 
