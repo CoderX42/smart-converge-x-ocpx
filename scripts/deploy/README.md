@@ -165,6 +165,37 @@ echo "alias scx-update='bash /opt/smart-converge-x/scripts/deploy/update.sh'" >>
 
 ---
 
+## XXL-JOB 调度中心（一键）
+
+SCX 执行器（`scx-boot`）会向调度中心注册；中心单独以 systemd 运行。
+
+```bash
+# 首次安装（下载源码构建 + 写配置 + 启动，需 Maven/JDK）
+bash /opt/smart-converge-x/scripts/deploy/install-xxl-job.sh
+
+# 日常启停
+bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh start
+bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh restart
+bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh status
+bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh logs
+```
+
+| 项 | 值 |
+| --- | --- |
+| 控制台 | `http://127.0.0.1:8080/xxl-job-admin` |
+| 默认账号 | `admin` / `123456` |
+| accessToken | `scx-prod-xxl-token`（与 `application-prod.yml` 一致） |
+| 数据源 | 与 SCX 相同 MySQL 库 `smart_converge_x`（`xxl_job_*` 表） |
+| systemd | `xxl-job-admin.service` |
+
+安装后请重启 scx-boot，使执行器连上调度中心：
+
+```bash
+systemctl restart scx-boot
+```
+
+---
+
 ## 运维命令
 
 ```bash

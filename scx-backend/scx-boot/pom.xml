@@ -80,6 +80,11 @@
             <groupId>com.scx</groupId>
             <artifactId>scx-common-websocket</artifactId>
         </dependency>
+        <!-- XXL-JOB 执行器：向调度中心注册 -->
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-job</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

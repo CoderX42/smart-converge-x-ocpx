@@ -1,0 +1,23 @@
+[Unit]
+Description=XXL-JOB Admin (SCX scheduler)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=-/etc/scx/scx.env
+WorkingDirectory=/opt/xxl-job-admin
+ExecStart=/bin/bash /opt/smart-converge-x/scripts/deploy/run-xxl-job.sh
+Restart=on-failure
+RestartSec=8
+SuccessExitStatus=143
+LimitNOFILE=65535
+StandardOutput=append:/var/log/scx/xxl-job-admin.out.log
+StandardError=append:/var/log/scx/xxl-job-admin.err.log
+TimeoutStopSec=60
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

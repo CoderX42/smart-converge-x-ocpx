@@ -2,6 +2,7 @@
 
 package com.yzytech.scx;
 
+import com.yzytech.scx.common.job.annotation.BootEnableXxlJob;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -13,6 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableScheduling
+@BootEnableXxlJob
 public class ScxApplication {
 
 	public static void main(String[] args) {

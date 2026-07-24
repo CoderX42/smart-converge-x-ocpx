@@ -39,8 +39,11 @@ aj:
 
 xxl:
   job:
-    adminAddresses: http://127.0.0.1:8080
+    # 须与 xxl-job-admin 的 context-path、accessToken 一致
+    adminAddresses: http://127.0.0.1:8080/xxl-job-admin
     accessToken: scx-prod-xxl-token
+    appName: smart-converge-x
+    port: 9009
 
 cert-dir: ./cert
 
