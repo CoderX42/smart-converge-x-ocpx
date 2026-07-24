@@ -74,6 +74,37 @@ bash ./verify-database.sh
 
 **不要** 对公网放行 `9999`（后端仅本机 Nginx 反代）。
 
+### 4. 部署方式说明
+
+本项目在 **`42.81.102.181` 使用纯系统部署**，不依赖宝塔：
+
+| 组件 | 方式 |
+| --- | --- |
+| 后端 | `systemd` 单元 `scx-boot.service` |
+| 前端 | 构建产物同步到 `/var/www/scx` |
+| 反向代理 | 系统 Nginx：`/etc/nginx/conf.d/scx.conf` |
+| 更新 | `scripts/deploy/update.sh` |
+
+Nginx 配置文件：`scripts/deploy/nginx-scx.conf`（完整 `server {}`，直接拷到 conf.d）。
+
+**路径约定（不要改错）：**
+
+```text
+浏览器 /api/xxx  →  Nginx  →  http://127.0.0.1:9999/boot/xxx
+浏览器 /         →  /var/www/scx （SPA 静态文件）
+```
+
+`proxy_pass` 必须是 `http://127.0.0.1:9999/boot/;`，不能写成 `http://127.0.0.1:9999/;`。
+
+手动安装 / 重载 Nginx：
+
+```bash
+cp /opt/smart-converge-x/scripts/deploy/nginx-scx.conf /etc/nginx/conf.d/scx.conf
+# 避免默认站点抢 80
+rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/null || true
+nginx -t && systemctl enable nginx && systemctl reload nginx
+```
+
 ---
 
 ## 首次部署（在 42.81.102.181 上）
