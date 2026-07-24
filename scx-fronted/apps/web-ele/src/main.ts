@@ -3,10 +3,8 @@ import { unmountGlobalLoading } from '@boot/utils';
 
 import { overridesPreferences } from './preferences';
 
-if (import.meta.env.DEV) {
-  // 开发环境：全量引入，避免 reload
-  import('element-plus/dist/index.css');
-}
+import 'element-plus/dist/index.css';
+
 /**
  * 应用初始化完成之后再进行页面加载渲染
  */
