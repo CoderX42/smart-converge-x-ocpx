@@ -111,8 +111,17 @@ if [[ "$DO_BUILD" == "true" ]]; then
   fi
 fi
 
+unit_exists() {
+  # 兼容不同 systemctl 输出；以 unit 文件或 cat 为准
+  local name="$1"
+  [[ -f "/etc/systemd/system/${name}.service" ]] \
+    || [[ -f "/lib/systemd/system/${name}.service" ]] \
+    || [[ -f "/usr/lib/systemd/system/${name}.service" ]] \
+    || systemctl cat "${name}.service" >/dev/null 2>&1
+}
+
 # ---------- restart backend ----------
-if systemctl list-unit-files | grep -q '^scx-boot.service'; then
+if unit_exists scx-boot; then
   log "重启 scx-boot ..."
   systemctl daemon-reload
   systemctl restart scx-boot
@@ -124,7 +133,7 @@ else
 fi
 
 # ---------- restart xxl-job ----------
-if systemctl list-unit-files | grep -q '^xxl-job-admin.service'; then
+if unit_exists xxl-job-admin; then
   log "重启 xxl-job-admin ..."
   systemctl daemon-reload
   systemctl restart xxl-job-admin
