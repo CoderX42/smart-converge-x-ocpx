@@ -118,6 +118,24 @@ rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf 2>/dev/nul
 nginx -t && systemctl enable nginx && systemctl reload nginx
 ```
 
+### 可视化配置 SCX Nginx（推荐，无需宝塔）
+
+项目自带轻量面板，**只改** `/etc/nginx/conf.d/scx.conf`，不接管系统 Nginx：
+
+```bash
+bash /opt/smart-converge-x/scripts/deploy/start-nginx-panel.sh install
+bash /opt/smart-converge-x/scripts/deploy/start-nginx-panel.sh url
+```
+
+本机用 SSH 隧道打开（默认只监听 `127.0.0.1:9088`）：
+
+```bash
+ssh -N -L 9088:127.0.0.1:9088 root@42.81.102.181
+# 浏览器打开 start-nginx-panel.sh url 打印的地址
+```
+
+面板能力：表单改端口/域名/静态目录/后端地址/超时、启用 /boot 与 WebSocket、原始 conf 编辑、`nginx -t`、应用并 reload。
+
 ---
 
 ## 首次部署（在 42.81.102.181 上）

@@ -1,0 +1,23 @@
+[Unit]
+Description=SCX Nginx visual config panel
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=-/etc/scx/nginx-panel.env
+Environment=SCX_NGINX_PANEL_HOST=127.0.0.1
+Environment=SCX_NGINX_PANEL_PORT=9088
+Environment=SCX_NGINX_CONF=/etc/nginx/conf.d/scx.conf
+Environment=SCX_NGINX_TEMPLATE=/opt/smart-converge-x/scripts/deploy/nginx-scx.conf
+WorkingDirectory=/opt/smart-converge-x
+ExecStart=/usr/bin/python3 /opt/smart-converge-x/scripts/deploy/scx-nginx-panel.py
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:/var/log/scx/nginx-panel.out.log
+StandardError=append:/var/log/scx/nginx-panel.err.log
+
+[Install]
+WantedBy=multi-user.target
