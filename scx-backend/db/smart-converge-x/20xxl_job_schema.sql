@@ -1,4 +1,4 @@
-CREATE TABLE `xxl_job_group`
+CREATE TABLE IF NOT EXISTS `xxl_job_group`
 (
     `id`           int(11)     NOT NULL AUTO_INCREMENT,
     `app_name`     varchar(64) NOT NULL COMMENT '执行器AppName',
@@ -9,7 +9,7 @@ CREATE TABLE `xxl_job_group`
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_registry`
+CREATE TABLE IF NOT EXISTS `xxl_job_registry`
 (
     `id`                bigint(20)   NOT NULL AUTO_INCREMENT,
     `registry_group`    varchar(50)  NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE `xxl_job_registry`
     UNIQUE KEY `i_g_k_v` (`registry_group`, `registry_key`, `registry_value`) USING BTREE
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_info`
+CREATE TABLE IF NOT EXISTS `xxl_job_info`
 (
     `id`                        int(11)      NOT NULL AUTO_INCREMENT,
     `job_group`                 int(11)      NOT NULL COMMENT '执行器主键ID',
@@ -49,7 +49,7 @@ CREATE TABLE `xxl_job_info`
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_logglue`
+CREATE TABLE IF NOT EXISTS `xxl_job_logglue`
 (
     `id`          int(11)      NOT NULL AUTO_INCREMENT,
     `job_id`      int(11)      NOT NULL COMMENT '任务，主键ID',
@@ -61,7 +61,7 @@ CREATE TABLE `xxl_job_logglue`
     PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_log`
+CREATE TABLE IF NOT EXISTS `xxl_job_log`
 (
     `id`                        bigint(20)          NOT NULL AUTO_INCREMENT,
     `job_group`                 int(11)             NOT NULL COMMENT '执行器主键ID',
@@ -85,7 +85,7 @@ CREATE TABLE `xxl_job_log`
     KEY `I_jobid` (`job_id`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_log_report`
+CREATE TABLE IF NOT EXISTS `xxl_job_log_report`
 (
     `id`            int(11) NOT NULL AUTO_INCREMENT,
     `trigger_day`   datetime         DEFAULT NULL COMMENT '调度-时间',
@@ -97,13 +97,13 @@ CREATE TABLE `xxl_job_log_report`
     UNIQUE KEY `i_trigger_day` (`trigger_day`) USING BTREE
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_lock`
+CREATE TABLE IF NOT EXISTS `xxl_job_lock`
 (
     `lock_name` varchar(50) NOT NULL COMMENT '锁名称',
     PRIMARY KEY (`lock_name`)
 ) ENGINE = InnoDB;
 
-CREATE TABLE `xxl_job_user`
+CREATE TABLE IF NOT EXISTS `xxl_job_user`
 (
     `id`         int(11)     NOT NULL AUTO_INCREMENT,
     `username`   varchar(50) NOT NULL COMMENT '账号',
@@ -116,8 +116,8 @@ CREATE TABLE `xxl_job_user`
 ) ENGINE = InnoDB;
 
 
-INSERT INTO `xxl_job_group` (`id`, `app_name`, `title`, `address_type`, `address_list`, `update_time`) VALUES
+INSERT IGNORE INTO `xxl_job_group` (`id`, `app_name`, `title`, `address_type`, `address_list`, `update_time`) VALUES
 (1, 'smart-converge-x', 'Smart Converge X Executor', 0, NULL, NOW());
 
-INSERT INTO `xxl_job_user` (`id`, `username`, `password`, `role`, `permission`) VALUES
+INSERT IGNORE INTO `xxl_job_user` (`id`, `username`, `password`, `role`, `permission`) VALUES
 (1, 'admin', 'e10adc3949ba59abbe56e057f20f883e', 1, NULL);

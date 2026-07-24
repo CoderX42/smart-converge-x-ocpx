@@ -116,11 +116,16 @@ db_migrate() {
   (
     cd "$SCX_HOME/scx-backend/db/smart-converge-x"
     export MYSQL_HOST MYSQL_PORT MYSQL_USERNAME MYSQL_PASSWORD
-    # 已有库升级：跳过 baseline，按迁移登记表前向执行
-    if mysql --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USERNAME" \
+    # mysql 客户端读 MYSQL_PWD，不是 MYSQL_PASSWORD
+    export MYSQL_PWD="$MYSQL_PASSWORD"
+    # 已有库升级：跳过 baseline（含 20xxl_job_schema 等），只跑 V* 前向迁移
+    if mysql --host="$MYSQL_HOST" --port="${MYSQL_PORT:-3306}" --user="$MYSQL_USERNAME" \
+      --connect-timeout=10 \
       -e "USE smart_converge_x; SELECT 1 FROM scx_schema_migration LIMIT 1;" >/dev/null 2>&1; then
+      log "检测到 scx_schema_migration，跳过 baseline，仅前向迁移"
       SCX_SKIP_BASELINE=true SCX_MIGRATION_BASELINE_VERSION=auto ./init-database.sh
     else
+      log "未检测到迁移历史，执行全量 baseline + 迁移"
       ./init-database.sh
     fi
   )
