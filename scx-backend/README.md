@@ -18,8 +18,8 @@
 
 - JDK 17+
 - Maven 3.9+
-- Docker Compose v2（用于本地 MySQL、Redis、RocketMQ）
-- 可选：MySQL 客户端，用于手工初始化数据库
+- 可访问的 MySQL 8.x、Redis 7.x、RocketMQ 5.x 服务
+- MySQL 客户端，用于初始化/升级数据库
 
 ## 初始化数据库
 
@@ -27,21 +27,12 @@
 
 ```bash
 cd db/smart-converge-x
-MYSQL_USERNAME=root MYSQL_PASSWORD=123456 ./init-database.sh
+MYSQL_HOST=<mysql-host> MYSQL_PORT=3306 \
+MYSQL_USERNAME=<mysql-user> MYSQL_PASSWORD=<mysql-password> \
+./init-database.sh
 ```
 
 生产环境请替换密码，并通过环境变量或外部配置注入支付密钥、数据库密码等敏感信息。
-
-## 启动依赖服务
-
-在 `scx-backend` 目录执行：
-
-```bash
-docker compose up -d smart-converge-x-mysql smart-converge-x-redis \
-  smart-converge-x-rocketmq-namesrv smart-converge-x-rocketmq-broker
-```
-
-默认端口：MySQL `3306`、Redis `6379`、RocketMQ NameServer `9876`、Broker `10911`。
 
 ## 编译与启动
 
@@ -53,15 +44,9 @@ java -jar scx-boot/target/scx-boot.jar
 
 应用默认监听 `9999`，上下文路径为 `/boot`。Swagger 地址：`http://localhost:9999/boot/swagger-ui.html`。
 
-也可以使用 Docker 构建并启动完整后端：
-
-```bash
-docker compose up -d --build scx-boot
-```
-
 ## 配置方式
 
-默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。两个远程运行 profile 都只从环境变量读取 MySQL/Redis 连接；`application-local.yml` 保留为隔离本机 Compose profile。先复制模板并在 Git 外填写真实值：
+默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。两个 profile 都从环境变量读取 MySQL/Redis 连接；先复制模板并在 Git 外填写真实值：
 
 ```bash
 cp ../.env.example ../.env.local
@@ -74,7 +59,8 @@ set +a
 
 - `SCX_DATASOURCE_URL`、`SCX_DATASOURCE_USERNAME`、`SCX_DATASOURCE_PASSWORD`
 - `SCX_REDIS_HOST`、`SCX_REDIS_PORT`、`SCX_REDIS_USERNAME`、`SCX_REDIS_PASSWORD`
-- 可选 `SCX_REDIS_DATABASE`；未设置时 dev 使用 DB 2，prod 使用 DB 0
+- 可选 `SCX_REDIS_DATABASE`；未设置时 dev/prod 均使用 DB 0
+- `ROCKETMQ_NAME_SERVER`
 
 `make prod-secret-injection-check` 会检查 dev/prod 配置没有回退为内联地址、用户名或密码，但不会输出变量值。
 

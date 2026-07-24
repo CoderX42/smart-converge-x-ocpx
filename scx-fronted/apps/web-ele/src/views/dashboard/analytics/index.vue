@@ -123,19 +123,11 @@ onMounted(bootstrap);
 
 <template>
   <Page
-    description="从已成功生成的效果日报读取运营信号；数据范围与当前媒体、任务授权保持一致。"
+    description="从已成功生成的效果日报读取运营信号。"
     title="广告效果工作台"
   >
     <template #extra>
       <div class="flex flex-wrap items-center gap-2">
-        <el-select v-model="mediaId" class="w-40" placeholder="选择媒体">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
         <el-date-picker
           v-model="endDate"
           class="w-36"

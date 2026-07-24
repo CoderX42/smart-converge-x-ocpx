@@ -193,20 +193,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">当前媒体范围</div>
-        <el-select v-model="mediaId" class="w-full" placeholder="选择媒体主体">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="`${item.name} · ${item.code}`"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-    </div>
-
     <el-card class="mvp-card" shadow="never">
       <el-tabs v-if="!directEntry" v-model="active">
         <el-tab-pane

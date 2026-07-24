@@ -24,7 +24,7 @@ MYSQL_HOST=127.0.0.1 MYSQL_USERNAME=root MYSQL_PASSWORD=本地密码 ./init-data
 MYSQL_HOST=127.0.0.1 MYSQL_USERNAME=root MYSQL_PASSWORD=本地密码 ./verify-database.sh
 ```
 
-全新 Docker 数据卷执行 `make dev-up` 或 `docker-compose-boot.yml` 时，Compose 已挂载 V1–V42。全新非 Compose 空库可从数据库目录执行 `smart_converge_x_mvp_v42_init.sql`；V30 基础测试数据另有 `smart_converge_x_mvp_test_data.sql` 可重复入口，并由 V42 对账重叠种子的业务引用，且只能用于 sandbox/dev。已存在的数据卷不会自动重放初始化目录，应使用上面的升级入口。发布前可用 `make migration-packaging-check` 确认两个 Compose 启动包与迁移目录一致；实际发布、备份、回滚和数据核验按 [MVP-A 发布、回滚与数据核验手册](runbooks/MVP-A-发布与回滚.md) 执行。
+开发库和线上库均使用 `init-database.sh` 前向迁移；全新空库可从数据库目录执行 `smart_converge_x_mvp_v42_init.sql`，V30 基础测试数据另有 `smart_converge_x_mvp_test_data.sql` 可重复入口，并由 V42 对账重叠种子的业务引用，且只能用于 sandbox/dev。项目不再提供 Docker/Compose 启动入口。发布前执行 `make prod-secret-injection-check` 和 `make db-verify`，实际发布、备份、回滚和数据核验按 [MVP-A 发布、回滚与数据核验手册](runbooks/MVP-A-发布与回滚.md) 执行。
 
 ## 已通过的验证
 
@@ -35,7 +35,6 @@ cd scx-fronted && pnpm exec eslint apps/web-ele/src/api/ad/index.ts apps/web-ele
 cd scx-fronted && pnpm test:unit
 cd scx-fronted && pnpm build:ele
 bash ./scripts/check-contracts.sh
-docker-compose -f scx-backend/docker-compose.yml config --quiet
 git diff --check
 ```
 

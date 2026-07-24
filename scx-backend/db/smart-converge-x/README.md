@@ -38,17 +38,16 @@ mysql --commands -h数据库地址 -P3306 -u用户名 -p smart_converge_x \
   < smart_converge_x_mvp_test_data.sql
 ```
 
-已有的本地 Compose 卷请只运行以下命令补齐迁移；它会识别旧的 V4 卷和已经完整初始化的新卷。该入口固定使用 `127.0.0.1` 与本地容器密码，不会读取或写入 `application-dev.yml` 的远程数据源：
+已有开发库或线上库请使用统一的前向迁移入口；目标连接由 `MYSQL_*` 环境变量提供：
 
 ```bash
 make mvp-db-migrate
 ```
 
-完整本地 MVP 环境使用以下命令启动依赖并升级数据库；随后以后端 `local` profile 启动应用。`local` profile 只连接本机 Compose 服务，不使用 `application-dev.yml`：
+启动开发 profile：
 
 ```bash
-make mvp-local-up
-cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profiles=local
+cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 仅校验已有数据库而不写入数据：
@@ -65,7 +64,7 @@ mysql --commands -uroot -p < smart_converge_x_baseline.sql
 
 如果客户端不支持 `SOURCE`，请按上面的文件顺序依次执行。
 
-使用 `docker-compose.yml` 启动全套环境时，MySQL 容器会按 `00`、`10`、`20`、V1–V42 顺序自动导入；聚合入口和校验脚本不会被容器重复执行。
+项目不再提供 Docker/Compose 启动入口；MySQL、Redis、RocketMQ 使用外部服务，数据库由 `init-database.sh` 前向升级。
 
 ## 默认数据
 

@@ -25,7 +25,7 @@ const canExport = computed(() =>
 
 async function createExport() {
   if (!canExport.value) {
-    ElMessage.warning('请先选择媒体与日期范围');
+    ElMessage.warning('请先选择日期范围');
     return;
   }
   creating.value = true;

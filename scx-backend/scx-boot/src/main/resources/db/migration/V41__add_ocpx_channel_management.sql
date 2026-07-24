@@ -48,17 +48,15 @@ ON DUPLICATE KEY UPDATE
   name=VALUES(name), permission=VALUES(permission), parent_id=VALUES(parent_id),
   sort=VALUES(sort), type=VALUES(type), application_key=VALUES(application_key), del_flag='0';
 
-INSERT INTO sys_role_menu (id, role_id, menu_id)
-SELECT CONCAT('adm_', id), '1', id
-FROM sys_menu
-WHERE id IN (
-  'menu_ad_channel_clients', 'perm_ad_channel_client_read',
-  'perm_ad_channel_client_write', 'perm_ad_channel_client_rotate'
-)
-ON DUPLICATE KEY UPDATE id=VALUES(id);
+-- sys_role_menu.id is VARCHAR(32); keep explicit short IDs under the limit.
+INSERT INTO sys_role_menu (id, role_id, menu_id) VALUES
+  ('adm_menu_ad_channel_clients', '1', 'menu_ad_channel_clients'),
+  ('adm_perm_ad_ch_client_read', '1', 'perm_ad_channel_client_read'),
+  ('adm_perm_ad_ch_client_write', '1', 'perm_ad_channel_client_write'),
+  ('adm_perm_ad_ch_client_rotate', '1', 'perm_ad_channel_client_rotate')
+ON DUPLICATE KEY UPDATE role_id=VALUES(role_id), menu_id=VALUES(menu_id);
 
-INSERT INTO sys_role_menu (id, role_id, menu_id)
-SELECT CONCAT('opr_', id), 'role_operator', id
-FROM sys_menu
-WHERE id IN ('menu_ad_channel_clients', 'perm_ad_channel_client_read')
-ON DUPLICATE KEY UPDATE id=VALUES(id);
+INSERT INTO sys_role_menu (id, role_id, menu_id) VALUES
+  ('opr_menu_ad_channel_clients', 'role_operator', 'menu_ad_channel_clients'),
+  ('opr_perm_ad_ch_client_read', 'role_operator', 'perm_ad_channel_client_read')
+ON DUPLICATE KEY UPDATE role_id=VALUES(role_id), menu_id=VALUES(menu_id);

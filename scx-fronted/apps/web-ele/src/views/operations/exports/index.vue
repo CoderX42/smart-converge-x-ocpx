@@ -107,20 +107,6 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-    </div>
-
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
@@ -228,7 +214,7 @@ bootstrap().then(load);
           </template>
         </el-table-column>
         <template #empty>
-          <div class="mvp-empty">当前媒体范围内暂无导出任务</div>
+          <div class="mvp-empty">暂无导出任务</div>
         </template>
       </el-table>
       <div class="mt-4 flex justify-end">

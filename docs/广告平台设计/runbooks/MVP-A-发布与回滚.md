@@ -16,16 +16,13 @@
    make frontend-check
    make frontend-build
    make contract-check
-   make migration-packaging-check
+   make prod-secret-injection-check
+   git diff --check
    ```
 
 3. 仅通过受控部署环境提供生产数据源、Redis、RocketMQ、签名密钥和 AES 登录密钥。`application-prod.yml` 的 Redis、数据源、XXL 调度令牌和 AES 登录密钥分别要求 `SCX_REDIS_PASSWORD`、`SCX_DATASOURCE_PASSWORD`、`SCX_XXL_JOB_ACCESS_TOKEN`、`SCX_ENCODE_KEY`；先运行 `make prod-secret-injection-check` 确认配置未回退为内联值。不得从 Git、终端历史、浏览器或 Runbook 复制凭据；密钥轮换须先在密钥管理系统准备新值，再按部署平台的受控方式注入。
 4. 确认生产 profile 关闭 sandbox 回传目标，外部出网 allowlist、告警接收人和 M6 指标采集已由负责人复核。`/actuator` 仅应在内部监控网络可访问，不能经前端公网代理暴露。
-5. 确认迁移目录与两个 Compose 启动包一致：
-
-   ```bash
-   make migration-packaging-check
-   ```
+5. 确认数据库迁移脚本已纳入发布包，并在发布工作区执行 `git diff --check`；项目不依赖 Docker/Compose 冷启动数据库。
 
 ## 数据库备份与升级
 

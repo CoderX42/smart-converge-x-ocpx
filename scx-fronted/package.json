@@ -23,7 +23,6 @@
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 turbo build",
     "build:analyze": "turbo build:analyze",
     "build:antd": "pnpm run build --filter=@boot/web-antd",
-    "build:docker": "pnpm run build --filter=@boot/web-ele -- --outDir ../../scripts/deploy/dist",
     "build:docs": "pnpm run build --filter=@boot/docs",
     "build:ele": "pnpm run build --filter=@boot/web-ele",
     "build:naive": "pnpm run build --filter=@boot/web-naive",

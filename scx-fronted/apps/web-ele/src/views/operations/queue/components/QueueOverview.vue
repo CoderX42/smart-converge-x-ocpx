@@ -120,7 +120,7 @@ async function load() {
 
 async function dispatchAll() {
   await ElMessageBox.confirm(
-    '仅处理当前媒体范围内可见的待发送回传任务，并且只允许 sandbox 目标。',
+    '仅处理待发送回传任务，并且只允许 sandbox 目标。',
     '执行沙箱派发',
     { type: 'warning' },
   );
@@ -160,7 +160,7 @@ async function dispatchCallback(row: any) {
 
 async function dispatchOutbox(row: any) {
   await ElMessageBox.confirm(
-    '只发布当前媒体范围内的这条领域事件，不处理其他发件箱记录。',
+    '只发布这条领域事件，不处理其他发件箱记录。',
     '立即发布领域事件',
     { type: 'warning' },
   );
@@ -238,29 +238,6 @@ bootstrap().then(load);
 </script>
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-      <el-tabs
-        v-model="queueType"
-        class="mt-2 w-full"
-        @tab-change="onTabChange"
-      >
-        <el-tab-pane label="回传队列" name="callback" />
-        <el-tab-pane label="导出队列" name="export" />
-        <el-tab-pane label="领域事件队列" name="outbox" />
-      </el-tabs>
-    </div>
-
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-7">
       <div v-for="item in metricCards" :key="item.label" class="mvp-metric">
         <strong>{{ item.value }}</strong
@@ -475,7 +452,7 @@ bootstrap().then(load);
         </template>
 
         <template #empty>
-          <div class="mvp-empty">当前媒体范围内暂无任务</div>
+          <div class="mvp-empty">暂无任务</div>
         </template>
       </el-table>
       <div class="mt-4 flex justify-end">

@@ -1,35 +1,25 @@
 SHELL := /bin/bash
 
-COMPOSE_BIN := $(shell if docker compose version >/dev/null 2>&1; then printf '%s' 'docker compose'; elif command -v docker-compose >/dev/null 2>&1; then printf '%s' 'docker-compose'; else printf '%s' 'docker compose'; fi)
-COMPOSE := $(COMPOSE_BIN) -f scx-backend/docker-compose.yml
+.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev frontend-build frontend-check contract-check prod-secret-injection-check db-verify
 
-.PHONY: bootstrap dev-up dev-down dev-reset mvp-local-up mvp-db-migrate backend-build backend-test frontend-build frontend-check contract-check migration-packaging-check prod-secret-injection-check db-verify
+# The application uses externally managed MySQL, Redis and RocketMQ services.
+# Export the SCX_* and MYSQL_* variables from the deployment environment first.
+db-migrate:
+	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
+	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
+	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
+	cd scx-backend/db/smart-converge-x && ./init-database.sh
 
-bootstrap:
-	@echo "Local dependencies use the fixed development values in docker-compose.yml."
-
-dev-up: bootstrap
-	$(COMPOSE) up -d smart-converge-x-mysql smart-converge-x-redis smart-converge-x-rocketmq-namesrv smart-converge-x-rocketmq-broker smart-converge-x-minio smart-converge-x-callback-mock
-
-dev-down:
-	$(COMPOSE) down
-
-dev-reset:
-	$(COMPOSE) down -v
-
-# Starts only isolated local dependencies and applies all MVP database migrations.
-mvp-local-up: dev-up mvp-db-migrate
-
-# Only upgrades the local Compose database already created by `make dev-up`.
-# It intentionally targets loopback and never reads application-dev.yml.
-mvp-db-migrate:
-	cd scx-backend/db/smart-converge-x && MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USERNAME=root MYSQL_PASSWORD=scx_local_only SCX_SKIP_BASELINE=true SCX_MIGRATION_BASELINE_VERSION=auto ./init-database.sh
+mvp-db-migrate: db-migrate
 
 backend-build:
 	cd scx-backend && mvn -pl scx-boot -am -DskipTests package
 
 backend-test:
 	cd scx-backend && mvn -pl scx-boot -am test
+
+backend-run-dev:
+	cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profiles=dev
 
 frontend-build:
 	cd scx-fronted && pnpm build:ele
@@ -40,11 +30,11 @@ frontend-check:
 contract-check:
 	bash ./scripts/check-contracts.sh
 
-migration-packaging-check:
-	bash ./scripts/check-migration-packaging.sh
-
 prod-secret-injection-check:
 	bash ./scripts/check-prod-secret-injection.sh
 
 db-verify:
+	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
+	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
+	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
 	cd scx-backend/db/smart-converge-x && ./verify-database.sh

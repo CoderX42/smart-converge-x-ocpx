@@ -93,19 +93,6 @@ bootstrap().then(load);
 </script>
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-    </div>
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">

@@ -79,7 +79,7 @@
 - **Maven**：3.9+
 - **Node.js**：20.10.0+
 - **pnpm**：10.12.4（建议 `corepack enable` 自动使用）
-- **Docker / Docker Compose**：v2（推荐用于本地 MySQL、Redis、RocketMQ、MinIO）
+- **外部基础设施**：MySQL 8.x、Redis 7.x、RocketMQ 5.x（开发与线上使用同一套外部服务）
 - **MySQL**：8.x
 - **Redis**：7.x
 - **RocketMQ**：5.x
@@ -88,15 +88,16 @@
 
 ## 4. 快速启动与常用命令
 
-### 4.1 启动本地依赖服务
+### 4.1 配置外部依赖服务
 
 ```bash
-make dev-up        # 启动 MySQL / Redis / RocketMQ / MinIO / callback-mock
-make dev-down      # 停止
-make dev-reset     # 停止并清除卷（数据会丢）
+cp .env.example .env.local
+set -a; source .env.local; set +a
+make db-migrate
+make db-verify
 ```
 
-> `Makefile` 使用 `scx-backend/docker-compose.yml`，该文件仅启动中间件，不启动后端容器。
+> MySQL、Redis、RocketMQ 由环境外部管理；仓库只负责应用启动和数据库前向迁移。
 
 ### 4.2 后端
 
@@ -131,7 +132,6 @@ pnpm dev:naive
 
 # 构建
 pnpm build:ele          # 生产构建
-pnpm build:docker       # 输出到 scripts/deploy/dist
 
 # 代码质量
 pnpm check:type         # TypeScript 类型检查
@@ -143,12 +143,8 @@ pnpm check              # 全量：循环依赖、依赖、类型、cspell
 ### 4.4 数据库初始化与校验
 
 ```bash
-# 使用 Docker Compose 时，MySQL 会自动挂载 00/10/20 三个 SQL 脚本
-make dev-up
-
-# 手动初始化（需要本地 MySQL 客户端）
-cd scx-backend/db/smart-converge-x
-MYSQL_USERNAME=root MYSQL_PASSWORD=你的密码 ./init-database.sh
+# 初始化或升级（需要可访问外部 MySQL 和本地 MySQL 客户端）
+make db-migrate
 
 # 仅校验已有库
 MYSQL_HOST=... MYSQL_USERNAME=... MYSQL_PASSWORD=... ./verify-database.sh
@@ -227,7 +223,7 @@ scx-fronted/
 │   ├── vite-config/    # 共享 Vite 配置
 │   ├── turbo-run/      # turbo 运行脚本
 │   └── vsh/            # 项目级 CLI（lint / publint / code-workspace）
-└── scripts/deploy/     # 前端 Docker / Nginx 部署配置
+└── scripts/deploy/     # 前端静态构建与 Nginx 部署配置
 ```
 
 Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core/*`，与目录 `scx-fronted` 不冲突。
@@ -290,18 +286,16 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 
 ## 8. 部署说明
 
-### 8.1 后端容器化
+### 8.1 后端部署
 
-- 构建镜像：`scx-backend/scx-boot/Dockerfile`，多阶段（`maven:3.9-eclipse-temurin-17` 构建 → `eclipse-temurin:17-jre-jammy` 运行）。
-- 完整本地后端：`scx-backend/docker-compose-boot.yml` 包含 MySQL、Redis、RocketMQ 与 `scx-boot` 服务。
-- 默认镜像暴露 `9999`，`JAVA_OPTS` 可覆盖。
+- 使用 Maven 构建 `scx-boot` JAR，并通过 `--spring.profiles.active=prod` 启动。
+- MySQL、Redis、RocketMQ 地址和凭据由部署环境注入，应用默认监听 `9999`。
 
-### 8.2 前端容器化
+### 8.2 前端部署
 
-- 构建产物：`pnpm build:docker` 输出到 `scx-fronted/scripts/deploy/dist`。
-- 运行镜像：`scx-fronted/scripts/deploy/Dockerfile` 基于 `nginx:stable-alpine`。
+- 构建产物：`pnpm build:ele` 输出 `apps/web-ele/dist`，由外部 Nginx 或静态文件服务托管。
 - Nginx 配置：`scx-fronted/scripts/deploy/scx-fronted.conf`：
-  - `/api` 反向代理到 `scx-boot:9999`。
+  - `/api` 反向代理到后端 `9999` 端口。
   - 直接返回 `403` 阻止 `/actuator`。
   - 添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`CSP` 等安全响应头。
 
@@ -323,7 +317,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 - **认证授权**：Sa-Token 会话 + 菜单/按钮权限码；`scx-subject` 已实现对象级授权（`scx_user_subject_scope`）。
 - **机器接口签名**：`api.sign.enabled` 默认为 `false`，规划中的事件接入等机器接口后续需启用签名，**禁止将签名密钥下发到浏览器**。
 - **敏感配置**：`.gitleaks.toml` 配置了默认规则与允许列表；CI 使用 `gitleaks/gitleaks-action@v2` 扫描密钥泄露。
-- **开发配置风险**：`scx-backend/scx-boot/src/main/resources/application-dev.yml` 当前硬编码了远程主机与密码，**开发环境用完后应轮换**，生产绝对不可复用。
+- **开发配置风险**：`application-dev.yml` 与 `application-prod.yml` 均只读取环境变量；真实凭据只允许存放在 Git 外部的 `.env.local` 或部署平台密钥管理中。
 - **数据脱敏**：`scx-common-core` 提供 `@Desensitization` 及手机号、身份证、姓名、密码脱敏实现。
 - **默认数据**：数据库脚本不再携带真实支付证书、线上数据源、小程序配置等敏感种子。
 
@@ -356,7 +350,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 | 后端启动模块 | `scx-backend/scx-boot/pom.xml` |
 | 后端主配置 | `scx-backend/scx-boot/src/main/resources/application.yml` |
 | 后端开发配置 | `scx-backend/scx-boot/src/main/resources/application-dev.yml` |
-| 后端 Docker | `scx-backend/scx-boot/Dockerfile`、`scx-backend/docker-compose-boot.yml` |
+| 后端启动/部署 | `Makefile`、`scx-backend/scx-boot/src/main/resources/application-*.yml` |
 | 数据库基线脚本 | `scx-backend/db/smart-converge-x/` |
 | 业务增量 SQL | `scx-backend/scx-boot/src/main/resources/db/migration/` |
 | 前端根 package | `scx-fronted/package.json` |

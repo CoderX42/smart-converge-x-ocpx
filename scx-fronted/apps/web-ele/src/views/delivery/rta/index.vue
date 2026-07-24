@@ -137,20 +137,6 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-    </div>
-
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
       <div class="mvp-metric">
         <strong>{{ stats.total }}</strong
@@ -305,7 +291,7 @@ bootstrap().then(load);
           </template>
         </el-table-column>
         <template #empty>
-          <div class="mvp-empty">当前媒体范围内暂无 RTA 配置</div>
+          <div class="mvp-empty">暂无 RTA 配置</div>
         </template>
       </el-table>
       <div class="mt-4 flex justify-end">

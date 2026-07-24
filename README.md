@@ -79,7 +79,7 @@
 | 分析库 | Apache Druid | 报表、漏斗、多维分析。 |
 | 对象存储 | 阿里云 OSS | 素材、归档日志。 |
 | 契约规范 | OpenAPI / AsyncAPI / JSON Schema | 接口与消息契约。 |
-| 容器化 | Docker / Docker Compose | 本地开发环境。 |
+| 运行方式 | JVM + Node.js | 后端直接运行 JAR/Maven，前端直接运行 Vite；MySQL、Redis、RocketMQ 使用外部服务。 |
 
 ---
 
@@ -118,27 +118,37 @@ smart-converge-x/
 - MySQL 8.x
 - Redis 7.x
 - Apache RocketMQ 5.x
-- Docker & Docker Compose（推荐用于本地环境）
+- 可访问的 MySQL 8.x、Redis 7.x、Apache RocketMQ 5.x 服务
 
 ### 安装步骤
 
-#### 1. 准备本地变量与依赖服务
+#### 1. 准备连接变量
 
 ```bash
-make dev-up
+cp .env.example .env.local
+set -a
+source .env.local
+set +a
 ```
 
-Compose 会启动 MySQL、Redis、RocketMQ、MinIO 和回调 mock。后端本地连接参数直接维护在 `scx-backend/scx-boot/src/main/resources/application-dev.yml`；数据库基础表由容器初始化，业务迁移在后端启动时由 Flyway 执行。
+开发环境使用 `dev` profile，连接变量由 `.env.local` 或部署平台注入；数据库迁移由 `scx-backend/db/smart-converge-x/init-database.sh` 执行。
 
-#### 2. 编译并启动后端
+#### 2. 初始化/升级数据库
+
+```bash
+make db-migrate
+make db-verify
+```
+
+#### 3. 编译并启动后端
 
 ```bash
 make backend-build
 cd scx-backend
-java -jar scx-boot/target/scx-boot.jar
+java -jar scx-boot/target/scx-boot.jar --spring.profiles.active=dev
 ```
 
-#### 3. 安装并启动前端
+#### 4. 安装并启动前端
 
 ```bash
 cd scx-fronted
@@ -159,12 +169,12 @@ scx-backend/scx-boot/src/main/resources/application.yml
 | 配置项 | 说明 | 默认值 |
 | --- | --- | --- |
 | `server.port` | 后端服务端口 | `9999` |
-| `spring.datasource.url` | MySQL 连接地址 | `jdbc:mysql://localhost:3306/smart_converge_x` |
-| `spring.datasource.username` | MySQL 用户名 | `root` |
-| `spring.datasource.password` | MySQL 密码 | `scx_local_only`（开发环境） |
-| `spring.data.redis.host` | Redis 地址 | `127.0.0.1` |
-| `spring.data.redis.port` | Redis 端口 | `6379` |
-| `rocketmq.name-server` | RocketMQ NameServer | `127.0.0.1:9876` |
+| `spring.datasource.url` | MySQL 连接地址 | 由 `SCX_DATASOURCE_URL` 注入 |
+| `spring.datasource.username` | MySQL 用户名 | 由 `SCX_DATASOURCE_USERNAME` 注入 |
+| `spring.datasource.password` | MySQL 密码 | 由 `SCX_DATASOURCE_PASSWORD` 注入 |
+| `spring.data.redis.host` | Redis 地址 | 由 `SCX_REDIS_HOST` 注入 |
+| `spring.data.redis.port` | Redis 端口 | `SCX_REDIS_PORT`（默认 `6379`） |
+| `rocketmq.name-server` | RocketMQ NameServer | 由部署环境注入 |
 
 生产环境请勿将密码、密钥、证书直接写入仓库，应通过环境变量或配置中心注入。
 

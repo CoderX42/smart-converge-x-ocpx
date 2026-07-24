@@ -46,13 +46,13 @@ pnpm build:naive
 pnpm preview
 ```
 
-Docker 静态资源构建：
+生产构建产物由外部 Nginx、静态文件服务器或现有发布平台托管：
 
 ```bash
-pnpm build:docker
+pnpm build:ele
 ```
 
-输出目录为 `scripts/deploy/dist`，部署配置位于 `scripts/deploy`，服务名和容器名统一为 `scx-fronted`。
+部署 `apps/web-ele/dist`，并将 `/api` 反向代理到后端 `/boot` 服务。
 
 ## 代码质量与测试
 

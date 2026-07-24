@@ -21,12 +21,12 @@
 | M4 报表与明细 | 核心已完成，明细追溯与日报导出自动化 E2E 已验证 | 媒体范围内冻结截止时间的日报快照和脱敏事件明细；已补齐日期/产品/链接/任务独立汇总、客户/产品/链接/任务和媒体维度组合筛选。独立 local 环境已从签名激活事件登录后按事件 ID 查询到 `ATTRIBUTED` 明细，并实测创建受限日报导出、异步完成及 CSV 下载内容 |
 | M5 沙箱回传 | 已实现并通过本地接口/自动化 E2E 验证 | 媒体范围内派发、重试、死信和人工重放；仅允许 `sandbox` 目标；本地回传失败重试、人工重放及 RocketMQ Outbox 实际投递均已跑通。独立 local 环境已验证按归因原始事件精确筛选一条 `PENDING` 任务、单条派发后持久化为 `SUCCEEDED`；签名点击产生的两条 Outbox 记录也可按聚合 ID 精确筛选并单条发布为 `SENT`，不批量处理其他回传或 Outbox 记录 |
 | M6 可观测性 | 本地隔离运行验证已完成 | 已新增无媒体/任务/事件标签的回传和 Outbox 状态 Gauge，Prometheus 端点与独立 Prometheus 的本机抓取、规则求值、Alertmanager 接收均已验证；可选本地 Prometheus profile、告警规则与恢复/演练手册已就绪。独立 local 已实测单条回传 `HTTP_503 → RETRYING → 授权重放 → SUCCEEDED`，以及 Outbox 发布器不可用时 `PENDING → RETRYING`、恢复后受权单条投递为 `SENT`，并完成 20 事件/40 Outbox 的受控积压与恢复；同一隔离环境中两条 DLQ 规则在完整 5 分钟后 `firing` 且被本地 WireMock 接收。小批量结果不代替生产容量承诺，目标环境监控接入属于发布准备 |
-| M6 发布准备 | 进行中，迁移包、Runbook 与生产敏感配置注入已就绪 | Compose 冷启动包已对齐当前 V1–V28 迁移，升级器会拒绝迁移历史漂移；发布前配置/备份/升级/回滚边界与数据核验步骤已写入 Runbook。2026-07-17 已将 production profile 的 4 个敏感设置改为必填受控注入，并在本机验证 profile 可启动；目标环境备份、密钥轮换、升级、切流和回滚演练尚未执行 |
+| M6 发布准备 | 进行中，Runbook 与生产敏感配置注入已就绪 | 开发库和线上库统一使用 `init-database.sh` 前向迁移，项目不依赖 Docker/Compose 启动；发布前配置/备份/升级/回滚边界与数据核验步骤已写入 Runbook。目标环境备份、密钥轮换、升级、切流和回滚演练尚未执行 |
 | 竞品运营页补齐 | MVP-A 范围已完成；扩展指标待业务口径 | 任务、链接、媒体、转化、点击、日报、导出与 RTA 页面已可用；任务列表今日概况与监测地址运营视图已验证。留存、首活、首单、拉活、授信等扩展指标仍待明确数据口径与来源 |
 | 契约与构建门禁 | 主要完成，前端 lint 已清零 | OpenAPI、AsyncAPI、JSON Schema 契约校验已通过；本轮已通过后端全量 `mvn test`、`@boot/web-ele` 类型检查、Element 前端生产构建（11/11 任务成功）和前端单测；2026-07-17 全仓 `pnpm lint` 已通过（仅 4 条非阻断历史提示） |
 | 运行态验收 | 本地沙箱已完成，目标环境待执行 | 本地 MySQL 已应用至 V28，并完成签名点击/转化、超量、RTA、日报、导出、回传重试/重放、RocketMQ Outbox 实际投递接口冒烟；目标环境升级与发布演练尚未执行 |
 | 通用渠道 OCPX v1.1 可靠入口 | 本机代码/迁移/Redis 恢复已验收；本机容量未达标，外部 UAT 待验收 | 2026-07-22 已完成 V40/V41 隔离空库、V39 升级、重复迁移、校验和及三类双 Worker 租约竞争；渠道凭据管理 API/UI、一次性密钥、24 小时轮换重叠、缓存广播失效；Postback 不可变快照、HMAC、稳定幂等键、禁止重定向和五次重试；Feedback/RTA Redis Stream Pending、跨 Redis 停启恢复、原子 DLQ+ACK、重放审计与异步落库。交付 OpenAPI/Postman/Java/Python/验签模拟器/UAT 模板及固定 Docker k6 脚本。全量后端 29/29、前端类型/Lint/267 单测/11 项构建、契约门禁通过。本机完整容量门禁完成 1,244,021 请求，平均 2,591 req/s、dropped 5,873,994、错误率 92.99%、ingress/RTA p95 2.74s/2.65s，全部容量门槛失败；Feedback 与原始事件处理在 10 分钟内归零，但因 RocketMQ 发布器关闭，Outbox 恢复不在本轮验收范围。浏览器多角色、真实第三方签收、隔离 RocketMQ 全链路及专用多实例容量环境仍待验收，不标记生产验收 |
-| V42 初始化包与远程连接配置 | 代码/隔离空库验证完成，目标环境未写入 | 2026-07-24 补齐两个 Compose 的 V32–V42 冷启动挂载，新增空库 `smart_converge_x_mvp_v42_init.sql` 与可重复 sandbox 测试数据入口；V42 以前向方式对账 V25/V30 重叠业务编码保留旧主键后造成的事件、转化和日报引用。dev/prod MySQL、Redis 地址、ACL 用户名和密码统一改为 `SCX_*` 必填环境注入，仓库只提供 `.env.example`。验证：`make migration-packaging-check` 通过 42 个脚本，敏感配置门禁与两个 Compose 配置检查通过；临时 MySQL 8 空库执行 V42 聚合入口、数据库校验及连续两次测试种子均通过，事件/转化身份/日报引用对账为 `2/1/1`；`make backend-test` 29/29 Reactor 成功。未保存或输出目标凭据，未连接、备份、建表或写入目标 MySQL/Redis；目标环境初始化与测试数据导入必须按 Runbook 单独确认。 |
+| V42 初始化包与远程连接配置 | 代码/隔离空库验证完成，目标环境未写入 | 2026-07-24 新增空库 `smart_converge_x_mvp_v42_init.sql` 与可重复 sandbox 测试数据入口；V42 以前向方式对账 V25/V30 重叠业务编码保留旧主键后造成的事件、转化和日报引用。dev/prod MySQL、Redis 地址、ACL 用户名和密码统一改为 `SCX_*` 必填环境注入，仓库只提供 `.env.example`。项目不再提供 Docker/Compose 启动入口，开发和线上均通过 JVM/Node.js + 外部中间件运行。目标环境未连接、备份、建表或写入。 |
 
 当前判断：MVP 核心功能完成度约 `97%`，本地沙箱运行验收约 `97%`。本轮已补齐全量生产构建/测试、数据库与契约校验、23 个运营页浏览器回归、客户至任务的写入 E2E、RocketMQ Outbox 实际投递及完整 5 分钟告警接收验证；剩余工作集中在目标环境发布准备，以及尚未明确口径/数据源的竞品扩展指标和真实媒体接入前置能力。
 
@@ -53,13 +53,13 @@
 | API 与事件契约校验 | 已完成 | `make contract-check` 已校验 OpenAPI、AsyncAPI 和 `event-envelope.schema.json`，全部通过 |
 | RocketMQ Outbox 实际投递 | 已完成 | 修复 Apple Silicon Docker Desktop 下 broker 的 `linux/amd64` 运行与本机回环地址注册；显式创建 `scx_tracking_events` 后，新的签名点击事件生成的 `RAW_EVENT_INGESTED`、`CLICK_CLASSIFIED` 两条 Outbox 记录均在首次调度后为 `SENT`、`attempts=1`、`sent_at` 非空 |
 | M6 Outbox/DLQ 监控指标与 Prometheus 暴露 | 代码/测试/打包及独立运行态已完成 | 新增 `QueueMetrics`、`CallbackJobMapper.selectGlobalStats`、`EventOutboxMapper.selectGlobalStats`；输出 `scx_callback_queue`、`scx_outbox_queue`，标签仅为状态（`pending`、`retrying`、`paused`、`dead`、`delayed`），不含媒体、任务、事件或 PII。`QueueMetricsTest` 验证统计值与低基数标签；`mvn -pl scx-tracking -am test` 通过 20 个 tracking 用例，`mvn -pl scx-boot -am -DskipTests package` 成功，成品确认包含 Prometheus registry。无数据库迁移。2026-07-17 在不替换既有 9999 进程的前提下，以 local profile 将当前包启动到 10099（独立 Dubbo/调度端口），`/boot/actuator/health` 返回 `UP`，`/boot/actuator/prometheus` 返回 200，并实际输出 5 个 `scx_callback_queue` 与 4 个 `scx_outbox_queue` 状态 Gauge；现有 sandbox Outbox 的 `dead` 值为 8，未删除、重放或修改该数据。后续隔离 Alertmanager 验证已证明两条 DLQ 规则在完整 5 分钟后 `firing` 并被 WireMock 接收；有状态恢复和小批量积压演练也已由后续独立条目完成 |
-| M6 告警规则、Prometheus profile 与故障演练 Runbook | 已完成并验证 | 新增 `scx-backend/docker/prometheus/prometheus.yml`、`scx-alert-rules.yml`、仅供独立本机应用验证的 `prometheus.host-local.yml`、`docs/广告平台设计/runbooks/M6-可观测性与故障演练.md`，并在 `docker-compose-boot.yml` 增加 `observability` profile。覆盖回传/Outbox DLQ 5 分钟严重告警和积压 15 分钟告警，且 Runbook 约束仅对隔离 sandbox 执行恢复、容量和故障演练。2026-07-17 以 Compose `config --quiet`、Ruby YAML 解析和临时 Prometheus 容器验证：独立 local `10099` 的 Target 为 `UP`、`promtool check config` 识别 1 个规则文件和 4 条规则、现有但未修改的 Outbox dead 指标被抓取且 `ScxOutboxDeadLetters` 进入 `pending`。同日 `ad-event-lifecycle.spec.ts` 对独立 local `10099` 与本地 WireMock 实跑 4/4（18.2 秒）：仅按新建 sandbox 回传任务的 `Idempotency-Key` 临时返回 503，任务持久化为 `RETRYING/HTTP_503`，删除临时映射后由有权限页面操作重放并单条派发为 `SUCCEEDED`；验证后 WireMock 无临时 503 映射残留。其余 Outbox 发布器不可用和容量压力/恢复演练已由后续独立条目完成。无数据库迁移 |
+| M6 告警规则、Prometheus profile 与故障演练 Runbook | 已完成并验证 | 已完成告警规则与故障演练 Runbook；当前监控规则由外部 Prometheus/告警平台托管，仓库不再提供监控容器或 Compose profile。历史隔离环境验证覆盖回传/Outbox DLQ 5 分钟严重告警和积压 15 分钟告警；后续演练仍只允许 sandbox 数据。无数据库迁移 |
 | M6 本地 Alertmanager 接收与持续窗口 | 已完成并验证 | 先确认 `prom/alertmanager:v0.28.1` 可用，再启动仅本轮使用的 `smart-converge-x-alertmanager`、`scx-prometheus-host-local-alert-e2e` 与独立 local `10099` 应用；Prometheus Target 实测为 `UP`。不创建、更新、删除或重放任何队列记录，复用已存在的 sandbox DLQ Gauge 作为受控触发源：`ScxOutboxDeadLetters`、`ScxCallbackDeadLetters` 先为 `pending`，完整等待规则配置的 5 分钟后均为 `firing`，WireMock `/alertmanager` 实际收到 2 个 POST（最新记录时间 `2026-07-17T06:47:37.878Z`）。随后停止仅本轮的 Prometheus、Alertmanager 和 `10099` 应用，未停止 callback mock 或共享中间件。无数据库迁移、无真实媒体/生产回调；本验证证明本地隔离告警链路，不替代目标环境接收器配置与值班验收 |
 | M6 Outbox 发布器不可用与恢复演练 | 已完成并验证 | `TrackingProperties` 新增默认开启的 `outboxSchedulerEnabled`，`CallbackJobService` 将后台 Outbox 扫描与有权限的单条发布分离：关闭扫描不影响回传调度，且不绕过媒体/任务范围校验；`CallbackJobServiceTest` 覆盖该边界。2026-07-17 在独立 local `10099`，先同时关闭发布器和后台扫描，由签名点击创建本轮 `sandbox-e2e` 事件；运营页对 `RAW_EVENT_INGESTED` 单条“立即发布”后持久化为 `RETRYING`、`attempts=1`，无原始事件丢失。退避窗口到期后，恢复发布器但继续暂停后台扫描，只对该记录执行受权单条投递；数据库复核为 `SENT`、`attempts=2`、`sent_at` 非空，且新增的运营页只读 Playwright 用例实跑 1/1（5.8 秒）显示相同状态。另一条同聚合事件保持独立处理，未批量重放。无数据库迁移；该隔离演练不停止共享 RocketMQ broker、不访问真实媒体。回归：`mvn -pl scx-tracking -am test` 24/24、`mvn -pl scx-boot -am -DskipTests package`、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）和 `pnpm build:ele`（11/11）均通过；`make contract-check` 与 `git diff --check` 通过 |
 | M6 Outbox 小批量积压与恢复演练 | 已完成并验证，但不构成生产容量承诺 | `ad-event-lifecycle.spec.ts` 新增可追溯的签名批次与运营页只读复核。2026-07-17 演练前本地库 `PENDING/RETRYING=0`；在独立 local `10099` 关闭发布器与后台扫描后，20 个 `sandbox-e2e` 点击在 1/1 Playwright（1.4 秒）中写入，形成 40 条 Outbox。仅对该 `e2eRun` 的 40 条记录设置可识别的 5 分钟延迟，未修改其他记录；运行态 Gauge 实测 `pending=40`、`delayed=40`。随后仅解除同一批次延迟并恢复本地发布器/扫描，轮询确认 40 条均为 `SENT`；运营页只读 Playwright 对其中一条聚合记录实跑 1/1（5.8 秒）显示两条 `SENT/attempts=1`，后续独立指标端点复核 `pending=0`、`retrying=0`、`delayed=0`。无数据库迁移、无删除、无真实媒体或生产队列；该批量仅验证隔离环境的积压可见性与恢复路径，未达到生产吞吐/SLO 压测规模。回归：全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）、`make contract-check` 与 `git diff --check` 均通过 |
 | 关键广告运营只读 E2E 基线 | 已完成并验证 | 新增 `apps/web-ele/playwright.config.ts` 与 3 条只读 Playwright 用例，覆盖登录后的客户/产品、链接/任务、效果概览/导出页；默认仅连接 `127.0.0.1`/`localhost`，非本机地址须显式 `E2E_ALLOW_REMOTE=true`，账号仅从 `E2E_USERNAME`、`E2E_PASSWORD` 运行环境读取，测试不创建、删除或重放业务数据，失败产物已忽略。2026-07-17 `pnpm -F @boot/web-ele run typecheck`、`pnpm lint`（0 error、4 条既有 warning）和 E2E 发现（3 条）通过；使用独立 local 后端 `E2E_API_TARGET=http://127.0.0.1:10099` 实跑 3/3 通过（16.2 秒），实际渲染既有 sandbox 数据。此前既有 9999 进程登录 500 的证据已被独立当前包验证替代；回传、导出和 MQ 投递已由后续写入 E2E 覆盖 |
 | 客户至监测任务写入 E2E | 已完成并验证 | 新增 `apps/web-ele/e2e/ad-configuration-lifecycle.spec.ts`：登录后从受保护 API 取得当前会话令牌，严格经真实 API 创建 `e2e-sandbox-*` 客户、绑定同媒体现有 ACTIVE 合作方的产品、链接与任务；链接和任务分别按状态机启用，并随后访问客户、产品、追踪链接、监测任务四个真实运营页，以唯一编码检索到持久化记录。2026-07-17 对独立 local `10099` 实跑 1/1（15.3 秒）通过；所有写入均带可识别前缀、未删除或修改既有数据，无数据库迁移。前端类型检查、全仓 `pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）及 `make contract-check`、`git diff --check` 均通过。单测输出的 `localhost:3000` 资源模拟拒绝连接为既有测试日志，测试结果仍为全绿。该用例显式带 `satoken` 请求头，避免裸浏览器 `fetch` 绕过前端认证拦截器而误报未授权；未使用或输出凭据 |
-| 签名时间戳规范与关键广告事件、回传 E2E | 已完成并验证 | `contracts/openapi.yaml` 已明确 `occurredAt` 参与签名前须移除小数秒尾随零（全零时移除小数点）；`EventIngestionServiceTest` 覆盖 `.010` 规范为 `.01`，`ad-event-lifecycle.spec.ts` 使用同一规则，修复了此前毫秒尾零导致的间歇性签名 `403`。新增按 `rawEventId` 精确筛选/单条派发 API、服务范围校验、回传任务页操作和 `scx-backend/docker/wiremock/mappings/sandbox-callback.json` 的受控 `POST /callback` 成功桩；两份 Compose 均挂载该桩，boot Compose 同时声明 mock 依赖。2026-07-17 对独立 local `10099` 实跑 3/3（14.6 秒）：签名点击为 `ELIGIBLE/FIRST_IN_WINDOW`，激活为 `CANONICAL/FIRST_BUSINESS_EVENT/ATTRIBUTED`，重复投递为 `DUPLICATE_DELIVERY` 且复用原始事件；受保护的事件明细页按事件 ID 显示 `ATTRIBUTED`；回传页按该原始事件只得到 1 条 `PENDING` 任务，点击“立即派发”后接口业务码为成功且任务变为 `SUCCEEDED`。写入均使用 `sandbox-e2e`/`e2e-sandbox-` 前缀；无数据库迁移。质量门：`mvn -pl scx-tracking -am test` 22/22、`make contract-check`、全仓前端类型检查/lint、前端单测 32 文件/267 用例和 `pnpm build:ele`（11/11）均通过。MQ 投递自动化 E2E 已由后续单条 Outbox 发布用例覆盖 |
+| 签名时间戳规范与关键广告事件、回传 E2E | 已完成并验证 | `contracts/openapi.yaml` 已明确 `occurredAt` 参与签名前须移除小数秒尾随零（全零时移除小数点）；`EventIngestionServiceTest` 覆盖 `.010` 规范为 `.01`，`ad-event-lifecycle.spec.ts` 使用同一规则，修复了此前毫秒尾零导致的间歇性签名 `403`。新增按 `rawEventId` 精确筛选/单条派发 API、服务范围校验和回传任务页操作；回调 mock 现由外部测试工具提供，不再随仓库启动。历史隔离环境实跑 3/3，写入均使用 `sandbox-e2e`/`e2e-sandbox-` 前缀；无数据库迁移。 |
 | 受限 Outbox 追溯与 RocketMQ 自动化 E2E | 已完成并验证 | 新增 `GET /ad/callback-jobs/outbox` 与 `POST /ad/callback-jobs/outbox/{id}/dispatch`，服务层经媒体与任务范围共同限制，查询或发布到范围外记录均不会放大权限；回传任务页增加领域事件发件箱列表、按事件聚合 ID 查询和“立即发布”操作。`CallbackJobServiceTest` 验证单条发布只调用指定 Outbox 发布器、不会批量扫描其他待发记录。2026-07-17 在独立 local `10099`、本地 RocketMQ broker 和浏览器实跑 `ad-event-lifecycle.spec.ts` 新用例 1/1（9.8 秒）：签名点击生成 `RAW_EVENT_INGESTED` 与 `CLICK_CLASSIFIED` 两条记录，按返回的 `rawEventId` 查询到恰好两条记录，逐条点击“立即发布”后两者均持久化为 `SENT`、`attempts=1`；服务仅在 RocketMQ 同步发送成功后写入 `SENT`。无数据库迁移；写入使用 `sandbox-e2e`/`e2e-sandbox-` 前缀。回归：`mvn -pl scx-tracking -am test` 23/23、`mvn -pl scx-boot -am -DskipTests package`、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）与 `make contract-check` 均通过 |
 | 受限日报导出写入 E2E | 已完成并验证 | 新增 `apps/web-ele/e2e/ad-export-lifecycle.spec.ts`：登录后访问真实导出页，以当前本地日期创建 `DAILY_CSV`，从创建响应取得持久化任务 ID，页面轮询到 `SUCCEEDED`，再由页面“下载”操作等待实际受保护下载接口并校验 `text/csv` 与日报 CSV 表头。2026-07-17 对独立 local 后端 `10099` 实跑 1/1（9.6 秒）通过；仅在该隔离环境创建导出任务，不初始化、修改或删除原始业务事实。无数据库迁移。回归：`mvn -pl scx-reporting -am test`（reporting 7、tracking 22、delivery 8 用例均通过）、全仓 `pnpm check:type`、`pnpm lint`（0 error、4 条既有 warning）、`pnpm test:unit`（32 文件/267 用例）、`pnpm build:ele`（11/11）及 `make contract-check` 均通过 |
 | M6 发布迁移包一致性与 Runbook | 迁移包/Runbook 静态验证完成，目标环境演练待执行 | 修复 `docker-compose.yml`、`docker-compose-boot.yml` 初始数据库仅挂载至 V25 的缺口，现均挂载 V1–V28；新增 `scripts/check-migration-packaging.sh` 与 `make migration-packaging-check`，并让 `init-database.sh` 比对已登记迁移的脚本名与 SHA-256，防止工作包漂移后继续升级。新增 `docs/广告平台设计/runbooks/MVP-A-发布与回滚.md`，覆盖配置保密、受影响表备份、前向升级、数据核验、应用发布和不可自动化的回滚边界；同步修正 `MVP交付说明.md` 的迁移版本描述。2026-07-17 `make migration-packaging-check`（28 个脚本）、`bash -n`（升级/校验/新增检查脚本）、两个 Compose `config --quiet` 和 `git diff --check` 均通过；生产敏感配置受控注入已由后续独立条目完成验证。无新增数据库迁移，未连接目标库、未执行备份/升级/密钥轮换/流量或回滚演练，故发布准备仍为进行中 |
@@ -173,7 +173,7 @@ README 当前仍包含部分已删除文档的旧链接。文件不存在时不�
 - 不把现有 `scx-pay` 通用支付模板描述成广告计费/结算能力。
 - 不照搬竞品路径、组件库、字段命名、`?all=1` 全量下拉或本地 Token 方案。
 - 不顺手清理模板遗留模块、做全仓重命名或拆微服务。
-- 不运行 `make dev-reset`，除非任务明确授权清空本地数据卷。
+- 不执行破坏性数据库清理，除非任务明确授权并已完成备份与目标确认。
 
 ### 1.5 交接要求
 
@@ -699,21 +699,15 @@ make frontend-build
 
 ### 14.2 仅限 MVP-000C 的本地有状态验证
 
-以下命令会启动容器并写入本地数据库。执行前必须确认 Docker 目标、本机 `127.0.0.1:3306`、库名 `smart_converge_x` 和本地卷影响，且确认没有端口转发到外部环境：
+以下命令连接外部 MySQL 并写入开发/线上共用数据库。执行前必须确认 `MYSQL_*` 指向已授权的目标、已完成备份并取得变更窗口：
 
 ```bash
-make dev-up
-
-cd scx-backend/db/smart-converge-x
-MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USERNAME=root \
-  MYSQL_PASSWORD=scx_local_only ./init-database.sh
-
-cd ../../..
-MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USERNAME=root \
-  MYSQL_PASSWORD=scx_local_only make db-verify
+set -a; source .env.local; set +a
+make db-migrate
+make db-verify
 ```
 
-`make dev-up` 只由 Compose 初始挂载 00/10/20，媒体相关 V1–V3 需要显式执行 `init-database.sh`。`make contract-check` 当前只会因契约缺失而失败，并且现有脚本仅做 YAML/JSON 语法解析；只有 MVP-001C 补齐四类必需契约和语义验证后才能成为门禁。`make dev-reset` 会删除本地卷，不属于常规验证命令。
+`make db-migrate` 按顺序执行基线和业务前向迁移。`make contract-check` 当前只会因契约缺失而失败，并且现有脚本仅做 YAML/JSON 语法解析；只有 MVP-001C 补齐四类必需契约和语义验证后才能成为门禁。
 
 ### 14.3 每个业务任务的 DoD
 

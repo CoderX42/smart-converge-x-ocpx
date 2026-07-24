@@ -77,7 +77,7 @@ async function load() {
 
 async function dispatch() {
   await ElMessageBox.confirm(
-    '仅处理当前媒体范围内的待发送任务，并且只允许 sandbox 目标。',
+    '仅处理待发送任务，并且只允许 sandbox 目标。',
     '执行沙箱派发',
     { type: 'warning' },
   );
@@ -152,20 +152,6 @@ bootstrap().then(load);
 
 <template>
   <main class="mvp-page">
-    <div class="mvp-scope-toolbar">
-      <div class="mvp-control">
-        <div class="mvp-scope-label mb-2 text-xs">媒体安全范围</div>
-        <el-select v-model="mediaId" class="w-full">
-          <el-option
-            v-for="item in media"
-            :key="item.id"
-            :label="item.name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
-    </div>
-
     <div class="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
       <div class="mvp-metric">
         <strong>{{ stats.pendingCount || 0 }}</strong
@@ -275,7 +261,7 @@ bootstrap().then(load);
           </template>
         </el-table-column>
         <template #empty>
-          <div class="mvp-empty">当前媒体范围内暂无领域事件发件箱记录</div>
+          <div class="mvp-empty">暂无领域事件发件箱记录</div>
         </template>
       </el-table>
     </el-card>
@@ -389,7 +375,7 @@ bootstrap().then(load);
           </template>
         </el-table-column>
         <template #empty>
-          <div class="mvp-empty">当前媒体范围内暂无回传任务</div>
+          <div class="mvp-empty">暂无回传任务</div>
         </template>
       </el-table>
       <div class="mt-4 flex justify-end">

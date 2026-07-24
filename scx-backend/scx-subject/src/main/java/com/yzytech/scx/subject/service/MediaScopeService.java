@@ -1,51 +1,43 @@
 package com.yzytech.scx.subject.service;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.security.entity.BootUser;
 import com.yzytech.scx.common.security.util.SecurityUtils;
-import com.yzytech.scx.subject.entity.UserSubjectScope;
-import com.yzytech.scx.subject.mapper.UserSubjectScopeMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Media access helper.
+ * <p>
+ * Object-level media isolation ({@code scx_user_subject_scope}) is disabled: any
+ * authenticated caller with the corresponding menu/API permission may access
+ * all media. Menu/button RBAC via Sa-Token remains enforced at controllers.
+ */
 @Service
-@RequiredArgsConstructor
 public class MediaScopeService {
-
-	private final UserSubjectScopeMapper scopeMapper;
 
 	public boolean isAdmin() {
 		BootUser user = SecurityUtils.getUser();
 		return user != null && user.getRoles() != null && user.getRoles().contains(CommonConstants.ROLE_ADMIN_CODE);
 	}
 
+	/**
+	 * Empty list means "no per-user media restriction" (all ACTIVE media are
+	 * visible). Kept for call-site compatibility.
+	 */
 	public List<String> readableMediaIds() {
-		if (isAdmin())
-			return Collections.emptyList();
-		BootUser user = SecurityUtils.getUser();
-		if (user == null)
-			return List.of();
-		return scopeMapper
-			.selectList(Wrappers.<UserSubjectScope>lambdaQuery()
-				.eq(UserSubjectScope::getUserId, user.getUserId())
-				.eq(UserSubjectScope::getSubjectType, "MEDIA"))
-			.stream()
-			.map(UserSubjectScope::getSubjectId)
-			.toList();
+		return Collections.emptyList();
 	}
 
 	public boolean canRead(String mediaId) {
-		return isAdmin() || readableMediaIds().contains(mediaId);
+		return StringUtils.hasText(mediaId);
 	}
 
 	public boolean canWrite(String mediaId) {
-		BootUser user = SecurityUtils.getUser();
-		return user != null && (isAdmin()
-				|| (user.getRoles() != null && user.getRoles().contains("ROLE_OPERATOR") && canRead(mediaId)));
+		return StringUtils.hasText(mediaId);
 	}
 
 }
