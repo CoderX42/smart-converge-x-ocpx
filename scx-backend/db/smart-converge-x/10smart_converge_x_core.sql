@@ -577,3 +577,110 @@ CREATE TABLE IF NOT EXISTS `gen_table_column` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='代码生成-业务字段';
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================
+-- 最小可运行种子数据（INSERT IGNORE 保证幂等）
+-- 包含：系统配置、部门、管理员、角色、标准系统菜单权限、字典
+-- ============================================================
+
+INSERT IGNORE INTO `sys_config` (`id`, `config_key`, `config_value`, `remark`, `del_flag`, `create_time`, `create_by`)
+VALUES ('1', 'callback_domain', 'http://127.0.0.1:8080/api', '通用回调地址，请按部署环境修改', '0', NOW(), 'system');
+
+INSERT IGNORE INTO `sys_dept` (`id`,`parent_id`,`dept_name`,`sort`,`status`,`del_flag`,`create_time`,`create_by`)
+VALUES ('1','0','Smart Converge X',1,'0','0',NOW(),'system');
+
+INSERT IGNORE INTO `sys_role` (`id`,`role_name`,`role_code`,`role_desc`,`type`,`del_flag`,`create_time`,`create_by`)
+VALUES ('1','超级管理员','ROLE_ADMIN','系统内置超级管理员','0','0',NOW(),'system');
+
+INSERT IGNORE INTO `sys_user` (`id`,`username`,`password`,`nickname`,`dept_id`,`status`,`type`,`del_flag`,`create_time`,`create_by`)
+VALUES ('1','system','$2a$10$9p1BH9TCqoxGG1BZe8.cZeUs7xytTbg6LUqjB5uSDbIYCeXDBYnR2','系统管理员','1','0','0','0',NOW(),'system');
+
+INSERT IGNORE INTO `sys_user_role` (`id`,`user_id`,`role_id`) VALUES ('1','1','1');
+
+-- 后台基础路由。component 值与 scx-fronted/apps/web-ele/src/views 保持一致。
+INSERT IGNORE INTO `sys_menu` (`id`,`name`,`path`,`parent_id`,`icon`,`component`,`sort`,`type`,`application_key`,`create_time`,`del_flag`) VALUES
+('menu_dashboard','工作台','/dashboard','0','carbon:dashboard','dashboard/analytics/index',100,'0','app_base',NOW(),'0'),
+('menu_system','系统管理','/system','0','carbon:settings',NULL,90,'0','app_base',NOW(),'0'),
+('menu_user','用户管理','/system/user','menu_system','carbon:user','system/user/index',90,'0','app_base',NOW(),'0'),
+('menu_role','角色管理','/system/role','menu_system','carbon:user-role','system/role/index',80,'0','app_base',NOW(),'0'),
+('menu_menu','菜单管理','/system/menu','menu_system','carbon:menu','system/menu/index',70,'0','app_base',NOW(),'0'),
+('menu_dept','部门管理','/system/dept','menu_system','carbon:tree-view','system/dept/index',60,'0','app_base',NOW(),'0'),
+('menu_dict','字典管理','/system/dict','menu_system','carbon:dictionary','system/dict/index',50,'0','app_base',NOW(),'0'),
+('menu_storage','存储配置','/system/storage-config','menu_system','carbon:cloud-storage','system/storage-config/index',40,'0','app_base',NOW(),'0'),
+('menu_log','操作日志','/system/log','menu_system','carbon:catalog','system/log/index',30,'0','app_base',NOW(),'0'),
+('menu_login_log','登录日志','/system/login-log','menu_system','carbon:login','system/login-log/index',20,'0','app_base',NOW(),'0'),
+('menu_pay','支付管理','/pay','0','carbon:currency-dollar',NULL,80,'0','app_base',NOW(),'0'),
+('menu_pay_config','支付配置','/pay/config','menu_pay','carbon:settings','pay/config/index',40,'0','app_base',NOW(),'0'),
+('menu_pay_trade','支付订单','/pay/trade-order','menu_pay','carbon:purchase','pay/trade-order/index',30,'0','app_base',NOW(),'0'),
+('menu_pay_refund','退款订单','/pay/refund-order','menu_pay','carbon:refund','pay/refund-order/index',20,'0','app_base',NOW(),'0'),
+('menu_pay_notify','回调记录','/pay/notify-record','menu_pay','carbon:webhook','pay/notify-record/index',10,'0','app_base',NOW(),'0'),
+('menu_generator','代码生成','/generator','0','carbon:code','',70,'0','app_base',NOW(),'0'),
+('menu_datasource','数据源管理','/generator/datasource','menu_generator','carbon:data-base','gen/datasource/index',20,'0','app_base',NOW(),'0'),
+('menu_gen_table','数据表管理','/generator/table','menu_generator','carbon:table','gen/gen-table/index',10,'0','app_base',NOW(),'0');
+
+-- 将代码中实际声明的权限码写入菜单表
+SET @permission_seq = 0;
+SET @permission_seq = (SELECT COALESCE(MAX(CAST(SUBSTRING(id, 12) AS UNSIGNED)), 0) FROM sys_menu WHERE id LIKE 'permission_%');
+
+INSERT IGNORE INTO `sys_menu` (`id`,`name`,`permission`,`parent_id`,`sort`,`type`,`application_key`,`create_time`,`del_flag`)
+SELECT CONCAT('permission_',LPAD((@permission_seq := @permission_seq + 1),3,'0')),
+       permission_code, permission_code, parent_id, 0, '1', 'app_base', NOW(), '0'
+FROM (
+  SELECT 'gen:datasource:add' permission_code,'menu_generator' parent_id UNION ALL
+  SELECT 'gen:datasource:del','menu_generator' UNION ALL SELECT 'gen:datasource:edit','menu_generator' UNION ALL SELECT 'gen:datasource:get','menu_generator' UNION ALL SELECT 'gen:datasource:page','menu_generator' UNION ALL SELECT 'gen:gen-table:page','menu_generator' UNION ALL
+  SELECT 'pay:payconfig:add','menu_pay' UNION ALL SELECT 'pay:payconfig:del','menu_pay' UNION ALL SELECT 'pay:payconfig:edit','menu_pay' UNION ALL SELECT 'pay:payconfig:get','menu_pay' UNION ALL SELECT 'pay:payconfig:page','menu_pay' UNION ALL
+  SELECT 'pay:paynotifyrecord:get','menu_pay' UNION ALL SELECT 'pay:paynotifyrecord:page','menu_pay' UNION ALL SELECT 'pay:payrefundorder:get','menu_pay' UNION ALL SELECT 'pay:payrefundorder:page','menu_pay' UNION ALL SELECT 'pay:paytradeorder:get','menu_pay' UNION ALL SELECT 'pay:paytradeorder:page','menu_pay' UNION ALL
+  SELECT 'system:ad-launch:edit','menu_system' UNION ALL SELECT 'system:ad-launch:get','menu_system' UNION ALL
+  SELECT 'system:agreement:add','menu_system' UNION ALL SELECT 'system:agreement:del','menu_system' UNION ALL SELECT 'system:agreement:edit','menu_system' UNION ALL SELECT 'system:agreement:get','menu_system' UNION ALL SELECT 'system:agreement:page','menu_system' UNION ALL
+  SELECT 'system:article-category:add','menu_system' UNION ALL SELECT 'system:article-category:del','menu_system' UNION ALL SELECT 'system:article-category:edit','menu_system' UNION ALL SELECT 'system:article-category:get','menu_system' UNION ALL SELECT 'system:article-category:page','menu_system' UNION ALL
+  SELECT 'system:article:add','menu_system' UNION ALL SELECT 'system:article:del','menu_system' UNION ALL SELECT 'system:article:edit','menu_system' UNION ALL SELECT 'system:article:get','menu_system' UNION ALL SELECT 'system:article:page','menu_system' UNION ALL
+  SELECT 'system:config:add','menu_system' UNION ALL SELECT 'system:config:del','menu_system' UNION ALL SELECT 'system:config:edit','menu_system' UNION ALL SELECT 'system:config:get','menu_system' UNION ALL SELECT 'system:config:page','menu_system' UNION ALL
+  SELECT 'system:copyright:add','menu_system' UNION ALL SELECT 'system:copyright:del','menu_system' UNION ALL SELECT 'system:copyright:edit','menu_system' UNION ALL SELECT 'system:copyright:get','menu_system' UNION ALL SELECT 'system:copyright:page','menu_system' UNION ALL
+  SELECT 'system:material:add','menu_system' UNION ALL SELECT 'system:material:del','menu_system' UNION ALL SELECT 'system:material:edit','menu_system' UNION ALL SELECT 'system:material:page','menu_system' UNION ALL
+  SELECT 'system:materialgroup:add','menu_system' UNION ALL SELECT 'system:materialgroup:del','menu_system' UNION ALL SELECT 'system:materialgroup:edit','menu_system' UNION ALL SELECT 'system:materialgroup:get','menu_system' UNION ALL SELECT 'system:materialgroup:page','menu_system' UNION ALL
+  SELECT 'system:region:add','menu_system' UNION ALL SELECT 'system:region:del','menu_system' UNION ALL SELECT 'system:region:edit','menu_system' UNION ALL SELECT 'system:region:get','menu_system' UNION ALL SELECT 'system:region:page','menu_system' UNION ALL
+  SELECT 'system:sms-config:add','menu_system' UNION ALL SELECT 'system:sms-config:del','menu_system' UNION ALL SELECT 'system:sms-config:edit','menu_system' UNION ALL SELECT 'system:sms-config:get','menu_system' UNION ALL SELECT 'system:sms-config:page','menu_system' UNION ALL
+  SELECT 'system:sms-send-record:add','menu_system' UNION ALL SELECT 'system:sms-send-record:del','menu_system' UNION ALL SELECT 'system:sms-send-record:edit','menu_system' UNION ALL SELECT 'system:sms-send-record:get','menu_system' UNION ALL SELECT 'system:sms-send-record:page','menu_system' UNION ALL
+  SELECT 'system:social-account:add','menu_system' UNION ALL SELECT 'system:social-account:del','menu_system' UNION ALL SELECT 'system:social-account:edit','menu_system' UNION ALL SELECT 'system:social-account:get','menu_system' UNION ALL SELECT 'system:social-account:page','menu_system' UNION ALL
+  SELECT 'system:storageconfig:add','menu_system' UNION ALL SELECT 'system:storageconfig:del','menu_system' UNION ALL SELECT 'system:storageconfig:edit','menu_system' UNION ALL SELECT 'system:storageconfig:get','menu_system' UNION ALL SELECT 'system:storageconfig:page','menu_system' UNION ALL
+  SELECT 'system:sysdept:add','menu_system' UNION ALL SELECT 'system:sysdept:del','menu_system' UNION ALL SELECT 'system:sysdept:edit','menu_system' UNION ALL SELECT 'system:sysdept:get','menu_system' UNION ALL SELECT 'system:sysdept:page','menu_system' UNION ALL
+  SELECT 'system:sysdict:add','menu_system' UNION ALL SELECT 'system:sysdict:del','menu_system' UNION ALL SELECT 'system:sysdict:edit','menu_system' UNION ALL SELECT 'system:sysdict:get','menu_system' UNION ALL SELECT 'system:sysdict:page','menu_system' UNION ALL
+  SELECT 'system:sysdictvalue:add','menu_system' UNION ALL SELECT 'system:sysdictvalue:del','menu_system' UNION ALL SELECT 'system:sysdictvalue:edit','menu_system' UNION ALL SELECT 'system:sysdictvalue:get','menu_system' UNION ALL SELECT 'system:sysdictvalue:page','menu_system' UNION ALL
+  SELECT 'system:syslog:get','menu_system' UNION ALL SELECT 'system:syslog:page','menu_system' UNION ALL SELECT 'system:sysloginlog:page','menu_system' UNION ALL
+  SELECT 'system:sysmenu:add','menu_system' UNION ALL SELECT 'system:sysmenu:del','menu_system' UNION ALL SELECT 'system:sysmenu:edit','menu_system' UNION ALL SELECT 'system:sysmenu:get','menu_system' UNION ALL SELECT 'system:sysmenu:page','menu_system' UNION ALL
+  SELECT 'system:sysrole:add','menu_system' UNION ALL SELECT 'system:sysrole:del','menu_system' UNION ALL SELECT 'system:sysrole:edit','menu_system' UNION ALL SELECT 'system:sysrole:get','menu_system' UNION ALL SELECT 'system:sysrole:page','menu_system' UNION ALL SELECT 'system:sysrole:update','menu_system' UNION ALL
+  SELECT 'system:sysserver:get','menu_system' UNION ALL
+  SELECT 'system:sysuser:add','menu_system' UNION ALL SELECT 'system:sysuser:del','menu_system' UNION ALL SELECT 'system:sysuser:edit','menu_system' UNION ALL SELECT 'system:sysuser:get','menu_system' UNION ALL SELECT 'system:sysuser:page','menu_system' UNION ALL SELECT 'system:sysuser:password','menu_system'
+) permission_list
+WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE permission = permission_code);
+
+SET @role_menu_seq = (SELECT COALESCE(MAX(CAST(SUBSTRING(id, 11) AS UNSIGNED)), 0) FROM sys_role_menu WHERE id LIKE 'role_menu_%');
+
+INSERT IGNORE INTO `sys_role_menu` (`id`,`role_id`,`menu_id`)
+SELECT CONCAT('role_menu_',LPAD((@role_menu_seq := @role_menu_seq + 1),3,'0')), '1', `id`
+FROM `sys_menu`
+WHERE NOT EXISTS (
+  SELECT 1 FROM sys_role_menu srm WHERE srm.role_id = '1' AND srm.menu_id = sys_menu.id
+);
+
+INSERT IGNORE INTO `sys_dict` (`id`,`type`,`description`,`status`,`remarks`,`del_flag`,`create_time`,`create_by`) VALUES
+('dict_status','status','通用状态','0','通用启停状态','0',NOW(),'system'),
+('dict_menu_type','menu_type','菜单类型','0','菜单与按钮','0',NOW(),'system'),
+('dict_pay_type','pay_type','支付类型','0','通用支付渠道','0',NOW(),'system'),
+('dict_pay_status','pay_status','支付状态','0','支付订单状态','0',NOW(),'system'),
+('dict_pay_terminal','pay_terminal_type','支付端类型','0','支付发起终端','0',NOW(),'system'),
+('dict_pay_mode','pay_mode','支付模式','0','普通商户与服务商','0',NOW(),'system'),
+('dict_sms_supplier','sms_supplier','短信厂商','0','短信服务商标识','0',NOW(),'system'),
+('dict_sms_status','sms_send_status','短信发送状态','0','短信发送结果','0',NOW(),'system'),
+('dict_storage_type','sys_storage_type','文件存储类型','0','文件存储配置类型','0',NOW(),'system');
+
+INSERT IGNORE INTO `sys_dict_value` (`id`,`dict_id`,`dict_label`,`dict_value`,`dict_type`,`status`,`sort`,`del_flag`,`create_time`,`create_by`) VALUES
+('dv_status_0','dict_status','正常','0','status','0',1,'0',NOW(),'system'),('dv_status_1','dict_status','停用','1','status','0',2,'0',NOW(),'system'),
+('dv_menu_0','dict_menu_type','菜单','0','menu_type','0',1,'0',NOW(),'system'),('dv_menu_1','dict_menu_type','按钮','1','menu_type','0',2,'0',NOW(),'system'),
+('dv_pay_1','dict_pay_type','微信支付','1','pay_type','0',1,'0',NOW(),'system'),('dv_pay_2','dict_pay_type','支付宝支付','2','pay_type','0',2,'0',NOW(),'system'),
+('dv_pay_status_0','dict_pay_status','未支付','0','pay_status','0',1,'0',NOW(),'system'),('dv_pay_status_1','dict_pay_status','已支付','1','pay_status','0',2,'0',NOW(),'system'),
+('dv_terminal_0','dict_pay_terminal','小程序','0','pay_terminal_type','0',1,'0',NOW(),'system'),('dv_terminal_1','dict_pay_terminal','App','1','pay_terminal_type','0',2,'0',NOW(),'system'),('dv_terminal_2','dict_pay_terminal','H5','2','pay_terminal_type','0',3,'0',NOW(),'system'),('dv_terminal_3','dict_pay_terminal','PC','3','pay_terminal_type','0',4,'0',NOW(),'system'),('dv_terminal_4','dict_pay_terminal','公众号','4','pay_terminal_type','0',5,'0',NOW(),'system'),
+('dv_mode_0','dict_pay_mode','普通商户','0','pay_mode','0',1,'0',NOW(),'system'),('dv_mode_1','dict_pay_mode','服务商','1','pay_mode','0',2,'0',NOW(),'system'),
+('dv_sms_aliyun','dict_sms_supplier','阿里云','alibaba','sms_supplier','0',1,'0',NOW(),'system'),('dv_sms_tencent','dict_sms_supplier','腾讯云','tencent','sms_supplier','0',2,'0',NOW(),'system'),
+('dv_sms_status_0','dict_sms_status','待发送','0','sms_send_status','0',1,'0',NOW(),'system'),('dv_sms_status_1','dict_sms_status','成功','1','sms_send_status','0',2,'0',NOW(),'system'),('dv_sms_status_2','dict_sms_status','失败','2','sms_send_status','0',3,'0',NOW(),'system'),
+('dv_storage_local','dict_storage_type','本地存储','local','sys_storage_type','0',1,'0',NOW(),'system'),('dv_storage_minio','dict_storage_type','MinIO','minio','sys_storage_type','0',2,'0',NOW(),'system'),('dv_storage_oss','dict_storage_type','阿里云 OSS','aliyun','sys_storage_type','0',3,'0',NOW(),'system'),('dv_storage_cos','dict_storage_type','腾讯云 COS','tencent','sys_storage_type','0',4,'0',NOW(),'system');
