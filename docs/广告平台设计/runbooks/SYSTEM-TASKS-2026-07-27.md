@@ -46,6 +46,9 @@
 | BASE-03-FIX（仓库凭据风险审计） | ✅ 已实现并验证 | [BASE-03-FIX-2026-07-27-credential-cleanup.md](./BASE-03-FIX-2026-07-27-credential-cleanup.md) |
 | BASE-03-FIX-MERGE（5 类文件实际修复，用户授权 16:30） | ✅ 已实现并验证 | [§0 合并执行摘要](./BASE-03-FIX-2026-07-27-credential-cleanup.md#0-base-03-fix-merge-合并执行摘要) |
 | BASE-03-RUNTIME-GATE（7/7 prod profile fail-closed） | ✅ 已实现并验证 | [BASE-03-RUNTIME-GATE-2026-07-27-fail-closed.md](./BASE-03-RUNTIME-GATE-2026-07-27-fail-closed.md) |
+| L0 生产发布与 V43–V47 | ⛔ 主机身份不清已停止；未执行线上 SQL/部署 | [L0 执行记录](./L0-2026-07-27-production-gate-execution.md) |
+| L0 四角色浏览器/API/审计 | ⚠️ 隔离环境通过，生产账号与安全媒体待注入 | [L0 执行记录 §3](./L0-2026-07-27-production-gate-execution.md#3-隔离数据库与四角色证据) |
+| BASE-05 / CAP-01~05 | ⚠️ 仅 Redis 本机预检；独立环境和 20k/40k 未执行 | [L0 执行记录 §4](./L0-2026-07-27-production-gate-execution.md#4-故障恢复与容量边界) |
 | FIX-SECRET-CHECK-DEV（check 脚本 dev/prod 兼容） | ✅ 已实现并验证（用户 2026-07-27 21:30 授权） | [FIX-SECRET-CHECK-DEV-2026-07-27-checker-compat.md](./FIX-SECRET-CHECK-DEV-2026-07-27-checker-compat.md) |
 | IMP-2（TrackingProperties 配置绑定校验） | ✅ 已实现并验证（Spring 配置绑定范围） | [IMP-2-2026-07-27-tracking-properties-validation.md](./IMP-2-2026-07-27-tracking-properties-validation.md) |
 | FIX-1（拒绝访问安全审计） | ✅ 已实现并验证（单元与构建范围） | [FIX-1-2026-07-27-security-denial-audit.md](./FIX-1-2026-07-27-security-denial-audit.md) |
