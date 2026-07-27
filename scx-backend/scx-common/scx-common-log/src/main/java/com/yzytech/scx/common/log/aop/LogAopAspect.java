@@ -6,6 +6,7 @@ import cn.hutool.core.util.URLUtil;
 import cn.hutool.extra.servlet.JakartaServletUtil;
 import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.core.util.IpUtils;
+import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.common.log.event.BootLogEvent;
 import com.yzytech.scx.common.security.util.SecurityUtils;
@@ -73,7 +74,7 @@ public class LogAopAspect {
 		Object result = null;
 		try {
 			result = point.proceed();
-
+			markBusinessResultFailure(sysLogReq, result);
 		}
 		catch (Exception e) {
 			sysLogReq.setStatus(CommonConstants.LOGIN_LOG_STATUS_0);
@@ -88,6 +89,16 @@ public class LogAopAspect {
 
 		}
 		return result;
+	}
+
+	static void markBusinessResultFailure(SysLogReqDTO sysLogReq, Object result) {
+		if (result instanceof Result<?> apiResult && apiResult.getCode() != CommonConstants.SUCCESS) {
+			sysLogReq.setStatus(CommonConstants.LOGIN_LOG_STATUS_0);
+			// Do not persist the response message: it may include object identifiers or
+			// other request-derived values. The stable business code is enough to
+			// distinguish a rejected operation from an exception.
+			sysLogReq.setExMsg("BUSINESS_RESULT:" + apiResult.getCode());
+		}
 	}
 
 }

@@ -76,7 +76,8 @@ public class ChannelClientController {
 			return Result.success(action.call());
 		}
 		catch (IllegalArgumentException | IllegalStateException exception) {
-			return Result.fail(exception.getMessage());
+			return "资源不存在".equals(exception.getMessage()) ? Result.fail(404, "资源不存在")
+					: Result.fail(exception.getMessage());
 		}
 		catch (Exception exception) {
 			return Result.fail("渠道凭据操作失败");
