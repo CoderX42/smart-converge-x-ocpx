@@ -15,7 +15,7 @@ spring:
       discovery:
         enabled: false
   main:
-    allow-bean-definition-overriding: true
+    allow-bean-definition-overriding: false
 
 sa-token:
   token-name: satoken

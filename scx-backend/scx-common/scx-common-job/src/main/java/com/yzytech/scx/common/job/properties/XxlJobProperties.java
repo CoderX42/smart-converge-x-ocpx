@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.job.properties;
 
 import lombok.Data;
@@ -30,7 +29,7 @@ public class XxlJobProperties {
 	private int port = 9009;
 
 	/** 执行器通讯TOKEN [选填]：非空时启用； */
-	private String accessToken = "hxsadadasdasdasda";
+	private String accessToken;
 
 	/**
 	 * 执行器注册 [选填]：优先使用该配置作为注册地址，为空时使用内嵌服务 ”IP:PORT“ 作为注册地址。从而更灵活的支持容器类型执行器动态IP和动态映射端口问题。

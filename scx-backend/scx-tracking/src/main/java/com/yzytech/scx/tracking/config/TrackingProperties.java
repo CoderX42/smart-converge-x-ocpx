@@ -1,12 +1,15 @@
 package com.yzytech.scx.tracking.config;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 @Data
 @Component
+@Validated
 @ConfigurationProperties(prefix = "scx.tracking")
 public class TrackingProperties {
 
@@ -15,9 +18,11 @@ public class TrackingProperties {
 	private String sandboxSigningKey;
 
 	/** Base64 encoded AES-256 key used only to encrypt channel credentials and URLs. */
+	@NotBlank(message = "scx.tracking.channel-master-key must not be blank")
 	private String channelMasterKey;
 
 	/** Base64 encoded HMAC key used to derive non-exportable internal device keys. */
+	@NotBlank(message = "scx.tracking.device-hmac-key must not be blank")
 	private String deviceHmacKey;
 
 	private String deviceKeyVersion = "v1";

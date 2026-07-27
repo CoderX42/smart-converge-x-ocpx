@@ -46,7 +46,7 @@ public class SysLogReqDTO implements Serializable {
 	@Schema(description = "异常信息")
 	private String exMsg;
 
-	@Schema(description = "创建ID")
-	private String createId;
+	@Schema(description = "创建人")
+	private String createBy;
 
 }

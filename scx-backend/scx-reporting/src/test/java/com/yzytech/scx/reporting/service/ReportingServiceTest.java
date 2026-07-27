@@ -24,84 +24,96 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ReportingServiceTest {
-    private final MediaScopeService scopeService = mock(MediaScopeService.class);
-    private final ReportRunMapper runMapper = mock(ReportRunMapper.class);
-    private final ReportDailyMapper dailyMapper = mock(ReportDailyMapper.class);
-    private final EventDetailMapper eventDetailMapper = mock(EventDetailMapper.class);
-    private final TaskScopeService taskScopeService = mock(TaskScopeService.class);
-    private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
-    private final ReportingService service = new ReportingService(scopeService, new TrackingProperties(), runMapper, dailyMapper,
-            eventDetailMapper, taskScopeService, taskMapper, new ObjectMapper());
 
-    @Test
-    void returnsLatestSnapshotsGroupedByRequestedDimension() {
-        LocalDate start = LocalDate.of(2026, 7, 1);
-        LocalDate end = LocalDate.of(2026, 7, 7);
-        ReportBreakdown row = new ReportBreakdown();
-        row.setDimensionId("task-1");
-        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
-        when(dailyMapper.selectBreakdown("media-1", start, end, "TASK", null, null, null, null, null, null, false,
-                List.of())).thenReturn(List.of(row));
+	private final MediaScopeService scopeService = mock(MediaScopeService.class);
 
-        assertThat(service.breakdown(start, end, "media-1", "task")).containsExactly(row);
-        verify(dailyMapper).selectBreakdown("media-1", start, end, "TASK", null, null, null, null, null, null, false,
-                List.of());
-    }
+	private final ReportRunMapper runMapper = mock(ReportRunMapper.class);
 
-    @Test
-    void rejectsUnsafeDimensionAndOversizedDateRangeBeforeQuerying() {
-        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
-        LocalDate start = LocalDate.of(2026, 7, 1);
+	private final ReportDailyMapper dailyMapper = mock(ReportDailyMapper.class);
 
-        assertThatThrownBy(() -> service.breakdown(start, start.plusDays(31), "media-1", "task"))
-                .hasMessage("单次多维分析最多查询 31 天");
-        assertThatThrownBy(() -> service.breakdown(start, start, "media-1", "unknown"))
-                .hasMessage("不支持的分析维度");
-    }
+	private final EventDetailMapper eventDetailMapper = mock(EventDetailMapper.class);
 
-    @Test
-    void appliesTaskScopeToBreakdownAndOverview() {
-        LocalDate date = LocalDate.of(2026, 7, 7);
-        TaskScopeService.TaskAccess access = TaskScopeService.TaskAccess.restricted(List.of("task-1"));
-        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(access);
+	private final TaskScopeService taskScopeService = mock(TaskScopeService.class);
 
-        service.breakdown(date, date, "media-1", "product");
-        service.overview(date, "media-1");
+	private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
 
-        verify(dailyMapper).selectBreakdown("media-1", date, date, "PRODUCT", null, null, null, null, null, null, true,
-                List.of("task-1"));
-        verify(dailyMapper).selectTrend("media-1", date.minusDays(6), date, true, List.of("task-1"));
-    }
+	private final ReportingService service = new ReportingService(scopeService, new TrackingProperties(), runMapper,
+			dailyMapper, eventDetailMapper, taskScopeService, taskMapper, new ObjectMapper());
 
-    @Test
-    void forwardsOperationalFiltersToBreakdownQuery() {
-        LocalDate date = LocalDate.of(2026, 7, 7);
-        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+	@Test
+	void returnsLatestSnapshotsGroupedByRequestedDimension() {
+		LocalDate start = LocalDate.of(2026, 7, 1);
+		LocalDate end = LocalDate.of(2026, 7, 7);
+		ReportBreakdown row = new ReportBreakdown();
+		row.setDimensionId("task-1");
+		when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+		when(dailyMapper.selectBreakdown("media-1", start, end, "TASK", null, null, null, null, null, null, false,
+				List.of()))
+			.thenReturn(List.of(row));
 
-        service.breakdown(date, date, "media-1", "LINK", "customer-1", "product-1", "link-1", "task-1",
-                "channel-1", "document-1");
+		assertThat(service.breakdown(start, end, "media-1", "task")).containsExactly(row);
+		verify(dailyMapper).selectBreakdown("media-1", start, end, "TASK", null, null, null, null, null, null, false,
+				List.of());
+	}
 
-        verify(dailyMapper).selectBreakdown("media-1", date, date, "LINK", "customer-1", "product-1", "link-1",
-                "task-1", "channel-1", "document-1", false, List.of());
-    }
+	@Test
+	void rejectsUnsafeDimensionAndOversizedDateRangeBeforeQuerying() {
+		when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+		LocalDate start = LocalDate.of(2026, 7, 1);
 
-    @Test
-    void returnsControlledClickFieldsButOnlyPresenceForDeviceIdentifiers() {
-        TrackingTask task = new TrackingTask();
-        task.setId("task-1");
-        ClickSensitiveDetail detail = new ClickSensitiveDetail();
-        detail.setClickId("click-123");
-        detail.setOaidProtected(true);
-        detail.setAttributeKeysJson("[\"click_id\", \"oaid\", \"campaign_id\"]");
-        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
-        when(eventDetailMapper.selectTaskId("raw-1", "media-1")).thenReturn("task-1");
-        when(taskMapper.selectById("task-1")).thenReturn(task);
-        when(eventDetailMapper.selectMaskedClick("raw-1", "media-1")).thenReturn(detail);
+		assertThatThrownBy(() -> service.breakdown(start, start.plusDays(31), "media-1", "task"))
+			.hasMessage("单次多维分析最多查询 31 天");
+		assertThatThrownBy(() -> service.breakdown(start, start, "media-1", "unknown")).hasMessage("不支持的分析维度");
+	}
 
-        ClickSensitiveDetail result = service.maskedClick("raw-1", "media-1");
+	@Test
+	void appliesTaskScopeToBreakdownAndOverview() {
+		LocalDate date = LocalDate.of(2026, 7, 7);
+		TaskScopeService.TaskAccess access = TaskScopeService.TaskAccess.restricted(List.of("task-1"));
+		when(taskScopeService.accessForMedia("media-1", false)).thenReturn(access);
 
-        assertThat(result.getClickId()).isEqualTo("click-123");
-        assertThat(result.getOaidProtected()).isTrue();
-        assertThat(result.getAttributeKeys()).containsExactly("click_id", "oaid", "campaign_id");
-    }
+		service.breakdown(date, date, "media-1", "product");
+		service.overview(date, "media-1");
+
+		verify(dailyMapper).selectBreakdown("media-1", date, date, "PRODUCT", null, null, null, null, null, null, true,
+				List.of("task-1"));
+		verify(dailyMapper).selectTrend("media-1", date.minusDays(6), date, true, List.of("task-1"));
+	}
+
+	@Test
+	void forwardsOperationalFiltersToBreakdownQuery() {
+		LocalDate date = LocalDate.of(2026, 7, 7);
+		when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+
+		service.breakdown(date, date, "media-1", "LINK", "customer-1", "product-1", "link-1", "task-1", "channel-1",
+				"document-1");
+
+		verify(dailyMapper).selectBreakdown("media-1", date, date, "LINK", "customer-1", "product-1", "link-1",
+				"task-1", "channel-1", "document-1", false, List.of());
+	}
+
+	@Test
+	void returnsControlledClickFieldsButOnlyPresenceForDeviceIdentifiers() {
+		TrackingTask task = new TrackingTask();
+		task.setId("task-1");
+		ClickSensitiveDetail detail = new ClickSensitiveDetail();
+		detail.setClickIdMasked("click-***");
+		detail.setCampaignIdMasked("campai***");
+		detail.setCreativeIdMasked("creati***");
+		detail.setOaidProtected(true);
+		detail.setAttributeKeysJson("[\"click_id\", \"oaid\", \"campaign_id\"]");
+		when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+		when(eventDetailMapper.selectTaskId("raw-1", "media-1")).thenReturn("task-1");
+		when(taskMapper.selectById("task-1")).thenReturn(task);
+		when(eventDetailMapper.selectMaskedClick("raw-1", "media-1")).thenReturn(detail);
+
+		ClickSensitiveDetail result = service.maskedClick("raw-1", "media-1");
+
+		assertThat(result.getClickIdMasked()).isEqualTo("click-***");
+		assertThat(result.getCampaignIdMasked()).isEqualTo("campai***");
+		assertThat(result.getCreativeIdMasked()).isEqualTo("creati***");
+		assertThat(result.getOaidProtected()).isTrue();
+		assertThat(result.getAttributeKeys()).containsExactly("click_id", "oaid", "campaign_id");
+	}
+
 }

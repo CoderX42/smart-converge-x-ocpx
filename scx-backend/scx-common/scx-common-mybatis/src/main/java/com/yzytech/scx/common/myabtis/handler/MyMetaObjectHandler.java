@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.myabtis.handler;
 
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
@@ -29,7 +28,8 @@ public class MyMetaObjectHandler implements MetaObjectHandler {
 
 		fillValIfNullByName("createTime", now, metaObject, true);
 		fillValIfNullByName("updateTime", now, metaObject, true);
-		fillValIfNullByName("createBy", getUserName(), metaObject, true);
+		// Explicit system/job audit ownership has priority over the current request user.
+		fillValIfNullByName("createBy", getUserName(), metaObject, false);
 		fillValIfNullByName("updateBy", getUserName(), metaObject, true);
 		fillValIfNullByName("delFlag", CommonConstants.NO, metaObject, true);
 	}

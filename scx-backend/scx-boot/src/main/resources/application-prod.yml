@@ -39,7 +39,7 @@ aj:
 
 xxl:
   job:
-    adminAddresses: ${SCX_XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8080}
+    adminAddresses: ${SCX_XXL_JOB_ADMIN_ADDRESSES}
     accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN}
     appName: smart-converge-x
     port: ${SCX_XXL_JOB_EXECUTOR_PORT:9009}

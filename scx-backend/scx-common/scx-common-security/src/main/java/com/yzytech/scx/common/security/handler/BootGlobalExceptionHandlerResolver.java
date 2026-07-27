@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.security.handler;
 
 import cn.dev33.satoken.exception.NotLoginException;
@@ -7,6 +6,9 @@ import cn.dev33.satoken.exception.NotPermissionException;
 import cn.dev33.satoken.exception.NotRoleException;
 import cn.hutool.core.util.StrUtil;
 import com.yzytech.scx.common.core.util.Result;
+import com.yzytech.scx.common.security.listener.BaseSecurityAuditListener;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
@@ -27,9 +29,12 @@ import java.util.Objects;
  */
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class BootGlobalExceptionHandlerResolver {
 
 	private static final String SYSTEM_ERROR_MSG = "系统异常";
+
+	private final BaseSecurityAuditListener baseSecurityAuditListener;
 
 	/**
 	 * Spring 数据访问异常（含 MyBatis 等包装后的 SQL 异常）：不向前端暴露 SQL/库表信息
@@ -116,7 +121,8 @@ public class BootGlobalExceptionHandlerResolver {
 	 */
 	@ExceptionHandler(NotLoginException.class)
 	@ResponseStatus(HttpStatus.UNAUTHORIZED)
-	public Result handlerNotLoginException(NotLoginException nle) {
+	public Result handlerNotLoginException(NotLoginException nle, HttpServletRequest request) {
+		baseSecurityAuditListener.record(request, "NOT_LOGIN");
 		// 判断场景值，定制化异常信息
 		String message = "";
 		if (nle.getType().equals(NotLoginException.NOT_TOKEN)) {
@@ -142,14 +148,16 @@ public class BootGlobalExceptionHandlerResolver {
 
 	@ExceptionHandler(NotPermissionException.class)
 	@ResponseStatus(HttpStatus.FORBIDDEN)
-	public Result handleNotPermissionException(Exception e) {
+	public Result handleNotPermissionException(NotPermissionException e, HttpServletRequest request) {
+		baseSecurityAuditListener.record(request, "NOT_PERMISSION");
 		log.error("全局异常信息 ex={}", e.getMessage(), e);
 		return Result.fail(e.getLocalizedMessage());
 	}
 
 	@ExceptionHandler(NotRoleException.class)
 	@ResponseStatus(HttpStatus.FORBIDDEN)
-	public Result handleNotRoleException(NotRoleException e) {
+	public Result handleNotRoleException(NotRoleException e, HttpServletRequest request) {
+		baseSecurityAuditListener.record(request, "NOT_ROLE");
 		log.error("全局异常信息 ex={}", e.getMessage(), e);
 		return Result.fail(e.getLocalizedMessage());
 	}

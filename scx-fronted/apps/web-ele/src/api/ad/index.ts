@@ -7,6 +7,17 @@ export type Media = {
   name: string;
   timezone: string;
 };
+export type ClickSensitiveDetail = {
+  attributeKeys: string[];
+  campaignIdMasked?: string;
+  clickIdMasked?: string;
+  creativeIdMasked?: string;
+  deviceModel?: string;
+  ipProtected: boolean;
+  oaidMd5Protected: boolean;
+  oaidProtected: boolean;
+  rawEventId: string;
+};
 export type MasterType =
   | 'integration-documents'
   | 'media-channels'
@@ -152,7 +163,7 @@ export function getEventDetails(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/reports/details', { params });
 }
 export function getClickSummary(rawEventId: string, mediaId: string) {
-  return requestClient.get<any>(
+  return requestClient.get<ClickSensitiveDetail>(
     `/ad/reports/details/${rawEventId}/click-sensitive`,
     {
       params: { mediaId },

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { Media } from '#/api/ad';
+import type { ClickSensitiveDetail, Media } from '#/api/ad';
 
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -31,7 +31,7 @@ const loading = ref(false);
 const current = ref(1);
 const size = ref(20);
 const total = ref(0);
-const sensitive = ref<any>({});
+const sensitive = ref<Partial<ClickSensitiveDetail>>({});
 const sensitiveVisible = ref(false);
 const sensitiveLoading = ref(false);
 const route = useRoute();
@@ -317,7 +317,7 @@ bootstrap().then(async () => {
     >
       <el-descriptions v-loading="sensitiveLoading" :column="2" border>
         <el-descriptions-item label="click_id">
-          <span class="mvp-code">{{ sensitive.clickId || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.clickIdMasked || '—' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="OAID">
           {{ protectedStatus(sensitive.oaidProtected) }}
@@ -332,10 +332,10 @@ bootstrap().then(async () => {
           {{ sensitive.deviceModel || '—' }}
         </el-descriptions-item>
         <el-descriptions-item label="计划 ID">
-          <span class="mvp-code">{{ sensitive.campaignId || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.campaignIdMasked || '—' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="创意 ID">
-          <span class="mvp-code">{{ sensitive.creativeId || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.creativeIdMasked || '—' }}</span>
         </el-descriptions-item>
         <el-descriptions-item :span="2" label="已上报字段">
           <span class="mvp-code">
@@ -344,7 +344,8 @@ bootstrap().then(async () => {
         </el-descriptions-item>
       </el-descriptions>
       <p class="mt-3 text-xs text-gray-400">
-        设备标识、完整设备哈希和 IP 不返回原值；这里仅显示是否上报，避免在后台扩散个人标识。
+        点击、计划和创意标识仅显示掩码；设备标识、完整设备哈希和 IP
+        不返回原值，仅显示是否上报。
       </p>
       <template #footer>
         <el-button @click="sensitiveVisible = false">关闭</el-button>

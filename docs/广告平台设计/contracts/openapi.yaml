@@ -194,6 +194,30 @@ paths:
         - { name: mediaId, in: query, required: true, schema: { type: string } }
       responses:
         '200': { description: 吊销结果 }
+  /ad/reports/details/{rawEventId}/click-sensitive:
+    get:
+      operationId: getMaskedClickSensitiveDetail
+      summary: 查询受控的点击排查摘要
+      description: >-
+        需要 ad:event-sensitive:read 和对应媒体/任务读取范围。点击、计划和创意标识仅返回掩码；
+        设备标识与 IP 只返回存在标记，不返回原值或完整哈希。
+      parameters:
+        - { name: rawEventId, in: path, required: true, schema: { type: string } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 受控排查摘要
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data]
+                properties:
+                  code: { type: integer, const: 0 }
+                  msg: { type: [string, 'null'] }
+                  data: { $ref: '#/components/schemas/ClickSensitiveDetail' }
+        '403': { description: 无敏感字段权限 }
+        '404': { description: 事件不存在或不在当前对象范围内 }
 components:
   parameters:
     ClientId:
@@ -223,6 +247,28 @@ components:
       required: true
       schema: { type: string, pattern: '^[a-f0-9]{64}$' }
   schemas:
+    ClickSensitiveDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - rawEventId
+        - oaidProtected
+        - oaidMd5Protected
+        - ipProtected
+        - attributeKeys
+      properties:
+        rawEventId: { type: string }
+        clickIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
+        deviceModel: { type: [string, 'null'] }
+        campaignIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
+        creativeIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
+        oaidProtected: { type: boolean }
+        oaidMd5Protected: { type: boolean }
+        ipProtected: { type: boolean }
+        attributeKeys:
+          type: array
+          maxItems: 50
+          items: { type: string }
     ChannelClientCreate:
       type: object
       additionalProperties: false
