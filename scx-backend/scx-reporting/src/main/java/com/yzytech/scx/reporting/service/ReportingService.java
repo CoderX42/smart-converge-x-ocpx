@@ -3,6 +3,9 @@ package com.yzytech.scx.reporting.service;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.common.core.sign.SignUtils;
 import com.yzytech.scx.reporting.dto.EventDetailView;
 import com.yzytech.scx.reporting.dto.ClickSensitiveDetail;
@@ -23,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -37,6 +41,7 @@ public class ReportingService {
     private final EventDetailMapper eventDetailMapper;
     private final TaskScopeService taskScopeService;
     private final TrackingTaskMapper taskMapper;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public ReportRun refresh(LocalDate date, String mediaId) {
@@ -77,7 +82,27 @@ public class ReportingService {
         if (task == null || (taskAccess.restricted() && !taskAccess.taskIds().contains(taskId))) throw new IllegalArgumentException("资源不存在");
         ClickSensitiveDetail detail = eventDetailMapper.selectMaskedClick(rawEventId, mediaId);
         if (detail == null) throw new IllegalArgumentException("资源不存在");
+        detail.setAttributeKeys(parseAttributeKeys(detail.getAttributeKeysJson()));
         return detail;
+    }
+
+    private List<String> parseAttributeKeys(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        try {
+            JsonNode keys = objectMapper.readTree(value);
+            if (!keys.isArray()) return List.of();
+            List<String> result = new ArrayList<>();
+            for (JsonNode key : keys) {
+                if (key.isTextual() && !key.asText().isBlank()) {
+                    result.add(key.asText());
+                    if (result.size() == 50) break;
+                }
+            }
+            return result;
+        }
+        catch (JsonProcessingException ignored) {
+            return List.of();
+        }
     }
     public List<ReportBreakdown> breakdown(LocalDate startDate, LocalDate endDate, String mediaId, String dimension) {
         return breakdown(startDate, endDate, mediaId, dimension, null, null, null, null, null, null);

@@ -1,34 +1,34 @@
 spring:
+  config:
+    fail-on-unresolved-placeholders: true
   servlet:
     multipart:
       maxFileSize: 100MB
       maxRequestSize: 100MB
   cache:
-    type: redis # 缓存类型 Redis
+    type: redis
   data:
     redis:
-      host: redis-cnlfagupdyxgrkgqy.redis.ivolces.com
-      port: 6379
-      username: ocpxuser
-      password: OqS5ZRBU1wBuEqLeHAQ3
-      database: 0
-
-  # 数据库相关配置
+      host: ${SCX_REDIS_HOST}
+      port: ${SCX_REDIS_PORT:6379}
+      username: ${SCX_REDIS_USERNAME:}
+      password: ${SCX_REDIS_PASSWORD}
+      database: ${SCX_REDIS_DATABASE:0}
   datasource:
     dynamic:
-      primary: master   # 指定默认数据源
+      primary: master
       datasource:
-        master:         # 注意，这里要嵌套在 datasource 下
-          url: jdbc:mysql://mysqle379be1ffea9.rds.ivolces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
-          username: ocpxuser
-          password: OqS5ZRBU1wBuEqLeHAQ3
+        master:
+          url: ${SCX_DATASOURCE_URL}
+          username: ${SCX_DATASOURCE_USERNAME}
+          password: ${SCX_DATASOURCE_PASSWORD}
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
 rocketmq:
-  name-server: 127.0.0.1:9876
+  name-server: ${ROCKETMQ_NAME_SERVER}
   producer:
-    group: producer_group
+    group: ${SCX_ROCKETMQ_PRODUCER_GROUP:producer_group}
     retry-times-when-send-failed: 5
     send-message-timeout: 5000
 
@@ -39,24 +39,19 @@ aj:
 
 xxl:
   job:
-    # 与仓库 xxl-job/xxl-job-admin 一致：context-path=/ ，accessToken=scx-prod-xxl-token
-    adminAddresses: http://127.0.0.1:8080
-    accessToken: scx-prod-xxl-token
+    adminAddresses: ${SCX_XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8080}
+    accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN}
     appName: smart-converge-x
-    port: 9009
+    port: ${SCX_XXL_JOB_EXECUTOR_PORT:9009}
 
-cert-dir: ./cert
+cert-dir: ${SCX_CERT_DIR:./cert}
 
 encode:
-  key: yzytech2026yzytech
+  key: ${SCX_ENCODE_KEY}
 
-#knife4j配置
 knife4j:
-  #是否启用增强设置
   enable: true
-  #开启生产环境屏蔽
   production: true
-  #是否启用登录认证
   basic:
     enable: false
   setting:
@@ -65,9 +60,12 @@ knife4j:
 scx:
   tracking:
     sandbox-enabled: false
-    attribution-rule-version: last-click-v1
+    attribution-rule-version: ${SCX_TRACKING_ATTRIBUTION_RULE_VERSION:last-click-v1}
     feedback-store: redis
     ingress-enabled: true
     worker-enabled: true
-    channel-master-key: scx-prod-channel-key
-    device-hmac-key: scx-prod-device-key
+    outbox-publisher-enabled: ${SCX_TRACKING_OUTBOX_PUBLISHER_ENABLED:true}
+    channel-master-key: ${SCX_TRACKING_CHANNEL_MASTER_KEY}
+    device-hmac-key: ${SCX_TRACKING_DEVICE_HMAC_KEY}
+    callback-sandbox-endpoint: ${SCX_TRACKING_CALLBACK_SANDBOX_ENDPOINT:}
+    callback-allowed-hosts: ${SCX_TRACKING_CALLBACK_ALLOWED_HOSTS:}

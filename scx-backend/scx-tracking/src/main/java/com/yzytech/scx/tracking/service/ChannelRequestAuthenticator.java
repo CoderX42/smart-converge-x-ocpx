@@ -6,7 +6,10 @@ import com.yzytech.scx.tracking.entity.ChannelClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,9 +74,39 @@ public class ChannelRequestAuthenticator {
 					SignUtils.sha256(canonicalPayload));
 			throw new ChannelAuthenticationException(401, "渠道签名无效");
 		}
+		requireScope(client, path);
 		claimNonce(clientId, keyVersion, nonce);
 		checkRate(client, path);
 		return new ChannelAuthContext(client, keyVersion, secret);
+	}
+
+	void requireScope(ChannelClient client, String path) {
+		String required = requiredScope(path);
+		if (required == null)
+			throw new ChannelAuthenticationException(403, "渠道凭据无权调用该接口");
+		Set<String> allowed = Arrays
+			.stream(StringUtils.hasText(client.getAllowedScopes()) ? client.getAllowedScopes().split(",")
+					: new String[] { "CLICK", "CONVERSION", "RTA" })
+			.map(String::trim)
+			.map(value -> value.toUpperCase(Locale.ROOT))
+			.filter(StringUtils::hasText)
+			.collect(java.util.stream.Collectors.toSet());
+		boolean permitted = "RECEIPT".equals(required) ? allowed.contains("CLICK") || allowed.contains("CONVERSION")
+				: allowed.contains(required);
+		if (!permitted)
+			throw new ChannelAuthenticationException(403, "渠道凭据无权调用该接口");
+	}
+
+	private String requiredScope(String path) {
+		if ("/open-api/events/v1/clicks".equals(path))
+			return "CLICK";
+		if ("/open-api/events/v1/conversions".equals(path))
+			return "CONVERSION";
+		if (path != null && path.startsWith("/open-api/events/v1/receipts/"))
+			return "RECEIPT";
+		if ("/open-api/rta/v1/decisions".equals(path))
+			return "RTA";
+		return null;
 	}
 
 	private void claimNonce(String clientId, String keyVersion, String nonce) {

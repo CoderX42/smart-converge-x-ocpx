@@ -17,6 +17,9 @@ public class ChannelClientUpdateRequest {
 	@Max(20_000)
 	private Integer maxQps;
 
+	@Size(min = 1, max = 3)
+	private List<@Size(max = 16) String> allowedScopes;
+
 	private Boolean dynamicCallbackEnabled;
 
 	@Size(max = 20)

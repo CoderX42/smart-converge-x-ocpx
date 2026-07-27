@@ -21,6 +21,9 @@ public class ChannelClientCreateRequest {
 	@Max(20_000)
 	private Integer maxQps = 2_000;
 
+	@Size(min = 1, max = 3)
+	private List<@Size(max = 16) String> allowedScopes = List.of("CLICK", "CONVERSION", "RTA");
+
 	private Boolean dynamicCallbackEnabled = false;
 
 	@Size(max = 20)

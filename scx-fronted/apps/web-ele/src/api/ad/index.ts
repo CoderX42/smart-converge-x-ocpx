@@ -151,7 +151,7 @@ export function refreshDailyReport(date: string, mediaId: string) {
 export function getEventDetails(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/reports/details', { params });
 }
-export function getMaskedClickDetail(rawEventId: string, mediaId: string) {
+export function getClickSummary(rawEventId: string, mediaId: string) {
   return requestClient.get<any>(
     `/ad/reports/details/${rawEventId}/click-sensitive`,
     {

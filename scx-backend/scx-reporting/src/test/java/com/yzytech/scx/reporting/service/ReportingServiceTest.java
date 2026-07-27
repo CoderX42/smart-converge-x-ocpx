@@ -8,7 +8,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yzytech.scx.delivery.entity.TrackingTask;
 import com.yzytech.scx.reporting.dto.ReportBreakdown;
+import com.yzytech.scx.reporting.dto.ClickSensitiveDetail;
 import com.yzytech.scx.reporting.mapper.EventDetailMapper;
 import com.yzytech.scx.reporting.mapper.ReportDailyMapper;
 import com.yzytech.scx.reporting.mapper.ReportRunMapper;
@@ -28,7 +31,7 @@ class ReportingServiceTest {
     private final TaskScopeService taskScopeService = mock(TaskScopeService.class);
     private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
     private final ReportingService service = new ReportingService(scopeService, new TrackingProperties(), runMapper, dailyMapper,
-            eventDetailMapper, taskScopeService, taskMapper);
+            eventDetailMapper, taskScopeService, taskMapper, new ObjectMapper());
 
     @Test
     void returnsLatestSnapshotsGroupedByRequestedDimension() {
@@ -80,5 +83,25 @@ class ReportingServiceTest {
 
         verify(dailyMapper).selectBreakdown("media-1", date, date, "LINK", "customer-1", "product-1", "link-1",
                 "task-1", "channel-1", "document-1", false, List.of());
+    }
+
+    @Test
+    void returnsControlledClickFieldsButOnlyPresenceForDeviceIdentifiers() {
+        TrackingTask task = new TrackingTask();
+        task.setId("task-1");
+        ClickSensitiveDetail detail = new ClickSensitiveDetail();
+        detail.setClickId("click-123");
+        detail.setOaidProtected(true);
+        detail.setAttributeKeysJson("[\"click_id\", \"oaid\", \"campaign_id\"]");
+        when(taskScopeService.accessForMedia("media-1", false)).thenReturn(TaskScopeService.TaskAccess.unrestricted());
+        when(eventDetailMapper.selectTaskId("raw-1", "media-1")).thenReturn("task-1");
+        when(taskMapper.selectById("task-1")).thenReturn(task);
+        when(eventDetailMapper.selectMaskedClick("raw-1", "media-1")).thenReturn(detail);
+
+        ClickSensitiveDetail result = service.maskedClick("raw-1", "media-1");
+
+        assertThat(result.getClickId()).isEqualTo("click-123");
+        assertThat(result.getOaidProtected()).isTrue();
+        assertThat(result.getAttributeKeys()).containsExactly("click_id", "oaid", "campaign_id");
     }
 }

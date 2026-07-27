@@ -1,16 +1,28 @@
 package com.yzytech.scx.reporting.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.List;
 import lombok.Data;
 
-/** Sensitive click attributes are masked at SQL projection time and never returned raw. */
+/**
+ * Operational click fields available only to the controlled troubleshooting permission.
+ *
+ * <p>Device identifiers and IP addresses are deliberately represented as presence flags,
+ * never as their original values or full hashes.</p>
+ */
 @Data
 public class ClickSensitiveDetail {
+
     private String rawEventId;
-    private String clickIdMasked;
-    private String oaidMasked;
-    private String oaidMd5Masked;
-    private String ipMasked;
+    private String clickId;
     private String deviceModel;
-    private String campaignIdMasked;
-    private String creativeIdMasked;
+    private String campaignId;
+    private String creativeId;
+    private Boolean oaidProtected;
+    private Boolean oaidMd5Protected;
+    private Boolean ipProtected;
+    private List<String> attributeKeys;
+
+    @JsonIgnore
+    private String attributeKeysJson;
 }

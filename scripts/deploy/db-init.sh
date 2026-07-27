@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DB_DIR="$REPO_ROOT/scx-backend/db/smart-converge-x"
 
-# 优先读 /etc/scx/scx.env，再用下方内网默认值，最后允许环境变量覆盖
+# 优先从受限配置文件读取，再由显式环境变量覆盖；不提供连接或凭据默认值。
 if [[ -f /etc/scx/scx.env ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -23,10 +23,10 @@ if [[ -f /etc/scx/scx.env ]]; then
   set +a
 fi
 
-MYSQL_HOST="${MYSQL_HOST:-mysqle379be1ffea9.rds.ivolces.com}"
+MYSQL_HOST="${MYSQL_HOST:?MYSQL_HOST 未设置}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
-MYSQL_USERNAME="${MYSQL_USERNAME:-ocpxuser}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-OqS5ZRBU1wBuEqLeHAQ3}"
+MYSQL_USERNAME="${MYSQL_USERNAME:?MYSQL_USERNAME 未设置}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:?MYSQL_PASSWORD 未设置}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-smart_converge_x}"
 
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
@@ -55,7 +55,7 @@ else
   exists="$(mysql --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USERNAME" \
     --batch --skip-column-names \
     -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='${MYSQL_DATABASE}';")"
-  [[ "$exists" == "1" ]] || die "库 ${MYSQL_DATABASE} 不存在且无法创建。请用高权限账号先执行：CREATE DATABASE ${MYSQL_DATABASE} DEFAULT CHARSET utf8mb4; 并 GRANT 全部权限给 ${MYSQL_USERNAME}"
+  [[ "$exists" == "1" ]] || die "库 ${MYSQL_DATABASE} 不存在且无法创建。请用高权限账号先创建数据库并授权给 ${MYSQL_USERNAME}"
   log "库 ${MYSQL_DATABASE} 已存在"
 fi
 
@@ -100,4 +100,4 @@ mysql --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USERNAME" \
   --batch --skip-column-names \
   -e "SELECT version, script_name, applied_at FROM \`${MYSQL_DATABASE}\`.scx_schema_migration ORDER BY applied_at DESC LIMIT 10;" \
   || true
-log "默认管理员: system / 123456 （登录后立即修改）"
+log "默认管理员已创建；首次登录后必须立即修改默认密码"

@@ -23,10 +23,7 @@ SCX_WEB_ROOT="${SCX_WEB_ROOT:-/var/www/scx}"
 SCX_RUN_DB_MIGRATE="${SCX_RUN_DB_MIGRATE:-true}"
 SCX_SKIP_FRONTEND="${SCX_SKIP_FRONTEND:-false}"
 SCX_SKIP_BACKEND="${SCX_SKIP_BACKEND:-false}"
-MYSQL_HOST="${MYSQL_HOST:-127.0.0.1}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
-MYSQL_USERNAME="${MYSQL_USERNAME:-root}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 
 log()  { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 die()  { log "ERROR: $*"; exit 1; }
@@ -111,6 +108,8 @@ db_migrate() {
     return 0
   fi
   need mysql
+  [[ -n "${MYSQL_HOST:-}" ]] || die "MYSQL_HOST 未设置，请写入 $SCX_ENV_FILE"
+  [[ -n "${MYSQL_USERNAME:-}" ]] || die "MYSQL_USERNAME 未设置，请写入 $SCX_ENV_FILE"
   [[ -n "${MYSQL_PASSWORD:-}" ]] || die "MYSQL_PASSWORD 未设置，请写入 $SCX_ENV_FILE"
   log "执行数据库迁移 (host=$MYSQL_HOST db=smart_converge_x) ..."
   (
@@ -119,7 +118,7 @@ db_migrate() {
     # mysql 客户端读 MYSQL_PWD，不是 MYSQL_PASSWORD
     export MYSQL_PWD="$MYSQL_PASSWORD"
     # 已有库升级：跳过 baseline（含 20xxl_job_schema 等），只跑 V* 前向迁移
-    if mysql --host="$MYSQL_HOST" --port="${MYSQL_PORT:-3306}" --user="$MYSQL_USERNAME" \
+    if mysql --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USERNAME" \
       --connect-timeout=10 \
       -e "USE smart_converge_x; SELECT 1 FROM scx_schema_migration LIMIT 1;" >/dev/null 2>&1; then
       log "检测到 scx_schema_migration，跳过 baseline，仅前向迁移"

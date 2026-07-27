@@ -14,9 +14,14 @@ import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
 import com.yzytech.scx.tracking.dto.DeviceIdentifier;
 import com.yzytech.scx.tracking.dto.EventIngestionRequest;
 import com.yzytech.scx.tracking.dto.EventIngestionResponse;
+import com.yzytech.scx.tracking.dto.EventReceiptView;
+import com.yzytech.scx.tracking.entity.AttributionResult;
 import com.yzytech.scx.tracking.entity.ChannelClient;
+import com.yzytech.scx.tracking.entity.RawEvent;
+import com.yzytech.scx.tracking.mapper.AttributionResultMapper;
 import com.yzytech.scx.tracking.mapper.RawEventMapper;
 import com.yzytech.scx.tracking.config.TrackingProperties;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
@@ -36,12 +41,16 @@ class EventIngestionServiceTest {
 
 	private final AcceptedEventPersistenceService persistenceService = mock(AcceptedEventPersistenceService.class);
 
+	private final RawEventMapper rawEventMapper = mock(RawEventMapper.class);
+
+	private final AttributionResultMapper attributionResultMapper = mock(AttributionResultMapper.class);
+
 	private EventIngestionService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new EventIngestionService(new ObjectMapper().findAndRegisterModules(), new TrackingProperties(),
-				taskMapper, mock(RawEventMapper.class), authenticator, deviceService,
+				taskMapper, rawEventMapper, attributionResultMapper, authenticator, deviceService,
 				mock(ChannelCredentialCrypto.class), feedbackBuffer, persistenceService);
 	}
 
@@ -101,6 +110,58 @@ class EventIngestionServiceTest {
 		assertThat(response.receiptId()).isEqualTo("receipt-1");
 		assertThat(response.acceptanceStatus()).isEqualTo("ACCEPTED");
 		verify(persistenceService).persist(any(AcceptedEventCommand.class));
+	}
+
+	@Test
+	void receiptReturnsCurrentAttributionStatusForConversion() {
+		TrackingProperties properties = new TrackingProperties();
+		properties.setIngressEnabled(true);
+		service = new EventIngestionService(new ObjectMapper().findAndRegisterModules(), properties, taskMapper,
+				rawEventMapper, attributionResultMapper, authenticator, deviceService,
+				mock(ChannelCredentialCrypto.class), feedbackBuffer, persistenceService);
+		RawEvent raw = new RawEvent();
+		raw.setId("raw-1");
+		raw.setEventType("ACTIVATE");
+		raw.setReceiptId("receipt-1");
+		raw.setEventId("evt-1");
+		raw.setStatus("ACCEPTED");
+		raw.setProcessingStatus("PROCESSED");
+		raw.setReceivedAt(LocalDateTime.of(2026, 7, 25, 3, 0));
+		when(rawEventMapper.selectOne(any())).thenReturn(raw);
+		AttributionResult attribution = new AttributionResult();
+		attribution.setStatus("ATTRIBUTED");
+		attribution.setReasonCode("LAST_CLICK_MATCHED");
+		when(attributionResultMapper.selectOne(any())).thenReturn(attribution);
+
+		EventReceiptView view = service.receipt("client-1", "v1", "1", "nonce-1234567890123456", "sign",
+				"/open-api/events/v1/receipts/receipt-1", "receipt-1");
+
+		assertThat(view.attributionStatus()).isEqualTo("ATTRIBUTED");
+		assertThat(view.reasonCode()).isEqualTo("LAST_CLICK_MATCHED");
+	}
+
+	@Test
+	void receiptKeepsAttributionNullForClick() {
+		TrackingProperties properties = new TrackingProperties();
+		properties.setIngressEnabled(true);
+		service = new EventIngestionService(new ObjectMapper().findAndRegisterModules(), properties, taskMapper,
+				rawEventMapper, attributionResultMapper, authenticator, deviceService,
+				mock(ChannelCredentialCrypto.class), feedbackBuffer, persistenceService);
+		RawEvent raw = new RawEvent();
+		raw.setId("raw-2");
+		raw.setEventType("CLICK");
+		raw.setReceiptId("receipt-2");
+		raw.setEventId("evt-2");
+		raw.setStatus("ACCEPTED");
+		raw.setProcessingStatus("PROCESSED");
+		raw.setReceivedAt(LocalDateTime.of(2026, 7, 25, 3, 0));
+		when(rawEventMapper.selectOne(any())).thenReturn(raw);
+
+		EventReceiptView view = service.receipt("client-1", "v1", "1", "nonce-1234567890123456", "sign",
+				"/open-api/events/v1/receipts/receipt-2", "receipt-2");
+
+		assertThat(view.attributionStatus()).isNull();
+		verify(attributionResultMapper, org.mockito.Mockito.never()).selectOne(any());
 	}
 
 	private void prepareDependencies() {

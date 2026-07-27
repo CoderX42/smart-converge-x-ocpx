@@ -5,8 +5,8 @@ import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import {
+  getClickSummary,
   getEventDetails,
-  getMaskedClickDetail,
   getMedia,
   getTrackingTasks,
 } from '#/api/ad';
@@ -17,7 +17,9 @@ defineOptions({ name: 'AdEventDetail' });
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
-const reportDate = ref(new Date().toISOString().slice(0, 10));
+const reportDate = ref(
+  new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }),
+);
 const eventType = ref('');
 const taskId = ref('');
 const eventId = ref('');
@@ -88,7 +90,7 @@ async function openSensitive(row: any) {
   sensitive.value = {};
   sensitiveLoading.value = true;
   try {
-    sensitive.value = await getMaskedClickDetail(row.rawEventId, mediaId.value);
+    sensitive.value = await getClickSummary(row.rawEventId, mediaId.value);
   } finally {
     sensitiveLoading.value = false;
   }
@@ -121,6 +123,10 @@ function tagType(status?: string) {
   if (status === 'DEDUPLICATED' || status === 'UNATTRIBUTED') return 'warning';
   if (status === 'REJECTED') return 'danger';
   return 'info';
+}
+
+function protectedStatus(value?: boolean) {
+  return value ? '已上报（受保护）' : '未上报';
 }
 
 watch(
@@ -207,7 +213,9 @@ bootstrap().then(async () => {
           </el-select>
           <el-button @click="load">查询</el-button>
         </div>
-        <div class="text-xs text-gray-400">received_at 为系统审计时间</div>
+        <div class="text-xs text-gray-400">
+          事件时间和接收时间按北京时间（UTC+8）展示；接收时间为系统审计时间
+        </div>
       </div>
 
       <el-table v-loading="loading" :data="rows" row-key="rawEventId">
@@ -264,8 +272,16 @@ bootstrap().then(async () => {
             <span class="mvp-code">{{ row.reasonCode || '—' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="发生时间" prop="occurredAt" min-width="180" />
-        <el-table-column label="接收时间" prop="receivedAt" min-width="180" />
+        <el-table-column
+          label="发生时间（北京时间）"
+          prop="occurredAt"
+          min-width="200"
+        />
+        <el-table-column
+          label="接收时间（北京时间）"
+          prop="receivedAt"
+          min-width="200"
+        />
         <el-table-column align="right" fixed="right" label="操作" width="105">
           <template #default="{ row }">
             <el-button
@@ -296,32 +312,40 @@ bootstrap().then(async () => {
     </el-card>
     <el-dialog
       v-model="sensitiveVisible"
-      title="点击字段摘要（已脱敏）"
+      title="点击排查摘要（受控）"
       width="620px"
     >
       <el-descriptions v-loading="sensitiveLoading" :column="2" border>
         <el-descriptions-item label="click_id">
-          <span class="mvp-code">{{ sensitive.clickIdMasked || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.clickId || '—' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="OAID">
-          <span class="mvp-code">{{ sensitive.oaidMasked || '—' }}</span>
+          {{ protectedStatus(sensitive.oaidProtected) }}
         </el-descriptions-item>
         <el-descriptions-item label="OAID_MD5">
-          <span class="mvp-code">{{ sensitive.oaidMd5Masked || '—' }}</span>
+          {{ protectedStatus(sensitive.oaidMd5Protected) }}
         </el-descriptions-item>
         <el-descriptions-item label="IP">
-          <span class="mvp-code">{{ sensitive.ipMasked || '—' }}</span>
+          {{ protectedStatus(sensitive.ipProtected) }}
         </el-descriptions-item>
         <el-descriptions-item label="设备型号">
           {{ sensitive.deviceModel || '—' }}
         </el-descriptions-item>
         <el-descriptions-item label="计划 ID">
-          <span class="mvp-code">{{ sensitive.campaignIdMasked || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.campaignId || '—' }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="创意 ID">
-          <span class="mvp-code">{{ sensitive.creativeIdMasked || '—' }}</span>
+          <span class="mvp-code">{{ sensitive.creativeId || '—' }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item :span="2" label="已上报字段">
+          <span class="mvp-code">
+            {{ sensitive.attributeKeys?.join('、') || '—' }}
+          </span>
         </el-descriptions-item>
       </el-descriptions>
+      <p class="mt-3 text-xs text-gray-400">
+        设备标识、完整设备哈希和 IP 不返回原值；这里仅显示是否上报，避免在后台扩散个人标识。
+      </p>
       <template #footer>
         <el-button @click="sensitiveVisible = false">关闭</el-button>
       </template>

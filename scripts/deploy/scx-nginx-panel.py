@@ -15,7 +15,7 @@ SCX Nginx 可视化配置面板（仅管理 /etc/nginx/conf.d/scx.conf）
 环境变量：
   SCX_NGINX_PANEL_HOST=127.0.0.1
   SCX_NGINX_PANEL_PORT=9088
-  SCX_NGINX_PANEL_TOKEN=可选访问令牌（设置后请求需 ?token= 或 Header X-SCX-Token）
+  SCX_NGINX_PANEL_TOKEN=必填访问令牌（API 请求使用 Header X-SCX-Token）
   SCX_NGINX_CONF=/etc/nginx/conf.d/scx.conf
   SCX_NGINX_TEMPLATE=/opt/smart-converge-x/scripts/deploy/nginx-scx.conf
 """
@@ -30,7 +30,7 @@ import traceback
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 HOST = os.environ.get("SCX_NGINX_PANEL_HOST", "127.0.0.1")
 PORT = int(os.environ.get("SCX_NGINX_PANEL_PORT", "9088"))
@@ -467,15 +467,16 @@ tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
-const token = new URLSearchParams(location.search).get('token') || localStorage.getItem('scx_nginx_token') || '';
-if (new URLSearchParams(location.search).get('token')) localStorage.setItem('scx_nginx_token', token);
+const fragmentToken = new URLSearchParams(location.hash.slice(1)).get('token') || '';
+const token = fragmentToken || localStorage.getItem('scx_nginx_token') || '';
+if (fragmentToken) {
+  localStorage.setItem('scx_nginx_token', fragmentToken);
+  history.replaceState(null, '', location.pathname);
+}
 function headers() {
   const h = {'Content-Type': 'application/json'};
   if (token) h['X-SCX-Token'] = token;
   return h;
-}
-function qs(path) {
-  return token ? path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token) : path;
 }
 function setMsg(text, ok) {
   const el = $('msg');
@@ -483,7 +484,7 @@ function setMsg(text, ok) {
   el.className = 'msg ' + (ok === true ? 'ok' : ok === false ? 'err' : '');
 }
 async function api(path, opts={}) {
-  const r = await fetch(qs(path), Object.assign({headers: headers()}, opts));
+  const r = await fetch(path, Object.assign({headers: headers()}, opts));
   const data = await r.json().catch(() => ({ok:false, message: r.statusText}));
   if (!r.ok) throw new Error(data.message || r.statusText);
   return data;
@@ -591,11 +592,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _auth_ok(self) -> bool:
         if not TOKEN:
-            return True
-        if self.headers.get("X-SCX-Token") == TOKEN:
-            return True
-        q = parse_qs(urlparse(self.path).query)
-        return q.get("token", [""])[0] == TOKEN
+            return False
+        return self.headers.get("X-SCX-Token") == TOKEN
 
     def _send(self, code: int, body: bytes, content_type: str = "text/html; charset=utf-8"):
         self.send_response(code)
@@ -617,11 +615,11 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def do_GET(self):
-        if not self._auth_ok():
-            return self._json(401, {"ok": False, "message": "Unauthorized: 需要 token"})
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             return self._send(200, PAGE.encode("utf-8"))
+        if not self._auth_ok():
+            return self._json(401, {"ok": False, "message": "Unauthorized: 需要 token"})
         if path == "/api/status":
             text = ""
             if CONF_PATH.exists():
@@ -689,12 +687,11 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     if os.geteuid() != 0:
         print("警告: 非 root 可能无法写入 /etc/nginx 或 reload")
+    if not TOKEN:
+        raise SystemExit("SCX_NGINX_PANEL_TOKEN 未设置，拒绝启动")
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"SCX Nginx Panel: http://{HOST}:{PORT}/")
-    if TOKEN:
-        print(f"Token 已启用，访问: http://{HOST}:{PORT}/?token=***")
-    else:
-        print("未设置 SCX_NGINX_PANEL_TOKEN（建议生产设置令牌，并仅监听 127.0.0.1）")
+    print("Token 已启用；API 只接受 X-SCX-Token 请求头")
     print(f"配置文件: {CONF_PATH}")
     httpd.serve_forever()
 

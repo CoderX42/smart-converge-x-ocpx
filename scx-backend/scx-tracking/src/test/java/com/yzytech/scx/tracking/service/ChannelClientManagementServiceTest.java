@@ -15,6 +15,7 @@ import com.yzytech.scx.tracking.entity.ChannelClient;
 import com.yzytech.scx.tracking.entity.ChannelCredential;
 import com.yzytech.scx.tracking.mapper.ChannelClientMapper;
 import com.yzytech.scx.tracking.mapper.ChannelCredentialMapper;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ class ChannelClientManagementServiceTest {
 
 	@BeforeEach
 	void setUp() {
+		when(credentialMapper.databaseNow()).thenReturn(LocalDateTime.of(2026, 7, 25, 2, 0));
 		when(scopeService.canRead("media-1")).thenReturn(true);
 		when(scopeService.canWrite("media-1")).thenReturn(true);
 		when(crypto.encrypt(any())).thenReturn(new ChannelCredentialCrypto.EncryptedValue("cipher", "iv"));
@@ -52,6 +54,7 @@ class ChannelClientManagementServiceTest {
 		ChannelClientCreateRequest request = new ChannelClientCreateRequest();
 		request.setMediaId("media-1");
 		request.setSourceCode("partner_one");
+		request.setAllowedScopes(List.of("rta", "click"));
 		request.setDynamicCallbackEnabled(true);
 		request.setCallbackAllowedHosts(List.of("Callback.Example.COM"));
 
@@ -62,6 +65,9 @@ class ChannelClientManagementServiceTest {
 		assertThat(response.secret()).hasSize(43);
 		ArgumentCaptor<ChannelCredential> credential = ArgumentCaptor.forClass(ChannelCredential.class);
 		verify(credentialMapper).insert(credential.capture());
+		ArgumentCaptor<ChannelClient> client = ArgumentCaptor.forClass(ChannelClient.class);
+		verify(clientMapper).insert(client.capture());
+		assertThat(client.getValue().getAllowedScopes()).isEqualTo("CLICK,RTA");
 		assertThat(credential.getValue().getEncryptedSecret()).isEqualTo("cipher");
 		assertThat(credential.getValue().getEncryptedSecret()).isNotEqualTo(response.secret());
 		verify(cache).evictAndPublish(response.clientId());
@@ -118,6 +124,20 @@ class ChannelClientManagementServiceTest {
 
 		assertThatThrownBy(() -> service.update("channel-1", request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("资源不存在");
+	}
+
+	@Test
+	void updateRejectsUnknownEndpointScope() {
+		ChannelClient client = activeClient();
+		when(clientMapper.selectByIdForUpdate("channel-1")).thenReturn(client);
+		ChannelClientUpdateRequest request = new ChannelClientUpdateRequest();
+		request.setMediaId("media-1");
+		request.setMaxQps(100);
+		request.setStatus("ACTIVE");
+		request.setAllowedScopes(List.of("ADMIN"));
+
+		assertThatThrownBy(() -> service.update("channel-1", request)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("CLICK");
 	}
 
 	private ChannelClient activeClient() {

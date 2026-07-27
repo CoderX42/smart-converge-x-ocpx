@@ -12,10 +12,10 @@ if [[ -f /etc/scx/scx.env ]]; then
   set +a
 fi
 
-MYSQL_HOST="${MYSQL_HOST:-mysqle379be1ffea9.rds.ivolces.com}"
+MYSQL_HOST="${MYSQL_HOST:?MYSQL_HOST 未设置}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
-MYSQL_USERNAME="${MYSQL_USERNAME:-ocpxuser}"
-MYSQL_PASSWORD="${MYSQL_PASSWORD:-OqS5ZRBU1wBuEqLeHAQ3}"
+MYSQL_USERNAME="${MYSQL_USERNAME:?MYSQL_USERNAME 未设置}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:?MYSQL_PASSWORD 未设置}"
 SQL_FILE="${1:-${SCX_HOME}/xxl-job/doc/db/tables_xxl_job.sql}"
 
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
@@ -39,4 +39,4 @@ SHOW TABLES FROM xxl_job;
 SELECT id, username, role FROM xxl_job.xxl_job_user;
 SELECT id, app_name, title FROM xxl_job.xxl_job_group;
 "
-log "完成。库名: xxl_job ；控制台默认账号 admin（密码见官方文档，当前种子为 SHA256 哈希）"
+log "完成。库名: xxl_job；控制台默认账号信息以受控安装文档为准"

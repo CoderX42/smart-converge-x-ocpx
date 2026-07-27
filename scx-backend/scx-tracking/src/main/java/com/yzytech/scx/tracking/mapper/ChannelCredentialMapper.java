@@ -2,12 +2,16 @@ package com.yzytech.scx.tracking.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yzytech.scx.tracking.entity.ChannelCredential;
+import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface ChannelCredentialMapper extends BaseMapper<ChannelCredential> {
+
+	@Select("SELECT NOW(3)")
+	LocalDateTime databaseNow();
 
 	@Select("""
 			SELECT * FROM scx_channel_credential

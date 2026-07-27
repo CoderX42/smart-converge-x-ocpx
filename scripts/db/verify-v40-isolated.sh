@@ -5,6 +5,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DB_DIR="${ROOT_DIR}/scx-backend/db/smart-converge-x"
 MIGRATION_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V40__add_ocpx_channel_ingress.sql"
 V41_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V41__add_ocpx_channel_management.sql"
+V43_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V43__expand_audit_request_method.sql"
+V44_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V44__add_channel_endpoint_scopes.sql"
+V45_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V45__repair_channel_credential_clock.sql"
+V46_FILE="${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/migration/V46__merge_ocpx_system_menus.sql"
 RUN_ID="${$}"
 PASSWORD="scx_v40_local_only"
 containers=("scx-v40-empty-${RUN_ID}" "scx-v40-upgrade-${RUN_ID}")
@@ -87,6 +91,14 @@ assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_mi
   "empty database did not record V40"
 assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_migration WHERE version='V41';")" \
   "empty database did not record V41"
+assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_migration WHERE version='V43';")" \
+  "empty database did not record V43"
+assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_migration WHERE version='V44';")" \
+  "empty database did not record V44"
+assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_migration WHERE version='V45';")" \
+  "empty database did not record V45"
+assert_equals 1 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM scx_schema_migration WHERE version='V46';")" \
+  "empty database did not record V46"
 assert_equals 4 "$(mysql_value "$empty_port" "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('scx_channel_client','scx_channel_credential','scx_click_callback_target','scx_click_dedup_guard');")" \
   "empty database is missing V40 tables"
 MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$empty_port" --user=root smart_converge_x < "$MIGRATION_FILE"
@@ -104,22 +116,55 @@ MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root 
 MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$MIGRATION_FILE"
 assert_equals 1 "$(mysql_value "$upgrade_port" "SELECT COUNT(*) FROM scx_raw_event WHERE id='v40-preserve' AND JSON_EXTRACT(payload_json,'$.probe')=TRUE;")" \
   "V40 upgrade did not preserve the representative raw event"
-run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=40
-run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=40
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_SKIP_VERIFY=true SCX_MIGRATION_MAX_VERSION=40
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_SKIP_VERIFY=true SCX_MIGRATION_MAX_VERSION=40
 assert_equals 3 "$(mysql_value "$upgrade_port" "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_raw_event' AND index_name IN ('uk_scx_raw_receipt','uk_scx_raw_client_event','idx_scx_raw_processing');")" \
   "V40 raw event indexes are incomplete"
 MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V41_FILE"
 MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V41_FILE"
-run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=41
-run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=41
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_SKIP_VERIFY=true SCX_MIGRATION_MAX_VERSION=41
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_SKIP_VERIFY=true SCX_MIGRATION_MAX_VERSION=41
 assert_equals 1 "$(mysql_value "$upgrade_port" "SELECT COUNT(*) FROM scx_raw_event WHERE id='v40-preserve' AND JSON_EXTRACT(payload_json,'$.probe')=TRUE;")" \
   "V41 upgrade did not preserve the representative raw event"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V43_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V43_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V44_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V44_FILE"
+mysql_value "$upgrade_port" "INSERT INTO scx_channel_client (id,media_id,client_id,source_code,allowed_scopes,status,max_qps,dynamic_callback_enabled,current_key_version) VALUES ('clock-client','media_sandbox','clock-client','CLOCK','CLICK','ACTIVE',10,0,'v1'); INSERT INTO scx_channel_credential (id,channel_client_id,key_version,encrypted_secret,secret_iv,status,valid_from) VALUES ('clock-credential','clock-client','v1','cipher','iv','ACTIVE',DATE_ADD(NOW(3),INTERVAL 8 HOUR));"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V45_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V45_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V46_FILE"
+MYSQL_PWD="$PASSWORD" mysql --host=127.0.0.1 --port="$upgrade_port" --user=root smart_converge_x < "$V46_FILE"
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=46
+run_init "$upgrade_port" SCX_SKIP_BASELINE=true SCX_MIGRATION_MAX_VERSION=46
+assert_equals 255 "$(mysql_value "$upgrade_port" "SELECT character_maximum_length FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='sys_log' AND column_name='request_method';")" \
+  "V43 did not expand sys_log.request_method"
+assert_equals "CLICK,CONVERSION,RTA" "$(mysql_value "$upgrade_port" "SELECT column_default FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_channel_client' AND column_name='allowed_scopes';")" \
+  "V44 did not add the channel endpoint scope default"
+assert_equals 1 "$(mysql_value "$upgrade_port" "SELECT COUNT(*) FROM scx_channel_credential WHERE id='clock-credential' AND valid_from <= NOW(3);")" \
+  "V45 did not repair a future-dated current credential"
+assert_equals 1 "$(mysql_value "$upgrade_port" "SELECT COUNT(*) FROM sys_menu WHERE id='menu_ocpx_system' AND parent_id='0' AND del_flag='0' AND name='系统管理';")" \
+  "V46 did not keep the canonical system menu visible"
+assert_equals 2 "$(mysql_value "$upgrade_port" "SELECT COUNT(*) FROM sys_menu WHERE id IN ('menu_system','menu_user') AND del_flag='1';")" \
+  "V46 did not hide the duplicate legacy system menus"
 v40_checksum="$(shasum -a 256 "$MIGRATION_FILE" | awk '{print $1}')"
 v41_checksum="$(shasum -a 256 "$V41_FILE" | awk '{print $1}')"
+v43_checksum="$(shasum -a 256 "$V43_FILE" | awk '{print $1}')"
+v44_checksum="$(shasum -a 256 "$V44_FILE" | awk '{print $1}')"
+v45_checksum="$(shasum -a 256 "$V45_FILE" | awk '{print $1}')"
+v46_checksum="$(shasum -a 256 "$V46_FILE" | awk '{print $1}')"
 assert_equals "$v40_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V40';")" \
   "V40 migration checksum does not match the frozen file"
 assert_equals "$v41_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V41';")" \
   "V41 migration checksum does not match the file"
+assert_equals "$v43_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V43';")" \
+  "V43 migration checksum does not match the file"
+assert_equals "$v44_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V44';")" \
+  "V44 migration checksum does not match the file"
+assert_equals "$v45_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V45';")" \
+  "V45 migration checksum does not match the file"
+assert_equals "$v46_checksum" "$(mysql_value "$upgrade_port" "SELECT checksum FROM scx_schema_migration WHERE version='V46';")" \
+  "V46 migration checksum does not match the file"
 
 verify_skip_locked() {
   local table="$1"
@@ -146,4 +191,4 @@ verify_skip_locked scx_raw_event "processing_status='PENDING' AND (locked_until 
 verify_skip_locked scx_event_outbox "status IN ('PENDING','RETRYING') AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)) AND (locked_until IS NULL OR locked_until < NOW(3))" "locked_until,status,next_retry_at,create_time,id" "idx_scx_outbox_lease_claim"
 verify_skip_locked scx_callback_job "status IN ('PENDING','RETRYING') AND (next_retry_at IS NULL OR next_retry_at <= NOW(3)) AND (locked_until IS NULL OR locked_until < NOW(3))" "locked_until,status,next_retry_at,create_time,id" "idx_scx_callback_lease_claim"
 
-echo "V40/V41 isolated verification passed: empty, V39 upgrade, direct repeat, migration repeat, three two-worker lease races."
+echo "V40/V41/V43-V46 isolated verification passed: empty, V39 upgrade, direct repeat, migration repeat, audit width, endpoint scopes, credential clock repair, menu merge and three two-worker lease races."

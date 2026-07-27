@@ -19,6 +19,8 @@ public class ChannelClient {
 
 	private String sourceCode;
 
+	private String allowedScopes;
+
 	private String status;
 
 	private Integer maxQps;

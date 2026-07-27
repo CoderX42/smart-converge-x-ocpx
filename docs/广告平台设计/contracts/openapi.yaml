@@ -36,6 +36,7 @@ paths:
         '200': { $ref: '#/components/responses/DuplicateResult' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
@@ -66,6 +67,7 @@ paths:
         '200': { $ref: '#/components/responses/DuplicateResult' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '503': { $ref: '#/components/responses/Unavailable' }
@@ -86,6 +88,7 @@ paths:
       responses:
         '200':
           description: 回执存在且属于当前渠道
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404':
           description: 回执不存在或不属于当前渠道
   /open-api/rta/v1/decisions:
@@ -115,6 +118,7 @@ paths:
       responses:
         '200':
           description: ALLOW 或快速失败的 DENY 决策
+        '403': { $ref: '#/components/responses/Forbidden' }
   /ad/channel-clients:
     get:
       operationId: pageChannelClients
@@ -144,7 +148,7 @@ paths:
   /ad/channel-clients/{id}:
     put:
       operationId: updateChannelClient
-      summary: 更新配额、动态回调、精确域名白名单或状态
+      summary: 更新端点权限、配额、动态回调、精确域名白名单或状态
       description: 需要 ad:channel-client:write；sourceCode 和 clientId 不可修改。
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
@@ -222,10 +226,16 @@ components:
     ChannelClientCreate:
       type: object
       additionalProperties: false
-      required: [mediaId, sourceCode]
+      required: [mediaId, sourceCode, allowedScopes]
       properties:
         mediaId: { type: string }
         sourceCode: { type: string, maxLength: 64 }
+        allowedScopes:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items: { type: string, enum: [CLICK, CONVERSION, RTA] }
         maxQps: { type: integer, minimum: 1, maximum: 20000, default: 2000 }
         dynamicCallbackEnabled: { type: boolean, default: false }
         callbackAllowedHosts:
@@ -233,13 +243,24 @@ components:
           maxItems: 20
           items: { type: string, maxLength: 255, description: 精确公网 DNS 域名，不接受通配符或 IP }
     ChannelClientUpdate:
-      allOf:
-        - $ref: '#/components/schemas/ChannelClientCreate'
-        - type: object
-          required: [mediaId, status]
-          properties:
-            sourceCode: false
-            status: { type: string, enum: [ACTIVE, DISABLED] }
+      type: object
+      additionalProperties: false
+      required: [mediaId, allowedScopes, maxQps, dynamicCallbackEnabled, callbackAllowedHosts, status]
+      properties:
+        mediaId: { type: string }
+        allowedScopes:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items: { type: string, enum: [CLICK, CONVERSION, RTA] }
+        maxQps: { type: integer, minimum: 1, maximum: 20000 }
+        dynamicCallbackEnabled: { type: boolean }
+        callbackAllowedHosts:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 255, description: 精确公网 DNS 域名，不接受通配符或 IP }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
     ChannelCredentialIssue:
       type: object
       description: 管理端 Result.data；secret 只展示一次。
@@ -283,6 +304,7 @@ components:
               data: { $ref: '#/components/schemas/IngestionData' }
     BadRequest: { description: 字段、设备类型或 schemaVersion 无效 }
     Unauthorized: { description: 凭据、签名、时间戳或 nonce 无效 }
+    Forbidden: { description: 渠道凭据未获准调用该类端点 }
     Conflict: { description: 相同 eventId 使用了不同载荷 }
     RateLimited: { description: 当前渠道与接口超过配置配额 }
     Unavailable: { description: 必需的认证、缓存或数据库存储不可用；调用方必须重试 }

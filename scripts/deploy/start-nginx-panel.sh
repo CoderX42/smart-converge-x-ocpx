@@ -34,13 +34,12 @@ EOF
     chmod +x "${SCX_HOME}/scripts/deploy/scx-nginx-panel.py"
     systemctl daemon-reload
     systemctl enable --now scx-nginx-panel
-    # shellcheck disable=SC1090
-    source "$PANEL_ENV"
     log "面板已启动"
-    log "本机: http://127.0.0.1:${SCX_NGINX_PANEL_PORT}/?token=${SCX_NGINX_PANEL_TOKEN}"
+    log "本机: http://127.0.0.1:9088/"
+    log "访问令牌仅保存在 $PANEL_ENV；按受控方式读取后放入浏览器 URL fragment，脚本不输出令牌"
     log "推荐用 SSH 隧道（勿对公网开放 9088）："
     log "  ssh -N -L 9088:127.0.0.1:9088 root@服务器IP"
-    log "  浏览器打开: http://127.0.0.1:9088/?token=${SCX_NGINX_PANEL_TOKEN}"
+    log "  浏览器打开: http://127.0.0.1:9088/#token=<受控令牌>"
     ;;
   start)
     systemctl start scx-nginx-panel
@@ -56,9 +55,7 @@ EOF
     ;;
   url)
     if [[ -f "$PANEL_ENV" ]]; then
-      # shellcheck disable=SC1090
-      source "$PANEL_ENV"
-      echo "http://127.0.0.1:${SCX_NGINX_PANEL_PORT}/?token=${SCX_NGINX_PANEL_TOKEN}"
+      echo "http://127.0.0.1:9088/"
     else
       die "未 install，请先: $0 install"
     fi
@@ -71,7 +68,7 @@ EOF
   start    启动
   stop     停止
   status   状态
-  url      打印带 token 的访问地址
+  url      打印不含 token 的本机访问地址
 EOF
     exit 1
     ;;

@@ -8,11 +8,15 @@
 
 1. 仓库根目录 `AGENTS.md`。
 2. [MVP 开发规划（Agent 执行版）](MVP开发规划.md)。
-3. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
-4. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
-5. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
-6. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
-7. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+3. [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md)。
+4. [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
+5. 使用 Claude Code 多 Agent 实施时阅读
+   [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md)。
+6. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
+7. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
+8. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
+9. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
+10. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
 当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
 
@@ -21,6 +25,9 @@
 | 文档 | 用途 | 权威边界 |
 |---|---|---|
 | [MVP 开发规划](MVP开发规划.md) | MVP 范围、Agent 合同、架构/数据方案、任务队列、验收与开放决策 | Accepted；第 15 节默认方案已接受 |
+| [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md) | 完整 OCPX 目标边界、锁定决策、模块与 R1–R9 依赖 | 产品方向 Accepted；按任务增量实现 |
+| [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md) | 当前能力、缺口、R1-00 操作与生产放行清单 | 当前代码事实与验收边界 |
+| [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md) | Claude Code 会话总控、多 Agent 文件所有权、R1–R9 最小 Task 与逐项 Prompt | 执行方案；实现状态仍以代码和验收证据为准 |
 | [MVP 交付说明](MVP交付说明.md) | 当前实现范围、验证结果、数据库升级与运行态验收入口 | 代码完成；运行态验收待执行 |
 | `contracts/` | 沙箱事件 OpenAPI、异步消息 AsyncAPI、事件信封 JSON Schema | `make contract-check` 已启用 |
 | [通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md) | v1.1 签名、设备字段、Feedback/Callback、错误码、联调与容量验收边界 | 本机迁移、Redis 恢复及容量失败证据已落盘；浏览器多角色、第三方 UAT 与专用环境 2 万 QPS 尚未验收 |
@@ -33,11 +40,11 @@
 ## 3. 当前状态
 
 - 文档状态：MVP 规划 Accepted，第 15 节推荐默认方案已全部关闭。
-- 产品阶段：M0 研发基线。
+- 产品阶段：M0 研发基线；完整 OCPX 改造处于 R1-00，未进入 R1-01。
 - 已有代码：除媒体对象授权和运营闭环外，已新增通用渠道 OCPX v1.1 的渠道鉴权、设备派生、Feedback Buffer、Callback 首存与异步处理基础；具体证据见 MVP 开发规划执行快照。
 - 未交付：目标环境迁移、浏览器多角色运行态回归、真实第三方 UAT 与 20,000 QPS 专用容量环境验收。2026-07-22 已通过镜像源取得并固定 `grafana/k6:0.49.0`，本机单 ingress/单 worker 完整门禁失败：实际平均 2,591 req/s、dropped 5,873,994、错误率 92.99%，40k 阶段同时出现 Docker 发压端临时端口耗尽；Feedback 与原始事件处理均在 10 分钟内恢复，Outbox 因本轮明确关闭 RocketMQ 发布器而保留积压。不得将该本机失败证据或模拟 UAT 描述为生产可用。
 - 契约状态：`contracts/` 已包含 OpenAPI、AsyncAPI 与事件 JSON Schema，`make contract-check` 为有效质量门。
-- 状态更新时间：2026-07-22。
+- 状态更新时间：2026-07-27。
 
 ## 4. 事实与状态规则
 

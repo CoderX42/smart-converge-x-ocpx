@@ -10,8 +10,10 @@ import com.yzytech.scx.tracking.dto.EventIngestionRequest;
 import com.yzytech.scx.tracking.dto.EventIngestionResponse;
 import com.yzytech.scx.tracking.dto.EventReceiptView;
 import com.yzytech.scx.tracking.config.TrackingProperties;
+import com.yzytech.scx.tracking.entity.AttributionResult;
 import com.yzytech.scx.tracking.entity.ChannelClient;
 import com.yzytech.scx.tracking.entity.RawEvent;
+import com.yzytech.scx.tracking.mapper.AttributionResultMapper;
 import com.yzytech.scx.tracking.mapper.RawEventMapper;
 import java.net.URI;
 import java.time.OffsetDateTime;
@@ -42,6 +44,8 @@ public class EventIngestionService {
 	private final TrackingTaskMapper taskMapper;
 
 	private final RawEventMapper rawEventMapper;
+
+	private final AttributionResultMapper attributionResultMapper;
 
 	private final ChannelRequestAuthenticator authenticator;
 
@@ -100,8 +104,20 @@ public class EventIngestionService {
 			.last("LIMIT 1"));
 		if (raw == null)
 			return null;
+		String reasonCode = null;
+		String attributionStatus = null;
+		if (!"CLICK".equals(raw.getEventType())) {
+			AttributionResult attribution = attributionResultMapper.selectOne(Wrappers.<AttributionResult>lambdaQuery()
+				.eq(AttributionResult::getConversionEventId, raw.getId())
+				.eq(AttributionResult::getCurrentFlag, true)
+				.last("LIMIT 1"));
+			if (attribution != null) {
+				attributionStatus = attribution.getStatus();
+				reasonCode = attribution.getReasonCode();
+			}
+		}
 		return new EventReceiptView(raw.getReceiptId(), raw.getEventId(), false, raw.getStatus(),
-				raw.getReceivedAt().atOffset(ZoneOffset.UTC), raw.getProcessingStatus(), null, null);
+				raw.getReceivedAt().atOffset(ZoneOffset.UTC), raw.getProcessingStatus(), reasonCode, attributionStatus);
 	}
 
 	public String canonicalPayload(EventIngestionRequest request) {

@@ -39,6 +39,7 @@ const issued = ref<Record<string, any>>();
 const form = reactive({
   id: '',
   sourceCode: '',
+  allowedScopes: ['CLICK', 'CONVERSION', 'RTA'],
   maxQps: 2000,
   dynamicCallbackEnabled: false,
   callbackAllowedHostsText: '',
@@ -84,6 +85,9 @@ function open(row?: Record<string, any>) {
   Object.assign(form, {
     id: row?.id || '',
     sourceCode: row?.sourceCode || '',
+    allowedScopes: (row?.allowedScopes || 'CLICK,CONVERSION,RTA')
+      .split(',')
+      .filter(Boolean),
     maxQps: row?.maxQps || 2000,
     dynamicCallbackEnabled: Boolean(row?.dynamicCallbackEnabled),
     callbackAllowedHostsText: hosts(row?.callbackAllowedHosts).join('\n'),
@@ -96,6 +100,7 @@ function requestBody() {
   return {
     mediaId: mediaId.value,
     sourceCode: form.sourceCode,
+    allowedScopes: form.allowedScopes,
     maxQps: form.maxQps,
     dynamicCallbackEnabled: form.dynamicCallbackEnabled,
     callbackAllowedHosts: form.callbackAllowedHostsText
@@ -109,6 +114,10 @@ function requestBody() {
 async function submit() {
   if (!form.id && !form.sourceCode.trim()) {
     ElMessage.warning('请填写渠道来源编码');
+    return;
+  }
+  if (form.allowedScopes.length === 0) {
+    ElMessage.warning('请至少选择一个允许调用的端点');
     return;
   }
   if (form.dynamicCallbackEnabled && !form.callbackAllowedHostsText.trim()) {
@@ -173,10 +182,36 @@ async function revoke(item: Record<string, any>) {
   await viewCredentials(selected.value);
 }
 
+function fallbackCopy(value: string) {
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.cssText =
+    'position:fixed;opacity:0;pointer-events:none;left:-9999px;top:-9999px;';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Clipboard copy failed');
+}
+
 async function copyValue(value?: string) {
   if (!value) return;
-  await navigator.clipboard.writeText(value);
-  ElMessage.success('已复制，请立即保存到安全位置');
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      fallbackCopy(value);
+    }
+    ElMessage.success('已复制，请立即保存到安全位置');
+  } catch {
+    try {
+      fallbackCopy(value);
+      ElMessage.success('已复制，请立即保存到安全位置');
+    } catch {
+      ElMessage.error('复制失败，请检查浏览器权限后重试');
+    }
+  }
 }
 
 function clearIssued() {
@@ -230,6 +265,18 @@ bootstrap().then(load);
           </template>
         </el-table-column>
         <el-table-column label="来源编码" prop="sourceCode" min-width="150" />
+        <el-table-column label="端点权限" min-width="220">
+          <template #default="{ row }">
+            <el-tag
+              v-for="scope in (row.allowedScopes || '').split(',')"
+              :key="scope"
+              class="mr-1"
+              effect="plain"
+            >
+              {{ scope }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column
           label="当前版本"
           prop="currentKeyVersion"
@@ -316,6 +363,16 @@ bootstrap().then(load);
             class="w-full"
             controls-position="right"
           />
+        </el-form-item>
+        <el-form-item label="允许调用的端点" required>
+          <el-checkbox-group v-model="form.allowedScopes">
+            <el-checkbox value="CLICK">点击上报与回执</el-checkbox>
+            <el-checkbox value="CONVERSION">转化上报与回执</el-checkbox>
+            <el-checkbox value="RTA">RTA 决策</el-checkbox>
+          </el-checkbox-group>
+          <div class="text-muted-foreground mt-1 text-xs">
+            服务端会在签名校验后强制检查，未授权端点返回 403。
+          </div>
         </el-form-item>
         <el-form-item label="动态回调">
           <el-switch v-model="form.dynamicCallbackEnabled" />

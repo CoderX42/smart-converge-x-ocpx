@@ -11,7 +11,9 @@ import java.time.LocalDate;
 public interface EventDetailMapper {
     @Select("""
         <script>
-        SELECT e.id raw_event_id,e.event_id,e.source,e.task_id,t.code task_code,e.event_type,e.occurred_at,e.received_at,
+        SELECT e.id raw_event_id,e.event_id,e.source,e.task_id,t.code task_code,e.event_type,
+          CONVERT_TZ(e.occurred_at, '+00:00', '+08:00') occurred_at,
+          CONVERT_TZ(e.received_at, '+00:00', '+08:00') received_at,
           CONCAT(LEFT(e.device_key_hash,6),'***',RIGHT(e.device_key_hash,4)) device_key_masked,e.status ingestion_status,
           COALESCE(cd.status,cv.status) dedup_status,a.status attribution_status,
           COALESCE(a.reason_code,cd.reason_code,cv.reason_code) reason_code,a.revision
@@ -25,7 +27,7 @@ public interface EventDetailMapper {
         <if test="taskRestricted and taskIds != null and taskIds.size > 0">AND t.id IN
           <foreach collection="taskIds" item="taskId" open="(" separator="," close=")">#{taskId}</foreach>
         </if>
-        <if test="date != null">AND DATE(e.occurred_at)=#{date}</if>
+        <if test="date != null">AND DATE(CONVERT_TZ(e.occurred_at, '+00:00', '+08:00'))=#{date}</if>
         <if test="eventType != null and eventType != ''">AND e.event_type=#{eventType}</if>
         <if test="taskId != null and taskId != ''">AND e.task_id=#{taskId}</if>
         <if test="eventId != null and eventId != ''">AND (
@@ -53,13 +55,14 @@ public interface EventDetailMapper {
 
     @Select("""
         SELECT e.id AS raw_event_id,
-          CONCAT(LEFT(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.click_id')),JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.clickId')),''),6),'***') AS click_id_masked,
-          CONCAT(LEFT(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.oaid')),''),6),'***') AS oaid_masked,
-          CONCAT(LEFT(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.oaid_md5')),JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.oaidMd5')),''),6),'***') AS oaid_md5_masked,
-          CONCAT(SUBSTRING_INDEX(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.ip')),''),'.',2),'.***') AS ip_masked,
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.click_id')),JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.clickId'))) AS click_id,
           JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.device_model')) AS device_model,
-          CONCAT(LEFT(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.campaign_id')),''),6),'***') AS campaign_id_masked,
-          CONCAT(LEFT(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.creative_id')),''),6),'***') AS creative_id_masked
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.campaign_id')),JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.campaignId'))) AS campaign_id,
+          COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.creative_id')),JSON_UNQUOTE(JSON_EXTRACT(e.payload_json,'$.attributes.creativeId'))) AS creative_id,
+          JSON_CONTAINS_PATH(e.payload_json, 'one', '$.attributes.oaid') AS oaid_protected,
+          JSON_CONTAINS_PATH(e.payload_json, 'one', '$.attributes.oaid_md5', '$.attributes.oaidMd5') AS oaid_md5_protected,
+          JSON_CONTAINS_PATH(e.payload_json, 'one', '$.attributes.ip') AS ip_protected,
+          JSON_KEYS(JSON_EXTRACT(e.payload_json, '$.attributes')) AS attribute_keys_json
         FROM scx_raw_event e
         JOIN scx_tracking_task t ON t.id=e.task_id
         WHERE e.id=#{rawEventId} AND e.event_type='CLICK' AND t.media_id=#{mediaId}

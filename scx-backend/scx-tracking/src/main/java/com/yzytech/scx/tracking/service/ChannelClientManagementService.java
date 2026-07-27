@@ -40,6 +40,8 @@ public class ChannelClientManagementService {
 
 	private static final Set<String> STATUSES = Set.of("ACTIVE", "DISABLED");
 
+	private static final List<String> ENDPOINT_SCOPES = List.of("CLICK", "CONVERSION", "RTA");
+
 	private final ChannelClientMapper clientMapper;
 
 	private final ChannelCredentialMapper credentialMapper;
@@ -88,12 +90,13 @@ public class ChannelClientManagementService {
 				Boolean.TRUE.equals(request.getDynamicCallbackEnabled()));
 		String clientId = "scx_" + randomToken(18);
 		String secret = randomToken(32);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = credentialMapper.databaseNow();
 
 		ChannelClient client = new ChannelClient();
 		client.setMediaId(request.getMediaId());
 		client.setClientId(clientId);
 		client.setSourceCode(sourceCode);
+		client.setAllowedScopes(normalizeScopes(request.getAllowedScopes()));
 		client.setStatus("ACTIVE");
 		client.setMaxQps(request.getMaxQps() == null ? 2_000 : request.getMaxQps());
 		client.setDynamicCallbackEnabled(Boolean.TRUE.equals(request.getDynamicCallbackEnabled()));
@@ -114,6 +117,8 @@ public class ChannelClientManagementService {
 			throw new IllegalArgumentException("渠道客户端状态无效");
 		client.setStatus(status);
 		client.setMaxQps(request.getMaxQps());
+		if (request.getAllowedScopes() != null)
+			client.setAllowedScopes(normalizeScopes(request.getAllowedScopes()));
 		client.setDynamicCallbackEnabled(Boolean.TRUE.equals(request.getDynamicCallbackEnabled()));
 		client.setCallbackAllowedHosts(
 				normalizeHosts(request.getCallbackAllowedHosts(), client.getDynamicCallbackEnabled()));
@@ -131,7 +136,7 @@ public class ChannelClientManagementService {
 		if (!matcher.matches())
 			throw new IllegalStateException("当前密钥版本无法自动轮换");
 		String nextVersion = "v" + (Long.parseLong(matcher.group(1)) + 1);
-		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime now = credentialMapper.databaseNow();
 		LocalDateTime oldValidUntil = now.plusHours(24);
 		ChannelCredential old = credentialMapper.selectOne(Wrappers.<ChannelCredential>lambdaQuery()
 			.eq(ChannelCredential::getChannelClientId, client.getId())
@@ -162,7 +167,7 @@ public class ChannelClientManagementService {
 		if (credential == null)
 			throw new IllegalArgumentException("密钥版本不存在");
 		credential.setStatus("REVOKED");
-		credential.setValidUntil(LocalDateTime.now());
+		credential.setValidUntil(credentialMapper.databaseNow());
 		boolean changed = credentialMapper.updateById(credential) == 1;
 		afterCommit(() -> credentialCache.evictAndPublish(client.getClientId()));
 		return changed;
@@ -211,6 +216,16 @@ public class ChannelClientManagementService {
 					|| host.matches("[0-9.]+")))
 			throw new IllegalArgumentException("回调白名单只允许最多 20 个精确公网 DNS 域名");
 		return String.join(",", hosts);
+	}
+
+	private String normalizeScopes(List<String> values) {
+		Set<String> requested = (values == null ? List.<String>of() : values).stream()
+			.filter(StringUtils::hasText)
+			.map(value -> value.trim().toUpperCase(Locale.ROOT))
+			.collect(java.util.stream.Collectors.toSet());
+		if (requested.isEmpty() || !ENDPOINT_SCOPES.containsAll(requested))
+			throw new IllegalArgumentException("渠道端点权限只能选择 CLICK、CONVERSION 或 RTA");
+		return ENDPOINT_SCOPES.stream().filter(requested::contains).collect(java.util.stream.Collectors.joining(","));
 	}
 
 	private String randomToken(int bytes) {

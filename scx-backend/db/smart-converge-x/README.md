@@ -9,9 +9,9 @@
 3. `20xxl_job_schema.sql`：XXL-JOB 调度表结构与默认调度管理员。
 4. `smart_converge_x_baseline.sql`：聚合入口脚本，按以上顺序 `SOURCE` 执行。
 5. `init-database.sh`：直连 MySQL 初始化基线，并按 `scx_schema_migration` 只应用尚未执行的业务迁移。
-6. `smart_converge_x_mvp_v42_init.sql`：空库一次性初始化入口，包含基线、V1–V42 和已对账的 sandbox/demo 种子。
-7. `smart_converge_x_mvp_test_data.sql`：已完成结构初始化后，可重复补齐 V30 基础测试数据并执行 V42 引用对账；禁止用于生产数据环境。
-8. `verify-database.sh`：只读校验基础表、主体表、默认管理员和主体权限。
+6. `verify-database.sh`：只读校验基础表、主体表、默认管理员和主体权限。
+
+当前业务迁移最高版本为 V46；已有数据库必须通过 `init-database.sh` 前向应用，不能修改已登记的历史迁移。
 
 ## 推荐导入方式
 
@@ -22,21 +22,8 @@ MYSQL_USERNAME=root MYSQL_PASSWORD=你的密码 ./init-database.sh
 
 可选环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`。脚本导入完成后会校验必需表以及默认管理员角色关系。
 
-对全新空库，也可以直接使用 MySQL 客户端执行当前 V42 聚合入口：
-
-```bash
-mysql --commands -h数据库地址 -P3306 -u用户名 -p \
-  < smart_converge_x_mvp_v42_init.sql
-```
-
-聚合入口使用 MySQL 客户端的 `SOURCE` 命令，因此必须从本目录执行。已有数据库不要执行该文件，应使用 `init-database.sh` 读取并校验迁移账本后做前向升级。
-
-仅在 sandbox/dev 数据库补齐可识别测试数据：
-
-```bash
-mysql --commands -h数据库地址 -P3306 -u用户名 -p smart_converge_x \
-  < smart_converge_x_mvp_test_data.sql
-```
+当前工作树不提供版本聚合 SQL 或独立测试数据聚合入口；空库和已有库都必须使用
+`init-database.sh`，由同一迁移账本和校验和规则执行。
 
 已有开发库或线上库请使用统一的前向迁移入口；目标连接由 `MYSQL_*` 环境变量提供：
 

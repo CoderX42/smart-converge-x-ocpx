@@ -4,6 +4,7 @@ package com.yzytech.scx.common.security.handler;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
+import cn.dev33.satoken.exception.NotRoleException;
 import cn.hutool.core.util.StrUtil;
 import com.yzytech.scx.common.core.util.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -142,6 +143,13 @@ public class BootGlobalExceptionHandlerResolver {
 	@ExceptionHandler(NotPermissionException.class)
 	@ResponseStatus(HttpStatus.FORBIDDEN)
 	public Result handleNotPermissionException(Exception e) {
+		log.error("全局异常信息 ex={}", e.getMessage(), e);
+		return Result.fail(e.getLocalizedMessage());
+	}
+
+	@ExceptionHandler(NotRoleException.class)
+	@ResponseStatus(HttpStatus.FORBIDDEN)
+	public Result handleNotRoleException(NotRoleException e) {
 		log.error("全局异常信息 ex={}", e.getMessage(), e);
 		return Result.fail(e.getLocalizedMessage());
 	}

@@ -1,10 +1,13 @@
 package com.yzytech.scx.subject.service;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.security.entity.BootUser;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.subject.entity.UserSubjectScope;
+import com.yzytech.scx.subject.mapper.UserSubjectScopeMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
@@ -12,12 +15,16 @@ import java.util.List;
 /**
  * Media access helper.
  * <p>
- * Object-level media isolation ({@code scx_user_subject_scope}) is disabled: any
- * authenticated caller with the corresponding menu/API permission may access
- * all media. Menu/button RBAC via Sa-Token remains enforced at controllers.
+ * Object-level media isolation is enforced through {@code scx_user_subject_scope}:
+ * administrators read and write every media; other users only reach media explicitly
+ * granted to them. Callers must return the same uniform not-found response for
+ * "no scope" and "does not exist" so unauthorized objects cannot be inferred.
  */
 @Service
+@RequiredArgsConstructor
 public class MediaScopeService {
+
+	private final UserSubjectScopeMapper scopeMapper;
 
 	public boolean isAdmin() {
 		BootUser user = SecurityUtils.getUser();
@@ -25,19 +32,32 @@ public class MediaScopeService {
 	}
 
 	/**
-	 * Empty list means "no per-user media restriction" (all ACTIVE media are
-	 * visible). Kept for call-site compatibility.
+	 * Media ids readable by the current user. Administrators get an empty list,
+	 * which call sites treat as "no per-user media restriction".
 	 */
 	public List<String> readableMediaIds() {
-		return Collections.emptyList();
+		if (isAdmin())
+			return Collections.emptyList();
+		BootUser user = SecurityUtils.getUser();
+		if (user == null)
+			return List.of();
+		return scopeMapper
+			.selectList(Wrappers.<UserSubjectScope>lambdaQuery()
+				.eq(UserSubjectScope::getUserId, user.getUserId())
+				.eq(UserSubjectScope::getSubjectType, "MEDIA"))
+			.stream()
+			.map(UserSubjectScope::getSubjectId)
+			.toList();
 	}
 
 	public boolean canRead(String mediaId) {
-		return StringUtils.hasText(mediaId);
+		return isAdmin() || readableMediaIds().contains(mediaId);
 	}
 
 	public boolean canWrite(String mediaId) {
-		return StringUtils.hasText(mediaId);
+		BootUser user = SecurityUtils.getUser();
+		return user != null && (isAdmin()
+				|| (user.getRoles() != null && user.getRoles().contains("ROLE_OPERATOR") && canRead(mediaId)));
 	}
 
 }

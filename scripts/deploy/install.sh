@@ -102,25 +102,34 @@ install_env_file() {
     elif [[ -f "$SCRIPT_DIR/env.example" ]]; then
       cp "$SCRIPT_DIR/env.example" /etc/scx/scx.env
     else
-      cat > /etc/scx/scx.env <<EOF
-SCX_HOME=/opt/smart-converge-x
-SCX_BRANCH=main
-SCX_GIT_URL=git@gitea.smartcute.cn:karl419/smart-converge-x.git
-SCX_PROFILE=prod
-SCX_JAVA_OPTS=-Xms512m -Xmx1024m -Dfile.encoding=UTF-8
-SCX_LOG_DIR=/var/log/scx
-SCX_WEB_ROOT=/var/www/scx
-SCX_RUN_DB_MIGRATE=true
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3306
-MYSQL_USERNAME=root
-MYSQL_PASSWORD=123456
-EOF
+      # env.example 缺失时，拒绝继续：禁止生成任何内联弱默认凭据
+      die "未找到 scripts/deploy/env.example；请先 clone 完整仓库或补齐 env.example；禁止由本脚本生成 MYSQL_PASSWORD 等占位"
     fi
     chmod 600 /etc/scx/scx.env
     log "已生成 /etc/scx/scx.env ，请确认 MYSQL_PASSWORD 等配置与 application-prod.yml 一致"
   else
     log "保留已有 /etc/scx/scx.env"
+  fi
+  # 强制：env 文件存在不等于凭据已设置；启动期会再次校验
+  if [[ -f /etc/scx/scx.env ]]; then
+    local required=(
+      MYSQL_HOST MYSQL_PORT MYSQL_USERNAME MYSQL_PASSWORD
+      SCX_DATASOURCE_URL SCX_DATASOURCE_USERNAME SCX_DATASOURCE_PASSWORD
+      SCX_REDIS_HOST SCX_REDIS_PASSWORD
+      SCX_ENCODE_KEY
+      ROCKETMQ_NAME_SERVER
+    )
+    local missing=()
+    local v
+    for v in "${required[@]}"; do
+      if ! grep -qE "^${v}=" /etc/scx/scx.env; then
+        missing+=("$v")
+      fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+      log "WARN: /etc/scx/scx.env 缺少以下必需变量：${missing[*]}"
+      log "WARN: 仅生成示例文件。生产启动前必须由部署负责人显式填入真实凭据。"
+    fi
   fi
 }
 

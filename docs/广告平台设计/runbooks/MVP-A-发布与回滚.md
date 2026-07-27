@@ -16,11 +16,12 @@
    make frontend-check
    make frontend-build
    make contract-check
+   make migration-packaging-check
    make prod-secret-injection-check
    git diff --check
    ```
 
-3. 仅通过受控部署环境提供生产数据源、Redis、RocketMQ、签名密钥和 AES 登录密钥。`application-prod.yml` 的 Redis、数据源、XXL 调度令牌和 AES 登录密钥分别要求 `SCX_REDIS_PASSWORD`、`SCX_DATASOURCE_PASSWORD`、`SCX_XXL_JOB_ACCESS_TOKEN`、`SCX_ENCODE_KEY`；先运行 `make prod-secret-injection-check` 确认配置未回退为内联值。不得从 Git、终端历史、浏览器或 Runbook 复制凭据；密钥轮换须先在密钥管理系统准备新值，再按部署平台的受控方式注入。
+3. 仅通过受控部署环境提供生产数据源、Redis、RocketMQ、签名密钥和 AES 登录密钥。`application-prod.yml` 还要求 `SCX_TRACKING_CHANNEL_MASTER_KEY` 与 `SCX_TRACKING_DEVICE_HMAC_KEY`；部署脚本要求 MySQL 连接参数和 XXL-JOB token 显式注入，不提供目标地址、账号或密码默认值；Nacos 还要求 `NACOS_DB_URL`、`NACOS_DB_USERNAME`、`NACOS_DB_PASSWORD`、`NACOS_AUTH_TOKEN_SECRET`。Nginx 管理面板 token 只允许放在请求头，不能放入查询参数或日志。先运行 `make prod-secret-injection-check` 确认配置和部署脚本未回退为内联值。不得从 Git、终端历史、浏览器或 Runbook 复制凭据；任何曾进入版本历史的值都必须在外部完成轮换，删除工作树中的明文不能替代轮换。
 4. 确认生产 profile 关闭 sandbox 回传目标，外部出网 allowlist、告警接收人和 M6 指标采集已由负责人复核。`/actuator` 仅应在内部监控网络可访问，不能经前端公网代理暴露。
 5. 确认数据库迁移脚本已纳入发布包，并在发布工作区执行 `git diff --check`；项目不依赖 Docker/Compose 冷启动数据库。
 
@@ -35,7 +36,7 @@
    ORDER BY CAST(SUBSTRING(version, 2) AS UNSIGNED);
    ```
 
-2. 由已授权的运维会话对本次受影响表做可恢复导出。当前 V26–V28 会修改菜单授权、事件映射结构和迁移历史；导出至少覆盖 `sys_menu`、`sys_role_menu`、`scx_link_event_mapping`、`scx_schema_migration`。使用 `--single-transaction --routines --triggers --no-tablespaces`，保存到受控备份位置并核验文件非空；不在命令、日志或本文件写入口令。
+2. 由已授权的运维会话对本次受影响表做可恢复导出。当前 V43–V46 会修改审计字段、渠道客户端、当前渠道凭据和系统菜单；导出至少覆盖 `sys_log`、`sys_menu`、`sys_role_menu`、`scx_channel_client`、`scx_channel_credential`、`scx_schema_migration`。使用 `--single-transaction --routines --triggers --no-tablespaces`，保存到受控备份位置并核验文件非空；不在命令、日志或本文件写入口令。
 3. 在确认备份成功后，执行现有前向迁移器。迁移器会为已登记脚本比对文件名和 SHA-256，任何不一致都会失败并停止：
 
    ```bash
@@ -52,14 +53,14 @@
    ```sql
    SELECT version, script_name, applied_at
    FROM scx_schema_migration
-   WHERE version IN ('V26', 'V27', 'V28')
+   WHERE version IN ('V43', 'V44', 'V45', 'V46')
    ORDER BY version;
 
    SELECT column_name
    FROM information_schema.columns
    WHERE table_schema = DATABASE()
-     AND table_name = 'scx_link_event_mapping'
-     AND column_name IN ('unit_price', 'daily_limit');
+     AND table_name = 'scx_channel_client'
+     AND column_name = 'allowed_scopes';
    ```
 
 ## 应用发布与运行态核验
