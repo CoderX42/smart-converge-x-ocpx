@@ -3,27 +3,72 @@
 目标机示例：`root@42.81.102.181`  
 仓库：`git@gitea.smartcute.cn:karl419/smart-converge-x.git`
 
+## 部署标准（后续以本约定为准）
+
+**线上统一：`宝塔面板` + `bash 脚本`。**
+
+| 职责 | 谁来做 | 说明 |
+| --- | --- | --- |
+| 站点 / SSL / 伪静态 / 反代 | **宝塔** | 网站根目录 + 粘贴 `nginx-scx-baota-rewrite.conf` |
+| 拉代码 / 构建 / 迁移 / 重启后端 | **bash** | `baota-deploy.sh`（推荐）或 `update.sh` / `restart-all.sh` |
+| 后端进程 | **systemd** `scx-boot` | 仍由 bash 启停，配置 `/etc/scx/scx.env` |
+| Nginx 配置文件 | **只在宝塔改** | bash **禁止**覆盖 `/www/server/panel/vhost/nginx/*` |
+
+### 日常命令（推荐：对标浩荣 `bt-deploy-scripts`）
+
+脚本目录：`scripts/bt-deploy/`（**00 / 03 最常用**；无 02，启停用宝塔面板）
+
+```bash
+cd /opt/smart-converge-x/scripts/bt-deploy
+
+# ⭐ 只同步 Gitea
+bash 00-sync_repos.sh
+
+# ⭐ 同步 + 打包 + 发布前端（不自动重启服务）
+bash 03-deploy_all.sh
+
+# 打包完成后：宝塔 → Java 项目管理器 → 重启 scx-boot
+```
+
+详见：[`scripts/bt-deploy/README.md`](../bt-deploy/README.md)
+
+### 兼容入口（`scripts/deploy/baota-deploy.sh`）
+
+```bash
+bash /opt/smart-converge-x/scripts/deploy/baota-deploy.sh status
+bash /opt/smart-converge-x/scripts/deploy/baota-deploy.sh restart
+bash /opt/smart-converge-x/scripts/deploy/baota-deploy.sh update
+```
+
+宝塔站点一次性配置：
+
+1. 新建网站，根目录例如 `/www/wwwroot/scx`（或设 `SCX_WEB_ROOT` / `SCX_BAOTA_SITE_ROOT`）
+2. **伪静态**粘贴：`scripts/deploy/nginx-scx-baota-rewrite.conf`
+3. 确认 `/api` → `http://127.0.0.1:9999/`（只剥 `/api`，不要拼成 `/boot/boot`）
+4. SSL 在宝塔申请；**不要**对公网放行 `9999`
+
 ## 架构
 
 ```text
 浏览器
-  │  :80
+  │  :80 / :443
   ▼
-Nginx  ──静态──▶ /var/www/scx          (前端 dist)
+宝塔 Nginx  ──静态──▶ /www/wwwroot/scx   (前端 dist，可由 SCX_WEB_ROOT 覆盖)
   │
-  └── /api/boot/* 代理 ──▶ 127.0.0.1:9999/boot/*   (scx-boot.jar, systemd)
+  └── /api/* 伪静态反代 ──▶ 127.0.0.1:9999/*   (scx-boot.jar, systemd)
                            │
-              MySQL / Redis / RocketMQ（application-prod.yml）
+              MySQL / Redis / RocketMQ（/etc/scx/scx.env 注入）
 ```
 
 | 组件 | 默认 |
 | --- | --- |
 | 代码目录 | `/opt/smart-converge-x` |
 | 环境变量 | `/etc/scx/scx.env` |
-| 前端静态 | `/var/www/scx` |
+| 前端静态 | `/www/wwwroot/scx`（宝塔）或 `/var/www/scx` |
 | 后端服务 | `scx-boot.service` |
 | 后端端口 | `9999`，context-path `/boot` |
 | 日志 | `journalctl -u scx-boot` 与 `/var/log/scx/` |
+| 部署入口 | `scripts/deploy/baota-deploy.sh` |
 
 ## 部署前准备
 
@@ -73,23 +118,21 @@ bash ./verify-database.sh
 
 **不要** 对公网放行 `9999`（后端仅本机 Nginx 反代）。
 
-### 4. 部署方式说明
-
-本项目在 **`42.81.102.181` 使用纯系统部署**，不依赖宝塔：
+### 4. 部署方式说明（宝塔 + bash）
 
 | 组件 | 方式 |
 | --- | --- |
-| 后端 | `systemd` 单元 `scx-boot.service` |
-| 前端 | 构建产物同步到 `/var/www/scx` |
-| 反向代理 | 系统 Nginx：`/etc/nginx/conf.d/scx.conf` |
-| 更新 | `scripts/deploy/update.sh` |
+| 后端 | `systemd` 单元 `scx-boot.service`（bash 启停） |
+| 前端 | 构建产物 rsync 到宝塔网站根（`SCX_WEB_ROOT`） |
+| 反向代理 / SSL | **宝塔**站点 + 伪静态 |
+| 更新 / 重启 | `scripts/deploy/baota-deploy.sh` |
 
-Nginx 配置文件：
+Nginx 相关文件：
 
 | 文件 | 用途 |
 | --- | --- |
-| `scripts/deploy/nginx-scx.conf` | 完整 `server {}`，拷到 `/etc/nginx/conf.d/scx.conf`（本机推荐） |
-| `scripts/deploy/nginx-scx-baota-rewrite.conf` | 宝塔「伪静态」粘贴用（**不要**用其它商城项目的伪静态） |
+| `scripts/deploy/nginx-scx-baota-rewrite.conf` | **标准**：宝塔「伪静态」粘贴（**不要**用其它商城项目的伪静态） |
+| `scripts/deploy/nginx-scx.conf` | 完整 `server {}`，仅无宝塔的纯系统 Nginx 备用 |
 | `scripts/deploy/nginx-scx-rewrite.conf` | 仅 location 片段备用 |
 
 **样式丢失排查**：网站根目录必须是 dist 根目录（含 `css/`、`js/`、`jse/`）。  
@@ -171,10 +214,17 @@ curl -s http://127.0.0.1:9999/boot/actuator/health
 
 ## 日常一键重启（后端 + XXL-JOB + 前端/Nginx）
 
-在服务器 `root@42.81.102.181` 执行：
+在服务器执行（**推荐宝塔入口**）：
 
 ```bash
-# 仅重启（不重新构建）——最常用
+bash /opt/smart-converge-x/scripts/deploy/baota-deploy.sh restart
+bash /opt/smart-converge-x/scripts/deploy/baota-deploy.sh update
+```
+
+兼容旧脚本（已支持宝塔 Nginx reload）：
+
+```bash
+# 仅重启（不重新构建）
 bash /opt/smart-converge-x/scripts/deploy/restart-all.sh
 
 # 拉代码后重启
@@ -317,14 +367,42 @@ SCX_RUN_DB_MIGRATE=false bash scripts/deploy/update.sh
 
 ---
 
+## 新机 / 重置机：一键环境初始化
+
+服务器重装后，先装齐运行本项目所需工具链（不写入弱默认密钥、默认不启动业务）：
+
+```bash
+# 上传脚本后，以 root 执行
+bash scripts/deploy/bootstrap-env.sh
+
+# 单机全栈：本机 MySQL + Redis + 克隆代码
+SCX_GIT_URL='git@gitea.smartcute.cn:karl419/smart-converge-x.git' \
+  bash scripts/deploy/bootstrap-env.sh --with-mysql --with-redis --clone
+
+# 填好 /etc/scx/scx.env 后部署应用
+bash scripts/deploy/bootstrap-env.sh --deploy -y
+# 或继续用既有：
+# bash /opt/smart-converge-x/scripts/deploy/install.sh
+```
+
+`bootstrap-env.sh` 安装内容：OpenJDK 17、Maven、Node 20、pnpm 10.12.4、Nginx、Git、mysql-client、redis-cli，以及 `/opt/smart-converge-x`、`/var/www/scx`、`/var/log/scx`、`/etc/scx` 目录。  
+RocketMQ / XXL-JOB 仍用 `install-rocketmq.sh` / `install-xxl-job.sh` 单独安装。
+
+---
+
 ## 脚本清单
 
 | 文件 | 作用 |
 | --- | --- |
-| `install.sh` | 首次装依赖、clone、迁移、构建、systemd、Nginx、启动 |
-| `update.sh` | 一键拉取、构建、迁移、重启 |
+| `../bt-deploy/00,01,03-*.sh` | **线上主力（对标浩荣）**：同步 / 打包 / 一键部署（启停用宝塔） |
+| `baota-deploy.sh` | 兼容入口：宝塔 + bash 更新/重启/健康检查 |
+| `bootstrap-env.sh` | 新机/重置机一键环境初始化（工具链 + 可选本机 MySQL/Redis/clone/deploy） |
+| `install.sh` | 首次装依赖、clone、迁移、构建、systemd、启动 |
+| `update.sh` | 一键拉取、构建、迁移、重启（检测到宝塔时不覆盖站点 conf） |
+| `restart-all.sh` | 重启 scx-boot / xxl / nginx（宝塔优先 reload） |
 | `scxctl.sh` | start/stop/restart/status/logs/health/version |
 | `scx-boot.service` | systemd 单元 |
-| `nginx-scx.conf` | Nginx 站点（`/api` → `/boot`） |
+| `nginx-scx-baota-rewrite.conf` | 宝塔伪静态（标准） |
+| `nginx-scx.conf` | 纯系统 Nginx 完整站点（备用） |
 | `env.example` | `/etc/scx/scx.env` 模板 |
 | `common.sh` | 公共函数 |

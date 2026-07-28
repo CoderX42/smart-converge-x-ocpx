@@ -32,15 +32,16 @@ db_migrate
 build_backend
 build_frontend
 
-# 同步 systemd / nginx 模板（若仓库有变更）
+# 同步 systemd 单元。站点 conf 由宝塔管理，禁止 bash 覆盖宝塔 vhost。
 if [[ -f "$SCX_HOME/scripts/deploy/scx-boot.service" ]]; then
   cp "$SCX_HOME/scripts/deploy/scx-boot.service" /etc/systemd/system/scx-boot.service
   systemctl daemon-reload
 fi
-if [[ -f "$SCX_HOME/scripts/deploy/nginx-scx.conf" ]]; then
-  if [[ -d /etc/nginx/conf.d ]]; then
-    cp "$SCX_HOME/scripts/deploy/nginx-scx.conf" /etc/nginx/conf.d/scx.conf
-  fi
+if [[ -d /www/server/panel ]]; then
+  log "检测到宝塔：跳过写入 /etc/nginx/conf.d/scx.conf（请在面板维护伪静态）"
+elif [[ -f "$SCX_HOME/scripts/deploy/nginx-scx.conf" && -d /etc/nginx/conf.d ]]; then
+  # 仅非宝塔的纯系统部署保留自动同步
+  cp "$SCX_HOME/scripts/deploy/nginx-scx.conf" /etc/nginx/conf.d/scx.conf
 fi
 
 restart_backend
@@ -51,3 +52,4 @@ log "======== 更新完成 ========"
 log "版本: $(git -C "$SCX_HOME" rev-parse --short HEAD)"
 log "健康: curl -s $SCX_HEALTH_URL"
 log "日志: journalctl -u scx-boot -n 50 --no-pager"
+log "推荐入口(宝塔+bash): bash $SCX_HOME/scripts/deploy/baota-deploy.sh update|restart"

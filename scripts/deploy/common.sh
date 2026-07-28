@@ -145,11 +145,29 @@ restart_backend() {
 }
 
 reload_nginx() {
+  # 线上标准：宝塔管站点 conf；bash 只负责 reload，不覆盖 vhost。
+  if command -v bt >/dev/null 2>&1; then
+    if bt reload 2>/dev/null || bt restart nginx 2>/dev/null; then
+      log "Nginx 已重载 (bt)"
+      return 0
+    fi
+  fi
+  if [[ -x /etc/init.d/nginx ]]; then
+    /etc/init.d/nginx reload 2>/dev/null || /etc/init.d/nginx restart
+    log "Nginx 已重载 (/etc/init.d/nginx)"
+    return 0
+  fi
+  if [[ -x /www/server/nginx/sbin/nginx ]]; then
+    /www/server/nginx/sbin/nginx -t
+    /www/server/nginx/sbin/nginx -s reload
+    log "Nginx 已重载 (宝塔 sbin)"
+    return 0
+  fi
   if command -v nginx >/dev/null 2>&1; then
     nginx -t
     systemctl reload nginx || systemctl restart nginx
-    log "Nginx 已重载"
-  else
-    log "未安装 nginx，跳过重载"
+    log "Nginx 已重载 (systemctl)"
+    return 0
   fi
+  log "未找到 nginx，跳过重载"
 }

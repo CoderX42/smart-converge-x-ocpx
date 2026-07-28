@@ -135,19 +135,39 @@ else
   warn "生产 JAR 必须由构建机上传并通过 --jar-sha256 校验，禁止在此机下载或构建"
 fi
 
-# ---------- nginx / frontend ----------
-if command -v nginx >/dev/null 2>&1; then
-  log "重载 Nginx（前端静态）..."
-  nginx -t
-  if systemctl is-active --quiet nginx; then
-    systemctl reload nginx
-  else
-    systemctl start nginx
+# ---------- nginx / frontend（宝塔优先，不覆盖 vhost）----------
+reload_nginx_compat() {
+  if command -v bt >/dev/null 2>&1; then
+    if bt reload 2>/dev/null || bt restart nginx 2>/dev/null; then
+      ok "nginx reloaded (bt)"
+      return 0
+    fi
   fi
-  ok "nginx reloaded"
-else
-  warn "未安装 nginx"
-fi
+  if [[ -x /etc/init.d/nginx ]]; then
+    /etc/init.d/nginx reload 2>/dev/null || /etc/init.d/nginx restart
+    ok "nginx reloaded (/etc/init.d/nginx)"
+    return 0
+  fi
+  if [[ -x /www/server/nginx/sbin/nginx ]]; then
+    /www/server/nginx/sbin/nginx -t
+    /www/server/nginx/sbin/nginx -s reload
+    ok "nginx reloaded (宝塔 sbin)"
+    return 0
+  fi
+  if command -v nginx >/dev/null 2>&1; then
+    nginx -t
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+      systemctl reload nginx
+    else
+      systemctl start nginx 2>/dev/null || nginx -s reload 2>/dev/null || true
+    fi
+    ok "nginx reloaded (system)"
+    return 0
+  fi
+  warn "未找到 nginx"
+}
+log "重载 Nginx（前端由宝塔站点托管时，仅 reload）..."
+reload_nginx_compat
 
 # ---------- health ----------
 log "健康检查 ..."
