@@ -5,8 +5,31 @@ export type Media = {
   code: string;
   id: string;
   name: string;
+  settlementCurrency: 'CNY';
+  status: 'ACTIVE' | 'DISABLED';
   timezone: string;
+  version: number;
 };
+export type MediaScope = {
+  createTime?: string;
+  id: string;
+  subjectId: string;
+  subjectType: 'MEDIA';
+  userId: string;
+};
+export type MediaCreateInput = {
+  code: string;
+  name: string;
+  settlementCurrency?: 'CNY';
+  timezone?: string;
+};
+export type MediaUpdateInput = {
+  name: string;
+  settlementCurrency: 'CNY';
+  timezone: string;
+  version: number;
+};
+export type MediaStatusInput = Pick<Media, 'status' | 'version'>;
 export type ClickSensitiveDetail = {
   attributeKeys: string[];
   campaignIdMasked?: string;
@@ -28,6 +51,45 @@ export type MasterType =
 export function getMedia(params?: Record<string, any>) {
   return requestClient.get<PageResult<Media>>('/subjects/media', {
     params: params ?? { current: 1, size: 100 },
+  });
+}
+export function getManagedMedia(params?: Record<string, any>) {
+  return requestClient.get<PageResult<Media>>('/subjects/media/manage', {
+    params: params ?? { current: 1, size: 100 },
+  });
+}
+export function saveMedia(data: Partial<Media>) {
+  if (data.id) {
+    const payload: MediaUpdateInput = {
+      name: data.name || '',
+      settlementCurrency: 'CNY',
+      timezone: data.timezone || 'Asia/Shanghai',
+      version: data.version as number,
+    };
+    return requestClient.put<Media>(`/subjects/media/${data.id}`, payload);
+  }
+  const payload: MediaCreateInput = {
+    code: data.code || '',
+    name: data.name || '',
+    settlementCurrency: 'CNY',
+    timezone: data.timezone || 'Asia/Shanghai',
+  };
+  return requestClient.post<Media>('/subjects/media', payload);
+}
+export function changeMediaStatus(id: string, data: MediaStatusInput) {
+  return requestClient.put<Media>(`/subjects/media/${id}/status`, data);
+}
+export function getMediaScopes(params: Record<string, any>) {
+  return requestClient.get<PageResult<MediaScope>>('/subjects/media-scopes', {
+    params,
+  });
+}
+export function grantMediaScope(data: { mediaId: string; userId: string }) {
+  return requestClient.post<MediaScope>('/subjects/media-scopes', data);
+}
+export function revokeMediaScope(id: string, mediaId: string) {
+  return requestClient.delete(`/subjects/media-scopes/${id}`, {
+    params: { mediaId },
   });
 }
 export function getMaster<T>(type: MasterType, params: Record<string, any>) {

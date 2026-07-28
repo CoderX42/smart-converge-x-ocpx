@@ -12,11 +12,12 @@
 4. [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
 5. 使用 Claude Code 多 Agent 实施时阅读
    [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md)。
-6. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
-7. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
-8. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
-9. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
-10. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+6. 使用 Codex 实施时阅读 [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md)。
+7. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
+8. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
+9. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
+10. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
+11. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
 当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
 
@@ -28,6 +29,7 @@
 | [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md) | 完整 OCPX 目标边界、锁定决策、模块与 R1–R9 依赖 | 产品方向 Accepted；按任务增量实现 |
 | [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md) | 当前能力、缺口、R1-00 操作与生产放行清单 | 当前代码事实与验收边界 |
 | [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md) | Claude Code 会话总控、多 Agent 文件所有权、R1–R9 最小 Task 与逐项 Prompt | 执行方案；实现状态仍以代码和验收证据为准 |
+| [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md) | Codex 当前收口 Task、R1–R9 总任务、依赖顺序和当前领取指令 | 执行清单；实现状态仍以代码和验收证据为准 |
 | [MVP 交付说明](MVP交付说明.md) | 当前实现范围、验证结果、数据库升级与运行态验收入口 | 代码完成；运行态验收待执行 |
 | `contracts/` | 沙箱事件 OpenAPI、异步消息 AsyncAPI、事件信封 JSON Schema | `make contract-check` 已启用 |
 | [通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md) | v1.1 签名、设备字段、Feedback/Callback、错误码、联调与容量验收边界 | 本机迁移、Redis 恢复及容量失败证据已落盘；浏览器多角色、第三方 UAT 与专用环境 2 万 QPS 尚未验收 |

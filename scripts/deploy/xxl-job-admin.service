@@ -18,6 +18,13 @@ StandardOutput=append:/var/log/scx/xxl-job-admin.out.log
 StandardError=append:/var/log/scx/xxl-job-admin.err.log
 TimeoutStopSec=60
 KillMode=mixed
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+IPAddressDeny=any
+IPAddressAllow=localhost
+ProtectSystem=strict
+ReadWritePaths=/opt/xxl-job-admin /var/log/scx
 
 [Install]
 WantedBy=multi-user.target

@@ -31,9 +31,8 @@ Nginx  ──静态──▶ /var/www/scx          (前端 dist)
 
 当前 `application-prod.yml` 直连内网：
 
-- MySQL：`mysqle379be1ffea9.rds.ivolces.com:3306` / `ocpxuser`，库名 `smart_converge_x`
-- Redis：`redis-cnlfagupdyxgrkgqy.redis.ivolces.com:6379` / `ocpxuser`
-- RocketMQ NameServer：仍为 `127.0.0.1:9876`（若本机未装 MQ，相关异步能力会受影响）
+- MySQL、Redis：仅从 `/etc/scx/scx.env` 或外部密钥管理注入，文档不记录主机、账号或密码。
+- RocketMQ NameServer：固定为 `127.0.0.1:9876`（本机单节点只用于受控恢复，不代表高可用）。
 
 ### 单独初始化数据库
 
@@ -49,10 +48,10 @@ bash /opt/smart-converge-x/scripts/deploy/db-init.sh
 也可手动：
 
 ```bash
-export MYSQL_HOST=mysqle379be1ffea9.rds.ivolces.com
+export MYSQL_HOST='<由外部密钥管理注入>'
 export MYSQL_PORT=3306
-export MYSQL_USERNAME=ocpxuser
-export MYSQL_PASSWORD='OqS5ZRBU1wBuEqLeHAQ3'
+export MYSQL_USERNAME='<由外部密钥管理注入>'
+export MYSQL_PASSWORD='<由外部密钥管理注入>'
 cd /opt/smart-converge-x/scx-backend/db/smart-converge-x
 bash ./init-database.sh
 bash ./verify-database.sh
@@ -142,7 +141,9 @@ ssh -N -L 9088:127.0.0.1:9088 root@42.81.102.181
 
 ```bash
 # 1) 登录
-ssh root@42.81.102.181
+# 先由基础设施负责人带外确认 SHA256 指纹；包装器不会 keyscan/accept-new
+SCX_SSH_FINGERPRINT_CONFIRMED='SHA256:rrH8nVzaA40JGueBrcH8Jq2tad//8FL0WbUEuHSOXZo' \
+  bash /opt/smart-converge-x/scripts/deploy/ssh-production.sh
 
 # 2) 若本机还没有仓库，可先临时拉脚本；或直接 clone 后执行 install
 # 推荐：先配置好 SSH 能访问 Gitea，再：
@@ -179,7 +180,7 @@ bash /opt/smart-converge-x/scripts/deploy/restart-all.sh
 # 拉代码后重启
 bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --pull
 
-# 拉代码 + 构建后端/前端/xxl-job + 重启（完整热更）
+# 拉代码 + 构建后端/前端 + 重启（XXL-JOB 不在生产机编译）
 bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --build
 ```
 
@@ -233,8 +234,11 @@ SCX_RUN_DB_MIGRATE=false bash /opt/smart-converge-x/scripts/deploy/update.sh
 SCX 执行器（`scx-boot`）会向调度中心注册；中心单独以 systemd 运行。
 
 ```bash
-# 首次安装（下载源码构建 + 写配置 + 启动，需 Maven/JDK）
-bash /opt/smart-converge-x/scripts/deploy/install-xxl-job.sh
+# 首次安装：在受控构建机本地构建 3.4.1 JAR，再通过受控通道上传并校验摘要。
+# 生产机禁止下载源码或执行 Maven；不要把摘要或凭据写入仓库/聊天记录。
+bash /opt/smart-converge-x/scripts/deploy/install-xxl-job.sh \
+  --jar /secure/staging/xxl-job-admin-3.4.1.jar \
+  --jar-sha256 '<构建产物 SHA-256>'
 
 # 日常启停
 bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh start
@@ -246,16 +250,39 @@ bash /opt/smart-converge-x/scripts/deploy/start-xxl-job.sh logs
 | 项 | 值 |
 | --- | --- |
 | 控制台 | `http://127.0.0.1:8080/xxl-job-admin` |
-| 默认账号 | `admin` / `123456` |
-| accessToken | `scx-prod-xxl-token`（与 `application-prod.yml` 一致） |
+| 默认账号 | 首次登录后由授权操作人从外部密钥管理取用并立即改密 |
+| accessToken | 仅从 `/etc/scx/scx.env` 或外部密钥管理注入 |
 | 数据源 | 与 SCX 相同 MySQL 库 `smart_converge_x`（`xxl_job_*` 表） |
 | systemd | `xxl-job-admin.service` |
 
-安装后请重启 scx-boot，使执行器连上调度中心：
+安装后请在受控窗口重启 scx-boot，使执行器连上调度中心。Publisher 与 Scheduler
+必须先保持关闭，完成 Broker/Topic、Outbox 和 Redis 恢复对账后再逐项开启：
 
 ```bash
 systemctl restart scx-boot
 ```
+
+### RocketMQ 受控恢复（仅 42.81.102.181）
+
+安装脚本默认只校验固定的 RocketMQ 5.3.1 本地压缩包、写入配置和 systemd unit，
+不会启动或 enable NameServer/Broker，也不会下载源码。安装前必须由基础设施负责人带外
+确认 SSH 主机身份；禁止使用 `StrictHostKeyChecking=accept-new` 或未知指纹。
+
+```bash
+# 生产机仅在授权窗口执行，且压缩包 SHA-256 必须与脚本固定值一致
+bash /opt/smart-converge-x/scripts/deploy/install-rocketmq.sh \
+  /secure/staging/rocketmq-all-5.3.1-bin-release.zip
+
+# 完成配置差异复核后，显式启动并验证本机 Topic
+bash /opt/smart-converge-x/scripts/deploy/install-rocketmq.sh \
+  /secure/staging/rocketmq-all-5.3.1-bin-release.zip --start
+```
+
+`--start` 只负责 NameServer/Broker 和固定 `scx_tracking_events` Topic；Publisher、
+XXL-JOB Scheduler、SCX executor 必须由恢复 runbook 按顺序单独开启。Topic 自动创建已
+关闭，NameServer/Broker 仅绑定 `127.0.0.1`，systemd 也拒绝非本机网络。安装脚本支持
+重复执行；配置漂移时默认失败，只有完成人工复核后才允许 `--force-config`，且会保留
+旧配置备份。
 
 ---
 

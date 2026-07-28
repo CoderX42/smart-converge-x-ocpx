@@ -9,3 +9,4 @@ reports/
 logs/
 *.log
 *.log.zip
+scx-fronted/test-results/

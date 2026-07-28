@@ -64,8 +64,18 @@ scx:
     feedback-store: redis
     ingress-enabled: true
     worker-enabled: true
-    outbox-publisher-enabled: ${SCX_TRACKING_OUTBOX_PUBLISHER_ENABLED:true}
+    # Recovery is fail-closed: the operator enables publisher and scheduler
+    # separately only after Broker/Topic and Outbox/Redis reconciliation.
+    outbox-publisher-enabled: ${SCX_TRACKING_OUTBOX_PUBLISHER_ENABLED:false}
+    outbox-scheduler-enabled: ${SCX_TRACKING_OUTBOX_SCHEDULER_ENABLED:false}
+    outbox-topic: ${SCX_TRACKING_OUTBOX_TOPIC:scx_tracking_events}
     channel-master-key: ${SCX_TRACKING_CHANNEL_MASTER_KEY}
     device-hmac-key: ${SCX_TRACKING_DEVICE_HMAC_KEY}
     callback-sandbox-endpoint: ${SCX_TRACKING_CALLBACK_SANDBOX_ENDPOINT:}
     callback-allowed-hosts: ${SCX_TRACKING_CALLBACK_ALLOWED_HOSTS:}
+
+logging:
+  level:
+    # RocketMQTemplate includes the complete message object in send-failure
+    # logs. Outbox state already records a controlled error code/message.
+    org.apache.rocketmq.spring.core.RocketMQTemplate: OFF

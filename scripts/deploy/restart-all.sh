@@ -3,14 +3,14 @@
 #
 # 用法（服务器 root）：
 #   bash /opt/smart-converge-x/scripts/deploy/restart-all.sh
-#   bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --build   # 先 git pull + 构建再重启
+#   bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --build   # 先 git pull + 构建后端/前端再重启
 #   bash /opt/smart-converge-x/scripts/deploy/restart-all.sh --pull    # 仅 pull 后重启（不构建）
 #
 # 说明：
 #   - 后端：systemctl restart scx-boot
 #   - XXL-JOB：systemctl restart xxl-job-admin（未安装则跳过并提示）
 #   - 前端：静态文件在 /var/www/scx，由 Nginx 托管；默认 reload nginx
-#           --build 时会重新 pnpm build:ele 并 rsync 到 WEB_ROOT
+#           --build 时会重新构建后端/前端；XXL-JOB JAR 禁止在生产机编译，必须单独上传校验
 set -euo pipefail
 
 SCX_HOME="${SCX_HOME:-/opt/smart-converge-x}"
@@ -28,7 +28,7 @@ for arg in "$@"; do
 
   (无参数)   仅重启：scx-boot + xxl-job-admin + nginx reload
   --pull     先 git pull，再重启
-  --build    先 pull，再构建后端 jar / 前端 dist，再重启（完整热更）
+  --build    先 pull，再构建后端 jar / 前端 dist，再重启（不构建 XXL-JOB）
 
 单独组件：
   systemctl restart scx-boot
@@ -95,20 +95,6 @@ if [[ "$DO_BUILD" == "true" ]]; then
     warn "未安装 pnpm，跳过前端构建（仅重启 Nginx）"
   fi
 
-  # 可选：构建仓库内 xxl-job-admin（若目录存在且未安装 jar）
-  if [[ -d "${SCX_HOME}/xxl-job/xxl-job-admin" ]]; then
-    log "构建 xxl-job-admin ..."
-    (
-      cd "${SCX_HOME}/xxl-job"
-      mvn -pl xxl-job-admin -am -DskipTests package
-    )
-    built="$(find "${SCX_HOME}/xxl-job/xxl-job-admin/target" -maxdepth 1 -name 'xxl-job-admin-*.jar' ! -name '*.original' | head -1 || true)"
-    if [[ -n "$built" && -f "$built" ]]; then
-      mkdir -p /opt/xxl-job-admin
-      cp -a "$built" /opt/xxl-job-admin/xxl-job-admin.jar
-      ok "xxl-job-admin.jar 已更新"
-    fi
-  fi
 fi
 
 unit_exists() {
@@ -146,7 +132,7 @@ if unit_exists xxl-job-admin; then
 else
   warn "未安装 xxl-job-admin.service，跳过"
   warn "首次安装: bash ${SCX_HOME}/scripts/deploy/install-xxl-job.sh"
-  warn "或使用仓库内工程: cd ${SCX_HOME}/xxl-job && mvn -pl xxl-job-admin -am -DskipTests package"
+  warn "生产 JAR 必须由构建机上传并通过 --jar-sha256 校验，禁止在此机下载或构建"
 fi
 
 # ---------- nginx / frontend ----------

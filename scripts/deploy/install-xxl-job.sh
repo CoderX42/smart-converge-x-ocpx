@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# 一键安装并启动 XXL-JOB Admin（systemd）
+# 安装并启动 XXL-JOB Admin（systemd）。生产环境只接受本地构建后上传的 JAR，
+# 不在目标机下载源码或执行 Maven 构建。
 # 用法（服务器 root）：
-#   bash /opt/smart-converge-x/scripts/deploy/install-xxl-job.sh
-#   bash /opt/smart-converge-x/scripts/deploy/install-xxl-job.sh --skip-build   # 已有 jar 只写配置并启动
+#   bash .../install-xxl-job.sh --jar /secure/staging/xxl-job-admin-3.4.1.jar \
+#     --jar-sha256 <sha256>
+#   bash .../install-xxl-job.sh --skip-build --jar-sha256 <sha256>  # 使用已安装 JAR
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,31 +12,47 @@ SCX_HOME="${SCX_HOME:-/opt/smart-converge-x}"
 XXL_HOME="${XXL_JOB_HOME:-/opt/xxl-job-admin}"
 XXL_VERSION="${XXL_JOB_VERSION:-3.4.1}"
 XXL_PORT="${XXL_JOB_PORT:-8080}"
-# 源码下载：默认 Gitee 镜像（国内更快），可覆盖
-XXL_SRC_URL="${XXL_JOB_SRC_URL:-https://gitee.com/xuxueli0323/xxl-job/repository/archive/v${XXL_VERSION}.tar.gz}"
-XXL_SRC_URL_FALLBACK="${XXL_JOB_SRC_URL_FALLBACK:-https://github.com/xuxueli/xxl-job/archive/refs/tags/${XXL_VERSION}.tar.gz}"
+JAR_SOURCE="${XXL_JOB_JAR_SOURCE:-}"
+JAR_SHA256="${XXL_JOB_JAR_SHA256:-}"
 SKIP_BUILD=false
-
-for arg in "$@"; do
-  case "$arg" in
-    --skip-build) SKIP_BUILD=true ;;
-    -h|--help)
-      cat <<EOF
-用法: $0 [--skip-build]
-
-  从源码构建 xxl-job-admin ${XXL_VERSION}，写入配置，安装 systemd 并启动。
-  数据库和 access token 必须由 /etc/scx/scx.env 或当前环境提供。
-  访问：http://SERVER:${XXL_PORT}/xxl-job-admin
-EOF
-      exit 0
-      ;;
-  esac
-done
 
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
 
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=true ;;
+    --jar)
+      shift
+      JAR_SOURCE="${1:-}"
+      ;;
+    --jar-sha256)
+      shift
+      JAR_SHA256="${1:-}"
+      ;;
+    -h|--help)
+      cat <<EOF
+用法: $0 [--skip-build]
+
+  使用本地已构建并带 SHA-256 的 xxl-job-admin ${XXL_VERSION} JAR，写入配置，安装 systemd 并启动。
+  生产机禁止下载源码或执行 Maven；数据库和 access token 必须由 /etc/scx/scx.env 或当前环境提供。
+  --jar PATH             从受控暂存目录安装 JAR（不能是 URL）
+  --jar-sha256 DIGEST   必须提供 64 位 SHA-256，拒绝未校验制品
+  --skip-build           仅使用 ${XXL_HOME}/xxl-job-admin.jar（仍必须提供摘要）
+  访问：http://SERVER:${XXL_PORT}/xxl-job-admin
+EOF
+      exit 0
+      ;;
+    --*) die "未知参数: $arg" ;;
+    *) : ;;
+  esac
+done
+
 [[ "$(id -u)" -eq 0 ]] || die "请使用 root 执行"
+
+[[ "$XXL_VERSION" == "3.4.1" ]] || die "生产仅允许 XXL-JOB 3.4.1，当前=${XXL_VERSION}"
+[[ -z "$JAR_SOURCE" || -f "$JAR_SOURCE" ]] || die "JAR_SOURCE 必须是本地文件，禁止 URL/生产下载"
+[[ "$JAR_SHA256" =~ ^[[:xdigit:]]{64}$ ]] || die "必须提供 --jar-sha256（64 位 SHA-256）"
 
 if [[ -f /etc/scx/scx.env ]]; then
   set -a
@@ -49,10 +67,12 @@ MYSQL_USERNAME="${MYSQL_USERNAME:?MYSQL_USERNAME 未设置}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:?MYSQL_PASSWORD 未设置}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-smart_converge_x}"
 XXL_JOB_ACCESS_TOKEN="${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN 未设置}"
+XXL_SSO_TOKEN_KEY="${XXL_SSO_TOKEN_KEY:?XXL_SSO_TOKEN_KEY 未设置}"
 XXL_JOB_PORT="${XXL_JOB_PORT:-$XXL_PORT}"
 
 command -v java >/dev/null 2>&1 || die "需要 JDK 17+（java）"
 command -v mysql >/dev/null 2>&1 || die "需要 mysql 客户端"
+command -v sha256sum >/dev/null 2>&1 || die "需要 sha256sum"
 
 mkdir -p "$XXL_HOME" /var/log/scx "$SCX_HOME"
 
@@ -74,39 +94,22 @@ else
   log "已存在 ${tbl_count} 张 xxl_job_* 表"
 fi
 
-# ---- 构建 / 准备 jar ----
+# ---- 准备并校验 JAR（生产禁止下载/构建） ----
 JAR_DST="${XXL_HOME}/xxl-job-admin.jar"
-if [[ "$SKIP_BUILD" == "true" && -f "$JAR_DST" ]]; then
-  log "跳过构建，使用已有 $JAR_DST"
+if [[ -n "$JAR_SOURCE" ]]; then
+  source_sha="$(sha256sum "$JAR_SOURCE" | awk '{print tolower($1)}')"
+  [[ "$source_sha" == "${JAR_SHA256,,}" ]] || die "上传 JAR SHA-256 不匹配，拒绝安装"
+  install -d -m 0750 "$XXL_HOME"
+  install -m 0640 "$JAR_SOURCE" "$JAR_DST"
+  printf '%s  %s\n' "${JAR_SHA256,,}" "$(basename "$JAR_DST")" > "${JAR_DST}.sha256"
+  chmod 0640 "${JAR_DST}.sha256"
+  log "已安装经摘要校验的 JAR: $JAR_DST"
+elif [[ "$SKIP_BUILD" == "true" && -f "$JAR_DST" ]]; then
+  installed_sha="$(sha256sum "$JAR_DST" | awk '{print tolower($1)}')"
+  [[ "$installed_sha" == "${JAR_SHA256,,}" ]] || die "已有 JAR SHA-256 不匹配，拒绝启动"
+  log "跳过安装，使用摘要已核对的 $JAR_DST"
 else
-  command -v mvn >/dev/null 2>&1 || die "需要 Maven（mvn）以构建 xxl-job-admin"
-  BUILD_ROOT="${XXL_HOME}/src"
-  rm -rf "$BUILD_ROOT"
-  mkdir -p "$BUILD_ROOT"
-  TGZ="${XXL_HOME}/xxl-job-${XXL_VERSION}.tar.gz"
-  log "下载 xxl-job ${XXL_VERSION} 源码 ..."
-  if ! curl -fsSL --connect-timeout 20 --max-time 300 -o "$TGZ" "$XXL_SRC_URL"; then
-    log "主源失败，尝试 GitHub ..."
-    curl -fsSL --connect-timeout 20 --max-time 300 -L -o "$TGZ" "$XXL_SRC_URL_FALLBACK" \
-      || die "下载 xxl-job 源码失败"
-  fi
-  tar -xzf "$TGZ" -C "$BUILD_ROOT" --strip-components=1 2>/dev/null \
-    || tar -xzf "$TGZ" -C "$BUILD_ROOT"
-  # gitee archive 可能多一层目录
-  if [[ ! -f "$BUILD_ROOT/pom.xml" ]]; then
-    sub="$(find "$BUILD_ROOT" -maxdepth 2 -name pom.xml | head -1)"
-    [[ -n "$sub" ]] || die "解压后未找到 pom.xml"
-    BUILD_ROOT="$(cd "$(dirname "$sub")" && pwd)"
-  fi
-  log "Maven 构建 xxl-job-admin（约数分钟）..."
-  (
-    cd "$BUILD_ROOT"
-    mvn -pl xxl-job-admin -am -DskipTests package -q
-  ) || die "Maven 构建失败"
-  BUILT="$(find "$BUILD_ROOT/xxl-job-admin/target" -maxdepth 1 -name 'xxl-job-admin-*.jar' ! -name '*.original' | head -1)"
-  [[ -n "$BUILT" && -f "$BUILT" ]] || die "未找到构建产物 jar"
-  cp -a "$BUILT" "$JAR_DST"
-  log "已安装 jar: $JAR_DST ($(du -h "$JAR_DST" | awk '{print $1}'))"
+  die "生产禁止下载/构建 JAR；请从受控构建机上传并传入 --jar PATH --jar-sha256 DIGEST"
 fi
 
 # ---- 写配置（展开模板中的环境变量）----
@@ -119,9 +122,10 @@ umask 077
 cat > "${XXL_HOME}/application.properties" <<EOF
 ### generated by install-xxl-job.sh $(date -Iseconds)
 server.port=${XXL_JOB_PORT}
+server.address=127.0.0.1
 server.servlet.context-path=/xxl-job-admin
 
-management.server.servlet.context-path=/actuator
+management.server.base-path=/actuator
 management.health.mail.enabled=false
 
 spring.mvc.servlet.load-on-startup=0
@@ -135,7 +139,7 @@ spring.freemarker.request-context-attribute=request
 spring.freemarker.settings.number_format=0.##########
 spring.freemarker.settings.new_builtin_class_resolver=safer
 
-mybatis.mapper-locations=classpath:/mybatis-mapper/*Mapper.xml
+mybatis.mapper-locations=classpath:/mapper/**/*Mapper.xml
 
 spring.datasource.url=jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
 spring.datasource.username=${MYSQL_USERNAME}
@@ -151,11 +155,27 @@ spring.datasource.hikari.max-lifetime=900000
 spring.datasource.hikari.connection-timeout=10000
 spring.datasource.hikari.connection-test-query=SELECT 1
 
+# XXL-JOB bootstrap injects JavaMailSender even when no mail alert channel is
+# configured. Keep the bean local-only; real SMTP remains an explicit later gate.
+spring.mail.host=127.0.0.1
+spring.mail.port=25
+spring.mail.from=no-reply@localhost
+spring.mail.test-connection=false
+spring.mail.properties.mail.smtp.auth=false
+
 xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN}
+xxl.job.timeout=3
 xxl.job.i18n=zh_CN
 xxl.job.triggerpool.fast.max=200
 xxl.job.triggerpool.slow.max=100
+xxl.job.schedule.batchsize=100
 xxl.job.logretentiondays=30
+
+# XXL-Sso key is a separate externally injected secret.
+xxl-sso.token.key=${XXL_SSO_TOKEN_KEY}
+xxl-sso.token.timeout=604800000
+xxl-sso.client.excluded.paths=
+xxl-sso.client.login.path=/auth/login
 EOF
 chmod 600 "${XXL_HOME}/application.properties"
 log "已写入受限运行配置 ${XXL_HOME}/application.properties"
@@ -176,7 +196,7 @@ log "等待调度中心就绪 ..."
 ok=false
 for _ in $(seq 1 40); do
   if curl -fsS --max-time 3 "http://127.0.0.1:${XXL_JOB_PORT}/xxl-job-admin/" >/dev/null 2>&1 \
-    || curl -fsS --max-time 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${XXL_JOB_PORT}/xxl-job-admin/toLogin" 2>/dev/null | grep -qE '200|302'; then
+    || curl -fsS --max-time 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${XXL_JOB_PORT}/xxl-job-admin/auth/login" 2>/dev/null | grep -qE '200|302'; then
     ok=true
     break
   fi

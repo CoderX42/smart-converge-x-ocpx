@@ -10,6 +10,11 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+# XXL_JOB_PORT belongs to the standalone admin process. Spring Boot's relaxed
+# environment binding would otherwise map it to xxl.job.port and override the
+# executor-specific SCX_XXL_JOB_EXECUTOR_PORT value.
+unset XXL_JOB_PORT
+
 SCX_HOME="${SCX_HOME:-/opt/smart-converge-x}"
 SCX_PROFILE="${SCX_PROFILE:-prod}"
 SCX_JAVA_OPTS="${SCX_JAVA_OPTS:--Xms512m -Xmx1024m -Dfile.encoding=UTF-8}"

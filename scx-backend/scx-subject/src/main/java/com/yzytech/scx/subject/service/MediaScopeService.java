@@ -17,8 +17,8 @@ import java.util.List;
  * <p>
  * Object-level media isolation is enforced through {@code scx_user_subject_scope}:
  * administrators read and write every media; other users only reach media explicitly
- * granted to them. Callers must return the same uniform not-found response for
- * "no scope" and "does not exist" so unauthorized objects cannot be inferred.
+ * granted to them. Callers must return the same uniform not-found response for "no scope"
+ * and "does not exist" so unauthorized objects cannot be inferred.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,8 +32,8 @@ public class MediaScopeService {
 	}
 
 	/**
-	 * Media ids readable by the current user. Administrators get an empty list,
-	 * which call sites treat as "no per-user media restriction".
+	 * Media ids readable by the current user. Administrators get an empty list, which
+	 * call sites treat as "no per-user media restriction".
 	 */
 	public List<String> readableMediaIds() {
 		if (isAdmin())

@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { UploadProps, UploadRequestOptions } from 'element-plus';
 
-import type { MasterType, Media } from '#/api/ad';
+import type { MasterType, Media, MediaScope } from '#/api/ad';
 
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -9,12 +9,19 @@ import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 
 import {
+  changeMediaStatus,
+  getManagedMedia,
   getMaster,
   getMedia,
+  getMediaScopes,
   getUpstreamCustomers,
+  grantMediaScope,
+  revokeMediaScope,
   saveMaster,
+  saveMedia,
   uploadIntegrationDocument,
 } from '#/api/ad';
+import { getPage as getSystemUserPage } from '#/api/system/user';
 
 import '../components/mvp-page.css';
 
@@ -41,6 +48,21 @@ const partners = ref<any[]>([]);
 const customers = ref<any[]>([]);
 const documents = ref<any[]>([]);
 const form = reactive<any>({});
+const mediaManagerVisible = ref(false);
+const mediaEditorVisible = ref(false);
+const mediaSaving = ref(false);
+const managedMediaLoading = ref(false);
+const managedMedia = ref<Media[]>([]);
+const managedMediaCurrent = ref(1);
+const managedMediaSize = ref(10);
+const managedMediaTotal = ref(0);
+const mediaForm = reactive<Partial<Media>>({});
+const scopeManagerVisible = ref(false);
+const scopeLoading = ref(false);
+const selectedScopeMedia = ref<Media>();
+const mediaScopes = ref<MediaScope[]>([]);
+const systemUsers = ref<any[]>([]);
+const scopeUserId = ref('');
 
 const tabs = [
   { key: 'partners', label: '合作方', noun: '合作方' },
@@ -57,6 +79,151 @@ async function bootstrap() {
   const result = await getMedia();
   media.value = result.records || [];
   mediaId.value = media.value[0]?.id || '';
+}
+
+async function loadManagedMedia() {
+  managedMediaLoading.value = true;
+  try {
+    const result = await getManagedMedia({
+      current: managedMediaCurrent.value,
+      size: managedMediaSize.value,
+    });
+    managedMedia.value = result.records || [];
+    managedMediaTotal.value = result.total || 0;
+  } finally {
+    managedMediaLoading.value = false;
+  }
+}
+
+async function openMediaManager() {
+  mediaManagerVisible.value = true;
+  await loadManagedMedia();
+}
+
+function editMedia(item?: Media) {
+  Object.keys(mediaForm).forEach((key) => delete mediaForm[key as keyof Media]);
+  Object.assign(
+    mediaForm,
+    item || {
+      settlementCurrency: 'CNY',
+      status: 'ACTIVE',
+      timezone: 'Asia/Shanghai',
+    },
+  );
+  mediaEditorVisible.value = true;
+}
+
+async function submitMedia() {
+  const code = mediaForm.code?.trim() || '';
+  const name = mediaForm.name?.trim() || '';
+  const timezone = mediaForm.timezone?.trim() || '';
+  if (!name || !code || !timezone) {
+    ElMessage.warning('请填写媒体编码、名称和时区');
+    return;
+  }
+  if (
+    mediaForm.id &&
+    (mediaForm.version === undefined || mediaForm.version === null)
+  ) {
+    ElMessage.warning('媒体版本已失效，请刷新后重试');
+    return;
+  }
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(code)) {
+    ElMessage.warning('媒体编码须为小写字母、数字或连字符，长度 3-64 位');
+    return;
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
+  } catch {
+    ElMessage.warning('请输入有效的 IANA 时区，例如 Asia/Shanghai');
+    return;
+  }
+  mediaForm.code = code;
+  mediaForm.name = name;
+  mediaForm.timezone = timezone;
+  mediaForm.settlementCurrency = 'CNY';
+  mediaSaving.value = true;
+  try {
+    await saveMedia(mediaForm);
+    ElMessage.success('媒体已保存');
+    mediaEditorVisible.value = false;
+    await Promise.all([loadManagedMedia(), bootstrap()]);
+    await Promise.all([load(), loadOptions()]);
+  } finally {
+    mediaSaving.value = false;
+  }
+}
+
+async function toggleMediaStatus(item: Media) {
+  const status = item.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+  await changeMediaStatus(item.id, { status, version: item.version });
+  ElMessage.success(status === 'ACTIVE' ? '媒体已启用' : '媒体已停用');
+  await Promise.all([loadManagedMedia(), bootstrap()]);
+}
+
+function onManagedMediaPageChange() {
+  void loadManagedMedia();
+}
+
+async function loadScopes() {
+  if (!selectedScopeMedia.value) return;
+  scopeLoading.value = true;
+  try {
+    const [scopeResult, userResult] = await Promise.all([
+      getMediaScopes({
+        current: 1,
+        mediaId: selectedScopeMedia.value.id,
+        size: 200,
+      }),
+      getSystemUserPage({
+        current: 1,
+        delFlag: '0',
+        size: 200,
+        status: '0',
+      }),
+    ]);
+    mediaScopes.value = scopeResult.records || [];
+    systemUsers.value = (userResult.records || []).filter(
+      (user: any) => user.status === '0' && user.delFlag !== '1',
+    );
+  } finally {
+    scopeLoading.value = false;
+  }
+}
+
+async function openScopeManager(item: Media) {
+  selectedScopeMedia.value = item;
+  scopeUserId.value = '';
+  scopeManagerVisible.value = true;
+  await loadScopes();
+}
+
+async function grantScope() {
+  if (!scopeUserId.value || !selectedScopeMedia.value) {
+    ElMessage.warning('请选择用户');
+    return;
+  }
+  await grantMediaScope({
+    mediaId: selectedScopeMedia.value.id,
+    userId: scopeUserId.value,
+  });
+  scopeUserId.value = '';
+  ElMessage.success('媒体范围已授权');
+  await loadScopes();
+}
+
+async function revokeScope(item: MediaScope) {
+  if (!selectedScopeMedia.value) return;
+  await revokeMediaScope(item.id, selectedScopeMedia.value.id);
+  ElMessage.success('媒体范围已撤销');
+  await loadScopes();
+}
+
+function userLabel(userId: string) {
+  const user = systemUsers.value.find((item) => item.id === userId);
+  return user
+    ? `${user.nickname || user.username}（${user.username}）`
+    : userId;
 }
 
 async function loadOptions() {
@@ -213,13 +380,21 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           />
           <el-button @click="load">查询</el-button>
         </div>
-        <el-button
-          v-access:code="'ad:master:write'"
-          type="primary"
-          @click="open()"
-        >
-          新增{{ currentTab.noun }}
-        </el-button>
+        <div class="flex gap-2">
+          <el-button
+            v-access:code="'subject:media:write'"
+            @click="openMediaManager"
+          >
+            媒体与授权
+          </el-button>
+          <el-button
+            v-access:code="'ad:master:write'"
+            type="primary"
+            @click="open()"
+          >
+            新增{{ currentTab.noun }}
+          </el-button>
+        </div>
       </div>
       <el-table v-loading="loading" :data="rows" row-key="id">
         <el-table-column
@@ -429,5 +604,155 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </el-button>
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="mediaManagerVisible"
+      title="媒体与对象范围"
+      width="880px"
+    >
+      <div class="mb-4 flex justify-end">
+        <el-button type="primary" @click="editMedia()">新增媒体</el-button>
+      </div>
+      <el-table
+        v-loading="managedMediaLoading"
+        :data="managedMedia"
+        row-key="id"
+      >
+        <el-table-column label="编码" prop="code" min-width="150" />
+        <el-table-column label="名称" prop="name" min-width="160" />
+        <el-table-column label="时区" prop="timezone" min-width="140" />
+        <el-table-column label="状态" prop="status" width="110">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+              {{ row.status }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column align="right" label="操作" width="230">
+          <template #default="{ row }">
+            <el-button
+              v-access:code="'subject:media:write'"
+              link
+              type="primary"
+              @click="editMedia(row)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-access:code="'subject:media-scope:read'"
+              link
+              type="primary"
+              @click="openScopeManager(row)"
+            >
+              范围授权
+            </el-button>
+            <el-button
+              v-access:code="'subject:media:write'"
+              link
+              @click="toggleMediaStatus(row)"
+            >
+              {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div class="mt-4 flex justify-end">
+        <el-pagination
+          v-model:current-page="managedMediaCurrent"
+          v-model:page-size="managedMediaSize"
+          background
+          layout="total, sizes, prev, pager, next"
+          :page-sizes="[10, 20, 50]"
+          :total="managedMediaTotal"
+          @change="onManagedMediaPageChange"
+        />
+      </div>
+    </el-dialog>
+
+    <el-dialog
+      v-model="mediaEditorVisible"
+      :title="mediaForm.id ? '编辑媒体' : '新增媒体'"
+      width="520px"
+    >
+      <el-form label-position="top" :model="mediaForm">
+        <el-form-item label="媒体编码" required>
+          <el-input
+            v-model="mediaForm.code"
+            :disabled="Boolean(mediaForm.id)"
+            maxlength="64"
+            placeholder="小写字母、数字和连字符"
+          />
+        </el-form-item>
+        <el-form-item label="媒体名称" required>
+          <el-input v-model="mediaForm.name" maxlength="128" />
+        </el-form-item>
+        <el-form-item label="时区" required>
+          <el-input v-model="mediaForm.timezone" />
+        </el-form-item>
+        <el-form-item label="结算币种">
+          <el-input v-model="mediaForm.settlementCurrency" disabled />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="mediaEditorVisible = false">取消</el-button>
+        <el-button
+          v-access:code="'subject:media:write'"
+          :loading="mediaSaving"
+          type="primary"
+          @click="submitMedia"
+        >
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="scopeManagerVisible"
+      :title="`范围授权 · ${selectedScopeMedia?.name || ''}`"
+      width="680px"
+    >
+      <div class="mb-4 flex gap-2">
+        <el-select
+          v-model="scopeUserId"
+          class="flex-1"
+          filterable
+          placeholder="选择有效用户"
+        >
+          <el-option
+            v-for="user in systemUsers"
+            :key="user.id"
+            :label="`${user.nickname || user.username}（${user.username}）`"
+            :value="user.id"
+          />
+        </el-select>
+        <el-button
+          v-access:code="'subject:media-scope:write'"
+          type="primary"
+          @click="grantScope"
+        >
+          授权
+        </el-button>
+      </div>
+      <el-table v-loading="scopeLoading" :data="mediaScopes" row-key="id">
+        <el-table-column label="用户" min-width="260">
+          <template #default="{ row }">
+            {{ userLabel(row.userId) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="授权时间" prop="createTime" min-width="180" />
+        <el-table-column align="right" label="操作" width="90">
+          <template #default="{ row }">
+            <el-button
+              v-access:code="'subject:media-scope:write'"
+              link
+              type="danger"
+              @click="revokeScope(row)"
+            >
+              撤销
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </main>
 </template>
