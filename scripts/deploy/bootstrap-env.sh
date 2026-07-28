@@ -5,7 +5,8 @@
 # 默认不写入真实密钥、不启动业务、不覆盖已有 /etc/scx/scx.env。
 #
 # 用法（root）：
-#   # 仅基础运行时（JDK17 / Maven / Node20 / pnpm / Nginx / 客户端工具）
+#   # 仅基础运行时（JDK17 / Maven / Node20 / pnpm / 客户端工具）
+#   # Nginx：检测到宝塔则跳过系统 nginx 安装，使用面板已装 Nginx
 #   bash bootstrap-env.sh
 #
 #   # 本机再装 MySQL + Redis（适合全栈单机；生产也可用云 RDS/Redis，跳过这两项）
@@ -14,8 +15,11 @@
 #   # 克隆代码 + 生成 env 模板（仍需你填真实凭据）
 #   bash bootstrap-env.sh --clone
 #
-#   # 填好 /etc/scx/scx.env 后，继续构建并安装 systemd + Nginx 站点
+#   # 填好 /etc/scx/scx.env 后，继续构建（--deploy 调用 install.sh；宝塔机请用 bt-deploy）
 #   bash bootstrap-env.sh --deploy
+#
+#   # 强制安装系统 nginx（无宝塔时的备用；与宝塔冲突，勿在宝塔机使用）
+#   bash bootstrap-env.sh --force-system-nginx
 #
 #   # 组合
 #   SCX_GIT_URL='git@gitea.smartcute.cn:karl419/smart-converge-x.git' \
@@ -25,7 +29,7 @@
 #   SCX_HOME          默认 /opt/smart-converge-x
 #   SCX_GIT_URL       默认 git@gitea.smartcute.cn:karl419/smart-converge-x.git
 #   SCX_BRANCH        默认 main
-#   SCX_WEB_ROOT      默认 /var/www/scx
+#   SCX_WEB_ROOT      默认：有宝塔则 /www/wwwroot/scx，否则 /var/www/scx
 #   SCX_LOG_DIR       默认 /var/log/scx
 #   NODE_MAJOR        默认 20
 #   PNPM_VERSION      默认 10.12.4
@@ -36,7 +40,6 @@ set -euo pipefail
 SCX_HOME="${SCX_HOME:-/opt/smart-converge-x}"
 SCX_GIT_URL="${SCX_GIT_URL:-git@gitea.smartcute.cn:karl419/smart-converge-x.git}"
 SCX_BRANCH="${SCX_BRANCH:-main}"
-SCX_WEB_ROOT="${SCX_WEB_ROOT:-/var/www/scx}"
 SCX_LOG_DIR="${SCX_LOG_DIR:-/var/log/scx}"
 SCX_ENV_FILE="${SCX_ENV_FILE:-/etc/scx/scx.env}"
 NODE_MAJOR="${NODE_MAJOR:-20}"
@@ -48,6 +51,17 @@ DO_CLONE=false
 DO_DEPLOY=false
 SKIP_NODE=false
 ASSUME_YES=false
+FORCE_SYSTEM_NGINX=false
+# 用户是否显式设置了 SCX_WEB_ROOT（用于宝塔默认站点根）
+_USER_SET_WEB_ROOT=false
+[[ -n "${SCX_WEB_ROOT+x}" && -n "${SCX_WEB_ROOT:-}" ]] && _USER_SET_WEB_ROOT=true
+SCX_WEB_ROOT="${SCX_WEB_ROOT:-}"
+
+# 宝塔 / Nginx 探测结果（detect_baota_nginx 填充）
+HAS_BAOTA=false
+HAS_BAOTA_NGINX=false
+NGINX_BIN=""
+SKIP_SYSTEM_NGINX=false
 
 log()  { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 ok()   { log "OK  $*"; }
@@ -55,7 +69,7 @@ warn() { log "WARN $*"; }
 die()  { log "ERROR: $*"; exit 1; }
 
 usage() {
-  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -66,6 +80,7 @@ for arg in "$@"; do
     --clone) DO_CLONE=true ;;
     --deploy) DO_DEPLOY=true ;;
     --skip-node) SKIP_NODE=true ;;
+    --force-system-nginx) FORCE_SYSTEM_NGINX=true ;;
     -y|--yes) ASSUME_YES=true ;;
     -h|--help) usage ;;
     *) die "未知参数: $arg （见 --help）" ;;
@@ -94,6 +109,71 @@ detect_os() {
   fi
 }
 
+# 检测宝塔与其 Nginx；有宝塔则默认不装系统 nginx，避免双 Nginx 抢 80 端口
+detect_baota_nginx() {
+  HAS_BAOTA=false
+  HAS_BAOTA_NGINX=false
+  NGINX_BIN=""
+
+  if [[ -d /www/server/panel ]] || command -v bt >/dev/null 2>&1; then
+    HAS_BAOTA=true
+  fi
+
+  local cand
+  for cand in \
+    /www/server/nginx/sbin/nginx \
+    /www/server/nginx/bin/nginx
+  do
+    if [[ -x "$cand" ]]; then
+      HAS_BAOTA_NGINX=true
+      NGINX_BIN="$cand"
+      break
+    fi
+  done
+
+  if [[ -z "$NGINX_BIN" ]] && command -v nginx >/dev/null 2>&1; then
+    NGINX_BIN="$(command -v nginx)"
+  fi
+
+  if [[ "$FORCE_SYSTEM_NGINX" == true ]]; then
+    SKIP_SYSTEM_NGINX=false
+    if [[ "$HAS_BAOTA" == true ]]; then
+      warn "已指定 --force-system-nginx，但检测到宝塔：可能导致双 Nginx / 端口冲突"
+    fi
+  elif [[ "$HAS_BAOTA" == true || "$HAS_BAOTA_NGINX" == true ]]; then
+    SKIP_SYSTEM_NGINX=true
+  else
+    SKIP_SYSTEM_NGINX=false
+  fi
+
+  if [[ "$HAS_BAOTA" == true ]]; then
+    ok "检测到宝塔面板 (/www/server/panel 或 bt 命令)"
+  else
+    log "未检测到宝塔面板"
+  fi
+
+  if [[ "$HAS_BAOTA_NGINX" == true ]]; then
+    ok "使用宝塔 Nginx: $NGINX_BIN ($("$NGINX_BIN" -v 2>&1 || true))"
+  elif [[ -n "$NGINX_BIN" ]]; then
+    log "当前 PATH 中的 nginx: $NGINX_BIN"
+  fi
+
+  if [[ "$SKIP_SYSTEM_NGINX" == true ]]; then
+    log "将跳过系统包 nginx 安装（站点 / SSL / 反代由宝塔管理）"
+  fi
+
+  # 默认站点根：宝塔用 /www/wwwroot/scx
+  if [[ "$_USER_SET_WEB_ROOT" != true ]]; then
+    if [[ "$HAS_BAOTA" == true ]]; then
+      SCX_WEB_ROOT="/www/wwwroot/scx"
+    else
+      SCX_WEB_ROOT="/var/www/scx"
+    fi
+  fi
+  export SCX_WEB_ROOT
+  log "SCX_WEB_ROOT=${SCX_WEB_ROOT}"
+}
+
 ensure_dirs() {
   mkdir -p "$SCX_HOME" "$SCX_LOG_DIR" "$SCX_WEB_ROOT" /etc/scx /root/.ssh
   chmod 700 /root/.ssh
@@ -104,41 +184,81 @@ ensure_dirs() {
 apt_install_base() {
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y \
-    ca-certificates curl wget git rsync unzip tar gnupg lsb-release \
-    build-essential \
-    openjdk-17-jdk maven \
-    nginx \
-    mysql-client \
-    redis-tools \
+  local pkgs=(
+    ca-certificates curl wget git rsync unzip tar gnupg lsb-release
+    build-essential
+    openjdk-17-jdk maven
+    mysql-client
+    redis-tools
     net-tools iproute2 procps jq
+  )
+  if [[ "$SKIP_SYSTEM_NGINX" != true ]]; then
+    pkgs+=(nginx)
+  fi
+  apt-get install -y "${pkgs[@]}"
 }
 
 yum_install_base() {
   if [[ "$PKG" == "dnf" ]]; then
     dnf install -y epel-release || true
-    dnf install -y \
-      ca-certificates curl wget git rsync unzip tar gnupg \
-      java-17-openjdk-devel maven \
-      nginx \
-      mysql \
-      redis \
-      which procps-ng jq || true
-    # redis package may pull server; client tools vary by distro
+    local pkgs=(
+      ca-certificates curl wget git rsync unzip tar gnupg
+      java-17-openjdk-devel maven
+      mysql
+      redis
+      which procps-ng jq
+    )
+    if [[ "$SKIP_SYSTEM_NGINX" != true ]]; then
+      pkgs+=(nginx)
+    fi
+    dnf install -y "${pkgs[@]}" || true
     dnf install -y redis || true
   else
     yum install -y epel-release || true
-    yum install -y \
-      ca-certificates curl wget git rsync unzip tar gnupg \
-      java-17-openjdk-devel maven \
-      nginx \
-      mysql \
-      which procps-ng || true
+    local pkgs=(
+      ca-certificates curl wget git rsync unzip tar gnupg
+      java-17-openjdk-devel maven
+      mysql
+      which procps-ng
+    )
+    if [[ "$SKIP_SYSTEM_NGINX" != true ]]; then
+      pkgs+=(nginx)
+    fi
+    yum install -y "${pkgs[@]}" || true
   fi
 }
 
+# 保证 nginx 可调用：宝塔 sbin 优先加入 PATH 软链接（不覆盖已有系统 nginx）
+ensure_nginx_usable() {
+  if [[ -n "$NGINX_BIN" && -x "$NGINX_BIN" ]]; then
+    if ! command -v nginx >/dev/null 2>&1; then
+      # 仅当 PATH 无 nginx 时，链到 /usr/local/bin 方便脚本调用
+      ln -sfn "$NGINX_BIN" /usr/local/bin/nginx 2>/dev/null || true
+    fi
+    return 0
+  fi
+  # 再扫一次宝塔路径
+  if [[ -x /www/server/nginx/sbin/nginx ]]; then
+    NGINX_BIN=/www/server/nginx/sbin/nginx
+    HAS_BAOTA_NGINX=true
+    if ! command -v nginx >/dev/null 2>&1; then
+      ln -sfn "$NGINX_BIN" /usr/local/bin/nginx 2>/dev/null || true
+    fi
+    return 0
+  fi
+  if command -v nginx >/dev/null 2>&1; then
+    NGINX_BIN="$(command -v nginx)"
+    return 0
+  fi
+  return 1
+}
+
 install_base_packages() {
-  log "安装基础运行时（JDK17 / Maven / Nginx / Git / mysql-client / redis-cli）..."
+  if [[ "$SKIP_SYSTEM_NGINX" == true ]]; then
+    log "安装基础运行时（JDK17 / Maven / Git / mysql-client / redis-cli；跳过系统 Nginx）..."
+  else
+    log "安装基础运行时（JDK17 / Maven / 系统 Nginx / Git / mysql-client / redis-cli）..."
+  fi
   case "$PKG" in
     apt) apt_install_base ;;
     dnf|yum) yum_install_base ;;
@@ -146,14 +266,26 @@ install_base_packages() {
 
   command -v java >/dev/null 2>&1 || die "java 未安装成功"
   command -v mvn >/dev/null 2>&1 || die "mvn 未安装成功"
-  command -v nginx >/dev/null 2>&1 || die "nginx 未安装成功"
   command -v git >/dev/null 2>&1 || die "git 未安装成功"
   command -v curl >/dev/null 2>&1 || die "curl 未安装成功"
 
+  if ! ensure_nginx_usable; then
+    if [[ "$SKIP_SYSTEM_NGINX" == true ]]; then
+      die "已跳过系统 nginx，但未找到宝塔 Nginx（期望 /www/server/nginx/sbin/nginx）。请在宝塔「软件商店」安装 Nginx，或改用 --force-system-nginx"
+    fi
+    die "nginx 未安装成功"
+  fi
+
   java -version 2>&1 | head -1 | sed 's/^/[java] /'
   mvn -v 2>&1 | head -1 | sed 's/^/[mvn] /'
-  nginx -v 2>&1 | sed 's/^/[nginx] /'
-  ok "基础包安装完成"
+  if [[ -n "$NGINX_BIN" ]]; then
+    "$NGINX_BIN" -v 2>&1 | sed 's/^/[nginx] /'
+  fi
+  if [[ "$HAS_BAOTA" == true ]]; then
+    ok "基础包安装完成（Nginx 由宝塔管理，本脚本不安装/不覆盖站点 conf）"
+  else
+    ok "基础包安装完成"
+  fi
 }
 
 install_node_pnpm() {
@@ -379,7 +511,7 @@ SCX_JAVA_OPTS=-Xms512m -Xmx1024m -Dfile.encoding=UTF-8
 SCX_JAR=/opt/smart-converge-x/scx-backend/scx-boot/target/scx-boot.jar
 SCX_LOG_DIR=/var/log/scx
 SCX_HEALTH_URL=http://127.0.0.1:9999/boot/actuator/health
-SCX_WEB_ROOT=/var/www/scx
+SCX_WEB_ROOT=/www/wwwroot/scx
 
 SCX_DATASOURCE_URL=jdbc:mysql://127.0.0.1:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowMultiQueries=true
 SCX_DATASOURCE_USERNAME=replace-me
@@ -438,9 +570,17 @@ verify_toolchain() {
   check_cmd java  "java -version 2>&1 | head -1"
   check_cmd mvn   "mvn -v 2>&1 | head -1"
   check_cmd git   "git --version"
-  check_cmd nginx "nginx -v 2>&1"
   check_cmd curl  "curl --version | head -1"
   check_cmd rsync "rsync --version | head -1"
+  if ensure_nginx_usable; then
+    ok "nginx: $("$NGINX_BIN" -v 2>&1)  path=${NGINX_BIN}"
+    if [[ "$HAS_BAOTA_NGINX" == true || "$HAS_BAOTA" == true ]]; then
+      ok "Nginx 来源: 宝塔（跳过系统包安装=${SKIP_SYSTEM_NGINX}）"
+    fi
+  else
+    warn "缺少: nginx"
+    failed=1
+  fi
   if [[ "$SKIP_NODE" != true ]]; then
     check_cmd node "node -v"
     check_cmd pnpm "pnpm -v"
@@ -471,8 +611,16 @@ maybe_deploy() {
   done
   [[ $bad -eq 0 ]] || die "请先编辑 $SCX_ENV_FILE 填入真实配置后再 --deploy"
 
-  if [[ "$ASSUME_YES" != true ]]; then
-    read -r -p "将执行迁移/构建/安装 systemd+Nginx 并启动 scx-boot，确认? [y/N] " ans
+  if [[ "$HAS_BAOTA" == true ]]; then
+    warn "检测到宝塔：--deploy 将调用 install.sh，可能写入系统 nginx conf；推荐改用:"
+    warn "  bash ${SCX_HOME}/scripts/bt-deploy/03-deploy_all.sh"
+    warn "  然后在宝塔 Java 项目管理器中重启 scx-boot"
+    if [[ "$ASSUME_YES" != true ]]; then
+      read -r -p "仍继续调用 install.sh? [y/N] " ans
+      [[ "${ans:-}" == "y" || "${ans:-}" == "Y" ]] || die "用户取消 --deploy"
+    fi
+  elif [[ "$ASSUME_YES" != true ]]; then
+    read -r -p "将执行迁移/构建/安装 systemd 并启动 scx-boot，确认? [y/N] " ans
     [[ "${ans:-}" == "y" || "${ans:-}" == "Y" ]] || die "用户取消 --deploy"
   fi
 
@@ -488,6 +636,10 @@ maybe_deploy() {
 }
 
 print_next_steps() {
+  local nginx_note="系统 Nginx（本脚本可安装）"
+  if [[ "$HAS_BAOTA" == true || "$HAS_BAOTA_NGINX" == true ]]; then
+    nginx_note="宝塔 Nginx（${NGINX_BIN:-/www/server/nginx/sbin/nginx}；本脚本未装系统 nginx）"
+  fi
   cat <<EOF
 
 ======== SCX 环境初始化完成 ========
@@ -495,7 +647,7 @@ print_next_steps() {
 已具备:
   - OpenJDK 17 + Maven（后端构建/运行）
   - Node ${NODE_MAJOR}+ / pnpm ${PNPM_VERSION}（前端构建）
-  - Nginx（静态 + 反代）
+  - Nginx: ${nginx_note}
   - Git / curl / rsync / mysql-client / redis-cli
   - 目录: ${SCX_HOME}  ${SCX_WEB_ROOT}  ${SCX_LOG_DIR}  /etc/scx
 
@@ -510,23 +662,22 @@ print_next_steps() {
      必填: SCX_DATASOURCE_*  MYSQL_*  SCX_REDIS_*  ROCKETMQ_NAME_SERVER
            SCX_ENCODE_KEY  SCX_TRACKING_CHANNEL_MASTER_KEY  SCX_TRACKING_DEVICE_HMAC_KEY
            SCX_XXL_JOB_ACCESS_TOKEN
+     站点根 SCX_WEB_ROOT=${SCX_WEB_ROOT}
 
   2) 若尚未拉代码:
        bash $0 --clone
      或:
        git clone -b ${SCX_BRANCH} ${SCX_GIT_URL} ${SCX_HOME}
 
-  3) 依赖就绪后一键部署应用:
-       bash ${SCX_HOME}/scripts/deploy/install.sh
-     或（env 已填真实值）:
-       bash $0 --deploy -y
+  3) 部署应用（宝塔推荐）:
+       bash ${SCX_HOME}/scripts/bt-deploy/03-deploy_all.sh
+       # 然后在宝塔 Java 项目管理器中重启 scx-boot
+       # 宝塔建站根目录 = ${SCX_WEB_ROOT}
+       # 伪静态粘贴: scripts/deploy/nginx-scx-baota-rewrite.conf
 
-  4) 日常运维（线上标准：宝塔 + bash）:
-       # 宝塔：建站 + 伪静态粘贴 nginx-scx-baota-rewrite.conf
-       bash ${SCX_HOME}/scripts/deploy/baota-deploy.sh status
-       bash ${SCX_HOME}/scripts/deploy/baota-deploy.sh update
-       bash ${SCX_HOME}/scripts/deploy/baota-deploy.sh restart
-       bash ${SCX_HOME}/scripts/deploy/scxctl.sh logs
+  4) 日常:
+       bash ${SCX_HOME}/scripts/bt-deploy/00-sync_repos.sh
+       bash ${SCX_HOME}/scripts/bt-deploy/03-deploy_all.sh
 
 本机中间件若由本脚本安装，凭据可能在:
   /root/.scx-bootstrap-secrets   (chmod 600，勿外泄)
@@ -539,6 +690,7 @@ main() {
   log "======== SCX bootstrap-env 开始 ========"
   require_root
   detect_os
+  detect_baota_nginx
   ensure_dirs
   install_base_packages
   install_node_pnpm
