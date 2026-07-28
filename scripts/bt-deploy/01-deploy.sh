@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  SCX 宝塔一键打包脚本
-#  - 同步代码(可选) → 后端 mvn 打包 scx-boot → 前端 pnpm build:ele → 整理产物
+#  - 同步代码(可选) → scx-boot + xxl-job-admin + 前端 pnpm build:ele → 整理产物
 #  - 前端 rsync 到宝塔站点根（SCX_WEB_ROOT，默认 /www/wwwroot/scx）
 #
 #  使用:
 #    bash 01-deploy.sh                 # 同步 + 全量打包 + 发布前端
 #    bash 01-deploy.sh --no-pull       # 跳过同步，直接打包
-#    bash 01-deploy.sh backend         # 仅后端
+#    bash 01-deploy.sh backend         # scx-boot + xxl-job-admin
+#    bash 01-deploy.sh xxl             # 仅 xxl-job-admin
 #    bash 01-deploy.sh frontend        # 仅前端
+#    bash 01-deploy.sh --skip-xxl      # 跳过 xxl-job
 #    bash 01-deploy.sh --no-publish    # 构建但不 rsync 到站点根
 #
 #  环境变量:
@@ -17,6 +19,8 @@
 #    BUILD_DIR         产物目录，默认 ${SCX_HOME}/build
 #    NPM_REGISTRY      默认 https://registry.npmmirror.com
 #    BOOT_JAR_NAME     默认 scx-boot.jar
+#    XXL_JAR_NAME      默认 xxl-job-admin.jar
+#    XXL_JOB_HOME      若设置或目录已存在，额外复制到该目录
 # =============================================================================
 set -euo pipefail
 
@@ -32,6 +36,8 @@ SCX_HOME="${SCX_HOME:-$DEFAULT_HOME}"
 BUILD_DIR="${BUILD_DIR:-${SCX_HOME}/build}"
 SCX_WEB_ROOT="${SCX_WEB_ROOT:-${SCX_BAOTA_SITE_ROOT:-/www/wwwroot/scx}}"
 BOOT_JAR_NAME="${BOOT_JAR_NAME:-scx-boot.jar}"
+XXL_JAR_NAME="${XXL_JAR_NAME:-xxl-job-admin.jar}"
+XXL_JOB_HOME="${XXL_JOB_HOME:-}"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="${SCX_HOME}/backup/${TIMESTAMP}"
 REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com}"
@@ -105,6 +111,11 @@ check_env() {
   ok "环境检查通过  SCX_HOME=${SCX_HOME}"
 }
 
+check_xxl_src() {
+  [[ -d "${SCX_HOME}/xxl-job/xxl-job-admin" ]] \
+    || { err "未发现 ${SCX_HOME}/xxl-job/xxl-job-admin，请确认 monorepo 含 xxl-job 源码"; return 1; }
+}
+
 sync_code() {
   log "[1/4] 拉取最新代码"
   bash "${SCRIPT_DIR}/00-sync_repos.sh"
@@ -138,24 +149,80 @@ backup_old() {
   mkdir -p "${BUILD_DIR}/backend" "${BUILD_DIR}/frontend"
 }
 
-build_backend() {
-  log "[3/4] 后端 Java 打包 (scx-boot, skipTests)"
+build_xxl_job() {
+  log "  → xxl-job-admin (3.4.1, skipTests)"
+  check_xxl_src || return 1
+  (
+    cd "${SCX_HOME}/xxl-job"
+    mvn -pl xxl-job-admin -am -DskipTests package
+  )
+  local jar_src="${SCX_HOME}/xxl-job/xxl-job-admin/target/xxl-job-admin-3.4.1.jar"
+  if [[ ! -f "$jar_src" ]]; then
+    jar_src="$(find "${SCX_HOME}/xxl-job/xxl-job-admin/target" -maxdepth 1 -type f -name 'xxl-job-admin*.jar' \
+      ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name 'original-*.jar' | head -n 1 || true)"
+  fi
+  [[ -n "${jar_src:-}" && -f "$jar_src" ]] || { err "未找到 xxl-job-admin JAR"; return 1; }
+
+  mkdir -p "${BUILD_DIR}/backend"
+  local xxl_out="${BUILD_DIR}/backend/${XXL_JAR_NAME}"
+  local xxl_ver_out="${BUILD_DIR}/backend/xxl-job-admin-3.4.1.jar"
+  if [[ "$jar_src" != "$xxl_out" ]]; then
+    cp -f "$jar_src" "$xxl_out"
+  fi
+  if [[ "$jar_src" != "$xxl_ver_out" ]]; then
+    cp -f "$jar_src" "$xxl_ver_out"
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "${BUILD_DIR}/backend" && sha256sum "${XXL_JAR_NAME}" > "${XXL_JAR_NAME}.sha256")
+  fi
+
+  # 可选：同步到运行目录（宝塔 Java 项目 / systemd 常用）
+  local install_home="${XXL_JOB_HOME:-/opt/xxl-job-admin}"
+  if [[ -d "$install_home" ]] || [[ -n "${XXL_JOB_HOME:-}" ]]; then
+    mkdir -p "$install_home"
+    local install_jar="${install_home}/xxl-job-admin.jar"
+    if [[ "$xxl_out" != "$install_jar" ]]; then
+      cp -f "$xxl_out" "$install_jar"
+      ok "已同步到 ${install_jar}"
+    fi
+  fi
+
+  ok "xxl-job ${XXL_JAR_NAME} ($(du -h "${BUILD_DIR}/backend/${XXL_JAR_NAME}" | awk '{print $1}'))"
+  ls -lh "${BUILD_DIR}/backend/"xxl-job* 2>/dev/null | sed 's/^/    /' || true
+}
+
+build_scx_boot() {
+  log "  → scx-boot (skipTests)"
   (
     cd "${SCX_HOME}/scx-backend"
     mvn -pl scx-boot -am -DskipTests package
   )
   local jar_src="${SCX_HOME}/scx-backend/scx-boot/target/scx-boot.jar"
   if [[ ! -f "$jar_src" ]]; then
-    # 兼容其它命名
     jar_src="$(find "${SCX_HOME}/scx-backend/scx-boot/target" -maxdepth 1 -type f -name '*.jar' \
       ! -name '*-sources.jar' ! -name '*-javadoc.jar' ! -name 'original-*.jar' | head -n 1 || true)"
   fi
   [[ -n "${jar_src:-}" && -f "$jar_src" ]] || { err "未找到 scx-boot JAR"; return 1; }
-  cp -f "$jar_src" "${BUILD_DIR}/backend/${BOOT_JAR_NAME}"
-  # 同步到仓库约定路径，便于 systemd / 宝塔 Java 项目指向
-  mkdir -p "${SCX_HOME}/scx-backend/scx-boot/target"
-  cp -f "$jar_src" "${SCX_HOME}/scx-backend/scx-boot/target/scx-boot.jar"
-  ok "后端 ${BOOT_JAR_NAME} ($(du -h "${BUILD_DIR}/backend/${BOOT_JAR_NAME}" | awk '{print $1}'))"
+  mkdir -p "${BUILD_DIR}/backend"
+  local boot_out="${BUILD_DIR}/backend/${BOOT_JAR_NAME}"
+  # 发布到 build/backend；源与目标相同则跳过（避免 set -e 下 "same file" 中断）
+  if [[ "$jar_src" != "$boot_out" ]]; then
+    cp -f "$jar_src" "$boot_out"
+  fi
+  # jar 已在 scx-boot/target/scx-boot.jar 时无需再 self-copy
+  ok "后端 ${BOOT_JAR_NAME} ($(du -h "$boot_out" | awk '{print $1}'))  src=${jar_src}"
+}
+
+build_backend() {
+  local with_xxl="${1:-true}"
+  log "[3/4] 后端 Java 打包"
+  build_scx_boot || return 1
+  if [[ "$with_xxl" == "true" ]]; then
+    build_xxl_job || return 1
+  else
+    warn "已跳过 xxl-job-admin 打包"
+  fi
+  log "  → 后端产物:"
   ls -lh "${BUILD_DIR}/backend/" | tail -n +2 | sed 's/^/    /'
 }
 
@@ -216,15 +283,18 @@ main() {
 
   local do_pull=1
   local do_publish=1
+  local do_xxl=1
   local target="all"
   for arg in "$@"; do
     case "$arg" in
       --no-pull) do_pull=0 ;;
       --no-publish) do_publish=0 ;;
+      --skip-xxl) do_xxl=0 ;;
       backend) target="backend" ;;
       frontend) target="frontend" ;;
+      xxl|xxl-job) target="xxl" ;;
       -h|--help)
-        sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
       *) err "未知参数: $arg"; exit 1 ;;
@@ -232,10 +302,21 @@ main() {
   done
 
   [[ $do_pull -eq 1 ]] && sync_code
-  backup_old "$target"
+  local backup_target="$target"
+  [[ "$target" == "xxl" ]] && backup_target="backend"
+  backup_old "$backup_target"
   case "$target" in
-    all) build_backend; build_frontend ;;
-    backend) build_backend ;;
+    all)
+      if [[ $do_xxl -eq 1 ]]; then build_backend true; else build_backend false; fi
+      build_frontend
+      ;;
+    backend)
+      if [[ $do_xxl -eq 1 ]]; then build_backend true; else build_backend false; fi
+      ;;
+    xxl)
+      mkdir -p "${BUILD_DIR}/backend"
+      build_xxl_job
+      ;;
     frontend) build_frontend ;;
   esac
   if [[ $do_publish -eq 1 && ( "$target" == "all" || "$target" == "frontend" ) ]]; then
@@ -244,14 +325,20 @@ main() {
 
   echo "============================================================"
   ok "打包完成"
-  echo "后端 jar: ${BUILD_DIR}/backend/${BOOT_JAR_NAME}"
-  echo "前端目录: ${BUILD_DIR}/frontend/web-ele"
-  echo "站点根  : ${SCX_WEB_ROOT}"
+  echo "产物目录: ${BUILD_DIR}"
+  [[ -f "${BUILD_DIR}/backend/${BOOT_JAR_NAME}" ]] && echo "  scx-boot : ${BUILD_DIR}/backend/${BOOT_JAR_NAME}"
+  [[ -f "${BUILD_DIR}/backend/${XXL_JAR_NAME}" ]] && echo "  xxl-job  : ${BUILD_DIR}/backend/${XXL_JAR_NAME}"
+  [[ -f "${BUILD_DIR}/backend/${XXL_JAR_NAME}.sha256" ]] && echo "  xxl sha  : ${BUILD_DIR}/backend/${XXL_JAR_NAME}.sha256"
+  [[ -d "${BUILD_DIR}/frontend/web-ele" ]] && echo "  前端     : ${BUILD_DIR}/frontend/web-ele"
+  echo "  站点根   : ${SCX_WEB_ROOT}"
   echo ""
   echo "下一步:"
-  echo "  1. 宝塔 → Java 项目管理器 → 重启 scx-boot（JAR: ${BUILD_DIR}/backend/${BOOT_JAR_NAME}）"
-  echo "  2. 前端已发布到 ${SCX_WEB_ROOT}，必要时宝塔重载 Nginx"
-  echo "  3. 一键全流程: bash ${SCRIPT_DIR}/03-deploy_all.sh"
+  echo "  1. 宝塔 → Java 项目管理器 → 重启 scx-boot"
+  echo "     JAR: ${BUILD_DIR}/backend/${BOOT_JAR_NAME}"
+  echo "  2. 宝塔 → Java 项目管理器 → 重启 xxl-job-admin（若已配置）"
+  echo "     JAR: ${BUILD_DIR}/backend/${XXL_JAR_NAME}"
+  echo "  3. 前端已发布到 ${SCX_WEB_ROOT}，必要时宝塔重载 Nginx"
+  echo "  4. 一键全流程: bash ${SCRIPT_DIR}/03-deploy_all.sh"
   echo "============================================================"
 }
 

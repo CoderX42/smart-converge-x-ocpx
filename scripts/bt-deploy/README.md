@@ -6,7 +6,7 @@
 | 脚本 | 作用 | 常用 |
 | --- | --- | --- |
 | `00-sync_repos.sh` | 从 Gitea 同步 monorepo（clone / `reset --hard`） | ⭐ 常用 |
-| `01-deploy.sh` | 后端 mvn 打包 + 前端 pnpm 构建 + 发布到宝塔站点根 | 打包 |
+| `01-deploy.sh` | scx-boot + **xxl-job-admin** + 前端构建，并发布站点根 | 打包 |
 | `03-deploy_all.sh` | **00 → 01** 一键同步+打包（不自动重启服务） | ⭐ 常用 |
 
 ## 路径约定
@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | 代码根 `SCX_HOME` | `/opt/smart-converge-x` | 也可 `/www/wwwroot/smart-converge-x` |
 | 站点根 `SCX_WEB_ROOT` | `/www/wwwroot/scx` | 宝塔「网站根目录」指这里 |
-| 产物 | `${SCX_HOME}/build/backend/scx-boot.jar` | 前端：`build/frontend/web-ele` |
+| 产物 | `${SCX_HOME}/build/backend/` | `scx-boot.jar`、`xxl-job-admin.jar`；前端：`build/frontend/web-ele` |
 | 配置 | `/etc/scx/scx.env` 或宝塔 Java 项目环境变量 | 数据源 / Redis / 密钥 |
 | 分支 | `main` | `BRANCH=xxx` 可覆盖 |
 
@@ -37,11 +37,16 @@ bash 00-sync_repos.sh
 # ⭐ 同步 + 打包 + 发布前端
 bash 03-deploy_all.sh
 
-# 仅打包后端 / 仅前端
+# 仅打包后端（含 xxl-job）/ 仅 xxl / 仅前端
 bash 01-deploy.sh --no-pull backend
+bash 01-deploy.sh --no-pull xxl
 bash 01-deploy.sh --no-pull frontend
+bash 01-deploy.sh --no-pull --skip-xxl backend   # 只要 scx-boot
 
-# 打包完成后：在宝塔 Java 项目管理器中重启 scx-boot
+# 打包完成后：在宝塔 Java 项目管理器中分别重启 scx-boot、xxl-job-admin
+# JAR:
+#   /opt/smart-converge-x/build/backend/scx-boot.jar
+#   /opt/smart-converge-x/build/backend/xxl-job-admin.jar
 ```
 
 ### 环境变量示例
