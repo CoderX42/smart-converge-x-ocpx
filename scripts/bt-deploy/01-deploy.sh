@@ -38,9 +38,11 @@ if [[ "$do_pull" == true ]]; then
   SCX_HOME="$SCX_HOME" SCX_BRANCH="$SCX_BRANCH" bash "${SCRIPT_DIR}/00-sync_repos.sh"
 fi
 bt_assert_repository
-bt_require_command mvn
-bt_detect_java
-bt_require_command jar
+if [[ "$target" == all || "$target" == backend || "$target" == xxl ]]; then
+  bt_require_command mvn
+  bt_detect_java
+  bt_require_command jar
+fi
 if [[ "$target" == all || "$target" == frontend ]]; then bt_prepare_node; fi
 
 release_id="$(bt_release_id)"
@@ -91,6 +93,19 @@ build_frontend() {
   cp -a "${dist}/." "${stage_dir}/frontend/"
 }
 
+validate_frontend_bundle() {
+  local root="$1" ref path
+  [[ -f "${root}/index.html" ]] || bt_die "前端站点缺少 index.html：${root}"
+
+  # Vite emits root-relative asset URLs for this app, so every local src/href
+  # must exist below the site root before anything is published.
+  while IFS= read -r ref; do
+    path="${ref%%\?*}"
+    [[ "$path" == /* ]] || continue
+    [[ -f "${root}${path}" ]] || bt_die "前端资源缺失：${path}（站点根：${root}）"
+  done < <(grep -oE '(src|href)="[^"]+"' "${root}/index.html" | sed -E 's/^[^=]+="//; s/"$//')
+}
+
 activate_component() {
   local component="$1" source="${stage_dir}/${1}" destination="${SCX_BUILD_DIR}/${1}" backup="${SCX_BACKUP_DIR}/${release_id}/${1}"
   [[ -d "$source" ]] || return 0
@@ -103,11 +118,18 @@ activate_component() {
 publish_frontend() {
   local source="${SCX_BUILD_DIR}/frontend"
   [[ -f "${source}/index.html" ]] || bt_die "前端构建产物缺失：${source}/index.html"
-  bt_require_command rsync
+  validate_frontend_bundle "$source"
   mkdir -p "${SCX_WEB_ROOT}"
   bt_log "同步前端到宝塔站点根：${SCX_WEB_ROOT}"
-  rsync -a --delete --backup --backup-dir="${SCX_BACKUP_DIR}/${release_id}/site-before-publish" --exclude '.user.ini' --exclude '.well-known' "${source}/" "${SCX_WEB_ROOT}/"
-  [[ -f "${SCX_WEB_ROOT}/index.html" ]] || bt_die '前端同步后缺少 index.html。'
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --backup --backup-dir="${SCX_BACKUP_DIR}/${release_id}/site-before-publish" --exclude '.user.ini' --exclude '.well-known' "${source}/" "${SCX_WEB_ROOT}/"
+  else
+    # Minimal Baota images may not include rsync. Keep protected site files and
+    # copy the validated bundle so frontend-only publishing still works.
+    bt_warn '未找到 rsync，使用 cp 兼容发布；旧的未引用静态文件不会自动清理。'
+    cp -a "${source}/." "${SCX_WEB_ROOT}/"
+  fi
+  validate_frontend_bundle "${SCX_WEB_ROOT}"
   bt_ok "前端已发布到 ${SCX_WEB_ROOT}"
 }
 

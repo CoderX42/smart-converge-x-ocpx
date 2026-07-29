@@ -9,7 +9,7 @@
   - 后端：`${SCX_HOME}/build/backend/scx-boot.jar`、`xxl-job-admin.jar`
   - 前端：`${SCX_HOME}/build/frontend/`（管理端静态站根，含 `index.html`；**不再**使用 `web-ele` 子目录）
   - 源码工程仍在 `scx-fronted/apps/web-ele`（UI 库变体目录名，仅构建入口，不是部署产物名）
-- 宝塔网站根：`SCX_WEB_ROOT`，默认 `/www/wwwroot/scx`。
+- 宝塔网站根：`SCX_WEB_ROOT`，默认 `/www/wwwroot/scx`；兼容旧变量 `SCX_BAOTA_SITE_ROOT`。
 - 备份目录：`${SCX_HOME}/backup/<时间戳>/`。每次激活新构建产物及发布前端时都会保存旧副本。
 - 自动清理：每次部署成功后默认保留最近 5 个发布备份；可通过 `SCX_BACKUP_KEEP=10` 调整保留数量。仅清理符合 `YYYYMMDD_HHMMSS` 命名格式的发布目录。
 - 运行配置仍以仓库内 `application-*.yml` / XXL properties 的字面量为准；脚本不读取或生成 `/etc/scx/scx.env`。
@@ -50,6 +50,8 @@ bash scripts/bt-deploy/02-manage.sh nginx-reload
 ```
 
 把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。
+
+前端单独发布只需要 Node.js、pnpm 和站点目录写权限，不要求本机安装 Maven/JDK；脚本会优先使用 `rsync`，未安装时回退到 `cp`。如果宝塔站点根不是默认目录，请显式设置 `SCX_WEB_ROOT`，并确保宝塔网站根与该目录一致。
 
 ## 边界
 

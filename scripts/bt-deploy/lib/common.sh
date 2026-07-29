@@ -35,7 +35,8 @@ bt_init_paths() {
   SCX_BUILD_DIR="${SCX_BUILD_DIR:-${SCX_HOME}/build}"
   SCX_BACKUP_DIR="${SCX_BACKUP_DIR:-${SCX_HOME}/backup}"
   SCX_BACKUP_KEEP="${SCX_BACKUP_KEEP:-5}"
-  SCX_WEB_ROOT="${SCX_WEB_ROOT:-/www/wwwroot/scx}"
+  # Keep the old variable name working for existing Baota shell environments.
+  SCX_WEB_ROOT="${SCX_WEB_ROOT:-${SCX_BAOTA_SITE_ROOT:-/www/wwwroot/scx}}"
   SCX_LOG_DIR="${SCX_LOG_DIR:-/www/wwwlogs/scx}"
   export SCX_HOME SCX_BRANCH SCX_BUILD_DIR SCX_BACKUP_DIR SCX_BACKUP_KEEP SCX_WEB_ROOT SCX_LOG_DIR
 }
