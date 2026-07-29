@@ -68,4 +68,16 @@ class MasterDataControllerTest {
 		assertThat(result.getData()).isNull();
 	}
 
+	@Test
+	void hidesUnexpectedDocumentUploadFailureFromApiResponse() {
+		MockMultipartFile file = new MockMultipartFile("file", "guide.pdf", "application/pdf", new byte[] { 1 });
+		when(service.uploadDocument("media-1", file)).thenThrow(new RuntimeException("internal detail"));
+
+		var result = controller.uploadDocument("media-1", file);
+
+		assertThat(result.getCode()).isEqualTo(1);
+		assertThat(result.getMsg()).isEqualTo("文件上传失败");
+		assertThat(result.getData()).isNull();
+	}
+
 }

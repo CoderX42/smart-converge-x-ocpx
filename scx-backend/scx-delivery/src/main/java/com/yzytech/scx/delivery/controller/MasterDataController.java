@@ -11,6 +11,7 @@ import com.yzytech.scx.delivery.mapper.*;
 import com.yzytech.scx.delivery.service.MasterDataService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,6 +20,7 @@ import java.util.function.Function;
 
 @RestController
 @RequiredArgsConstructor
+@Slf4j
 @RequestMapping("/ad")
 public class MasterDataController {
 
@@ -176,6 +178,7 @@ public class MasterDataController {
 			return Result.fail(e.getMessage());
 		}
 		catch (Exception e) {
+			log.error("接入文档上传发生未处理异常", e);
 			return Result.fail("文件上传失败");
 		}
 	}
