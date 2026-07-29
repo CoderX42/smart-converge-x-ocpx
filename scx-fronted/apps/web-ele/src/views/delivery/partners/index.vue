@@ -18,6 +18,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getManagedMedia, getMedia, getPartners, savePartner } from '#/api/ad';
 
+import { generateRandomBusinessCode } from '../components/random-code';
+
 import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdPartners' });
@@ -154,7 +156,7 @@ function snapshot() {
 
 function openEditor(row?: Partner) {
   Object.assign(form, {
-    code: row?.code || '',
+    code: row?.code || generateRandomBusinessCode('partner'),
     description: row?.description || '',
     id: row?.id,
     mediaId: row?.mediaId || mediaId.value,
@@ -168,6 +170,12 @@ function openEditor(row?: Partner) {
     formRef.value?.clearValidate();
     initialSnapshot.value = snapshot();
   });
+}
+
+function replaceRandomCode() {
+  if (form.id) return;
+  form.code = generateRandomBusinessCode('partner');
+  void nextTick(() => formRef.value?.validateField('code'));
 }
 
 async function beforeClose(done: () => void) {
@@ -391,7 +399,7 @@ void bootstrap().then(load);
     >
       <el-form ref="formRef" label-position="top" :model="form" :rules="rules">
         <div class="drawer-intro">
-          合作方用于业务归属与链路引用，不会自动成为登录安全主体。
+          新增时自动生成合作方编码，可手动修改或换一个随机编码。合作方用于业务归属与链路引用，不会自动成为登录安全主体。
         </div>
         <el-form-item label="媒体范围" prop="mediaId">
           <el-select
@@ -414,7 +422,13 @@ void bootstrap().then(load);
             :disabled="Boolean(form.id)"
             maxlength="64"
             placeholder="例如 upstream-main"
-          />
+          >
+            <template v-if="!form.id" #append>
+              <el-button :icon="Refresh" @click="replaceRandomCode">
+                换一个
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="合作方名称" prop="name">
           <el-input

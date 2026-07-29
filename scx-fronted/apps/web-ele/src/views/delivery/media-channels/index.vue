@@ -3,9 +3,12 @@ import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
 
+import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 import { getMaster, getMedia, saveMaster } from '#/api/ad';
+
+import { generateRandomBusinessCode } from '../components/random-code';
 
 import '../components/mvp-page.css';
 
@@ -62,12 +65,17 @@ function open(row?: any) {
   Object.assign(
     form,
     row || {
-      code: `CHANNEL-${Date.now()}`,
+      code: generateRandomBusinessCode('channel'),
       mediaId: mediaId.value,
       status: 'ACTIVE',
     },
   );
   drawer.value = true;
+}
+
+function replaceRandomCode() {
+  if (form.id) return;
+  form.code = generateRandomBusinessCode('channel');
 }
 
 async function submit() {
@@ -171,7 +179,17 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           <el-input v-model="form.name" maxlength="128" />
         </el-form-item>
         <el-form-item label="唯一编码" required>
-          <el-input v-model="form.code" :disabled="Boolean(form.id)" />
+          <el-input
+            v-model="form.code"
+            :disabled="Boolean(form.id)"
+            maxlength="64"
+          >
+            <template v-if="!form.id" #append>
+              <el-button :icon="Refresh" @click="replaceRandomCode">
+                换一个
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="接入文档">
           <el-select v-model="form.documentId" class="w-full" clearable>

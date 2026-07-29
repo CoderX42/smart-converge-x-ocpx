@@ -3,9 +3,12 @@ import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
 
+import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 
 import { getMedia, getUpstreamCustomers, saveUpstreamCustomer } from '#/api/ad';
+
+import { generateRandomBusinessCode } from '../components/random-code';
 
 import '../components/mvp-page.css';
 
@@ -53,12 +56,17 @@ function open(row?: any) {
   Object.assign(
     form,
     row || {
-      code: `CUST-${Date.now()}`,
+      code: generateRandomBusinessCode('customer'),
       mediaId: mediaId.value,
       status: 'ACTIVE',
     },
   );
   drawer.value = true;
+}
+
+function replaceRandomCode() {
+  if (form.id) return;
+  form.code = generateRandomBusinessCode('customer');
 }
 
 async function submit() {
@@ -175,7 +183,17 @@ bootstrap().then(load);
     >
       <el-form label-position="top" :model="form">
         <el-form-item label="客户编码" required>
-          <el-input v-model="form.code" :disabled="Boolean(form.id)" />
+          <el-input
+            v-model="form.code"
+            :disabled="Boolean(form.id)"
+            maxlength="64"
+          >
+            <template v-if="!form.id" #append>
+              <el-button :icon="Refresh" @click="replaceRandomCode">
+                换一个
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="客户名称" required>
           <el-input v-model="form.name" maxlength="128" />
