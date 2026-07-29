@@ -2,7 +2,7 @@ import type { RouteLocationNormalized } from 'vue-router';
 
 import { describe, expect, it } from 'vitest';
 
-import { legacyMasterDataRedirect } from './legacy-delivery';
+import { legacyMasterDataRedirect } from '../routes/modules/legacy-delivery';
 
 describe('legacy master-data route', () => {
   it('redirects to media scopes while preserving query and hash', () => {
