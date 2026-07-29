@@ -33,6 +33,8 @@ public class MasterDataService {
 
 	private static final long MAX_DOCUMENT_SIZE = 20L * 1024 * 1024;
 
+	private static final Set<String> PARTNER_STATUSES = Set.of("ACTIVE", "DISABLED");
+
 	private final MediaScopeService scopeService;
 
 	private final PartnerMapper partnerMapper;
@@ -57,11 +59,16 @@ public class MasterDataService {
 
 	@Transactional
 	public boolean savePartner(Partner value) {
+		if (value == null)
+			throw new IllegalArgumentException("合作方信息不能为空");
 		requireWrite(value.getMediaId());
 		if (value.getId() != null) {
 			Partner existing = partnerMapper.selectById(value.getId());
 			requireSameMedia(existing == null ? null : existing.getMediaId(), value.getMediaId());
+			if (value.getVersion() == null || value.getVersion() < 0)
+				throw new IllegalArgumentException("合作方版本无效，请刷新后重试");
 		}
+		validatePartner(value);
 		defaults(value);
 		return value.getId() == null ? partnerMapper.insert(value) == 1 : partnerMapper.updateById(value) == 1;
 	}
@@ -411,6 +418,23 @@ public class MasterDataService {
 			value.setType("UPSTREAM");
 		if (value.getVersion() == null)
 			value.setVersion(0);
+	}
+
+	private void validatePartner(Partner value) {
+		value.setCode(value.getCode() == null ? null : value.getCode().trim());
+		value.setName(value.getName() == null ? null : value.getName().trim());
+		value.setDescription(value.getDescription() == null ? null : value.getDescription().trim());
+		if (!StringUtils.hasText(value.getCode()) || value.getCode().length() > 64
+				|| !value.getCode().matches("[A-Za-z0-9][A-Za-z0-9_-]{1,63}"))
+			throw new IllegalArgumentException("合作方编码须为 2–64 位字母、数字、下划线或连字符");
+		if (!StringUtils.hasText(value.getName()) || value.getName().length() > 128)
+			throw new IllegalArgumentException("合作方名称不能为空且不能超过 128 个字符");
+		if (value.getDescription() != null && value.getDescription().length() > 500)
+			throw new IllegalArgumentException("合作方说明不能超过 500 个字符");
+		if (value.getType() != null && !"UPSTREAM".equals(value.getType()))
+			throw new IllegalArgumentException("不支持的合作方类型");
+		if (value.getStatus() != null && !PARTNER_STATUSES.contains(value.getStatus()))
+			throw new IllegalArgumentException("不支持的合作方状态");
 	}
 
 	private void defaults(Product value) {

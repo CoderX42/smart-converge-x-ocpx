@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.delivery.entity.IntegrationDocument;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
@@ -119,11 +120,29 @@ class MasterDataControllerTest {
 		assertPermission("deleteDocument", "ad:integration-document:delete", String.class, Integer.class);
 	}
 
+	@Test
+	void partnerEndpointsAcceptDedicatedAndLegacyPermissions() throws Exception {
+		assertAnyPermission("partners", new String[] { "ad:partner:read", "ad:master:read" }, Page.class, String.class,
+				String.class, String.class);
+		assertAnyPermission("savePartner", new String[] { "ad:partner:write", "ad:master:write" },
+				com.yzytech.scx.delivery.entity.Partner.class);
+		assertAnyPermission("updatePartner", new String[] { "ad:partner:write", "ad:master:write" }, String.class,
+				com.yzytech.scx.delivery.entity.Partner.class);
+	}
+
 	private void assertPermission(String methodName, String permission, Class<?>... parameters) throws Exception {
 		SaCheckPermission annotation = MasterDataController.class.getDeclaredMethod(methodName, parameters)
 			.getAnnotation(SaCheckPermission.class);
 		assertThat(annotation).isNotNull();
 		assertThat(annotation.value()).containsExactly(permission);
+	}
+
+	private void assertAnyPermission(String methodName, String[] permissions, Class<?>... parameters) throws Exception {
+		SaCheckPermission annotation = MasterDataController.class.getDeclaredMethod(methodName, parameters)
+			.getAnnotation(SaCheckPermission.class);
+		assertThat(annotation).isNotNull();
+		assertThat(annotation.value()).containsExactly(permissions);
+		assertThat(annotation.mode()).isEqualTo(SaMode.OR);
 	}
 
 }

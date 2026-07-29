@@ -112,7 +112,7 @@ public class MediaManagementService {
 	}
 
 	private void validateTimezone(String timezone) {
-		// ZoneId.of also accepts fixed offsets such as "+08:00".  Media timezone
+		// ZoneId.of also accepts fixed offsets such as "+08:00". Media timezone
 		// is a business timezone and must be a named IANA region so report day
 		// boundaries remain stable and auditable.
 		if (!StringUtils.hasText(timezone) || !ZoneId.getAvailableZoneIds().contains(timezone)) {

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.subject.dto.MediaScopeGrantRequest;
+import com.yzytech.scx.subject.dto.MediaScopeUserOption;
 import com.yzytech.scx.subject.entity.UserSubjectScope;
 import com.yzytech.scx.subject.service.MediaScopeManagementService;
 import jakarta.validation.Valid;
@@ -31,6 +32,13 @@ public class MediaScopeController {
 		return call(() -> service.page(page, mediaId, userId));
 	}
 
+	@GetMapping("/candidates")
+	@SaCheckPermission("subject:media-scope:write")
+	public Result<Page<MediaScopeUserOption>> candidates(Page<MediaScopeUserOption> page, @RequestParam String mediaId,
+			String keyword) {
+		return call(() -> service.candidates(page, mediaId, keyword));
+	}
+
 	@PostMapping
 	@SysLog("授予媒体对象范围")
 	@SaCheckPermission("subject:media-scope:write")
@@ -51,6 +59,9 @@ public class MediaScopeController {
 		}
 		catch (IllegalArgumentException e) {
 			return Result.fail(404, "资源不存在");
+		}
+		catch (IllegalStateException e) {
+			return Result.fail(409, e.getMessage());
 		}
 		catch (Exception e) {
 			return Result.fail("媒体范围操作失败");

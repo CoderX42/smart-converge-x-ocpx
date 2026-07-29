@@ -60,4 +60,9 @@ public class MediaScopeService {
 				|| (user.getRoles() != null && user.getRoles().contains("ROLE_OPERATOR") && canRead(mediaId)));
 	}
 
+	public String currentUserId() {
+		BootUser user = SecurityUtils.getUser();
+		return user == null ? null : user.getUserId();
+	}
+
 }

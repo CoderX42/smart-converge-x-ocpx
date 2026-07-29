@@ -1,6 +1,10 @@
 import { requestClient } from '#/api/request';
 
 export type PageResult<T> = { records: T[]; total: number };
+export type PageQuery = {
+  current: number;
+  size: number;
+};
 export type Media = {
   code: string;
   id: string;
@@ -16,6 +20,15 @@ export type MediaScope = {
   subjectId: string;
   subjectType: 'MEDIA';
   userId: string;
+};
+export type MediaScopeUserOption = {
+  id: string;
+  nickname?: string;
+  username: string;
+};
+export type MediaQuery = PageQuery & {
+  keyword?: string;
+  status?: Media['status'];
 };
 export type MediaCreateInput = {
   code: string;
@@ -74,6 +87,34 @@ export type IntegrationDocumentInput = {
   type: IntegrationDocumentType;
   version?: number;
 };
+export type PartnerStatus = 'ACTIVE' | 'DISABLED';
+export type Partner = {
+  code: string;
+  createTime?: string;
+  description?: string;
+  id: string;
+  mediaId: string;
+  name: string;
+  status: PartnerStatus;
+  type: 'UPSTREAM';
+  updateTime?: string;
+  version: number;
+};
+export type PartnerQuery = PageQuery & {
+  keyword?: string;
+  mediaId: string;
+  status?: PartnerStatus;
+};
+export type PartnerInput = {
+  code: string;
+  description?: string;
+  id?: string;
+  mediaId: string;
+  name: string;
+  status: PartnerStatus;
+  type: 'UPSTREAM';
+  version?: number;
+};
 export type ClickSensitiveDetail = {
   attributeKeys: string[];
   campaignIdMasked?: string;
@@ -92,12 +133,12 @@ export type MasterType =
   | 'products'
   | 'upstream-customers';
 
-export function getMedia(params?: Record<string, any>) {
+export function getMedia(params?: Partial<MediaQuery>) {
   return requestClient.get<PageResult<Media>>('/subjects/media', {
     params: params ?? { current: 1, size: 100 },
   });
 }
-export function getManagedMedia(params?: Record<string, any>) {
+export function getManagedMedia(params?: Partial<MediaQuery>) {
   return requestClient.get<PageResult<Media>>('/subjects/media/manage', {
     params: params ?? { current: 1, size: 100 },
   });
@@ -123,10 +164,20 @@ export function saveMedia(data: Partial<Media>) {
 export function changeMediaStatus(id: string, data: MediaStatusInput) {
   return requestClient.put<Media>(`/subjects/media/${id}/status`, data);
 }
-export function getMediaScopes(params: Record<string, any>) {
+export function getMediaScopes(
+  params: PageQuery & { mediaId: string; userId?: string },
+) {
   return requestClient.get<PageResult<MediaScope>>('/subjects/media-scopes', {
     params,
   });
+}
+export function getMediaScopeCandidates(
+  params: PageQuery & { keyword?: string; mediaId: string },
+) {
+  return requestClient.get<PageResult<MediaScopeUserOption>>(
+    '/subjects/media-scopes/candidates',
+    { params },
+  );
 }
 export function grantMediaScope(data: { mediaId: string; userId: string }) {
   return requestClient.post<MediaScope>('/subjects/media-scopes', data);
@@ -135,6 +186,14 @@ export function revokeMediaScope(id: string, mediaId: string) {
   return requestClient.delete(`/subjects/media-scopes/${id}`, {
     params: { mediaId },
   });
+}
+export function getPartners(params: PartnerQuery) {
+  return requestClient.get<PageResult<Partner>>('/ad/partners', { params });
+}
+export function savePartner(data: PartnerInput) {
+  return data.id
+    ? requestClient.put<boolean>(`/ad/partners/${data.id}`, data)
+    : requestClient.post<boolean>('/ad/partners', data);
 }
 export function getMaster<T>(type: MasterType, params: Record<string, any>) {
   return requestClient.get<PageResult<T>>(`/ad/${type}`, { params });
@@ -153,11 +212,6 @@ export function saveMaster(type: MasterType, data: Record<string, any>) {
   return data.id
     ? requestClient.put(`/ad/${type}/${data.id}`, data)
     : requestClient.post(`/ad/${type}`, data);
-}
-export function uploadIntegrationDocument(data: FormData) {
-  return requestClient.post<string>('/ad/integration-documents/upload', data, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
 }
 export function getIntegrationDocuments(params: IntegrationDocumentQuery) {
   return requestClient.get<PageResult<IntegrationDocument>>(

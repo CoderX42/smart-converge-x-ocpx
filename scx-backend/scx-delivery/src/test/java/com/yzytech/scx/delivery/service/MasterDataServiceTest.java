@@ -1,6 +1,7 @@
 package com.yzytech.scx.delivery.service;
 
 import com.yzytech.scx.delivery.entity.IntegrationDocument;
+import com.yzytech.scx.delivery.entity.Partner;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import com.yzytech.scx.delivery.mapper.IntegrationDocumentMapper;
 import com.yzytech.scx.delivery.mapper.MediaChannelMapper;
@@ -30,13 +31,14 @@ class MasterDataServiceTest {
 
 	private final UpstreamCustomerMapper customerMapper = mock(UpstreamCustomerMapper.class);
 
+	private final PartnerMapper partnerMapper = mock(PartnerMapper.class);
+
 	private final IntegrationDocumentMapper documentMapper = mock(IntegrationDocumentMapper.class);
 
 	private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
 
-	private final MasterDataService service = new MasterDataService(scopeService, mock(PartnerMapper.class),
-			customerMapper, mock(ProductMapper.class), documentMapper, mock(MediaChannelMapper.class),
-			storageUploadService);
+	private final MasterDataService service = new MasterDataService(scopeService, partnerMapper, customerMapper,
+			mock(ProductMapper.class), documentMapper, mock(MediaChannelMapper.class), storageUploadService);
 
 	@Test
 	void externalUrlAllowsHttpAndHttpsWithoutFetchingContent() {
@@ -67,6 +69,36 @@ class MasterDataServiceTest {
 
 		assertThat(customer.getStatus()).isEqualTo("ACTIVE");
 		verify(customerMapper).insert(customer);
+	}
+
+	@Test
+	void savesValidatedPartnerOnlyInsideWritableMediaScope() {
+		Partner partner = partner(" PARTNER-1 ", " 合作方一 ");
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(partnerMapper.insert(partner)).thenReturn(1);
+
+		assertThat(service.savePartner(partner)).isTrue();
+
+		assertThat(partner.getCode()).isEqualTo("PARTNER-1");
+		assertThat(partner.getName()).isEqualTo("合作方一");
+		assertThat(partner.getType()).isEqualTo("UPSTREAM");
+		assertThat(partner.getStatus()).isEqualTo("ACTIVE");
+		verify(partnerMapper).insert(partner);
+	}
+
+	@Test
+	void rejectsPartnerOutsideScopeAndInvalidPartnerEnums() {
+		Partner hidden = partner("PARTNER-1", "合作方一");
+		when(scopeService.canWrite("media-1")).thenReturn(false);
+		assertThatThrownBy(() -> service.savePartner(hidden)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("资源不存在");
+		verify(partnerMapper, never()).insert(any(Partner.class));
+
+		Partner invalid = partner("PARTNER-1", "合作方一");
+		invalid.setStatus("DELETED");
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		assertThatThrownBy(() -> service.savePartner(invalid)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("不支持的合作方状态");
 	}
 
 	@Test
@@ -258,6 +290,14 @@ class MasterDataServiceTest {
 		value.setDocumentVersion(documentVersion);
 		if ("EXTERNAL".equals(storageType))
 			value.setExternalUrl("https://docs.example.com/guide");
+		return value;
+	}
+
+	private Partner partner(String code, String name) {
+		Partner value = new Partner();
+		value.setMediaId("media-1");
+		value.setCode(code);
+		value.setName(name);
 		return value;
 	}
 

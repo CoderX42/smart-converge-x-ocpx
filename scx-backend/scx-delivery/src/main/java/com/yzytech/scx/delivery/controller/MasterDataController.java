@@ -1,6 +1,7 @@
 package com.yzytech.scx.delivery.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -49,20 +50,22 @@ public class MasterDataController {
 	private final MasterDataService service;
 
 	@GetMapping("/partners")
-	@SaCheckPermission("ad:master:read")
+	@SaCheckPermission(value = { "ad:partner:read", "ad:master:read" }, mode = SaMode.OR)
 	public Result<Page<Partner>> partners(Page<Partner> page, String mediaId, String keyword, String status) {
 		return page(page, partnerMapper, mediaId, keyword, status, Partner::getMediaId, Partner::getCode,
 				Partner::getName, Partner::getStatus);
 	}
 
 	@PostMapping("/partners")
-	@SaCheckPermission("ad:master:write")
+	@SaCheckPermission(value = { "ad:partner:write", "ad:master:write" }, mode = SaMode.OR)
+	@SysLog("新增合作方")
 	public Result<Boolean> savePartner(@Valid @RequestBody Partner value) {
 		return call(() -> service.savePartner(value));
 	}
 
 	@PutMapping("/partners/{id}")
-	@SaCheckPermission("ad:master:write")
+	@SaCheckPermission(value = { "ad:partner:write", "ad:master:write" }, mode = SaMode.OR)
+	@SysLog("修改合作方")
 	public Result<Boolean> updatePartner(@PathVariable String id, @Valid @RequestBody Partner value) {
 		value.setId(id);
 		return call(() -> service.savePartner(value));

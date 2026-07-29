@@ -3,11 +3,13 @@ package com.yzytech.scx.subject.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.yzytech.scx.subject.dto.MediaScopeGrantRequest;
+import com.yzytech.scx.subject.dto.MediaScopeUserOption;
 import com.yzytech.scx.subject.entity.Media;
 import com.yzytech.scx.subject.entity.UserSubjectScope;
 import com.yzytech.scx.subject.mapper.MediaMapper;
@@ -28,10 +30,14 @@ class MediaScopeManagementServiceTest {
 	@Mock
 	private MediaMapper mediaMapper;
 
+	@Mock
+	private MediaScopeService mediaScopeService;
+
 	@Test
 	void grantsActiveUserToActiveMedia() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
 		when(scopeMapper.countActiveUser("user-1")).thenReturn(1);
 		when(scopeMapper.selectOne(any())).thenReturn(null);
 		when(scopeMapper.insert(any(UserSubjectScope.class))).thenAnswer(invocation -> {
@@ -49,10 +55,11 @@ class MediaScopeManagementServiceTest {
 
 	@Test
 	void repeatedGrantIsIdempotent() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		UserSubjectScope existing = new UserSubjectScope();
 		existing.setId("scope-existing");
 		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
 		when(scopeMapper.countActiveUser("user-1")).thenReturn(1);
 		when(scopeMapper.selectOne(any())).thenReturn(existing);
 
@@ -62,10 +69,11 @@ class MediaScopeManagementServiceTest {
 
 	@Test
 	void concurrentDuplicateGrantIsIdempotent() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		UserSubjectScope existing = new UserSubjectScope();
 		existing.setId("scope-raced");
 		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
 		when(scopeMapper.countActiveUser("user-1")).thenReturn(1);
 		when(scopeMapper.selectOne(any())).thenReturn(null, existing);
 		when(scopeMapper.insert(any(UserSubjectScope.class))).thenThrow(new DuplicateKeyException("race"));
@@ -75,11 +83,12 @@ class MediaScopeManagementServiceTest {
 
 	@Test
 	void rejectsDisabledMediaAndInactiveUser() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		when(mediaMapper.selectById("media-1")).thenReturn(media("DISABLED"));
 		assertThatThrownBy(() -> service.grant(request())).isInstanceOf(IllegalArgumentException.class);
 
 		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
 		when(scopeMapper.countActiveUser("user-1")).thenReturn(0);
 		assertThatThrownBy(() -> service.grant(request())).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("用户不存在或已停用");
@@ -87,26 +96,88 @@ class MediaScopeManagementServiceTest {
 
 	@Test
 	void pageRejectsUnknownOrDisabledMediaWithoutQueryingScopes() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		when(mediaMapper.selectById("media-1")).thenReturn(media("DISABLED"));
 
 		assertThatThrownBy(() -> service.page(new Page<>(), "media-1", null))
-			.isInstanceOf(IllegalArgumentException.class).hasMessage("资源不存在");
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("资源不存在");
 		verify(scopeMapper, never()).selectPage(any(), any());
 	}
 
 	@Test
 	void revokeCannotCrossMediaBoundary() {
-		MediaScopeManagementService service = new MediaScopeManagementService(scopeMapper, mediaMapper);
+		MediaScopeManagementService service = service();
 		UserSubjectScope existing = new UserSubjectScope();
 		existing.setId("scope-1");
 		existing.setSubjectType("MEDIA");
 		existing.setSubjectId("media-other");
+		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
 		when(scopeMapper.selectById("scope-1")).thenReturn(existing);
 
 		assertThatThrownBy(() -> service.revoke("scope-1", "media-1")).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("资源不存在");
 		verify(scopeMapper, never()).deleteById("scope-1");
+	}
+
+	@Test
+	void operatorCannotQueryOrGrantOutsideWritableMedia() {
+		MediaScopeManagementService service = service();
+		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(false);
+
+		assertThatThrownBy(() -> service.page(new Page<>(), "media-1", null))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("资源不存在");
+		assertThatThrownBy(() -> service.grant(request())).isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("资源不存在");
+		verify(scopeMapper, never()).selectPage(any(), any());
+		verify(scopeMapper, never()).insert(any(UserSubjectScope.class));
+	}
+
+	@Test
+	void operatorCannotRevokeOwnScope() {
+		MediaScopeManagementService service = service();
+		UserSubjectScope existing = new UserSubjectScope();
+		existing.setId("scope-1");
+		existing.setUserId("operator-1");
+		existing.setSubjectType("MEDIA");
+		existing.setSubjectId("media-1");
+		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
+		when(mediaScopeService.currentUserId()).thenReturn("operator-1");
+		when(scopeMapper.selectById("scope-1")).thenReturn(existing);
+
+		assertThatThrownBy(() -> service.revoke("scope-1", "media-1")).isInstanceOf(IllegalStateException.class)
+			.hasMessage("不能撤销自己的媒体范围");
+		verify(scopeMapper, never()).deleteById("scope-1");
+	}
+
+	@Test
+	void candidatesRequireWritableMediaAndReturnMinimalProjectionPage() {
+		MediaScopeManagementService service = service();
+		Page<MediaScopeUserOption> expected = new Page<>(1, 20);
+		MediaScopeUserOption option = new MediaScopeUserOption();
+		option.setId("user-1");
+		option.setUsername("operator");
+		option.setNickname("运营");
+		expected.setRecords(java.util.List.of(option));
+		when(mediaMapper.selectById("media-1")).thenReturn(media("ACTIVE"));
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
+		when(scopeMapper.selectCandidatePage(any(), eq("运营"))).thenReturn(expected);
+
+		Page<MediaScopeUserOption> result = service.candidates(new Page<>(1, 20), "media-1", " 运营 ");
+
+		assertThat(result.getRecords()).singleElement().satisfies(user -> {
+			assertThat(user.getId()).isEqualTo("user-1");
+			assertThat(user.getUsername()).isEqualTo("operator");
+			assertThat(user.getNickname()).isEqualTo("运营");
+		});
+	}
+
+	private MediaScopeManagementService service() {
+		return new MediaScopeManagementService(scopeMapper, mediaMapper, mediaScopeService);
 	}
 
 	private MediaScopeGrantRequest request() {
