@@ -20,7 +20,7 @@ spring:
       primary: master   # 指定默认数据源
       datasource:
         master:         # 注意，这里要嵌套在 datasource 下
-          # 本机已能访问的 MySQL 公网地址
+          # 本地开发数据库；外部环境使用对应 profile 的独立字面量配置
           url: jdbc:mysql://mysql-e379be1ffea9-public.rds.volces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia%2FShanghai&allowMultiQueries=true
           username: ocpxuser
           password: OqS5ZRBU1wBuEqLeHAQ3

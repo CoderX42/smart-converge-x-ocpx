@@ -2,7 +2,7 @@ import type { Router } from 'vue-router';
 
 import { LOGIN_PATH } from '@boot/constants';
 import { preferences } from '@boot/preferences';
-import { useAccessStore, useUserStore } from '@boot/stores';
+import { resetAllStores, useAccessStore, useUserStore } from '@boot/stores';
 import { startProgress, stopProgress } from '@boot/utils';
 
 import { accessRoutes, coreRouteNames } from '#/router/routes';
@@ -92,7 +92,27 @@ function setupAccessGuard(router: Router) {
 
     // 生成路由表
     // 当前登录用户拥有的角色标识列表
-    const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
+    let userInfo = userStore.userInfo;
+    if (!userInfo) {
+      try {
+        userInfo = await authStore.fetchUserInfo();
+      } catch (error) {
+        // A persisted token can outlive the backend session or the backend can
+        // be temporarily unavailable during startup/deployment. Never leave
+        // router initialization rejected, because that renders a blank page.
+        console.error('Unable to restore the persisted login session.', error);
+        resetAllStores();
+        accessStore.setLoginExpired(false);
+        return {
+          path: LOGIN_PATH,
+          query:
+            to.fullPath === preferences.app.defaultHomePath
+              ? {}
+              : { redirect: encodeURIComponent(to.fullPath) },
+          replace: true,
+        };
+      }
+    }
     const userRoles = userInfo.roles ?? [];
 
     const isClkUser =
