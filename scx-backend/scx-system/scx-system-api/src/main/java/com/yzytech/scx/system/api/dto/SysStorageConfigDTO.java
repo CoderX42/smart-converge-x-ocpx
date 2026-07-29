@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -19,6 +18,9 @@ public class SysStorageConfigDTO implements Serializable {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
+
+	@Schema(description = "存储配置主键")
+	private String id;
 
 	@Schema(description = "存储类型1、阿里OSS；2、七牛云；3、腾讯云")
 	private String type;

@@ -1,10 +1,10 @@
 
-
 package com.yzytech.scx.common.storage.handler.impl;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import com.yzytech.scx.common.storage.entity.StorageConfig;
+import com.yzytech.scx.system.api.dto.SysStorageConfigDTO;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.InetAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 
 /**
@@ -99,6 +101,50 @@ public class LocalUploadFileHandler extends AbstractUploadFileHandler {
 	@Override
 	public String getType() {
 		return "local";
+	}
+
+	@Override
+	@SneakyThrows
+	public InputStream openFile(SysStorageConfigDTO sysStorageConfig, String objectKey) {
+		return Files.newInputStream(resolveManagedPath(sysStorageConfig, objectKey));
+	}
+
+	@Override
+	@SneakyThrows
+	public void deleteFile(SysStorageConfigDTO sysStorageConfig, String objectKey) {
+		Files.deleteIfExists(resolveManagedPath(sysStorageConfig, objectKey));
+	}
+
+	private Path resolveManagedPath(SysStorageConfigDTO config, String objectKey) {
+		if (config == null || !StringUtils.hasText(config.getBucket()) || !StringUtils.hasText(objectKey)) {
+			throw new IllegalStateException("本地存储对象引用不完整");
+		}
+		Path root = Path.of(config.getBucket()).toAbsolutePath().normalize();
+		Path relative = Path.of(objectKey);
+		if (root.getNameCount() == 0 || relative.isAbsolute() || relative.normalize().startsWith("..")) {
+			throw new IllegalStateException("本地存储对象键无效");
+		}
+		Path target = root.resolve(relative).normalize();
+		if (!target.startsWith(root)) {
+			throw new IllegalStateException("拒绝访问存储根目录之外的文件");
+		}
+		if (Files.exists(target)) {
+			try {
+				if (Files.isSymbolicLink(target)) {
+					throw new IllegalStateException("拒绝访问符号链接存储对象");
+				}
+				Path realRoot = root.toRealPath();
+				Path realTarget = target.toRealPath();
+				if (!realTarget.startsWith(realRoot)) {
+					throw new IllegalStateException("拒绝访问存储根目录之外的文件");
+				}
+				return realTarget;
+			}
+			catch (java.io.IOException exception) {
+				throw new IllegalStateException("校验本地存储路径失败", exception);
+			}
+		}
+		return target;
 	}
 
 }

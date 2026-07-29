@@ -5,7 +5,9 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.OSSObject;
 import com.yzytech.scx.common.storage.entity.StorageConfig;
+import com.yzytech.scx.system.api.dto.SysStorageConfigDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -16,9 +18,14 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.Locale;
@@ -51,6 +58,32 @@ public class S3UploadFileHandler extends AbstractUploadFileHandler {
 	@Override
 	public String getType() {
 		return "oss";
+	}
+
+	@Override
+	public InputStream openFile(SysStorageConfigDTO sysStorageConfig, String objectKey) {
+		StorageConfig storageConfig = toStorageConfig(sysStorageConfig, null);
+		validateObjectReference(storageConfig, objectKey);
+		String endpoint = normalizeEndpoint(storageConfig.getEndpoint());
+		String bucketName = storageConfig.getBucket().trim();
+		if (isAliyunEndpoint(endpoint)) {
+			return openFromAliyun(storageConfig, endpoint, bucketName, objectKey);
+		}
+		return openFromS3(storageConfig, endpoint, bucketName, objectKey);
+	}
+
+	@Override
+	public void deleteFile(SysStorageConfigDTO sysStorageConfig, String objectKey) {
+		StorageConfig storageConfig = toStorageConfig(sysStorageConfig, null);
+		validateObjectReference(storageConfig, objectKey);
+		String endpoint = normalizeEndpoint(storageConfig.getEndpoint());
+		String bucketName = storageConfig.getBucket().trim();
+		if (isAliyunEndpoint(endpoint)) {
+			deleteFromAliyun(storageConfig, endpoint, bucketName, objectKey);
+		}
+		else {
+			deleteFromS3(storageConfig, endpoint, bucketName, objectKey);
+		}
 	}
 
 	protected void uploadToAliyun(StorageConfig storageConfig, String endpoint, String bucketName, String objectName,
@@ -111,6 +144,106 @@ public class S3UploadFileHandler extends AbstractUploadFileHandler {
 					e.getMessage());
 			throw new IllegalStateException("对象存储连接失败，请检查 Endpoint、网络和 HTTPS 配置", e);
 		}
+	}
+
+	private InputStream openFromAliyun(StorageConfig config, String endpoint, String bucketName, String objectKey) {
+		OSS client = new OSSClientBuilder().build(endpoint, config.getAccessKeyId(), config.getAccessKeySecret());
+		try {
+			OSSObject object = client.getObject(bucketName, objectKey);
+			InputStream content = object.getObjectContent();
+			return new FilterInputStream(content) {
+				@Override
+				public void close() throws IOException {
+					try {
+						super.close();
+					}
+					finally {
+						client.shutdown();
+					}
+				}
+			};
+		}
+		catch (OSSException e) {
+			client.shutdown();
+			if ("NoSuchKey".equals(e.getErrorCode())) {
+				throw new IllegalStateException("存储文件不存在", e);
+			}
+			throw storageOperationFailure(e.getErrorCode(), e);
+		}
+		catch (ClientException e) {
+			client.shutdown();
+			throw new IllegalStateException("对象存储连接失败，请稍后重试", e);
+		}
+	}
+
+	private InputStream openFromS3(StorageConfig config, String endpoint, String bucketName, String objectKey) {
+		S3Client client = createS3Client(config, endpoint);
+		try {
+			InputStream content = client
+				.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+			return new FilterInputStream(content) {
+				@Override
+				public void close() throws IOException {
+					try {
+						super.close();
+					}
+					finally {
+						client.close();
+					}
+				}
+			};
+		}
+		catch (NoSuchKeyException e) {
+			client.close();
+			throw new IllegalStateException("存储文件不存在", e);
+		}
+		catch (S3Exception | SdkClientException e) {
+			client.close();
+			throw new IllegalStateException("读取对象存储文件失败，请稍后重试", e);
+		}
+	}
+
+	private void deleteFromAliyun(StorageConfig config, String endpoint, String bucketName, String objectKey) {
+		OSS client = new OSSClientBuilder().build(endpoint, config.getAccessKeyId(), config.getAccessKeySecret());
+		try {
+			client.deleteObject(bucketName, objectKey);
+		}
+		catch (OSSException e) {
+			if (!"NoSuchKey".equals(e.getErrorCode())) {
+				throw storageOperationFailure(e.getErrorCode(), e);
+			}
+		}
+		catch (ClientException e) {
+			throw new IllegalStateException("对象存储连接失败，请稍后重试", e);
+		}
+		finally {
+			client.shutdown();
+		}
+	}
+
+	private void deleteFromS3(StorageConfig config, String endpoint, String bucketName, String objectKey) {
+		try (S3Client client = createS3Client(config, endpoint)) {
+			client.deleteObject(DeleteObjectRequest.builder().bucket(bucketName).key(objectKey).build());
+		}
+		catch (NoSuchKeyException ignored) {
+			// Idempotent deletion: an already missing object is the desired result.
+		}
+		catch (S3Exception | SdkClientException e) {
+			throw new IllegalStateException("删除对象存储文件失败，请稍后重试", e);
+		}
+	}
+
+	private S3Client createS3Client(StorageConfig config, String endpoint) {
+		return S3Client.builder()
+			.endpointOverride(URI.create(endpoint))
+			.credentialsProvider(StaticCredentialsProvider
+				.create(AwsBasicCredentials.create(config.getAccessKeyId(), config.getAccessKeySecret())))
+			.region(Region.US_EAST_1)
+			.serviceConfiguration(S3Configuration.builder()
+				.pathStyleAccessEnabled(Boolean.TRUE.equals(config.getStyleAccessEnabled()))
+				.chunkedEncodingEnabled(false)
+				.build())
+			.build();
 	}
 
 	static boolean isAliyunEndpoint(String endpoint) {
@@ -186,6 +319,14 @@ public class S3UploadFileHandler extends AbstractUploadFileHandler {
 		}
 	}
 
+	private static void validateObjectReference(StorageConfig storageConfig, String objectKey) {
+		validateStorageConfig(storageConfig, InputStream.nullInputStream(), "managed-object", 1);
+		if (!StringUtils.hasText(objectKey) || objectKey.startsWith("/") || objectKey.contains("\\")
+				|| objectKey.contains("../")) {
+			throw new IllegalStateException("对象存储引用无效");
+		}
+	}
+
 	private static String normalizeContentType(String contentType) {
 		return StringUtils.hasText(contentType) ? contentType : "application/octet-stream";
 	}
@@ -199,6 +340,17 @@ public class S3UploadFileHandler extends AbstractUploadFileHandler {
 				new IllegalStateException("对象存储签名校验失败，请检查 AccessSecret 和 Endpoint 地域", cause);
 			case "NoSuchBucket" -> new IllegalStateException("对象存储 Bucket 不存在或与 Endpoint 地域不一致", cause);
 			default -> new IllegalStateException("对象存储上传失败（" + code + "）", cause);
+		};
+	}
+
+	private static IllegalStateException storageOperationFailure(String errorCode, RuntimeException cause) {
+		String code = StringUtils.hasText(errorCode) ? errorCode : "Unknown";
+		return switch (code) {
+			case "AccessDenied" -> new IllegalStateException("对象存储拒绝访问，请检查 Bucket 权限", cause);
+			case "InvalidAccessKeyId" -> new IllegalStateException("对象存储 AccessKey 无效或已停用", cause);
+			case "SignatureDoesNotMatch" -> new IllegalStateException("对象存储签名校验失败", cause);
+			case "NoSuchBucket" -> new IllegalStateException("对象存储 Bucket 不存在", cause);
+			default -> new IllegalStateException("对象存储操作失败（" + code + "）", cause);
 		};
 	}
 

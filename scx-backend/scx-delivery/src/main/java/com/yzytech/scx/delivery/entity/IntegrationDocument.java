@@ -1,7 +1,10 @@
 package com.yzytech.scx.delivery.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -16,7 +19,11 @@ public class IntegrationDocument {
 	private String mediaId;
 
 	@NotBlank
+	@Size(max = 128)
 	private String name;
+
+	@Size(max = 500)
+	private String description;
 
 	private String type;
 
@@ -24,10 +31,27 @@ public class IntegrationDocument {
 
 	private String storageType;
 
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String objectKey;
 
 	private String externalUrl;
 
+	private String originalFileName;
+
+	private String mimeType;
+
+	private Long fileSize;
+
+	@JsonIgnore
+	private String storageConfigId;
+
+	@JsonIgnore
+	private String storageProvider;
+
+	@JsonIgnore
+	private String storageObjectKey;
+
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String contentHash;
 
 	private String status;

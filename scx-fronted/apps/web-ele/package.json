@@ -37,14 +37,19 @@
     "@boot/types": "workspace:*",
     "@boot/utils": "workspace:*",
     "@element-plus/icons-vue": "^2.3.2",
+    "@vue-office/docx": "1.6.3",
+    "@vue-office/excel": "1.7.14",
+    "@vue-office/pdf": "2.0.10",
     "@vueuse/core": "catalog:",
     "@vueuse/integrations": "catalog:",
     "@wangeditor/editor": "^5.1.23",
     "@wangeditor/editor-for-vue": "^5.1.12",
     "crypto-js": "^4.2.0",
     "dayjs": "catalog:",
+    "dompurify": "3.4.12",
     "element-plus": "catalog:",
     "nanoid": "^5.1.16",
+    "markdown-it": "14.3.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.39",
     "vue-clipboard3": "^2.0.0",
@@ -52,6 +57,7 @@
     "vuedraggable": "^4.1.0"
   },
   "devDependencies": {
+    "@types/markdown-it": "14.1.2",
     "unplugin-element-plus": "catalog:"
   }
 }

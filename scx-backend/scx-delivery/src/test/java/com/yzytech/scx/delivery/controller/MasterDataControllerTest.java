@@ -7,7 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yzytech.scx.delivery.entity.IntegrationDocument;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import com.yzytech.scx.delivery.mapper.IntegrationDocumentMapper;
 import com.yzytech.scx.delivery.mapper.MediaChannelMapper;
@@ -17,7 +19,11 @@ import com.yzytech.scx.delivery.mapper.UpstreamCustomerMapper;
 import com.yzytech.scx.delivery.service.MasterDataService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 
 class MasterDataControllerTest {
 
@@ -78,6 +84,46 @@ class MasterDataControllerTest {
 		assertThat(result.getCode()).isEqualTo(1);
 		assertThat(result.getMsg()).isEqualTo("文件上传失败");
 		assertThat(result.getData()).isNull();
+	}
+
+	@Test
+	void contentResponseUsesPrivateInlineHeadersAndUtf8FileName() throws Exception {
+		IntegrationDocument document = new IntegrationDocument();
+		document.setId("doc-1");
+		document.setName("媒体协议");
+		document.setOriginalFileName("媒体回传协议.pdf");
+		document.setMimeType("application/pdf");
+		document.setFileSize(3L);
+		when(service.openDocument("doc-1"))
+			.thenReturn(new MasterDataService.DocumentContent(document, new ByteArrayInputStream("PDF".getBytes())));
+
+		var response = controller.documentContent("doc-1");
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		response.getBody().writeTo(output);
+
+		assertThat(response.getHeaders().getContentType().toString()).isEqualTo("application/pdf");
+		assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION)).startsWith("inline;")
+			.contains("UTF-8");
+		assertThat(response.getHeaders().getCacheControl()).contains("no-store").contains("private");
+		assertThat(response.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+		assertThat(output.toString()).isEqualTo("PDF");
+	}
+
+	@Test
+	void documentEndpointsUseDedicatedReadWriteAndDeletePermissions() throws Exception {
+		assertPermission("documents", "ad:integration-document:read", Page.class, String.class, String.class,
+				String.class, String.class, String.class);
+		assertPermission("saveDocument", "ad:integration-document:write", IntegrationDocument.class);
+		assertPermission("updateDocument", "ad:integration-document:write", String.class, IntegrationDocument.class);
+		assertPermission("documentContent", "ad:integration-document:read", String.class);
+		assertPermission("deleteDocument", "ad:integration-document:delete", String.class, Integer.class);
+	}
+
+	private void assertPermission(String methodName, String permission, Class<?>... parameters) throws Exception {
+		SaCheckPermission annotation = MasterDataController.class.getDeclaredMethod(methodName, parameters)
+			.getAnnotation(SaCheckPermission.class);
+		assertThat(annotation).isNotNull();
+		assertThat(annotation.value()).containsExactly(permission);
 	}
 
 }

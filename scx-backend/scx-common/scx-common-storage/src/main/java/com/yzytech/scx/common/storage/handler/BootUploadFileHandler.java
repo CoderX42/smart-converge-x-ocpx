@@ -1,10 +1,8 @@
 
-
 package com.yzytech.scx.common.storage.handler;
 
 import com.yzytech.scx.system.api.dto.SysStorageConfigDTO;
 
-import java.io.File;
 import java.io.InputStream;
 
 public interface BootUploadFileHandler {
@@ -20,6 +18,10 @@ public interface BootUploadFileHandler {
 	 */
 	String uploadFile(SysStorageConfigDTO sysStorageConfig, InputStream inputStream, String fileName,
 			String contextType, long size);
+
+	InputStream openFile(SysStorageConfigDTO sysStorageConfig, String objectKey);
+
+	void deleteFile(SysStorageConfigDTO sysStorageConfig, String objectKey);
 
 	/**
 	 * 返回该策略支持的文件上传类型

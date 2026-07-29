@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.common.storage.handler.impl;
 
 import com.yzytech.scx.common.storage.entity.StorageConfig;
@@ -15,14 +14,14 @@ public abstract class AbstractUploadFileHandler implements BootUploadFileHandler
 	@Override
 	public String uploadFile(SysStorageConfigDTO sysStorageConfig, InputStream inputStream, String fileName,
 			String contextType, long size) {
-		StorageConfig storageConfig = validateRequest(sysStorageConfig, contextType);
+		StorageConfig storageConfig = toStorageConfig(sysStorageConfig, contextType);
 		return doUploadFile(storageConfig, inputStream, fileName, size);
 	}
 
 	public abstract String doUploadFile(StorageConfig storageConfig, InputStream inputStream, String fileName,
 			long size);
 
-	private StorageConfig validateRequest(SysStorageConfigDTO sysStorageConfig, String contextType) {
+	protected StorageConfig toStorageConfig(SysStorageConfigDTO sysStorageConfig, String contextType) {
 		StorageConfig storageConfig = new StorageConfig();
 		storageConfig.setAccessKeyId(sysStorageConfig.getAccessKey());
 		storageConfig.setAccessKeySecret(sysStorageConfig.getAccessSecret());

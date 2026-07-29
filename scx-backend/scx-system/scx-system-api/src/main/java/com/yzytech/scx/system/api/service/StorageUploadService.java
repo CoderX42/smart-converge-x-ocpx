@@ -1,5 +1,7 @@
 package com.yzytech.scx.system.api.service;
 
+import com.yzytech.scx.system.api.dto.ManagedStorageObject;
+
 import java.io.InputStream;
 
 /**
@@ -12,6 +14,16 @@ import java.io.InputStream;
  */
 public interface StorageUploadService {
 
-	String upload(InputStream inputStream, String fileName, String contentType, long size);
+	default String upload(InputStream inputStream, String fileName, String contentType, long size) {
+		return uploadManaged(inputStream, fileName, contentType, size).url();
+	}
+
+	ManagedStorageObject uploadManaged(InputStream inputStream, String fileName, String contentType, long size);
+
+	ManagedStorageObject resolve(String objectUrl);
+
+	InputStream open(ManagedStorageObject object);
+
+	void delete(ManagedStorageObject object);
 
 }

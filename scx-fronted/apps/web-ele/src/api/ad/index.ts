@@ -30,6 +30,50 @@ export type MediaUpdateInput = {
   version: number;
 };
 export type MediaStatusInput = Pick<Media, 'status' | 'version'>;
+export type IntegrationDocumentType =
+  'MEDIA_API' | 'MEDIA_CALLBACK' | 'OTHER' | 'PRODUCT_API' | 'RTA_SPEC';
+export type IntegrationDocumentStatus =
+  'ACTIVE' | 'DISABLED' | 'DRAFT' | 'RETIRED';
+export type IntegrationDocumentStorageType = 'EXTERNAL' | 'OBJECT';
+export type IntegrationDocument = {
+  createBy?: string;
+  createTime?: string;
+  description?: string;
+  documentVersion: number;
+  externalUrl?: string;
+  fileSize?: number;
+  id: string;
+  mediaId: string;
+  mimeType?: string;
+  name: string;
+  originalFileName?: string;
+  status: IntegrationDocumentStatus;
+  storageType: IntegrationDocumentStorageType;
+  type: IntegrationDocumentType;
+  updateBy?: string;
+  updateTime?: string;
+  version: number;
+};
+export type IntegrationDocumentQuery = {
+  current: number;
+  keyword?: string;
+  mediaId: string;
+  size: number;
+  status?: IntegrationDocumentStatus;
+  storageType?: IntegrationDocumentStorageType;
+  type?: IntegrationDocumentType;
+};
+export type IntegrationDocumentInput = {
+  description?: string;
+  externalUrl?: string;
+  id?: string;
+  mediaId: string;
+  name: string;
+  status: IntegrationDocumentStatus;
+  storageType: IntegrationDocumentStorageType;
+  type: IntegrationDocumentType;
+  version?: number;
+};
 export type ClickSensitiveDetail = {
   attributeKeys: string[];
   campaignIdMasked?: string;
@@ -114,6 +158,55 @@ export function uploadIntegrationDocument(data: FormData) {
   return requestClient.post<string>('/ad/integration-documents/upload', data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+}
+export function getIntegrationDocuments(params: IntegrationDocumentQuery) {
+  return requestClient.get<PageResult<IntegrationDocument>>(
+    '/ad/integration-documents',
+    { params },
+  );
+}
+export function saveIntegrationDocument(
+  data: IntegrationDocumentInput,
+  file?: File,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
+) {
+  const formData = new FormData();
+  formData.append(
+    'metadata',
+    new Blob([JSON.stringify(data)], { type: 'application/json' }),
+  );
+  if (file) formData.append('file', file);
+  const config = {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event: { loaded: number; total?: number }) => {
+      if (event.total && onProgress) {
+        onProgress(Math.round((event.loaded * 100) / event.total));
+      }
+    },
+    signal,
+  };
+  return data.id
+    ? requestClient.put<IntegrationDocument>(
+        `/ad/integration-documents/${data.id}`,
+        formData,
+        config,
+      )
+    : requestClient.post<IntegrationDocument>(
+        '/ad/integration-documents',
+        formData,
+        config,
+      );
+}
+export function deleteIntegrationDocument(id: string, version: number) {
+  return requestClient.delete<boolean>(`/ad/integration-documents/${id}`, {
+    params: { version },
+  });
+}
+export function getIntegrationDocumentContent(id: string) {
+  return requestClient.download<Blob>(
+    `/ad/integration-documents/${id}/content`,
+  );
 }
 export function getTrackingLinks(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/tracking-links', { params });
