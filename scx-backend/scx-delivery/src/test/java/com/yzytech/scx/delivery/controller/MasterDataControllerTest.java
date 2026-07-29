@@ -17,6 +17,7 @@ import com.yzytech.scx.delivery.mapper.UpstreamCustomerMapper;
 import com.yzytech.scx.delivery.service.MasterDataService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 
 class MasterDataControllerTest {
 
@@ -53,6 +54,18 @@ class MasterDataControllerTest {
 		assertThat(result.getCode()).isEqualTo(404);
 		assertThat(result.getData()).isNull();
 		verify(customerMapper, never()).selectPage(any(), any());
+	}
+
+	@Test
+	void returnsSafeStorageFailureMessageForDocumentUpload() {
+		MockMultipartFile file = new MockMultipartFile("file", "guide.pdf", "application/pdf", new byte[] { 1 });
+		when(service.uploadDocument("media-1", file)).thenThrow(new IllegalStateException("对象存储拒绝上传，请检查 Bucket 写入权限"));
+
+		var result = controller.uploadDocument("media-1", file);
+
+		assertThat(result.getCode()).isEqualTo(1);
+		assertThat(result.getMsg()).isEqualTo("对象存储拒绝上传，请检查 Bucket 写入权限");
+		assertThat(result.getData()).isNull();
 	}
 
 }

@@ -1,99 +1,51 @@
-
-
 package com.yzytech.scx.common.storage.handler.impl;
 
+import com.aliyun.oss.ClientException;
+import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.ObjectMetadata;
 import com.yzytech.scx.common.storage.entity.StorageConfig;
-import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
  * S3协议上传文件处理器
  *
  */
+@Slf4j
 @Component
 public class S3UploadFileHandler extends AbstractUploadFileHandler {
 
-	@SneakyThrows
 	@Override
 	public String doUploadFile(StorageConfig storageConfig, InputStream inputStream, String fileName, long size) {
-		String rawEndpoint = storageConfig.getEndpoint();
+		validateStorageConfig(storageConfig, inputStream, fileName, size);
+		String endpoint = normalizeEndpoint(storageConfig.getEndpoint());
+		String bucketName = storageConfig.getBucket().trim();
+		String objectName = buildObjectName(storageConfig.getDir(), fileName);
 
-		// 使用 AWS S3 SDK 构建客户端
-		// 为了最大的兼容性 (包括 MinIO, Ceph, RustFS 等)，默认启用 Path Style Access
-		S3Client s3Client = S3Client.builder()
-			.endpointOverride(URI.create(getDomain(rawEndpoint)))
-			.credentialsProvider(StaticCredentialsProvider
-				.create(AwsBasicCredentials.create(storageConfig.getAccessKeyId(), storageConfig.getAccessKeySecret())))
-			.region(Region.US_EAST_1) // 大多数 S3 兼容服务忽略 Region，但 SDK 需要一个值
-			.serviceConfiguration(S3Configuration.builder()
-				.pathStyleAccessEnabled(storageConfig.getStyleAccessEnabled())
-				.chunkedEncodingEnabled(false) // 一些 S3 兼容服务对 chunked 支持不完整
-				.build())
-			.build();
-
-		try {
-			String bucketName = storageConfig.getBucket();
-			// 获取后缀
-			String suffix = "";
-			if (fileName.contains(".")) {
-				suffix = fileName.substring(fileName.lastIndexOf(".") + 1);
-			}
-
-			String dir = storageConfig.getDir();
-			String uuidFileName = UUID.randomUUID() + (StringUtils.hasText(suffix) ? "." + suffix : "");
-			String objectName = (StringUtils.hasText(dir) ? (dir + "/") : "") + uuidFileName;
-
-			PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-				.bucket(bucketName)
-				.key(objectName)
-				.contentType(storageConfig.getContextType())
-				.build();
-
-			// 使用流上传，并指定长度
-			s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, size));
-
-			// 拼接返回 URL
-			// 注意：有些服务可能返回的 URL 需要特殊处理，这里采用通用的 Endpoint + Bucket + ObjectKey 方式
-			// 如果 Endpoint 包含 bucket (Virtual Host 风格)，拼接方式会不同，但这里强制了 Path Style
-			// 如果 Endpoint 结尾带有 /，处理一下
-			String baseUrl = getDomain(rawEndpoint);
-			if (baseUrl.endsWith("/")) {
-				baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-			}
-
-			// 配置了自定义域名时，优先使用自定义域名返回文件访问地址
-			String customDomain = storageConfig.getDomain();
-			if (StringUtils.hasText(customDomain)) {
-				String customBaseUrl = getDomain(customDomain);
-				if (customBaseUrl.endsWith("/")) {
-					customBaseUrl = customBaseUrl.substring(0, customBaseUrl.length() - 1);
-				}
-				return customBaseUrl + "/" + objectName;
-			}
-
-			String endpointLower = rawEndpoint.toLowerCase();
-			if (endpointLower.contains("oss") || endpointLower.contains("cos") || endpointLower.contains("qiniucs")
-					|| endpointLower.contains("obs")) {
-				return "https://" + bucketName + "." + storageConfig.getEndpoint() + "/" + objectName;
-			}
-			return baseUrl + "/" + bucketName + "/" + objectName;
+		if (isAliyunEndpoint(endpoint)) {
+			uploadToAliyun(storageConfig, endpoint, bucketName, objectName, inputStream, size);
 		}
-		finally {
-			// 确保资源释放
-			s3Client.close();
+		else {
+			uploadToS3(storageConfig, endpoint, bucketName, objectName, inputStream, size);
 		}
+		return buildObjectUrl(storageConfig, endpoint, bucketName, objectName);
 	}
 
 	@Override
@@ -101,13 +53,153 @@ public class S3UploadFileHandler extends AbstractUploadFileHandler {
 		return "oss";
 	}
 
-	private String getDomain(String endpoint) {
-		// 自动补全协议头
-		if (!endpoint.startsWith("http")) {
-			// 默认使用 HTTPS，除非明确指定了 HTTP（对于本地测试或内部网络）
-			endpoint = "https://" + endpoint;
+	protected void uploadToAliyun(StorageConfig storageConfig, String endpoint, String bucketName, String objectName,
+			InputStream inputStream, long size) {
+		OSS ossClient = new OSSClientBuilder().build(endpoint, storageConfig.getAccessKeyId(),
+				storageConfig.getAccessKeySecret());
+		try {
+			ObjectMetadata metadata = new ObjectMetadata();
+			metadata.setContentLength(size);
+			metadata.setContentType(normalizeContentType(storageConfig.getContextType()));
+			com.aliyun.oss.model.PutObjectRequest request = new com.aliyun.oss.model.PutObjectRequest(bucketName,
+					objectName, inputStream);
+			request.setMetadata(metadata);
+			ossClient.putObject(request);
 		}
-		return endpoint;
+		catch (OSSException e) {
+			log.warn("阿里云 OSS 上传失败: code={}, requestId={}, hostId={}, bucket={}", e.getErrorCode(), e.getRequestId(),
+					e.getHostId(), bucketName);
+			throw providerFailure(e.getErrorCode(), e);
+		}
+		catch (ClientException e) {
+			log.warn("阿里云 OSS 客户端连接失败: endpoint={}, bucket={}, reason={}", URI.create(endpoint).getHost(), bucketName,
+					e.getMessage());
+			throw new IllegalStateException("对象存储连接失败，请检查 Endpoint、网络和 HTTPS 配置", e);
+		}
+		finally {
+			ossClient.shutdown();
+		}
+	}
+
+	protected void uploadToS3(StorageConfig storageConfig, String endpoint, String bucketName, String objectName,
+			InputStream inputStream, long size) {
+		try (S3Client s3Client = S3Client.builder()
+			.endpointOverride(URI.create(endpoint))
+			.credentialsProvider(StaticCredentialsProvider
+				.create(AwsBasicCredentials.create(storageConfig.getAccessKeyId(), storageConfig.getAccessKeySecret())))
+			.region(Region.US_EAST_1)
+			.serviceConfiguration(S3Configuration.builder()
+				.pathStyleAccessEnabled(Boolean.TRUE.equals(storageConfig.getStyleAccessEnabled()))
+				.chunkedEncodingEnabled(false)
+				.build())
+			.build()) {
+			PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+				.bucket(bucketName)
+				.key(objectName)
+				.contentType(normalizeContentType(storageConfig.getContextType()))
+				.build();
+			s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, size));
+		}
+		catch (S3Exception e) {
+			String errorCode = e.awsErrorDetails() == null ? null : e.awsErrorDetails().errorCode();
+			log.warn("S3 兼容对象存储上传失败: code={}, status={}, requestId={}, endpoint={}, bucket={}", errorCode,
+					e.statusCode(), e.requestId(), URI.create(endpoint).getHost(), bucketName);
+			throw providerFailure(errorCode, e);
+		}
+		catch (SdkClientException e) {
+			log.warn("S3 兼容对象存储连接失败: endpoint={}, bucket={}, reason={}", URI.create(endpoint).getHost(), bucketName,
+					e.getMessage());
+			throw new IllegalStateException("对象存储连接失败，请检查 Endpoint、网络和 HTTPS 配置", e);
+		}
+	}
+
+	static boolean isAliyunEndpoint(String endpoint) {
+		String host = URI.create(endpoint).getHost();
+		return host != null && host.toLowerCase(Locale.ROOT).endsWith(".aliyuncs.com");
+	}
+
+	static String normalizeEndpoint(String endpoint) {
+		String value = endpoint.trim();
+		if (!value.startsWith("http://") && !value.startsWith("https://")) {
+			value = "https://" + value;
+		}
+		while (value.endsWith("/")) {
+			value = value.substring(0, value.length() - 1);
+		}
+		URI uri = URI.create(value);
+		if (uri.getHost() == null) {
+			throw new IllegalStateException("对象存储 Endpoint 格式无效");
+		}
+		return value;
+	}
+
+	static String buildObjectName(String dir, String fileName) {
+		String suffix = "";
+		int suffixIndex = fileName.lastIndexOf('.');
+		if (suffixIndex > 0 && suffixIndex < fileName.length() - 1) {
+			suffix = fileName.substring(suffixIndex + 1).toLowerCase(Locale.ROOT);
+		}
+		String directory = StringUtils.hasText(dir) ? dir.trim().replace('\\', '/') : "";
+		while (directory.startsWith("/")) {
+			directory = directory.substring(1);
+		}
+		while (directory.endsWith("/")) {
+			directory = directory.substring(0, directory.length() - 1);
+		}
+		if (directory.contains("..")) {
+			throw new IllegalStateException("对象存储目录不能包含上级路径");
+		}
+		String objectFileName = UUID.randomUUID() + (StringUtils.hasText(suffix) ? "." + suffix : "");
+		return StringUtils.hasText(directory) ? directory + "/" + objectFileName : objectFileName;
+	}
+
+	static String buildObjectUrl(StorageConfig storageConfig, String endpoint, String bucketName, String objectName) {
+		if (StringUtils.hasText(storageConfig.getDomain())) {
+			return normalizeEndpoint(storageConfig.getDomain()) + "/" + objectName;
+		}
+		URI endpointUri = URI.create(endpoint);
+		if (isAliyunEndpoint(endpoint) || !Boolean.TRUE.equals(storageConfig.getStyleAccessEnabled())) {
+			String authority = endpointUri.getPort() < 0 ? endpointUri.getHost()
+					: endpointUri.getHost() + ":" + endpointUri.getPort();
+			return endpointUri.getScheme() + "://" + bucketName + "." + authority + "/" + objectName;
+		}
+		return endpoint + "/" + bucketName + "/" + objectName;
+	}
+
+	private static void validateStorageConfig(StorageConfig storageConfig, InputStream inputStream, String fileName,
+			long size) {
+		if (storageConfig == null) {
+			throw new IllegalStateException("对象存储配置为空");
+		}
+		if (!StringUtils.hasText(storageConfig.getEndpoint())) {
+			throw new IllegalStateException("对象存储 Endpoint 未配置");
+		}
+		if (!StringUtils.hasText(storageConfig.getBucket())) {
+			throw new IllegalStateException("对象存储 Bucket 未配置");
+		}
+		if (!StringUtils.hasText(storageConfig.getAccessKeyId())
+				|| !StringUtils.hasText(storageConfig.getAccessKeySecret())) {
+			throw new IllegalStateException("对象存储访问凭据未配置");
+		}
+		if (inputStream == null || !StringUtils.hasText(fileName) || size <= 0) {
+			throw new IllegalStateException("上传文件内容为空");
+		}
+	}
+
+	private static String normalizeContentType(String contentType) {
+		return StringUtils.hasText(contentType) ? contentType : "application/octet-stream";
+	}
+
+	private static IllegalStateException providerFailure(String errorCode, RuntimeException cause) {
+		String code = StringUtils.hasText(errorCode) ? errorCode : "Unknown";
+		return switch (code) {
+			case "AccessDenied" -> new IllegalStateException("对象存储拒绝上传，请检查 Bucket 写入权限", cause);
+			case "InvalidAccessKeyId" -> new IllegalStateException("对象存储 AccessKey 无效或已停用", cause);
+			case "SignatureDoesNotMatch" ->
+				new IllegalStateException("对象存储签名校验失败，请检查 AccessSecret 和 Endpoint 地域", cause);
+			case "NoSuchBucket" -> new IllegalStateException("对象存储 Bucket 不存在或与 Endpoint 地域不一致", cause);
+			default -> new IllegalStateException("对象存储上传失败（" + code + "）", cause);
+		};
 	}
 
 }

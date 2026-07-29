@@ -105,7 +105,13 @@ async function uploadDocumentFile(options: UploadRequestOptions) {
     ElMessage.success('文档已上传到对象存储，请保存文档信息');
   } catch (error) {
     options.onError(error as Parameters<typeof options.onError>[0]);
-    ElMessage.error('文档上传失败');
+    const failure = error as {
+      msg?: string;
+      response?: { data?: { msg?: string } };
+    };
+    const message =
+      failure.response?.data?.msg ?? failure.msg ?? '文档上传失败';
+    ElMessage.error(message);
   }
 }
 
