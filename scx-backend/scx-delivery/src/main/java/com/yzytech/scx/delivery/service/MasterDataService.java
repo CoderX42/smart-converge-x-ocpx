@@ -90,18 +90,17 @@ public class MasterDataService {
 	@Transactional
 	public boolean saveProduct(Product value) {
 		requireWrite(value.getMediaId());
+		Product existing = null;
 		if (value.getId() != null) {
-			Product existing = productMapper.selectById(value.getId());
+			existing = productMapper.selectById(value.getId());
 			requireSameMedia(existing == null ? null : existing.getMediaId(), value.getMediaId());
 		}
 		Partner partner = partnerMapper.selectById(value.getPartnerId());
 		if (partner == null || !value.getMediaId().equals(partner.getMediaId()))
 			throw new IllegalArgumentException("合作方不在当前媒体范围");
-		if (StringUtils.hasText(value.getCustomerId())) {
-			UpstreamCustomer customer = customerMapper.selectById(value.getCustomerId());
-			if (customer == null || !value.getMediaId().equals(customer.getMediaId()))
-				throw new IllegalArgumentException("上游客户不在当前媒体范围");
-		}
+		// New business data belongs to Partner. Keep the retired customer
+		// reference only on records that already carried it before this merge.
+		value.setCustomerId(existing == null ? null : existing.getCustomerId());
 		defaults(value);
 		return value.getId() == null ? productMapper.insert(value) == 1 : productMapper.updateById(value) == 1;
 	}

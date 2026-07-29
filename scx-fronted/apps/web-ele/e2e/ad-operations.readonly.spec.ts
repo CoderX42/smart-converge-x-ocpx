@@ -55,8 +55,8 @@ test.describe('广告运营只读 E2E', () => {
     await login(page);
   });
 
-  test('登录后可读取客户与产品主数据', async ({ page }) => {
-    await expectOperationalPage(page, '/delivery/customers', '上游客户');
+  test('登录后可读取合作方与产品主数据', async ({ page }) => {
+    await expectOperationalPage(page, '/delivery/partners', '合作方');
     await expectOperationalPage(page, '/delivery/products', '产品管理');
   });
 

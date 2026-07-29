@@ -5,12 +5,7 @@ import { reactive, ref, watch } from 'vue';
 
 import { ElMessage } from 'element-plus';
 
-import {
-  getMaster,
-  getMedia,
-  getUpstreamCustomers,
-  saveMaster,
-} from '#/api/ad';
+import { getMaster, getMedia, saveMaster } from '#/api/ad';
 
 import '../components/mvp-page.css';
 
@@ -27,7 +22,6 @@ const current = ref(1);
 const size = ref(20);
 const total = ref(0);
 const partners = ref<any[]>([]);
-const customers = ref<any[]>([]);
 const form = reactive<any>({});
 
 async function bootstrap() {
@@ -38,22 +32,13 @@ async function bootstrap() {
 
 async function loadOptions() {
   if (!mediaId.value) return;
-  const [partnerResult, customerResult] = await Promise.all([
-    getMaster('partners', {
-      current: 1,
-      size: 200,
-      mediaId: mediaId.value,
-      status: 'ACTIVE',
-    }),
-    getUpstreamCustomers({
-      current: 1,
-      size: 200,
-      mediaId: mediaId.value,
-      status: 'ACTIVE',
-    }),
-  ]);
+  const partnerResult = await getMaster('partners', {
+    current: 1,
+    size: 200,
+    mediaId: mediaId.value,
+    status: 'ACTIVE',
+  });
   partners.value = partnerResult.records || [];
-  customers.value = customerResult.records || [];
 }
 
 async function load() {
@@ -94,7 +79,9 @@ async function submit() {
   }
   saving.value = true;
   try {
-    await saveMaster('products', { ...form, mediaId: mediaId.value });
+    const payload = { ...form, mediaId: mediaId.value };
+    delete payload.customerId;
+    await saveMaster('products', payload);
     ElMessage.success('产品配置已保存');
     drawer.value = false;
     await load();
@@ -196,16 +183,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           <el-select v-model="form.partnerId" class="w-full" filterable>
             <el-option
               v-for="item in partners"
-              :key="item.id"
-              :label="item.name"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="上游客户">
-          <el-select v-model="form.customerId" class="w-full" clearable>
-            <el-option
-              v-for="item in customers"
               :key="item.id"
               :label="item.name"
               :value="item.id"

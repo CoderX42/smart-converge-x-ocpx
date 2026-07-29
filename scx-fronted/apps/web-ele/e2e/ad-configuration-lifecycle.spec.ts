@@ -159,7 +159,7 @@ test.describe('广告投放配置写入 E2E', () => {
     'Set E2E_USERNAME and E2E_PASSWORD for an isolated local sandbox before running configuration E2E.',
   );
 
-  test('创建并启用客户、产品、追踪链接和监测任务后可在运营页追溯', async ({
+  test('创建并启用产品、追踪链接和监测任务后可在运营页追溯', async ({
     page,
   }) => {
     const token = await login(page);
@@ -183,36 +183,14 @@ test.describe('广告投放配置写入 E2E', () => {
     ]);
 
     const runId = randomUUID().replaceAll('-', '').slice(0, 12);
-    const customerCode = `e2e-sandbox-customer-${runId}`;
     const productCode = `e2e-sandbox-product-${runId}`;
     const linkCode = `e2e-sandbox-link-${runId}`;
     const taskCode = `e2e-sandbox-task-${runId}`;
 
     assertApiSuccess(
-      await api<boolean>(page, token, '/ad/upstream-customers', {
-        body: {
-          code: customerCode,
-          description: 'isolated browser E2E configuration lifecycle',
-          mediaId: media.id,
-          name: `E2E sandbox customer ${runId}`,
-          status: 'ACTIVE',
-        },
-        method: 'POST',
-      }),
-    );
-    const customer = await findByCode(
-      page,
-      token,
-      'upstream-customers',
-      media.id,
-      customerCode,
-    );
-
-    assertApiSuccess(
       await api<boolean>(page, token, '/ad/products', {
         body: {
           code: productCode,
-          customerId: customer.id,
           mediaId: media.id,
           name: `E2E sandbox product ${runId}`,
           partnerId: partner.id,
@@ -330,9 +308,9 @@ test.describe('广告投放配置写入 E2E', () => {
 
     await expectSearchResult(
       page,
-      '/delivery/customers',
-      '名称或编码搜索',
-      customerCode,
+      '/delivery/partners',
+      '搜索合作方名称或编码',
+      partner.code,
     );
     await expectSearchResult(
       page,

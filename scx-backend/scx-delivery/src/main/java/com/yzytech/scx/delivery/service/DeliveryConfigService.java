@@ -41,8 +41,6 @@ public class DeliveryConfigService {
 
 	private final PartnerMapper partnerMapper;
 
-	private final UpstreamCustomerMapper customerMapper;
-
 	private final ProductMapper productMapper;
 
 	private final IntegrationDocumentMapper documentMapper;
@@ -68,8 +66,9 @@ public class DeliveryConfigService {
 	@Transactional
 	public boolean saveLink(TrackingLink value) {
 		requireWrite(value.getMediaId());
+		TrackingLink existing = null;
 		if (value.getId() != null) {
-			TrackingLink existing = requireLink(value.getId(), true);
+			existing = requireLink(value.getId(), true);
 			if (!"DRAFT".equals(existing.getStatus()))
 				throw new IllegalArgumentException("已启用链接配置不可覆盖，请创建新链接");
 			if (!existing.getMediaId().equals(value.getMediaId()))
@@ -83,14 +82,9 @@ public class DeliveryConfigService {
 				|| !partner.getId().equals(product.getPartnerId())) {
 			throw new IllegalArgumentException("产品与合作方归属不一致");
 		}
-		if (StringUtils.hasText(product.getCustomerId())) {
-			UpstreamCustomer customer = customerMapper.selectById(product.getCustomerId());
-			if (customer == null || !value.getMediaId().equals(customer.getMediaId())
-					|| !"ACTIVE".equals(customer.getStatus())) {
-				throw new IllegalArgumentException("产品绑定的上游客户不可用");
-			}
-			value.setCustomerId(customer.getId());
-		}
+		// Partner is the only ownership reference written for new links. An
+		// existing legacy customer reference is retained verbatim on edits.
+		value.setCustomerId(existing == null ? null : existing.getCustomerId());
 		if (StringUtils.hasText(value.getDocumentId())) {
 			IntegrationDocument document = documentMapper.selectById(value.getDocumentId());
 			if (document == null || !value.getMediaId().equals(document.getMediaId()))

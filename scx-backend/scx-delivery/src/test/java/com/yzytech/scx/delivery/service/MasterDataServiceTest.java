@@ -2,6 +2,7 @@ package com.yzytech.scx.delivery.service;
 
 import com.yzytech.scx.delivery.entity.IntegrationDocument;
 import com.yzytech.scx.delivery.entity.Partner;
+import com.yzytech.scx.delivery.entity.Product;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import com.yzytech.scx.delivery.mapper.IntegrationDocumentMapper;
 import com.yzytech.scx.delivery.mapper.MediaChannelMapper;
@@ -33,12 +34,14 @@ class MasterDataServiceTest {
 
 	private final PartnerMapper partnerMapper = mock(PartnerMapper.class);
 
+	private final ProductMapper productMapper = mock(ProductMapper.class);
+
 	private final IntegrationDocumentMapper documentMapper = mock(IntegrationDocumentMapper.class);
 
 	private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
 
 	private final MasterDataService service = new MasterDataService(scopeService, partnerMapper, customerMapper,
-			mock(ProductMapper.class), documentMapper, mock(MediaChannelMapper.class), storageUploadService);
+			productMapper, documentMapper, mock(MediaChannelMapper.class), storageUploadService);
 
 	@Test
 	void externalUrlAllowsHttpAndHttpsWithoutFetchingContent() {
@@ -99,6 +102,40 @@ class MasterDataServiceTest {
 		when(scopeService.canWrite("media-1")).thenReturn(true);
 		assertThatThrownBy(() -> service.savePartner(invalid)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("不支持的合作方状态");
+	}
+
+	@Test
+	void newProductUsesPartnerOnlyAndIgnoresLegacyCustomerInput() {
+		Product product = product(null, "customer-request");
+		Partner partner = partner("PARTNER-1", "合作方一");
+		partner.setId("partner-1");
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(partnerMapper.selectById("partner-1")).thenReturn(partner);
+		when(productMapper.insert(product)).thenReturn(1);
+
+		assertThat(service.saveProduct(product)).isTrue();
+
+		assertThat(product.getCustomerId()).isNull();
+		verify(productMapper).insert(product);
+		verify(customerMapper, never()).selectById(any());
+	}
+
+	@Test
+	void productUpdatePreservesHistoricalCustomerReference() {
+		Product existing = product("product-1", "customer-history");
+		Product update = product("product-1", "customer-request");
+		Partner partner = partner("PARTNER-1", "合作方一");
+		partner.setId("partner-1");
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(productMapper.selectById("product-1")).thenReturn(existing);
+		when(partnerMapper.selectById("partner-1")).thenReturn(partner);
+		when(productMapper.updateById(update)).thenReturn(1);
+
+		assertThat(service.saveProduct(update)).isTrue();
+
+		assertThat(update.getCustomerId()).isEqualTo("customer-history");
+		verify(productMapper).updateById(update);
+		verify(customerMapper, never()).selectById(any());
 	}
 
 	@Test
@@ -298,6 +335,20 @@ class MasterDataServiceTest {
 		value.setMediaId("media-1");
 		value.setCode(code);
 		value.setName(name);
+		return value;
+	}
+
+	private Product product(String id, String customerId) {
+		Product value = new Product();
+		value.setId(id);
+		value.setMediaId("media-1");
+		value.setPartnerId("partner-1");
+		value.setCustomerId(customerId);
+		value.setCode("PRODUCT-1");
+		value.setName("产品一");
+		value.setPlatform("ANDROID");
+		value.setStatus("ACTIVE");
+		value.setVersion(0);
 		return value;
 	}
 

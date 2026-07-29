@@ -16,4 +16,20 @@ export const legacyMasterDataRedirect: RouteRecordRaw = {
   }),
 };
 
-export default [legacyMasterDataRedirect];
+export const legacyCustomerRedirect: RouteRecordRaw = {
+  meta: {
+    hideInBreadcrumb: true,
+    hideInMenu: true,
+    hideInTab: true,
+    title: '合作方',
+  },
+  name: 'LegacyCustomerRedirect',
+  path: '/delivery/customers',
+  redirect: (to) => ({
+    hash: to.hash,
+    path: '/delivery/partners',
+    query: to.query,
+  }),
+};
+
+export default [legacyMasterDataRedirect, legacyCustomerRedirect];
