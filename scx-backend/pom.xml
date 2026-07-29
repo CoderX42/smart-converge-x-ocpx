@@ -15,6 +15,11 @@
         <module>scx-delivery</module>
         <module>scx-tracking</module>
         <module>scx-reporting</module>
+        <module>scx-commercial</module>
+        <module>scx-finance</module>
+        <module>scx-inventory</module>
+        <module>scx-creative</module>
+        <module>scx-campaign</module>
 
         <module>scx-visual</module>
         <module>scx-boot</module>
@@ -112,6 +117,31 @@
             <dependency>
                 <groupId>com.scx</groupId>
                 <artifactId>scx-reporting</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-commercial</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-finance</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-inventory</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-creative</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
+                <artifactId>scx-campaign</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

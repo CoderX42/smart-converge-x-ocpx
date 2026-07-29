@@ -25,6 +25,23 @@ required_tables=(
   sys_sms_config sys_sms_send_record sys_social_account sys_storage_config
   sys_user sys_user_role
   scx_media scx_user_subject_scope scx_partner scx_product
+  scx_organization scx_advertiser scx_agency_relation scx_ad_account
+  scx_qualification_case scx_qualification_document scx_qualification_review_log
+  scx_agreement_template scx_agreement_instance scx_data_authorization
+  scx_fin_account scx_fin_journal scx_fin_entry scx_credit_line
+  scx_budget_reservation scx_ledger_balance_snapshot scx_fin_idempotency
+  scx_rebate_rule scx_rebate_rule_version scx_rebate_calculation
+  scx_refund_case scx_invoice_application scx_invoice_item
+  scx_reconciliation_run scx_reconciliation_item scx_closing_period
+  scx_adjustment_journal
+  scx_media_account scx_placement scx_media_capability
+  scx_placement_quality_snapshot scx_media_adapter_config
+  scx_creative_asset scx_creative_asset_revision scx_asset_binary
+  scx_creative_review_case scx_creative_review_log
+  scx_landing_page scx_landing_page_revision scx_creative_binding
+  scx_campaign scx_campaign_revision scx_ad_group scx_ad_group_revision
+  scx_ad scx_ad_revision scx_optimization_goal scx_budget_plan
+  scx_targeting_revision scx_media_publishing_binding scx_publishing_operation
   scx_media_channel scx_integration_document scx_tracking_link
   scx_link_event_mapping scx_tracking_task scx_raw_event
   scx_conversion_identity scx_conversion_dedup_result scx_click_dedup_result

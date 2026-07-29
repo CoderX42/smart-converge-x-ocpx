@@ -1,34 +1,46 @@
+# =============================================================================
+# 生产配置：直接写在本文件，不依赖环境变量 /etc/scx/scx.env
+#
+# 部署机修改后重新打包即可生效：
+#   nano /opt/smart-converge-x/scx-backend/scx-boot/src/main/resources/application-prod.yml
+#   bash /opt/smart-converge-x/scripts/bt-deploy/01-deploy.sh --no-pull backend
+#
+# 注意：密码等会打进 jar，请控制仓库与服务器访问权限。
+# =============================================================================
+
 spring:
   config:
-    fail-on-unresolved-placeholders: true
+    fail-on-unresolved-placeholders: false
   servlet:
     multipart:
       maxFileSize: 100MB
       maxRequestSize: 100MB
   cache:
-    type: redis
+    type: redis # 缓存类型 Redis
   data:
     redis:
-      host: ${SCX_REDIS_HOST}
-      port: ${SCX_REDIS_PORT:6379}
-      username: ${SCX_REDIS_USERNAME:}
-      password: ${SCX_REDIS_PASSWORD}
-      database: ${SCX_REDIS_DATABASE:0}
+      host: redis-cnlfagupdyxgrkgqy.redis.ivolces.com
+      port: 6379
+      username: ocpxuser
+      password: OqS5ZRBU1wBuEqLeHAQ3
+      database: 0
+
+  # 数据库相关配置
   datasource:
     dynamic:
-      primary: master
+      primary: master   # 指定默认数据源
       datasource:
-        master:
-          url: ${SCX_DATASOURCE_URL}
-          username: ${SCX_DATASOURCE_USERNAME}
-          password: ${SCX_DATASOURCE_PASSWORD}
+        master:         # 注意，这里要嵌套在 datasource 下
+          url: jdbc:mysql://mysqle379be1ffea9.rds.ivolces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
+          username: ocpxuser
+          password: OqS5ZRBU1wBuEqLeHAQ3
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
 rocketmq:
-  name-server: ${ROCKETMQ_NAME_SERVER}
+  name-server: 127.0.0.1:9876
   producer:
-    group: ${SCX_ROCKETMQ_PRODUCER_GROUP:producer_group}
+    group: producer_group
     retry-times-when-send-failed: 5
     send-message-timeout: 5000
 
@@ -39,19 +51,23 @@ aj:
 
 xxl:
   job:
-    adminAddresses: ${SCX_XXL_JOB_ADMIN_ADDRESSES}
-    accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN}
+    adminAddresses: http://127.0.0.1:8080
+    accessToken: scx-prod-xxl-token
     appName: smart-converge-x
-    port: ${SCX_XXL_JOB_EXECUTOR_PORT:9009}
+    port: 9009
 
-cert-dir: ${SCX_CERT_DIR:./cert}
+cert-dir: ./cert
 
 encode:
-  key: ${SCX_ENCODE_KEY}
+  key: scx-dev-encode-key
 
+#knife4j配置
 knife4j:
+  #是否启用增强设置
   enable: true
+  #开启生产环境屏蔽
   production: true
+  #是否启用登录认证
   basic:
     enable: false
   setting:
@@ -60,19 +76,18 @@ knife4j:
 scx:
   tracking:
     sandbox-enabled: false
-    attribution-rule-version: ${SCX_TRACKING_ATTRIBUTION_RULE_VERSION:last-click-v1}
+    attribution-rule-version: last-click-v1
     feedback-store: redis
     ingress-enabled: true
     worker-enabled: true
-    # Recovery is fail-closed: the operator enables publisher and scheduler
-    # separately only after Broker/Topic and Outbox/Redis reconciliation.
-    outbox-publisher-enabled: ${SCX_TRACKING_OUTBOX_PUBLISHER_ENABLED:false}
-    outbox-scheduler-enabled: ${SCX_TRACKING_OUTBOX_SCHEDULER_ENABLED:false}
-    outbox-topic: ${SCX_TRACKING_OUTBOX_TOPIC:scx_tracking_events}
-    channel-master-key: ${SCX_TRACKING_CHANNEL_MASTER_KEY}
-    device-hmac-key: ${SCX_TRACKING_DEVICE_HMAC_KEY}
-    callback-sandbox-endpoint: ${SCX_TRACKING_CALLBACK_SANDBOX_ENDPOINT:}
-    callback-allowed-hosts: ${SCX_TRACKING_CALLBACK_ALLOWED_HOSTS:}
+    outbox-publisher-enabled: false
+    outbox-scheduler-enabled: false
+    outbox-topic: scx_tracking_events
+    # 32 字节密钥的 Base64；上线请替换
+    channel-master-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    device-hmac-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    callback-sandbox-endpoint:
+    callback-allowed-hosts:
 
 logging:
   level:

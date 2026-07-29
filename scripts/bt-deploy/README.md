@@ -3,6 +3,12 @@
 与浩荣项目习惯对齐：**00 同步 + 03 一键部署** 为日常主力。  
 服务启停由 **宝塔 Java 项目管理器 / 面板** 完成，本目录不提供 manage 脚本。
 
+## 配置规范（与 AGENTS.md §6.4 一致）
+
+- **scx-boot / xxl-job 配置直写**在仓库 yml、properties 中，**不要**使用 `${SCX_*}`、`${XXL_JOB_*}` 等环境变量占位。
+- **不要**要求启动前 `source /etc/scx/scx.env`；宝塔可直接 `java -jar`。
+- 改 `application-prod.yml` 或 `xxl-job-admin/.../application.properties` 后，必须用本目录脚本**重新打包**再重启。
+
 | 脚本 | 作用 | 常用 |
 | --- | --- | --- |
 | `00-sync_repos.sh` | 从 Gitea 同步 monorepo（clone / `reset --hard`） | ⭐ 常用 |
@@ -23,8 +29,18 @@
 
 1. **网站**：根目录 = `SCX_WEB_ROOT`（如 `/www/wwwroot/scx`）
 2. **伪静态**：粘贴仓库 `scripts/deploy/nginx-scx-baota-rewrite.conf`
-3. **Java 项目**：JAR 指向 `build/backend/scx-boot.jar` 或 `scx-backend/scx-boot/target/scx-boot.jar`，在面板里重启
-4. **不要**对公网放行 `9999`
+3. **生产配置文件**（必做，否则 prod 起不来）：
+   ```bash
+   mkdir -p /etc/scx
+   cp /opt/smart-converge-x/scripts/deploy/env.example /etc/scx/scx.env
+   chmod 600 /etc/scx/scx.env
+   nano /etc/scx/scx.env   # 填入真实 MySQL/Redis/密钥等
+   ```
+4. **Java 项目 scx-boot**（推荐用启动脚本，不要裸 `java -jar`）：
+   - 启动命令：`/bin/bash /opt/smart-converge-x/scripts/deploy/run-boot.sh`
+   - 或「项目配置 → 环境变量」里逐项填入 `SCX_*`（与 `scx.env` 相同）
+   - 缺变量时日志会报：`Missing required production configuration: SCX_...`
+5. **不要**对公网放行 `9999`
 
 ## 日常命令
 

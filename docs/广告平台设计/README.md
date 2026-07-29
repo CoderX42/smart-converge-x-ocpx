@@ -55,3 +55,17 @@
 3. 测试文件存在、页面可打开或静态检查通过，不等于运行闭环已验证。
 4. 任何“已验证”必须附环境、命令、结果与证据位置；任何“已验收”必须有验收人结论。
 5. 不恢复或覆盖用户当前删除/修改的文档、广告主代码、迁移和配置，除非任务明确授权。
+
+## 4.1 运行配置规范（Agent 强制，与 AGENTS.md §6.4 一致）
+
+自 2026-07 起，SCX **应用运行配置**采用配置文件**直写**，**禁止**依赖环境变量占位与 `/etc/scx/scx.env`：
+
+| 规则 | 说明 |
+| --- | --- |
+| 禁止 `${SCX_*}` / `${XXL_JOB_*}` 等业务占位 | 写在 `application-dev.yml`、`application-prod.yml`、`xxl-job-admin` 的 `application.properties` |
+| 禁止强制 env 启动 | 宝塔 / `java -jar` 只靠 profile + 配置文件即可启动 |
+| 禁止恢复 env fail-closed | 勿恢复「缺少 SCX_* 则拒绝启动」的 EnvironmentPostProcessor 强制逻辑 |
+| 改配置后须重新打包 | 配置打进 jar 后重启才生效 |
+
+权威全文与 Agent 自检清单：**仓库根目录 `AGENTS.md`（或 `Agents.md`）第 6.4 节**。  
+部署脚本说明：`scripts/bt-deploy/README.md`、`scripts/deploy/README.md`。

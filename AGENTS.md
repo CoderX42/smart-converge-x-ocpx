@@ -90,14 +90,21 @@
 
 ### 4.1 配置外部依赖服务
 
+应用连接信息写在 profile 配置文件中（**直写，无 env 占位**），见 **§6.4**：
+
+- 开发：`scx-backend/scx-boot/src/main/resources/application-dev.yml`
+- 生产：`scx-backend/scx-boot/src/main/resources/application-prod.yml`
+- XXL-JOB：`xxl-job/xxl-job-admin/src/main/resources/application.properties`
+
+数据库初始化（可选，需本机 mysql 客户端能连上 yml 中的库）：
+
 ```bash
-cp .env.example .env.local
-set -a; source .env.local; set +a
+# 若脚本仍读取 MYSQL_*，可临时 export 与 yml 一致的值后执行
 make db-migrate
 make db-verify
 ```
 
-> MySQL、Redis、RocketMQ 由环境外部管理；仓库只负责应用启动和数据库前向迁移。
+> MySQL、Redis、RocketMQ 由环境外部管理；**应用侧**通过 yml/properties 直连，不依赖 `/etc/scx/scx.env`。
 
 ### 4.2 后端
 
@@ -254,7 +261,49 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 
 - 新增功能应尽量关联 `docs/广告平台设计/MVP开发规划.md` 中的任务，并在需求明确后补充测试。
 - 重大架构/产品变更需先写 ADR 或 RFC，评审后落地。ADR 目录：`docs/广告平台设计/adr/`（当前为空）。
-- 不要在代码中直接提交生产密码、API 密钥、支付证书、OSS 密钥。
+- 仓库中的示例/默认凭据仅用于本机联调；真实生产密钥由负责人在部署机 yml 中维护，避免无必要地扩大分发面。
+
+### 6.4 配置规范（Agent 强制遵守）
+
+> **现行规范（2026-07 起）：应用运行时配置采用「配置文件直写」，不使用 Spring 环境变量占位符，也不依赖 `/etc/scx/scx.env` 等 env 文件注入。**
+
+#### 必须遵守
+
+1. **禁止**在下列文件中使用 `${SCX_*}`、`${ROCKETMQ_*}`、`${XXL_JOB_*}`、`${XXL_SSO_*}` 等**运行时环境变量占位符**（含 `${VAR:default}` 形式）：
+   - `scx-backend/scx-boot/src/main/resources/application-dev.yml`
+   - `scx-backend/scx-boot/src/main/resources/application-prod.yml`
+   - `xxl-job/xxl-job-admin/src/main/resources/application.properties`
+   - `xxl-job/**/executor*/**/application.properties` 与 `xxl-job-executor.properties`（样例执行器）
+   - `scripts/deploy/xxl-job/application.properties.template`
+2. **禁止**新增「生产启动必须读取 `/etc/scx/scx.env` 或 `EnvironmentFile` 才有配置」的路径；宝塔 / `java -jar` 必须能只靠 profile + yml/properties 启动。
+3. **禁止**恢复或新增类似 `ProdRequiredConfigurationEnvironmentPostProcessor` 的「缺少 SCX_* 环境变量就 fail-closed」逻辑（该类应保持 no-op；勿再强制 env）。
+4. 新增配置项时：**直接写在对应 profile 的 yml / properties 中**，使用字面量（host、url、password、token 等）。
+5. 建议在 yml 中保留 `spring.config.fail-on-unresolved-placeholders: false`，避免历史占位残留阻断启动。
+6. 修改配置后须**重新打包**（配置打进 jar），再重启进程；仅改源文件不打包不生效。
+
+#### 允许的例外（不要扩大范围）
+
+- **Maven / 构建期**属性：`pom.xml` 中的 `${project.version}`、`${spring-boot.version}` 等。
+- **Logback 内部**路径变量：`${log.path}`、`${LOG_HOME:-...}`（日志框架惯例，不是业务密钥注入）。
+- **Docker Compose / 外部编排**样例中的 `${MYSQL_PATH}` 等（仅 docker 文档/样例；不作为 scx-boot / xxl-job-admin 的启动必选）。
+- **Nacos 独立组件**配置（`scx-backend/db/nacos/`）若仍使用占位，不自动套用到 scx-boot；除非任务明确要求改 Nacos。
+
+#### 部署与宝塔
+
+- 线上标准：**宝塔 + bash**（`scripts/bt-deploy/00` / `01` / `03`）。
+- 代码目录默认：`/opt/smart-converge-x`；前端站点根：`/www/wwwroot/scx`。
+- 改库连接 / Redis / 密钥：编辑仓库内 yml 或服务器上同源路径 → `bash scripts/bt-deploy/01-deploy.sh --no-pull backend`（或全量 `03`）→ 宝塔重启 Java 项目。
+- scx-boot 与 xxl-job 的 `accessToken` 等关联项必须在**各自配置文件中字面量一致**。
+
+#### Agent 自检清单（改配置相关 PR 前）
+
+```text
+[ ] application-dev.yml / application-prod.yml 无 ${SCX_*} / ${ROCKETMQ_*} 业务占位
+[ ] xxl-job-admin application.properties 无 ${XXL_JOB_*} / ${XXL_SSO_*} 业务占位
+[ ] 未重新引入「缺少 env 则拒绝启动」的 EnvironmentPostProcessor 强制逻辑
+[ ] 未把启动流程改回「必须 source /etc/scx/scx.env」
+[ ] 新增配置项已写入对应 yml/properties 字面量，并说明需重新打包
+```
 
 ---
 
@@ -288,27 +337,23 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 
 ### 8.1 后端部署
 
-- 使用 Maven 构建 `scx-boot` JAR，并通过 `--spring.profiles.active=prod` 启动。
-- MySQL、Redis、RocketMQ 地址和凭据由部署环境注入，应用默认监听 `9999`。
+- 使用 Maven / `scripts/bt-deploy` 构建 `scx-boot` JAR，并通过 `--spring.profiles.active=prod` 启动。
+- **连接与密钥写在 `application-prod.yml`（及 xxl-job `application.properties`）**，打包进 jar；**不要**再设计为必须 env 注入（见 **§6.4**）。
+- 应用默认监听 `9999`，context-path `/boot`。
+- 宝塔：Java 项目可直接 `java -jar .../build/backend/scx-boot.jar --spring.profiles.active=prod`，或 `scripts/deploy/run-boot.sh`。
 
 ### 8.2 前端部署
 
-- 构建产物：`pnpm build:ele` 输出 `apps/web-ele/dist`，由外部 Nginx 或静态文件服务托管。
-- Nginx 配置：`scx-fronted/scripts/deploy/scx-fronted.conf`：
-  - `/api` 反向代理到后端 `9999` 端口。
-  - 直接返回 `403` 阻止 `/actuator`。
-  - 添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`CSP` 等安全响应头。
+- 构建产物：`pnpm build:ele` 或 `scripts/bt-deploy/01-deploy.sh` 同步到宝塔站点根（默认 `/www/wwwroot/scx`）。
+- 站点 / SSL / 伪静态由**宝塔**管理；伪静态模板：`scripts/deploy/nginx-scx-baota-rewrite.conf`。
+- 系统 Nginx 完整 conf（无宝塔时备用）：`scripts/deploy/nginx-scx.conf` / 前端仓库 `scx-fronted/scripts/deploy/scx-fronted.conf`。
 
 ### 8.3 生产部署注意事项
 
-- 生产数据库密码、Redis 密码、RocketMQ 地址、支付密钥/证书、OSS 密钥等**必须**通过环境变量或配置中心注入。
-- 后端可覆盖的环境变量示例：
-  - `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_URL`
-  - `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_USERNAME`
-  - `SPRING_DATASOURCE_DYNAMIC_DATASOURCE_MASTER_PASSWORD`
-  - `SPRING_DATA_REDIS_HOST`、`SPRING_DATA_REDIS_PASSWORD`
-  - `ROCKETMQ_NAME_SERVER`
+- 修改 `application-prod.yml` / xxl-job properties 后必须**重新打包并重启**。
+- 配置文件中的密码会进入 jar：限制仓库与服务器访问权限；勿把含真实生产密钥的 diff 发到公开渠道。
 - 首次登录后必须修改默认管理员密码（默认账号 `system` / `123456`）。
+- 日常发布：`scripts/bt-deploy/00-sync_repos.sh`、`03-deploy_all.sh`，然后在宝塔 Java 项目管理器重启。
 
 ---
 
@@ -317,7 +362,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 - **认证授权**：Sa-Token 会话 + 菜单/按钮权限码；`scx-subject` 已实现对象级授权（`scx_user_subject_scope`）。
 - **机器接口签名**：`api.sign.enabled` 默认为 `false`，规划中的事件接入等机器接口后续需启用签名，**禁止将签名密钥下发到浏览器**。
 - **敏感配置**：`.gitleaks.toml` 配置了默认规则与允许列表；CI 使用 `gitleaks/gitleaks-action@v2` 扫描密钥泄露。
-- **开发配置风险**：`application-dev.yml` 与 `application-prod.yml` 均只读取环境变量；真实凭据只允许存放在 Git 外部的 `.env.local` 或部署平台密钥管理中。
+- **配置存放方式**：业务运行配置**直写**在 `application-*.yml` / xxl-job `application.properties`（见 **§6.4**）；不要把「必须 env 注入」当成新规范重新引入。
 - **数据脱敏**：`scx-common-core` 提供 `@Desensitization` 及手机号、身份证、姓名、密码脱敏实现。
 - **默认数据**：数据库脚本不再携带真实支付证书、线上数据源、小程序配置等敏感种子。
 
@@ -326,18 +371,19 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 ## 10. Agent 必读与工作流程
 
 1. **先读文档再写代码**：
-   - 必读：`docs/广告平台设计/README.md`、`docs/广告平台设计/MVP开发规划.md`。
-   - 后续按 `README.md` 中规划的阅读顺序补齐其他专题文档（目前多数尚未创建）。
+   - 必读：本文件 **§6.4 配置规范**、`docs/广告平台设计/README.md`、`docs/广告平台设计/MVP开发规划.md`。
+   - 后续按 `README.md` 中规划的阅读顺序补齐其他专题文档。
 2. **不能仅凭任务标题生成代码**；实现状态以真实测试证据与现有代码为准，不要把规划能力描述为已交付。
 3. **提交前运行**：
    - `make backend-test`
    - `cd scx-fronted && pnpm check:type && pnpm lint && pnpm test:unit`
-   - `make contract-check`（当前因契约目录缺失会失败，补齐后再纳入门禁）
+   - `make contract-check`（契约目录补齐后纳入门禁）
 4. **变更粒度**：一个提交/PR 围绕一个明确的 MVP 任务；新增功能补测试；重大变更先写 ADR。
 5. **不要做的事**：
-   - 不要提交密码、密钥、证书、生产数据库地址。
+   - **不要**在 scx-boot / xxl-job 运行配置中重新引入 `${ENV}` 占位或强制 `/etc/scx/scx.env`。
    - 不要把规划能力描述为已交付。
    - 不要修改无关的代码风格或进行大范围重命名。
+   - 不要把签名密钥下发到浏览器。
 
 ---
 
@@ -349,8 +395,12 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 | 后端主 POM | `scx-backend/pom.xml` |
 | 后端启动模块 | `scx-backend/scx-boot/pom.xml` |
 | 后端主配置 | `scx-backend/scx-boot/src/main/resources/application.yml` |
-| 后端开发配置 | `scx-backend/scx-boot/src/main/resources/application-dev.yml` |
-| 后端启动/部署 | `Makefile`、`scx-backend/scx-boot/src/main/resources/application-*.yml` |
+| 后端开发配置（直写） | `scx-backend/scx-boot/src/main/resources/application-dev.yml` |
+| 后端生产配置（直写） | `scx-backend/scx-boot/src/main/resources/application-prod.yml` |
+| XXL-JOB 配置（直写） | `xxl-job/xxl-job-admin/src/main/resources/application.properties` |
+| 宝塔运维脚本 | `scripts/bt-deploy/`（00 同步 / 01 打包 / 03 一键） |
+| 配置规范（Agent） | 本文件 **§6.4** |
+| 后端启动/部署 | `scripts/deploy/run-boot.sh`、`scripts/bt-deploy/`、`application-*.yml` |
 | 数据库基线脚本 | `scx-backend/db/smart-converge-x/` |
 | 业务增量 SQL | `scx-backend/scx-boot/src/main/resources/db/migration/` |
 | 前端根 package | `scx-fronted/package.json` |

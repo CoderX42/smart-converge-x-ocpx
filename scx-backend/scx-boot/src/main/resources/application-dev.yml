@@ -1,32 +1,36 @@
 spring:
+  config:
+    fail-on-unresolved-placeholders: false
   servlet:
     multipart:
       maxFileSize: 100MB
       maxRequestSize: 100MB
   cache:
-    type: redis
+    type: redis # 缓存类型 Redis
   data:
     redis:
-      host: ${SCX_REDIS_HOST}
-      port: ${SCX_REDIS_PORT:6379}
-      username: ${SCX_REDIS_USERNAME:}
-      password: ${SCX_REDIS_PASSWORD}
-      database: ${SCX_REDIS_DATABASE:0}
+      host: 47.120.19.150
+      password: IWzq76mM8ihEaY17U30P
+      port: 6379
+      database: 2
+
+  # 数据库相关配置
   datasource:
     dynamic:
-      primary: master
+      primary: master   # 指定默认数据源
       datasource:
-        master:
-          url: ${SCX_DATASOURCE_URL}
-          username: ${SCX_DATASOURCE_USERNAME}
-          password: ${SCX_DATASOURCE_PASSWORD}
+        master:         # 注意，这里要嵌套在 datasource 下
+          # 本机已能访问的 MySQL 公网地址
+          url: jdbc:mysql://mysql-e379be1ffea9-public.rds.volces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia%2FShanghai&allowMultiQueries=true
+          username: ocpxuser
+          password: OqS5ZRBU1wBuEqLeHAQ3
           driver-class-name: com.mysql.cj.jdbc.Driver
           type: com.alibaba.druid.pool.DruidDataSource
 
 rocketmq:
-  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  name-server: 127.0.0.1:9876
   producer:
-    group: ${SCX_ROCKETMQ_PRODUCER_GROUP:dev_producer_group}
+    group: dev_producer_group
     retry-times-when-send-failed: 5
     send-message-timeout: 5000
 
@@ -37,13 +41,15 @@ aj:
 
 xxl:
   job:
-    adminAddresses: ${SCX_XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8080}
-    accessToken: ${SCX_XXL_JOB_ACCESS_TOKEN:}
+    adminAddresses: http://127.0.0.1:8080
+    accessToken: default_token
+    appName: smart-converge-x
+    port: 9009
 
-cert-dir: ${SCX_CERT_DIR:./cert}
+cert-dir: ./cert
 
 encode:
-  key: ${SCX_ENCODE_KEY}
+  key: scx-dev-encode-key
 
 knife4j:
   enable: false
@@ -56,13 +62,15 @@ knife4j:
 scx:
   tracking:
     sandbox-enabled: true
-    sandbox-signing-key: ${SCX_SANDBOX_SIGNING_KEY:}
-    ingress-enabled: ${SCX_TRACKING_INGRESS_ENABLED:false}
-    feedback-store: ${SCX_TRACKING_FEEDBACK_STORE:memory}
-    worker-enabled: ${SCX_TRACKING_WORKER_ENABLED:true}
-    outbox-publisher-enabled: ${SCX_TRACKING_OUTBOX_PUBLISHER_ENABLED:false}
-    channel-master-key: ${SCX_TRACKING_CHANNEL_MASTER_KEY:}
-    device-hmac-key: ${SCX_TRACKING_DEVICE_HMAC_KEY:}
-    callback-sandbox-endpoint: ${SCX_TRACKING_CALLBACK_SANDBOX_ENDPOINT:http://127.0.0.1:18080/postback}
-    callback-allowed-hosts: ${SCX_TRACKING_CALLBACK_ALLOWED_HOSTS:127.0.0.1,localhost}
-    attribution-rule-version: ${SCX_TRACKING_ATTRIBUTION_RULE_VERSION:last-click-v1}
+    sandbox-signing-key: scx-dev-sandbox-signing-key
+    ingress-enabled: false
+    feedback-store: memory
+    worker-enabled: true
+    outbox-publisher-enabled: false
+    outbox-scheduler-enabled: false
+    outbox-topic: scx_tracking_events
+    channel-master-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    device-hmac-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    callback-sandbox-endpoint: http://127.0.0.1:18080/postback
+    callback-allowed-hosts: 127.0.0.1,localhost
+    attribution-rule-version: last-click-v1
