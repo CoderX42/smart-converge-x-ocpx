@@ -68,4 +68,4 @@
 | 改配置后须重新打包 | 配置打进 jar 后重启才生效 |
 
 权威全文与 Agent 自检清单：**仓库根目录 `AGENTS.md`（或 `Agents.md`）第 6.4 节**。  
-部署脚本说明：`scripts/bt-deploy/README.md`、`scripts/deploy/README.md`。
+部署脚本说明：`scripts/bt-deploy/README.md`。

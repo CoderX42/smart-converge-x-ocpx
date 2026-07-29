@@ -1,133 +1,58 @@
 #!/usr/bin/env bash
-# =============================================================================
-#  SCX 宝塔机：一键同步 Gitea 代码（单仓 monorepo）
-#  - 默认代码目录: /opt/smart-converge-x
-#  - 目录不存在: git clone
-#  - 目录存在: fetch + reset --hard origin/<branch>（丢弃服务器本地改动）
-#
-#  使用:
-#    bash 00-sync_repos.sh
-#    BRANCH=main bash 00-sync_repos.sh
-#    SCX_HOME=/www/wwwroot/smart-converge-x bash 00-sync_repos.sh
-#
-#  环境变量:
-#    SCX_HOME / SYNC_DIR   代码根目录
-#    BRANCH                默认 main
-#    SCX_GIT_URL           默认见下方
-#    GITEA_HOST / GITEA_PORT  SSH 探测用（可选）
-# =============================================================================
-set -euo pipefail
+# SCX 宝塔仓库同步入口。默认安全快进同步；仅 --discard-local 会覆盖已跟踪改动。
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 若脚本已在仓库内，优先以仓库根为默认 SCX_HOME
-_REPO_GUESS="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-if [[ -d "${_REPO_GUESS}/scx-backend" ]]; then
-  DEFAULT_HOME="${_REPO_GUESS}"
-else
-  DEFAULT_HOME="/opt/smart-converge-x"
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+bt_enable_error_trap
+bt_init_paths
+
+usage() {
+  cat <<'EOF'
+用法：bash scripts/bt-deploy/00-sync_repos.sh [--branch <branch>] [--discard-local]
+
+默认仅执行 fetch + fast-forward；检测到未提交改动、分支不一致或无法快进时立即停止。
+--discard-local 仅在已核对服务器本地改动可丢弃时使用，会执行 git reset --hard origin/<branch>。
+EOF
+}
+
+discard_local=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch) [[ $# -ge 2 ]] || bt_die '--branch 缺少分支名'; SCX_BRANCH="$2"; shift 2 ;;
+    --discard-local) discard_local=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) bt_die "未知参数：$1" ;;
+  esac
+done
+
+bt_require_command git
+if [[ ! -d "${SCX_HOME}/.git" ]]; then
+  [[ ! -e "${SCX_HOME}" || -z "$(find "${SCX_HOME}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] \
+    || bt_die "${SCX_HOME} 非空且不是 Git 仓库，拒绝覆盖。"
+  SCX_GIT_URL="${SCX_GIT_URL:-git@gitea.smartcute.cn:karl419/smart-converge-x.git}"
+  mkdir -p "$(dirname "${SCX_HOME}")"
+  bt_log "克隆 ${SCX_GIT_URL} (${SCX_BRANCH}) -> ${SCX_HOME}"
+  git clone --branch "${SCX_BRANCH}" --single-branch "${SCX_GIT_URL}" "${SCX_HOME}"
+  bt_ok "仓库克隆完成：$(git -C "${SCX_HOME}" rev-parse --short HEAD)"
+  exit 0
 fi
 
-SCX_HOME="${SCX_HOME:-${SYNC_DIR:-$DEFAULT_HOME}}"
-BRANCH="${BRANCH:-main}"
-SCX_GIT_URL="${SCX_GIT_URL:-git@gitea.smartcute.cn:karl419/smart-converge-x.git}"
-
-# SSH 探测（兼容 gitea.smartcute.cn 标准 22，或内网 IP:2222）
-GITEA_HOST="${GITEA_HOST:-gitea.smartcute.cn}"
-GITEA_PORT="${GITEA_PORT:-22}"
-GITEA_USER="${GITEA_USER:-git}"
-
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-ok()   { echo -e "${GREEN}[✔]${NC} $1"; }
-warn() { echo -e "${YELLOW}[!]${NC} $1"; }
-fail() { echo -e "${RED}[✘]${NC} $1"; }
-
-ssh_probe() {
-  local out
-  if [[ "$GITEA_PORT" == "22" ]]; then
-    out="$(ssh -T -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-      "${GITEA_USER}@${GITEA_HOST}" </dev/null 2>&1 || true)"
-  else
-    out="$(ssh -T -p "${GITEA_PORT}" -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
-      "${GITEA_USER}@${GITEA_HOST}" </dev/null 2>&1 || true)"
-  fi
-  if echo "$out" | grep -qiE 'successfully authenticated|Hi |authenticated'; then
-    ok "SSH 鉴权正常 (${GITEA_HOST}:${GITEA_PORT})"
-    return 0
-  fi
-  warn "SSH 鉴权提示未通过，请确认服务器已配置 Gitea 公钥"
-  warn "探测输出: $(echo "$out" | head -2 | tr '\n' ' ')"
-  return 0
-}
-
-sync_repo() {
-  echo "------------------------------------------------------------"
-  echo ">>> smart-converge-x  branch=${BRANCH}"
-  echo ">>> url=${SCX_GIT_URL}"
-  echo ">>> dir=${SCX_HOME}"
-  echo "------------------------------------------------------------"
-
-  mkdir -p "$(dirname "$SCX_HOME")"
-
-  if [[ -d "${SCX_HOME}/.git" ]]; then
-    cd "$SCX_HOME"
-    local current
-    current="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
-    if [[ "$current" != "$BRANCH" ]]; then
-      warn "当前分支 ${current:-detached} ≠ 目标 ${BRANCH}，切换中..."
-      git fetch origin "$BRANCH" --prune || true
-      git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/${BRANCH}"
-    fi
-
-    git remote set-url origin "$SCX_GIT_URL"
-    if git fetch origin "$BRANCH" --prune; then
-      local remote_sha
-      remote_sha="$(git rev-parse "origin/${BRANCH}")"
-      # 清理可能被宝塔 chattr 的文件，避免 reset 失败
-      find "$SCX_HOME" -name '.user.ini' -exec chattr -i {} \; 2>/dev/null || true
-      git reset --hard "origin/${BRANCH}"
-      ok "已同步至 origin/${BRANCH} (${remote_sha})"
-      git log -1 --oneline
-    else
-      fail "fetch 失败"
-      return 1
-    fi
-  else
-    if [[ -n "$(ls -A "$SCX_HOME" 2>/dev/null || true)" ]]; then
-      fail "${SCX_HOME} 非空且不是 git 仓库，请清空或改 SCX_HOME"
-      return 1
-    fi
-    if git clone -b "$BRANCH" "$SCX_GIT_URL" "$SCX_HOME"; then
-      ok "克隆完成 -> ${SCX_HOME}"
-      git -C "$SCX_HOME" log -1 --oneline
-    else
-      fail "克隆失败（检查公钥 / 仓库地址 / 端口）"
-      return 1
-    fi
-  fi
-  echo ""
-}
-
-main() {
-  echo "============================================================"
-  echo " SCX Gitea 仓库同步"
-  echo " Host : ${GITEA_HOST}:${GITEA_PORT}"
-  echo " Dir  : ${SCX_HOME}"
-  echo " URL  : ${SCX_GIT_URL}"
-  echo " Branch: ${BRANCH}"
-  echo " Time : $(date '+%F %T')"
-  echo "============================================================"
-  echo ""
-
-  command -v git >/dev/null 2>&1 || { fail "缺少 git"; exit 1; }
-  ssh_probe
-  sync_repo
-
-  echo "============================================================"
-  ok "同步完成"
-  echo "  打包: bash ${SCX_HOME}/scripts/bt-deploy/01-deploy.sh --no-pull"
-  echo "  一键: bash ${SCX_HOME}/scripts/bt-deploy/03-deploy_all.sh"
-  echo "  重启: 请在宝塔 Java 项目管理器中操作"
-  echo "============================================================"
-}
-
-main "$@"
+bt_log "同步仓库：${SCX_HOME}，目标分支：${SCX_BRANCH}"
+git -C "${SCX_HOME}" fetch origin "${SCX_BRANCH}" --prune
+git -C "${SCX_HOME}" show-ref --verify --quiet "refs/remotes/origin/${SCX_BRANCH}" \
+  || bt_die "远程不存在分支 origin/${SCX_BRANCH}"
+current_branch="$(git -C "${SCX_HOME}" branch --show-current)"
+[[ "$current_branch" == "$SCX_BRANCH" ]] \
+  || bt_die "当前分支为 ${current_branch:-detached}，目标为 ${SCX_BRANCH}；请人工切换并确认。"
+if [[ "$discard_local" == true ]]; then
+  bt_warn "按显式请求覆盖已跟踪本地改动：git reset --hard origin/${SCX_BRANCH}"
+  git -C "${SCX_HOME}" reset --hard "origin/${SCX_BRANCH}"
+else
+  [[ -z "$(git -C "${SCX_HOME}" status --porcelain)" ]] \
+    || bt_die "服务器工作区存在未提交改动；已拒绝覆盖。核对后可显式添加 --discard-local。"
+  git -C "${SCX_HOME}" merge --ff-only "origin/${SCX_BRANCH}" \
+    || bt_die "无法 fast-forward 到 origin/${SCX_BRANCH}；请人工审查分叉提交。"
+fi
+bt_ok "已同步至 $(git -C "${SCX_HOME}" rev-parse --short HEAD)：$(git -C "${SCX_HOME}" log -1 --pretty=%s)"

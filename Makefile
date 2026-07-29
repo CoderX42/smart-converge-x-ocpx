@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev frontend-build frontend-check contract-check migration-packaging-check prod-secret-injection-check db-verify
+.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev frontend-build frontend-check contract-check db-verify
 
 # The application uses externally managed MySQL, Redis and RocketMQ services.
 # Export the SCX_* and MYSQL_* variables from the deployment environment first.
@@ -28,13 +28,7 @@ frontend-check:
 	cd scx-fronted && pnpm check:type && pnpm lint && pnpm test:unit
 
 contract-check:
-	bash ./scripts/check-contracts.sh
-
-migration-packaging-check:
-	bash ./scripts/check-migration-packaging.sh
-
-prod-secret-injection-check:
-	bash ./scripts/check-prod-secret-injection.sh
+	bash ./tools/quality/check-contracts.sh
 
 db-verify:
 	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)

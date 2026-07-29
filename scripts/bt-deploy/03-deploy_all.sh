@@ -1,105 +1,36 @@
 #!/usr/bin/env bash
-# =============================================================================
-#  SCX 一键部署（宝塔日常最常用，对标 haorong 03-deploy_all.sh）
-#
-#  流程:
-#    [1] 同步代码   00-sync_repos.sh
-#    [2] 打包构建   01-deploy.sh --no-pull  （后端 jar + 前端 dist + 发布到站点根）
-#    [3] 不自动启停服务（由宝塔 Java 项目管理器 / 面板重启）
-#
-#  使用:
-#    bash 03-deploy_all.sh
-#    bash 03-deploy_all.sh --skip-frontend  # 仅后端（含 xxl-job-admin）
-#    bash 03-deploy_all.sh --skip-backend   # 仅前端
-#    bash 03-deploy_all.sh --skip-xxl       # 全量时跳过 xxl-job 打包
-#    SCX_HOME=/opt/smart-converge-x SCX_WEB_ROOT=/www/wwwroot/scx bash 03-deploy_all.sh
-#
-#  日志: /www/wwwlogs/scx/deploy-*.log （无 /www/wwwlogs 则用 /var/log/scx/）
-# =============================================================================
-set -euo pipefail
+# SCX 宝塔日常一键发布：安全同步 -> 全量打包 -> 前端发布 -> 运行态提示。
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_REPO_GUESS="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-if [[ -d "${_REPO_GUESS}/scx-backend" ]]; then
-  DEFAULT_HOME="${_REPO_GUESS}"
-else
-  DEFAULT_HOME="/opt/smart-converge-x"
-fi
+# shellcheck source=lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
+bt_enable_error_trap
+bt_init_paths
 
-SCX_HOME="${SCX_HOME:-$DEFAULT_HOME}"
-SCX_WEB_ROOT="${SCX_WEB_ROOT:-${SCX_BAOTA_SITE_ROOT:-/www/wwwroot/scx}}"
-LOG_DIR="${LOG_DIR:-}"
-if [[ -z "$LOG_DIR" ]]; then
-  if [[ -d /www/wwwlogs ]]; then
-    LOG_DIR="/www/wwwlogs/scx"
-  else
-    LOG_DIR="/var/log/scx"
-  fi
-fi
-mkdir -p "$LOG_DIR"
-LOG_FILE="${LOG_DIR}/deploy-$(date +%Y%m%d_%H%M%S).log"
+usage() {
+  cat <<'EOF'
+用法：bash scripts/bt-deploy/03-deploy_all.sh [--branch <branch>] [--discard-local] [--no-publish] [--skip-xxl]
 
-TARGET="all"
-SKIP_XXL=0
+执行安全同步、全量打包与前端发布。后端重启必须在宝塔 Java 项目管理器中完成，随后使用 02-manage.sh health 验证。
+EOF
+}
 
-for arg in "$@"; do
-  case "$arg" in
-    --skip-frontend) TARGET="backend" ;;
-    --skip-backend) TARGET="frontend" ;;
-    --skip-xxl) SKIP_XXL=1 ;;
-    -h|--help)
-      sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    *)
-      echo "未知参数: $arg"; exit 1
-      ;;
+sync_args=(); deploy_args=(all)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch)
+      [[ $# -ge 2 ]] || bt_die '--branch 缺少分支名'
+      SCX_BRANCH="$2"; sync_args+=(--branch "$2"); deploy_args+=(--branch "$2"); shift 2 ;;
+    --discard-local) sync_args+=(--discard-local); shift ;;
+    --no-publish|--skip-xxl) deploy_args+=("$1"); shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) bt_die "未知参数：$1" ;;
   esac
 done
-
-DEPLOY_ARGS=(--no-pull)
-if [[ "$TARGET" != "all" ]]; then
-  DEPLOY_ARGS+=("$TARGET")
-fi
-if [[ $SKIP_XXL -eq 1 ]]; then
-  DEPLOY_ARGS+=(--skip-xxl)
-fi
-
-exec > >(tee -a "$LOG_FILE") 2>&1
-
-echo "============================================================"
-echo " SCX 一键部署（宝塔模式）    $(date '+%F %T')"
-echo " SCX_HOME : ${SCX_HOME}"
-echo " WEB_ROOT : ${SCX_WEB_ROOT}"
-echo " 日志     : ${LOG_FILE}"
-echo " 构建范围 : ${TARGET}"
-echo "============================================================"
-
-export SCX_HOME SCX_WEB_ROOT
-
-echo ""
-echo "[1/2] 同步代码"
-bash "${SCRIPT_DIR}/00-sync_repos.sh"
-# 同步后优先使用仓库内最新脚本
-if [[ -d "${SCX_HOME}/scripts/bt-deploy" ]]; then
-  SCRIPT_DIR="${SCX_HOME}/scripts/bt-deploy"
-fi
-
-echo ""
-echo "[2/2] 打包构建并发布前端"
-bash "${SCRIPT_DIR}/01-deploy.sh" "${DEPLOY_ARGS[@]}"
-
-echo ""
-echo "============================================================"
-echo " 部署完成 $(date '+%F %T')"
-echo " scx-boot JAR : ${SCX_HOME}/build/backend/scx-boot.jar"
-echo " xxl-job JAR  : ${SCX_HOME}/build/backend/xxl-job-admin.jar"
-echo " 前端站点根   : ${SCX_WEB_ROOT}"
-echo ""
-echo " 下一步（服务由宝塔管理，脚本不自动重启）："
-echo "  → 宝塔 → Java 项目管理器 → 重启 scx-boot"
-echo "  → 宝塔 → Java 项目管理器 → 重启 xxl-job-admin"
-echo "  → 前端站点根已同步，必要时在宝塔重载 Nginx"
-echo "  → 健康: curl -s http://127.0.0.1:9999/boot/actuator/health"
-echo " 完整日志: ${LOG_FILE}"
-echo "============================================================"
+bt_log '步骤 1/3：同步代码'
+SCX_HOME="$SCX_HOME" SCX_BRANCH="$SCX_BRANCH" bash "${SCRIPT_DIR}/00-sync_repos.sh" "${sync_args[@]}"
+bt_log '步骤 2/3：全量打包和前端发布'
+SCX_HOME="$SCX_HOME" SCX_BRANCH="$SCX_BRANCH" bash "${SCRIPT_DIR}/01-deploy.sh" --no-pull "${deploy_args[@]}"
+bt_log '步骤 3/3：输出宝塔重启与验证指引'
+bt_print_baota_restart_hint

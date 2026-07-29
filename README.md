@@ -102,7 +102,8 @@ smart-converge-x/
 │   ├── README.md                 # 文档中心入口
 │   └── 广告平台设计/              # 研发设计文档、ADR、契约、数据字典
 ├── .github/workflows/            # CI 质量门
-├── scripts/                      # 契约与本地验证脚本
+├── scripts/                      # 宝塔同步、打包、发布与运行态检查入口
+├── tools/quality/                # 与部署无关的质量门脚本
 └── README.md                     # 本文件
 ```
 

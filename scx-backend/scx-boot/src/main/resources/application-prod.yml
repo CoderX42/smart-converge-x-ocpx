@@ -19,7 +19,7 @@ spring:
     type: redis # 缓存类型 Redis
   data:
     redis:
-      host: redis-cnlfagupdyxgrkgqy.redis.ivolces.com
+      host: redis-cnlfagupdyxgrkgqd.redis.ivolces.com
       port: 6379
       username: ocpxuser
       password: OqS5ZRBU1wBuEqLeHAQ3

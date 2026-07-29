@@ -1,95 +1,54 @@
-# SCX 宝塔运维脚本（对标 haorong `bt-deploy-scripts`）
+# SCX 宝塔运维脚本
 
-与浩荣项目习惯对齐：**00 同步 + 03 一键部署** 为日常主力。  
-服务启停由 **宝塔 Java 项目管理器 / 面板** 完成，本目录不提供 manage 脚本。
+本目录是项目唯一的部署脚本入口，命名与参考项目 `bt-deploy-scripts` 一致：`00` 同步、`01` 打包发布、`02` 管理、`03` 全量发布、`04` 推送。旧的 `scripts/deploy/` systemd、环境文件和独立 Nginx 方案已移除，避免与宝塔 Java 项目管理器发生双重管理。
 
-## 配置规范（与 AGENTS.md §6.4 一致）
+## 约定
 
-- **scx-boot / xxl-job 配置直写**在仓库 yml、properties 中，**不要**使用 `${SCX_*}`、`${XXL_JOB_*}` 等环境变量占位。
-- **不要**要求启动前 `source /etc/scx/scx.env`；宝塔可直接 `java -jar`。
-- 改 `application-prod.yml` 或 `xxl-job-admin/.../application.properties` 后，必须用本目录脚本**重新打包**再重启。
+- 代码目录：`SCX_HOME`，默认脚本所在仓库；服务器常用 `/opt/smart-converge-x`。
+- 构建产物：`${SCX_HOME}/build/backend/scx-boot.jar`、`${SCX_HOME}/build/frontend/web-ele`。
+- 宝塔网站根：`SCX_WEB_ROOT`，默认 `/www/wwwroot/scx`。
+- 备份目录：`${SCX_HOME}/backup/<时间戳>/`。每次激活新构建产物及发布前端时都会保存旧副本。
+- 运行配置仍以仓库内 `application-*.yml` / XXL properties 的字面量为准；脚本不读取或生成 `/etc/scx/scx.env`。
 
-| 脚本 | 作用 | 常用 |
-| --- | --- | --- |
-| `00-sync_repos.sh` | 从 Gitea 同步 monorepo（clone / `reset --hard`） | ⭐ 常用 |
-| `01-deploy.sh` | scx-boot + **xxl-job-admin** + 前端构建，并发布站点根 | 打包 |
-| `03-deploy_all.sh` | **00 → 01** 一键同步+打包（不自动重启服务） | ⭐ 常用 |
-
-## 路径约定
-
-| 项 | 默认 | 说明 |
-| --- | --- | --- |
-| 代码根 `SCX_HOME` | `/opt/smart-converge-x` | 也可 `/www/wwwroot/smart-converge-x` |
-| 站点根 `SCX_WEB_ROOT` | `/www/wwwroot/scx` | 宝塔「网站根目录」指这里 |
-| 产物 | `${SCX_HOME}/build/backend/` | `scx-boot.jar`、`xxl-job-admin.jar`；前端：`build/frontend/web-ele` |
-| 配置 | `/etc/scx/scx.env` 或宝塔 Java 项目环境变量 | 数据源 / Redis / 密钥 |
-| 分支 | `main` | `BRANCH=xxx` 可覆盖 |
-
-## 宝塔面板一次性配置
-
-1. **网站**：根目录 = `SCX_WEB_ROOT`（如 `/www/wwwroot/scx`）
-2. **伪静态**：粘贴仓库 `scripts/deploy/nginx-scx-baota-rewrite.conf`
-3. **生产配置文件**（必做，否则 prod 起不来）：
-   ```bash
-   mkdir -p /etc/scx
-   cp /opt/smart-converge-x/scripts/deploy/env.example /etc/scx/scx.env
-   chmod 600 /etc/scx/scx.env
-   nano /etc/scx/scx.env   # 填入真实 MySQL/Redis/密钥等
-   ```
-4. **Java 项目 scx-boot**（推荐用启动脚本，不要裸 `java -jar`）：
-   - 启动命令：`/bin/bash /opt/smart-converge-x/scripts/deploy/run-boot.sh`
-   - 或「项目配置 → 环境变量」里逐项填入 `SCX_*`（与 `scx.env` 相同）
-   - 缺变量时日志会报：`Missing required production configuration: SCX_...`
-5. **不要**对公网放行 `9999`
-
-## 日常命令
+## 日常发布
 
 ```bash
-cd /opt/smart-converge-x/scripts/bt-deploy
-
-# ⭐ 只同步 Gitea
-bash 00-sync_repos.sh
-
-# ⭐ 同步 + 打包 + 发布前端
-bash 03-deploy_all.sh
-
-# 仅打包后端（含 xxl-job）/ 仅 xxl / 仅前端
-bash 01-deploy.sh --no-pull backend
-bash 01-deploy.sh --no-pull xxl
-bash 01-deploy.sh --no-pull frontend
-bash 01-deploy.sh --no-pull --skip-xxl backend   # 只要 scx-boot
-
-# 打包完成后：在宝塔 Java 项目管理器中分别重启 scx-boot、xxl-job-admin
-# JAR:
-#   /opt/smart-converge-x/build/backend/scx-boot.jar
-#   /opt/smart-converge-x/build/backend/xxl-job-admin.jar
+cd /opt/smart-converge-x
+bash scripts/bt-deploy/03-deploy_all.sh
+# 然后在宝塔「Java 项目管理器」重启 SCX Java 项目
+bash scripts/bt-deploy/02-manage.sh health
 ```
 
-### 环境变量示例
+`00-sync_repos.sh` 默认只允许干净工作区的 fast-forward 同步，防止服务器改动被静默覆盖。确认可丢弃已跟踪本地改动后才可使用：
 
 ```bash
-export SCX_HOME=/opt/smart-converge-x
-export SCX_WEB_ROOT=/www/wwwroot/scx
-export SCX_GIT_URL='git@gitea.smartcute.cn:karl419/smart-converge-x.git'
-export BRANCH=main
-
-bash 03-deploy_all.sh
+bash scripts/bt-deploy/03-deploy_all.sh --discard-local
 ```
 
-## 与浩荣脚本对照
-
-| haorong | SCX | 说明 |
-| --- | --- | --- |
-| 00 / 01 / 03 | 00 / 01 / 03 | 常用流程一致 |
-| 02-manage | **不提供** | 启停交给宝塔面板 |
-| 03 不自动重启 | 03 不自动重启 | 打包后面板点重启 |
-
-## 首次上机
+## 分步操作
 
 ```bash
-# 配置 Gitea 部署公钥后：
-bash /opt/smart-converge-x/scripts/bt-deploy/00-sync_repos.sh
-# 配置宝塔 Java 项目 + 网站伪静态 + 环境变量
-bash /opt/smart-converge-x/scripts/bt-deploy/03-deploy_all.sh
-# 面板重启 Java 项目
+# 同步指定分支
+bash scripts/bt-deploy/00-sync_repos.sh --branch main
+
+# 只构建后端；修改 application-prod.yml 后使用此流程并在宝塔重启项目
+bash scripts/bt-deploy/01-deploy.sh --no-pull backend
+
+# 只构建并同步前端
+bash scripts/bt-deploy/01-deploy.sh --no-pull frontend
+
+# 不同步网站根，仅检查产物
+bash scripts/bt-deploy/01-deploy.sh --no-pull --no-publish all
+
+# Nginx 配置检查与重载（仅前端站点配置变更后需要）
+bash scripts/bt-deploy/02-manage.sh nginx-test
+bash scripts/bt-deploy/02-manage.sh nginx-reload
 ```
+
+把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。
+
+## 边界
+
+- 脚本会构建、备份构建产物、发布前端静态文件；不会直接启动、停止或重启 Java 进程。
+- 数据库迁移、备份、真实渠道 UAT、容量和回滚演练必须按发布 Runbook 在授权窗口执行，构建成功不代表生产验收通过。
+- `04-push_to_gitea.sh` 仅用于受控构建机或本地已审查提交的推送，不是服务器发布步骤。

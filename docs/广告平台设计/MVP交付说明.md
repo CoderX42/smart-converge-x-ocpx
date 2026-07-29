@@ -43,7 +43,7 @@ cd scx-fronted && pnpm --filter @boot/web-ele typecheck
 cd scx-fronted && pnpm exec eslint apps/web-ele/src/api/ad/index.ts apps/web-ele/src/views/delivery apps/web-ele/src/views/reporting apps/web-ele/src/views/operations apps/web-ele/src/router/access.ts
 cd scx-fronted && pnpm test:unit
 cd scx-fronted && pnpm build:ele
-bash ./scripts/check-contracts.sh
+bash ./tools/quality/check-contracts.sh
 git diff --check
 ```
 

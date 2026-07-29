@@ -14,7 +14,7 @@
   - `scx-backend/`：Java 单体后端，Maven 多模块。
   - `scx-fronted/`：Vue 3 管理后台，pnpm workspace + Turborepo 单仓库。
   - `docs/`：研发文档。当前 `docs/广告平台设计/` 下实际存在 `README.md`、`MVP开发规划.md`、`竞品调研-ocpx.aerim.cn.md`、`2026-07-15-ocpx-aerim-功能审计报告.md` 与 `templates/`；契约目录 `contracts/`、数据字典目录 `data-dictionary/`、`adr/` 等尚未填充。
-  - `scripts/check-contracts.sh`：预留的 OpenAPI / AsyncAPI / JSON Schema 契约校验脚本，待契约目录补齐后启用。
+  - `tools/quality/check-contracts.sh`：OpenAPI / AsyncAPI / JSON Schema 契约校验脚本。
   - `.boot-admin/`：项目模板初始化器，用于从本模板派生新项目，不参与运行时。
 
 ---
@@ -164,10 +164,10 @@ make db-verify
 
 ```bash
 make contract-check
-# 等价于：bash ./scripts/check-contracts.sh
+# 等价于：bash ./tools/quality/check-contracts.sh
 ```
 
-> **注意**：`scripts/check-contracts.sh` 的设计目标是校验 `docs/广告平台设计/contracts/` 下的 YAML/JSON 契约文件，但目前该目录在仓库中不存在，直接运行会失败。待契约文件补齐后即可启用。
+> `tools/quality/check-contracts.sh` 校验 `docs/广告平台设计/contracts/` 下的 YAML/JSON 契约文件。
 
 ---
 
@@ -274,7 +274,6 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
    - `scx-backend/scx-boot/src/main/resources/application-prod.yml`
    - `xxl-job/xxl-job-admin/src/main/resources/application.properties`
    - `xxl-job/**/executor*/**/application.properties` 与 `xxl-job-executor.properties`（样例执行器）
-   - `scripts/deploy/xxl-job/application.properties.template`
 2. **禁止**新增「生产启动必须读取 `/etc/scx/scx.env` 或 `EnvironmentFile` 才有配置」的路径；宝塔 / `java -jar` 必须能只靠 profile + yml/properties 启动。
 3. **禁止**恢复或新增类似 `ProdRequiredConfigurationEnvironmentPostProcessor` 的「缺少 SCX_* 环境变量就 fail-closed」逻辑（该类应保持 no-op；勿再强制 env）。
 4. 新增配置项时：**直接写在对应 profile 的 yml / properties 中**，使用字面量（host、url、password、token 等）。
@@ -337,16 +336,15 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 
 ### 8.1 后端部署
 
-- 使用 Maven / `scripts/bt-deploy` 构建 `scx-boot` JAR，并通过 `--spring.profiles.active=prod` 启动。
+- 使用 Maven / `scripts/bt-deploy` 构建 `scx-boot` JAR，并由宝塔 Java 项目管理器以 prod profile 启动。
 - **连接与密钥写在 `application-prod.yml`（及 xxl-job `application.properties`）**，打包进 jar；**不要**再设计为必须 env 注入（见 **§6.4**）。
 - 应用默认监听 `9999`，context-path `/boot`。
-- 宝塔：Java 项目可直接 `java -jar .../build/backend/scx-boot.jar --spring.profiles.active=prod`，或 `scripts/deploy/run-boot.sh`。
+- 宝塔：Java 项目配置 JAR 为 `.../build/backend/scx-boot.jar`，由宝塔 Java 项目管理器重启。
 
 ### 8.2 前端部署
 
 - 构建产物：`pnpm build:ele` 或 `scripts/bt-deploy/01-deploy.sh` 同步到宝塔站点根（默认 `/www/wwwroot/scx`）。
-- 站点 / SSL / 伪静态由**宝塔**管理；伪静态模板：`scripts/deploy/nginx-scx-baota-rewrite.conf`。
-- 系统 Nginx 完整 conf（无宝塔时备用）：`scripts/deploy/nginx-scx.conf` / 前端仓库 `scx-fronted/scripts/deploy/scx-fronted.conf`。
+- 站点 / SSL / 伪静态由**宝塔**管理；伪静态模板：`scripts/bt-deploy/templates/nginx-scx-baota-rewrite.conf`。
 
 ### 8.3 生产部署注意事项
 
@@ -398,9 +396,9 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 | 后端开发配置（直写） | `scx-backend/scx-boot/src/main/resources/application-dev.yml` |
 | 后端生产配置（直写） | `scx-backend/scx-boot/src/main/resources/application-prod.yml` |
 | XXL-JOB 配置（直写） | `xxl-job/xxl-job-admin/src/main/resources/application.properties` |
-| 宝塔运维脚本 | `scripts/bt-deploy/`（00 同步 / 01 打包 / 03 一键） |
+| 宝塔运维脚本 | `scripts/bt-deploy/`（00 同步 / 01 打包 / 02 管理 / 03 一键 / 04 推送） |
 | 配置规范（Agent） | 本文件 **§6.4** |
-| 后端启动/部署 | `scripts/deploy/run-boot.sh`、`scripts/bt-deploy/`、`application-*.yml` |
+| 后端启动/部署 | `scripts/bt-deploy/`、宝塔 Java 项目管理器、`application-*.yml` |
 | 数据库基线脚本 | `scx-backend/db/smart-converge-x/` |
 | 业务增量 SQL | `scx-backend/scx-boot/src/main/resources/db/migration/` |
 | 前端根 package | `scx-fronted/package.json` |
@@ -411,5 +409,5 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 | 前端 Prettier | `scx-fronted/.prettierrc.mjs` → `@boot/prettier-config` |
 | 前端 Stylelint | `scx-fronted/stylelint.config.mjs` → `@boot/stylelint-config` |
 | 前端 Nginx | `scx-fronted/scripts/deploy/scx-fronted.conf` |
-| 契约校验脚本 | `scripts/check-contracts.sh` |
+| 契约校验脚本 | `tools/quality/check-contracts.sh` |
 | 密钥扫描配置 | `.gitleaks.toml` |
