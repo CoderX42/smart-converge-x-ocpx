@@ -30,6 +30,8 @@ import {
   saveMedia,
 } from '#/api/ad';
 
+import { generateRandomMediaCode } from './media-code';
+
 import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdMediaScopes' });
@@ -181,7 +183,7 @@ function mediaSnapshot() {
 
 function openEditor(row?: Media) {
   Object.assign(form, {
-    code: row?.code || '',
+    code: row?.code || generateRandomMediaCode(),
     id: row?.id,
     name: row?.name || '',
     settlementCurrency: 'CNY',
@@ -194,6 +196,12 @@ function openEditor(row?: Media) {
     formRef.value?.clearValidate();
     formSnapshot.value = mediaSnapshot();
   });
+}
+
+function replaceRandomMediaCode() {
+  if (form.id) return;
+  form.code = generateRandomMediaCode();
+  void nextTick(() => formRef.value?.validateField('code'));
 }
 
 async function beforeEditorClose(done: () => void) {
@@ -520,7 +528,8 @@ void load();
         :rules="formRules"
       >
         <div class="drawer-intro">
-          媒体编码创建后不可修改；业务时区将用于报表日界线计算。
+          新增时自动生成媒体编码，可手动修改或换一个随机编码；创建后不可修改。
+          业务时区将用于报表日界线计算。
         </div>
         <el-form-item label="媒体编码" prop="code">
           <el-input
@@ -529,7 +538,13 @@ void load();
             :disabled="Boolean(form.id)"
             maxlength="64"
             placeholder="例如 toutiao-main"
-          />
+          >
+            <template v-if="!form.id" #append>
+              <el-button :icon="Refresh" @click="replaceRandomMediaCode">
+                换一个
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="媒体名称" prop="name">
           <el-input
