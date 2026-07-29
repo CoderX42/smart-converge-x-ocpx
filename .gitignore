@@ -10,3 +10,11 @@ logs/
 *.log
 *.log.zip
 scx-fronted/test-results/
+
+# Deployment-generated artifacts
+/backup/
+/build/
+/lefthook.yml
+
+# Local frontend compiler cache
+scx-fronted/v8-compile-cache-*/
