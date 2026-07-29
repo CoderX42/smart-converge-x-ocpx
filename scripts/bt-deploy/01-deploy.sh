@@ -81,11 +81,14 @@ build_xxl() {
 }
 
 build_frontend() {
-  bt_log '构建 Element Plus 前端（严格锁定依赖）'
+  # 源码在 monorepo apps/web-ele，部署产物不沿用库名，统一落到 build/frontend/（管理端静态站）
+  bt_log '构建管理端前端（pnpm build:ele → apps/web-ele/dist）'
   (cd "${SCX_HOME}/scx-fronted" && pnpm install --frozen-lockfile && pnpm build:ele)
   local dist="${SCX_HOME}/scx-fronted/apps/web-ele/dist"
   [[ -f "${dist}/index.html" ]] || bt_die "前端产物不完整：${dist}/index.html 不存在"
-  cp -a "$dist" "${stage_dir}/frontend/web-ele"
+  mkdir -p "${stage_dir}/frontend"
+  # 只拷 dist 内容，目录名为 frontend，不再嵌套 web-ele
+  cp -a "${dist}/." "${stage_dir}/frontend/"
 }
 
 activate_component() {
@@ -98,7 +101,7 @@ activate_component() {
 }
 
 publish_frontend() {
-  local source="${SCX_BUILD_DIR}/frontend/web-ele"
+  local source="${SCX_BUILD_DIR}/frontend"
   [[ -f "${source}/index.html" ]] || bt_die "前端构建产物缺失：${source}/index.html"
   bt_require_command rsync
   mkdir -p "${SCX_WEB_ROOT}"
@@ -115,5 +118,6 @@ case "$target" in
   frontend) build_frontend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
 esac
 git -C "${SCX_HOME}" rev-parse HEAD > "${SCX_BACKUP_DIR}/${release_id}/source-commit.txt"
+bt_prune_backups
 bt_ok "打包部署流程完成：备份位于 ${SCX_BACKUP_DIR}/${release_id}"
 if [[ "$target" == all || "$target" == backend || "$target" == xxl ]]; then bt_print_baota_restart_hint; fi

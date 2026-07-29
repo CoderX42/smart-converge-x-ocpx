@@ -5,9 +5,13 @@
 ## 约定
 
 - 代码目录：`SCX_HOME`，默认脚本所在仓库；服务器常用 `/opt/smart-converge-x`。
-- 构建产物：`${SCX_HOME}/build/backend/scx-boot.jar`、`${SCX_HOME}/build/frontend/web-ele`。
+- 构建产物：
+  - 后端：`${SCX_HOME}/build/backend/scx-boot.jar`、`xxl-job-admin.jar`
+  - 前端：`${SCX_HOME}/build/frontend/`（管理端静态站根，含 `index.html`；**不再**使用 `web-ele` 子目录）
+  - 源码工程仍在 `scx-fronted/apps/web-ele`（UI 库变体目录名，仅构建入口，不是部署产物名）
 - 宝塔网站根：`SCX_WEB_ROOT`，默认 `/www/wwwroot/scx`。
 - 备份目录：`${SCX_HOME}/backup/<时间戳>/`。每次激活新构建产物及发布前端时都会保存旧副本。
+- 自动清理：每次部署成功后默认保留最近 5 个发布备份；可通过 `SCX_BACKUP_KEEP=10` 调整保留数量。仅清理符合 `YYYYMMDD_HHMMSS` 命名格式的发布目录。
 - 运行配置仍以仓库内 `application-*.yml` / XXL properties 的字面量为准；脚本不读取或生成 `/etc/scx/scx.env`。
 
 ## 日常发布

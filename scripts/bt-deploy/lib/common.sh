@@ -34,9 +34,10 @@ bt_init_paths() {
   SCX_BRANCH="${SCX_BRANCH:-${BRANCH:-main}}"
   SCX_BUILD_DIR="${SCX_BUILD_DIR:-${SCX_HOME}/build}"
   SCX_BACKUP_DIR="${SCX_BACKUP_DIR:-${SCX_HOME}/backup}"
+  SCX_BACKUP_KEEP="${SCX_BACKUP_KEEP:-5}"
   SCX_WEB_ROOT="${SCX_WEB_ROOT:-/www/wwwroot/scx}"
   SCX_LOG_DIR="${SCX_LOG_DIR:-/www/wwwlogs/scx}"
-  export SCX_HOME SCX_BRANCH SCX_BUILD_DIR SCX_BACKUP_DIR SCX_WEB_ROOT SCX_LOG_DIR
+  export SCX_HOME SCX_BRANCH SCX_BUILD_DIR SCX_BACKUP_DIR SCX_BACKUP_KEEP SCX_WEB_ROOT SCX_LOG_DIR
 }
 
 bt_assert_repository() {
@@ -76,6 +77,31 @@ bt_prepare_node() {
 }
 
 bt_release_id() { date '+%Y%m%d_%H%M%S'; }
+
+bt_prune_backups() {
+  local keep="${SCX_BACKUP_KEEP:-5}"
+  local backup_dir="${SCX_BACKUP_DIR}"
+  local index=0 path name
+
+  if [[ ! "$keep" =~ ^[1-9][0-9]*$ ]]; then
+    bt_warn "SCX_BACKUP_KEEP 无效：${keep}；跳过备份清理。"
+    return 0
+  fi
+  [[ -d "$backup_dir" ]] || return 0
+
+  # 只处理部署脚本生成的时间戳目录，避免误删 backup 下的其他内容。
+  while IFS= read -r path; do
+    name="${path##*/}"
+    [[ "$name" =~ ^[0-9]{8}_[0-9]{6}$ ]] || continue
+    index=$((index + 1))
+    (( index <= keep )) && continue
+    if rm -rf -- "$path"; then
+      bt_log "已清理旧发布备份：${path}"
+    else
+      bt_warn "清理旧发布备份失败：${path}"
+    fi
+  done < <(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -print | sort -r)
+}
 
 bt_print_baota_restart_hint() {
   cat <<EOF
