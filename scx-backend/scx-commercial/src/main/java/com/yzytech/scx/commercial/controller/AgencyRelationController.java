@@ -50,7 +50,7 @@ public class AgencyRelationController {
 	@Operation(summary = "更新代理关系")
 	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody CreateAgencyRelationRequest req) {
 		return call(() -> {
-			commercialService.updateAgencyRelation(id, req);
+			commercialService.revokeAgencyRelation(id);
 			return true;
 		});
 	}

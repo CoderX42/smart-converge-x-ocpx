@@ -17,7 +17,6 @@ import type {
 } from '#/api/ad';
 
 import { computed, nextTick, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 
 import { useAccess } from '@boot/access';
 
@@ -43,7 +42,6 @@ import {
   saveIntegrationDocument,
 } from '#/api/ad';
 
-import { resolveMediaId, withMediaContext } from '../components/media-context';
 import DocumentPreview from './document-preview.vue';
 import {
   externalDomain,
@@ -85,8 +83,6 @@ const STATUS_LABELS = Object.fromEntries(
 ) as Record<IntegrationDocumentStatus, string>;
 
 const { hasAccessByCodes } = useAccess();
-const route = useRoute();
-const router = useRouter();
 const media = ref<Media[]>([]);
 const mediaId = ref('');
 const rows = ref<IntegrationDocument[]>([]);
@@ -188,7 +184,7 @@ async function bootstrap() {
   try {
     const result = await getMedia({ current: 1, size: 200 });
     media.value = result.records || [];
-    mediaId.value = resolveMediaId(media.value, route.query.mediaId);
+    mediaId.value = media.value[0]?.id || '';
   } catch (error) {
     ElMessage.error(readableError(error, '媒体范围加载失败，请重试'));
   } finally {
@@ -490,7 +486,6 @@ function statusTagType(status: IntegrationDocumentStatus) {
 
 watch(mediaId, () => {
   current.value = 1;
-  void router.replace({ query: withMediaContext(route.query, mediaId.value) });
   void load();
 });
 void bootstrap();
@@ -498,14 +493,6 @@ void bootstrap();
 
 <template>
   <main class="document-page">
-    <el-alert
-      v-if="media.length > 1 && !mediaId"
-      class="mb-4"
-      :closable="false"
-      show-icon
-      title="请选择媒体范围后继续"
-      type="info"
-    />
     <header class="document-hero">
       <div>
         <span class="document-eyebrow">Delivery knowledge</span>

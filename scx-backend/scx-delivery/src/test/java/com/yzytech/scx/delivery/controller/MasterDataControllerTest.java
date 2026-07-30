@@ -14,7 +14,6 @@ import com.yzytech.scx.delivery.entity.IntegrationDocument;
 import com.yzytech.scx.delivery.entity.UpstreamCustomer;
 import com.yzytech.scx.delivery.mapper.IntegrationDocumentMapper;
 import com.yzytech.scx.delivery.mapper.MediaChannelMapper;
-import com.yzytech.scx.delivery.mapper.MediaChannelUserMapper;
 import com.yzytech.scx.delivery.mapper.PartnerMapper;
 import com.yzytech.scx.delivery.mapper.ProductMapper;
 import com.yzytech.scx.delivery.mapper.UpstreamCustomerMapper;
@@ -38,8 +37,7 @@ class MasterDataControllerTest {
 	@BeforeEach
 	void setUp() {
 		controller = new MasterDataController(mock(PartnerMapper.class), customerMapper, mock(ProductMapper.class),
-				mock(MediaChannelMapper.class), mock(MediaChannelUserMapper.class),
-				mock(IntegrationDocumentMapper.class), service);
+				mock(MediaChannelMapper.class), mock(IntegrationDocumentMapper.class), service);
 	}
 
 	@Test

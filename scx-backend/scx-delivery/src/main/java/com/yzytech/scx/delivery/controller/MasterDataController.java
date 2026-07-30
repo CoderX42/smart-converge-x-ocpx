@@ -10,7 +10,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.delivery.dto.IntegrationDocumentView;
-import com.yzytech.scx.delivery.dto.MediaChannelView;
 import com.yzytech.scx.delivery.entity.*;
 import com.yzytech.scx.delivery.mapper.*;
 import com.yzytech.scx.delivery.service.MasterDataService;
@@ -45,8 +44,6 @@ public class MasterDataController {
 	private final ProductMapper productMapper;
 
 	private final MediaChannelMapper channelMapper;
-
-	private final MediaChannelUserMapper channelUserMapper;
 
 	private final IntegrationDocumentMapper documentMapper;
 
@@ -124,19 +121,9 @@ public class MasterDataController {
 
 	@GetMapping("/media-channels")
 	@SaCheckPermission("ad:master:read")
-	public Result<IPage<MediaChannelView>> channels(Page<MediaChannel> page, String mediaId, String keyword,
-			String status) {
-		if (!StringUtils.hasText(mediaId) || !service.readable(mediaId))
-			return Result.fail(404, "资源不存在");
-		LambdaQueryWrapper<MediaChannel> query = Wrappers.<MediaChannel>lambdaQuery()
-			.eq(MediaChannel::getMediaId, mediaId)
-			.eq(StringUtils.hasText(status), MediaChannel::getStatus, status)
-			.and(StringUtils.hasText(keyword),
-					q -> q.like(MediaChannel::getCode, keyword).or().like(MediaChannel::getName, keyword))
-			.orderByDesc(MediaChannel::getUpdateTime);
-		return Result.success(channelMapper.selectPage(page, query).convert(channel -> MediaChannelView.from(channel,
-				channelUserMapper.selectCount(Wrappers.<MediaChannelUser>lambdaQuery()
-					.eq(MediaChannelUser::getChannelId, channel.getId())))));
+	public Result<Page<MediaChannel>> channels(Page<MediaChannel> page, String mediaId, String keyword, String status) {
+		return page(page, channelMapper, mediaId, keyword, status, MediaChannel::getMediaId, MediaChannel::getCode,
+				MediaChannel::getName, MediaChannel::getStatus);
 	}
 
 	@PostMapping("/media-channels")

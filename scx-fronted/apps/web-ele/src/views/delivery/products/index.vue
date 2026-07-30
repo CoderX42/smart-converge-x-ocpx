@@ -2,21 +2,16 @@
 import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 
 import { ElMessage } from 'element-plus';
 
 import { getMaster, getMedia, saveMaster } from '#/api/ad';
-
-import { resolveMediaId, withMediaContext } from '../components/media-context';
 
 import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdProducts' });
 
 const media = ref<Media[]>([]);
-const route = useRoute();
-const router = useRouter();
 const mediaId = ref('');
 const keyword = ref('');
 const rows = ref<any[]>([]);
@@ -32,7 +27,7 @@ const form = reactive<any>({});
 async function bootstrap() {
   const result = await getMedia();
   media.value = result.records || [];
-  mediaId.value = resolveMediaId(media.value, route.query.mediaId);
+  mediaId.value = media.value[0]?.id || '';
 }
 
 async function loadOptions() {
@@ -95,19 +90,8 @@ async function submit() {
   }
 }
 
-function goToPartners() {
-  drawer.value = false;
-  void router.push({
-    path: '/commercial/catalog',
-    query: { ...route.query, mediaId: mediaId.value, tab: 'partners' },
-  });
-}
-
 watch(mediaId, async () => {
   current.value = 1;
-  await router.replace({
-    query: withMediaContext(route.query, mediaId.value),
-  });
   await Promise.all([load(), loadOptions()]);
 });
 
@@ -116,30 +100,9 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <el-alert
-      v-if="media.length > 1 && !mediaId"
-      class="mb-4"
-      :closable="false"
-      show-icon
-      title="请选择媒体范围后继续"
-      type="info"
-    />
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
-          <el-select
-            v-model="mediaId"
-            filterable
-            placeholder="选择媒体主体"
-            style="width: 220px"
-          >
-            <el-option
-              v-for="item in media"
-              :key="item.id"
-              :label="`${item.name} · ${item.code}`"
-              :value="item.id"
-            />
-          </el-select>
           <el-input
             v-model="keyword"
             clearable
@@ -151,7 +114,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </div>
         <el-button
           v-access:code="'ad:master:write'"
-          :disabled="!mediaId"
           type="primary"
           @click="open()"
         >
@@ -226,9 +188,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
               :value="item.id"
             />
           </el-select>
-          <el-button class="mt-2" link type="primary" @click="goToPartners">
-            没有可选合作方？前往当前媒体的合作方配置
-          </el-button>
         </el-form-item>
         <el-form-item label="产品平台" required>
           <el-select v-model="form.platform" class="w-full">

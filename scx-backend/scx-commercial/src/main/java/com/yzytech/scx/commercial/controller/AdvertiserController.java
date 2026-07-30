@@ -4,7 +4,6 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.commercial.dto.CreateAdvertiserRequest;
-import com.yzytech.scx.commercial.dto.UpdateAdvertiserRequest;
 import com.yzytech.scx.commercial.entity.Advertiser;
 import com.yzytech.scx.commercial.service.CommercialService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,7 +54,7 @@ public class AdvertiserController {
 	@PutMapping("/advertisers/{id}")
 	@SaCheckPermission("commercial:advertiser:write")
 	@Operation(summary = "更新广告主")
-	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody UpdateAdvertiserRequest req) {
+	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody CreateAdvertiserRequest req) {
 		return call(() -> {
 			commercialService.updateAdvertiserProfile(id, req);
 			return true;

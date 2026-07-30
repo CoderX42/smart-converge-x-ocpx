@@ -471,12 +471,6 @@ export function savePlatformConfig(data: Record<string, any>) {
 export function getChannelUsers(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/channel-users', { params });
 }
-export function getChannelUserSensitive(id: string, mediaId: string) {
-  return requestClient.get<Record<string, any>>(
-    `/ad/channel-users/${id}/sensitive`,
-    { params: { mediaId } },
-  );
-}
 export function saveChannelUser(data: Record<string, any>) {
   return data.id
     ? requestClient.put(`/ad/channel-users/${data.id}`, data)

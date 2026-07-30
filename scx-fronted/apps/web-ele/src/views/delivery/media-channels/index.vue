@@ -2,14 +2,12 @@
 import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 
 import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { deleteMediaChannel, getMaster, getMedia, saveMaster } from '#/api/ad';
 
-import { resolveMediaId, withMediaContext } from '../components/media-context';
 import { generateRandomBusinessCode } from '../components/random-code';
 
 import '../components/mvp-page.css';
@@ -17,8 +15,6 @@ import '../components/mvp-page.css';
 defineOptions({ name: 'AdMediaChannels' });
 
 const media = ref<Media[]>([]);
-const route = useRoute();
-const router = useRouter();
 const mediaId = ref('');
 const keyword = ref('');
 const rows = ref<any[]>([]);
@@ -35,7 +31,7 @@ const form = reactive<any>({});
 async function bootstrap() {
   const result = await getMedia();
   media.value = result.records || [];
-  mediaId.value = resolveMediaId(media.value, route.query.mediaId);
+  mediaId.value = media.value[0]?.id || '';
 }
 
 async function loadOptions() {
@@ -138,9 +134,6 @@ async function removeCurrent() {
 
 watch(mediaId, async () => {
   current.value = 1;
-  await router.replace({
-    query: withMediaContext(route.query, mediaId.value),
-  });
   await Promise.all([load(), loadOptions()]);
 });
 bootstrap().then(() => Promise.all([load(), loadOptions()]));
@@ -148,14 +141,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
-    <el-alert
-      v-if="media.length > 1 && !mediaId"
-      class="mb-4"
-      :closable="false"
-      show-icon
-      title="请选择媒体范围后继续"
-      type="info"
-    />
     <header class="channel-heading">
       <div>
         <p>MEDIA DELIVERY · CONFIGURATION</p>
@@ -178,19 +163,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
-          <el-select
-            v-model="mediaId"
-            filterable
-            placeholder="选择媒体主体"
-            style="width: 220px"
-          >
-            <el-option
-              v-for="item in media"
-              :key="item.id"
-              :label="`${item.name} · ${item.code}`"
-              :value="item.id"
-            />
-          </el-select>
           <el-input
             v-model="keyword"
             clearable
@@ -202,7 +174,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </div>
         <el-button
           v-access:code="'ad:master:write'"
-          :disabled="!mediaId"
           type="primary"
           @click="open()"
         >
@@ -216,12 +187,6 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           </template>
         </el-table-column>
         <el-table-column label="名称" prop="name" min-width="180" />
-        <el-table-column label="关联配置" min-width="180">
-          <template #default="{ row }">
-            文档 {{ row.documentCount || 0 }} · 渠道用户
-            {{ row.channelUserCount || 0 }}
-          </template>
-        </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag

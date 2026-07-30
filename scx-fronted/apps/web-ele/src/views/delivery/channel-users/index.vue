@@ -2,7 +2,6 @@
 import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 
 import { Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -10,20 +9,15 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   deleteChannelUser,
   getChannelUsers,
-  getChannelUserSensitive,
   getMaster,
   getMedia,
   saveChannelUser,
 } from '#/api/ad';
 
-import { resolveMediaId, withMediaContext } from '../components/media-context';
-
 import '../components/mvp-page.css';
 
 defineOptions({ name: 'AdChannelUser' });
 const channelId = ref('');
-const route = useRoute();
-const router = useRouter();
 const channels = ref<any[]>([]);
 const current = ref(1);
 const drawer = ref(false);
@@ -40,7 +34,7 @@ const total = ref(0);
 async function bootstrap() {
   const m = await getMedia();
   media.value = m.records || [];
-  mediaId.value = resolveMediaId(media.value, route.query.mediaId);
+  mediaId.value = media.value[0]?.id || '';
 }
 async function options() {
   if (!mediaId.value) return;
@@ -69,14 +63,11 @@ async function load() {
     loading.value = false;
   }
 }
-async function open(row?: any) {
+function open(row?: any) {
   Object.keys(form).forEach((k) => delete form[k]);
-  const source = row
-    ? await getChannelUserSensitive(row.id, mediaId.value)
-    : undefined;
   Object.assign(
     form,
-    source || {
+    row || {
       mediaId: mediaId.value,
       channelId: channelId.value,
       status: 'ACTIVE',
@@ -137,9 +128,6 @@ async function removeCurrent() {
 }
 watch([mediaId, channelId], async () => {
   current.value = 1;
-  await router.replace({
-    query: withMediaContext(route.query, mediaId.value),
-  });
   await Promise.all([options(), load()]);
 });
 bootstrap().then(async () => {
@@ -149,30 +137,9 @@ bootstrap().then(async () => {
 </script>
 <template>
   <main class="mvp-page">
-    <el-alert
-      v-if="media.length > 1 && !mediaId"
-      class="mb-4"
-      :closable="false"
-      show-icon
-      title="请选择媒体范围后继续"
-      type="info"
-    />
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
-          <el-select
-            v-model="mediaId"
-            filterable
-            placeholder="选择媒体主体"
-            style="width: 200px"
-          >
-            <el-option
-              v-for="item in media"
-              :key="item.id"
-              :label="`${item.name} · ${item.code}`"
-              :value="item.id"
-            />
-          </el-select>
           <el-select
             v-model="channelId"
             clearable
@@ -195,7 +162,6 @@ bootstrap().then(async () => {
         </div>
         <el-button
           v-access:code="'ad:channel-user:write'"
-          :disabled="!mediaId"
           type="primary"
           @click="open()"
         >

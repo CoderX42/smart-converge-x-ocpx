@@ -1,12 +1,9 @@
 package com.yzytech.scx.delivery.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
-import cn.dev33.satoken.annotation.SaMode;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
-import com.yzytech.scx.delivery.dto.MediaChannelUserView;
 import com.yzytech.scx.delivery.entity.MediaChannelUser;
 import com.yzytech.scx.delivery.service.MediaChannelUserService;
 import jakarta.validation.Valid;
@@ -22,22 +19,10 @@ public class MediaChannelUserController {
 
 	@GetMapping
 	@SaCheckPermission("ad:channel-user:read")
-	public Result<IPage<MediaChannelUserView>> page(Page<MediaChannelUser> p, @RequestParam String mediaId,
-			String channelId,
+	public Result<Page<MediaChannelUser>> page(Page<MediaChannelUser> p, @RequestParam String mediaId, String channelId,
 			String keyword, String status) {
 		try {
 			return Result.success(service.page(p, mediaId, channelId, keyword, status));
-		}
-		catch (IllegalArgumentException e) {
-			return Result.fail(e.getMessage());
-		}
-	}
-
-	@GetMapping("/{id}/sensitive")
-	@SaCheckPermission(value = { "ad:channel-user:sensitive:read", "ad:channel-user:write" }, mode = SaMode.OR)
-	public Result<MediaChannelUserView> sensitive(@PathVariable String id, @RequestParam String mediaId) {
-		try {
-			return Result.success(service.sensitive(id, mediaId));
 		}
 		catch (IllegalArgumentException e) {
 			return Result.fail(e.getMessage());
