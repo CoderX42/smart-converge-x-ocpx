@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import DimensionSummary from '../components/DimensionSummary.vue';
+import ResultTable from '../components/ResultTable.vue';
 
 defineOptions({ name: 'AdResultCbSummary' });
 </script>
 
 <template>
-  <DimensionSummary dimension="RESULT_CB" />
+  <ResultTable mode="CALLBACK" />
 </template>

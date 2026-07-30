@@ -380,13 +380,48 @@ export function getResultReport(params: Record<string, any>) {
 export function getResultCbReport(params: Record<string, any>) {
   return requestClient.get<any[]>('/ad/reports/result/cb', { params });
 }
+export function getAttributionResults(params: Record<string, any>) {
+  return requestClient.get<PageResult<any>>('/ad/reports/attribution-results', {
+    params,
+  });
+}
+export function getCallbackResults(params: Record<string, any>) {
+  return requestClient.get<PageResult<any>>('/ad/reports/callback-results', {
+    params,
+  });
+}
+export function getReportSyncRuns(params: Record<string, any>) {
+  return requestClient.get<PageResult<any>>('/ad/reports/sync-runs', {
+    params,
+  });
+}
+export function syncMediaReport(
+  mediaAccountId: string,
+  params: { end: string; start: string },
+) {
+  return requestClient.post<any[]>(
+    `/ad/reports/media-accounts/${mediaAccountId}/sync`,
+    undefined,
+    { params },
+  );
+}
+export function createReportBackfill(data: Record<string, any>) {
+  return requestClient.post<any>('/ad/reports/backfills', data);
+}
+export function getReportBackfill(id: string) {
+  return requestClient.get<any>(`/ad/reports/backfills/${id}`);
+}
 export function getReportOverview(params: Record<string, any>) {
   return requestClient.get<any[]>('/ad/reports/overview', { params });
 }
 export function refreshDailyReport(date: string, mediaId: string) {
-  return requestClient.post(`/ad/reports/daily/${date}/refresh`, undefined, {
-    params: { mediaId },
-  });
+  return requestClient.post<any>(
+    `/ad/reports/daily/${date}/refresh`,
+    undefined,
+    {
+      params: { mediaId },
+    },
+  );
 }
 export function getEventDetails(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/reports/details', { params });

@@ -83,15 +83,16 @@ public class GenericSandboxMediaAdapter implements MediaAdapter {
 	@Override
 	public ReportPullResult pullReport(String mediaAccountId, String startDate, String endDate, String cursor) {
 		checkFault("pullReport");
-		String key = mediaAccountId + "|" + startDate + "|" + endDate;
+		String key = reportKey("PERFORMANCE", mediaAccountId, startDate, endDate, cursor);
 		return reportStore.getOrDefault(key, new ReportPullResult(null, false, List.of(), LocalDateTime.now()));
 	}
 
 	@Override
 	public ReportPullResult pullBilling(String mediaAccountId, String startDate, String endDate, String cursor) {
 		checkFault("pullBilling");
-		// Sandbox billing mirrors report spend
-		return pullReport(mediaAccountId, startDate, endDate, cursor);
+		String key = reportKey("BILLING", mediaAccountId, startDate, endDate, cursor);
+		ReportPullResult billing = reportStore.get(key);
+		return billing == null ? pullReport(mediaAccountId, startDate, endDate, cursor) : billing;
 	}
 
 	@Override
@@ -112,6 +113,15 @@ public class GenericSandboxMediaAdapter implements MediaAdapter {
 				healthy = true;
 			}
 		}
+	}
+
+	public void putReport(String syncType, String mediaAccountId, String startDate, String endDate, String cursor,
+			ReportPullResult result) {
+		reportStore.put(reportKey(syncType, mediaAccountId, startDate, endDate, cursor), result);
+	}
+
+	private String reportKey(String syncType, String mediaAccountId, String startDate, String endDate, String cursor) {
+		return syncType + "|" + mediaAccountId + "|" + startDate + "|" + endDate + "|" + (cursor == null ? "" : cursor);
 	}
 
 	private void checkFault(String operation) {

@@ -1,43 +1,107 @@
 package com.yzytech.scx.reporting.entity;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-@Data @TableName("scx_report_daily")
+
+@Data
+@TableName("scx_report_daily")
 public class ReportDaily {
-    @TableId(type = IdType.ASSIGN_ID) private String id;
-    private String reportRunId;
-    private LocalDate reportDate;
-    private String timezone;
-    private String mediaId;
-    private String partnerId;
-    private String customerId;
-    private String productId;
-    private String linkId;
-    private String documentId;
-    private String taskId;
-    private String channelId;
-    private Long impressionCount;
-    private Long uniqueClickCount;
-    private Long eligibleClickCount;
-    private Long deduplicatedClickCount;
-    private Long attributedActivateCount;
-    private Long attributedRegisterCount;
-    private Long attributedPayCount;
-    private Long attributedOrderCount;
-    private Long nextDayReturnCount;
-    @TableField("retention_3d_count")
-    private Long retention3dCount;
-    @TableField("retention_7d_count")
-    private Long retention7dCount;
-    private Long firstActivateCount;
-    private Long firstOrderCount;
-    private Long reactivateCount;
-    private Long customCount;
-    private Long creditCount;
-    private Integer revision;
-    private LocalDateTime calculatedAt;
+
+	@TableId(type = IdType.ASSIGN_ID)
+	private String id;
+
+	private String reportRunId;
+
+	private LocalDate reportDate;
+
+	private String timezone;
+
+	private String mediaId;
+
+	private String mediaAccountId;
+
+	private String campaignId;
+
+	private String publishingBindingId;
+
+	private String partnerId;
+
+	private String customerId;
+
+	private String productId;
+
+	private String linkId;
+
+	private String documentId;
+
+	private String taskId;
+
+	private String channelId;
+
+	private Long impressionCount;
+
+	private Long uniqueClickCount;
+
+	private Long eligibleClickCount;
+
+	private Long deduplicatedClickCount;
+
+	private Long attributedActivateCount;
+
+	private Long attributedRegisterCount;
+
+	private Long attributedPayCount;
+
+	private Long attributedOrderCount;
+
+	private Long nextDayReturnCount;
+
+	@TableField("retention_3d_count")
+	private Long retention3dCount;
+
+	@TableField("retention_7d_count")
+	private Long retention7dCount;
+
+	private Long firstActivateCount;
+
+	private Long firstOrderCount;
+
+	private Long reactivateCount;
+
+	private Long customCount;
+
+	private Long creditCount;
+
+	private Long mediaImpressionCount;
+
+	private Long mediaClickCount;
+
+	private Long mediaConversionCount;
+
+	private BigDecimal spendAmount;
+
+	private String currency;
+
+	private Long callbackSucceededCount;
+
+	private Long callbackFailedCount;
+
+	private String dataStatus;
+
+	private String qualityCode;
+
+	private LocalDateTime sourceWatermark;
+
+	private String dataOrigin;
+
+	private Integer revision;
+
+	private LocalDateTime calculatedAt;
+
 }

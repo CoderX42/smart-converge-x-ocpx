@@ -298,6 +298,135 @@ paths:
         - { name: mediaId, in: query, required: true, schema: { type: string } }
       responses:
         '200': { description: 吊销结果 }
+  /ad/reports/daily:
+    get:
+      operationId: pageDailyReports
+      summary: 查询最新自动日报
+      description: 保留旧字段并扩展媒体指标、消耗、币种、revision、数据状态、质量码和来源水位。
+      parameters:
+        - { $ref: '#/components/parameters/PageCurrent' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+        - { name: productId, in: query, schema: { type: string } }
+        - { name: taskId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 受 Media Scope 和 Task Scope 裁剪的日报分页 }
+  /ad/reports/breakdowns:
+    get:
+      operationId: listReportBreakdowns
+      summary: 按真实日报执行维度汇总
+      parameters:
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+        - { name: dimension, in: query, schema: { type: string, enum: [DATE, MEDIA, MEDIA_ACCOUNT, PARTNER, CUSTOMER, PRODUCT, LINK, DOCUMENT, CHANNEL, TASK] } }
+      responses:
+        '200': { description: 带数据质量和新鲜度字段的维度行；无事实对象返回零值行 }
+  /ad/reports/hourly:
+    get:
+      operationId: listHourlyReports
+      summary: 查询 Asia/Shanghai 本地自然小时汇总
+      parameters:
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 双事实源小时汇总 }
+  /ad/reports/cpa:
+    get:
+      operationId: listCpaReports
+      summary: 查询按币种拆分的内部有效归因 CPA
+      description: CPA=媒体确认消耗/AdGroup 优化目标事件的有效内部归因数；零分母返回 null。
+      parameters:
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 按产品、任务、客户和币种拆分的 CPA 行 }
+  /ad/reports/attribution-results:
+    get:
+      operationId: pageAttributionResults
+      summary: 分页查询事件归因结果
+      parameters:
+        - { $ref: '#/components/parameters/PageCurrent' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: RawEvent、AttributionResult 和命中点击的分页结果 }
+  /ad/reports/callback-results:
+    get:
+      operationId: pageCallbackResults
+      summary: 分页查询归因回传结果
+      parameters:
+        - { $ref: '#/components/parameters/PageCurrent' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200': { description: CallbackJob、AttributionResult 和事件的分页结果 }
+  /ad/reports/sync-runs:
+    get:
+      operationId: pageMediaReportSyncRuns
+      summary: 查询媒体同步运行
+      parameters:
+        - { $ref: '#/components/parameters/PageCurrent' }
+        - { $ref: '#/components/parameters/PageSize' }
+        - { name: mediaAccountId, in: query, required: true, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 游标、窗口、行数、错误和租约可审计的运行分页 }
+  /ad/reports/media-accounts/{id}/sync:
+    post:
+      operationId: syncMediaAccountReports
+      summary: 手工同步媒体账户 performance 和 billing
+      description: 需要 ad:report:sync。
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: start, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: end, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: 两类同步运行；空结果明确为 SUCCEEDED_EMPTY }
+  /ad/reports/daily/{date}/refresh:
+    post:
+      operationId: refreshDailyReport
+      summary: 手工重算单日日报
+      description: 需要 ad:report:sync；无事实时返回 SUCCEEDED_EMPTY。
+      parameters:
+        - { name: date, in: path, required: true, schema: { type: string, format: date } }
+        - { name: mediaId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 报表运行及 revision、状态和来源水位 }
+  /ad/reports/backfills:
+    post:
+      operationId: createReportBackfill
+      summary: 创建历史补算或 dry-run 对账
+      description: 需要 ad:report:backfill。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mediaId, startDate, endDate]
+              properties:
+                mediaId: { type: string }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                dryRun: { type: boolean, default: true }
+      responses:
+        '200': { description: 异步补算任务 }
+  /ad/reports/backfills/{id}:
+    get:
+      operationId: getReportBackfill
+      summary: 查询补算进度和差异
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: 旧快照、新快照、来源计数和处理进度 }
   /ad/reports/details/{rawEventId}/click-sensitive:
     get:
       operationId: getMaskedClickSensitiveDetail

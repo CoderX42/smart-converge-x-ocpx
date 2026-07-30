@@ -12,6 +12,7 @@ import {
   getReportBreakdown,
   refreshDailyReport,
 } from '#/api/ad';
+import { shanghaiDate } from '#/utils/report-date';
 
 import '../../delivery/components/mvp-page.css';
 
@@ -19,7 +20,7 @@ defineOptions({ name: 'AdDailyReport' });
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
-const reportDate = ref(new Date().toISOString().slice(0, 10));
+const reportDate = ref(shanghaiDate());
 const rows = ref<any[]>([]);
 const taskId = ref('');
 const loading = ref(false);
@@ -42,6 +43,8 @@ const totals = computed(() => {
     firstActivate: 0,
     firstOrder: 0,
     impression: 0,
+    mediaClick: 0,
+    mediaConversion: 0,
     nextDay: 0,
     order: 0,
     pay: 0,
@@ -49,11 +52,15 @@ const totals = computed(() => {
     register: 0,
     retention3d: 0,
     retention7d: 0,
+    spend: 0,
   };
   for (const row of rows.value) {
     sum.activate += Number(row.attributedActivateCount || 0);
     sum.click += Number(row.uniqueClickCount || 0);
     sum.impression += Number(row.impressionCount || 0);
+    sum.mediaClick += Number(row.mediaClickCount || 0);
+    sum.mediaConversion += Number(row.mediaConversionCount || 0);
+    sum.spend += Number(row.spendAmount || 0);
     sum.eligible += Number(row.eligibleClickCount || 0);
     sum.pay += Number(row.attributedPayCount || 0);
     sum.register += Number(row.attributedRegisterCount || 0);
@@ -128,8 +135,12 @@ async function refresh() {
   if (!mediaId.value || !reportDate.value) return;
   refreshing.value = true;
   try {
-    await refreshDailyReport(reportDate.value, mediaId.value);
-    ElMessage.success('日报快照已重新计算');
+    const run = await refreshDailyReport(reportDate.value, mediaId.value);
+    ElMessage.success(
+      run.dataStatus === 'SUCCEEDED_EMPTY'
+        ? '同步与聚合完成，但该日没有可归集的事实数据'
+        : `日报已生成：R${run.revision} · ${run.dataStatus}`,
+    );
     await load();
   } finally {
     refreshing.value = false;
@@ -162,9 +173,7 @@ watch([mediaId, breakdownDimension, breakdownDates], loadBreakdown, {
 bootstrap().then(async () => {
   applyQuery();
   const end = reportDate.value;
-  const start = new Date(Date.now() - 6 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  const start = shanghaiDate(-6);
   breakdownDates.value = [start, end];
   await Promise.all([load(), loadBreakdown()]);
 });
@@ -204,7 +213,11 @@ bootstrap().then(async () => {
       </div>
       <div class="mvp-metric">
         <strong>{{ totals.click }}</strong>
-        <span>原始点击</span>
+        <span>追踪点击</span>
+      </div>
+      <div class="mvp-metric">
+        <strong>{{ totals.mediaClick }}</strong>
+        <span>媒体点击</span>
       </div>
       <div class="mvp-metric">
         <strong>{{ totals.eligible }}</strong>
@@ -258,6 +271,14 @@ bootstrap().then(async () => {
         <strong>{{ totals.credit }}</strong
         ><span>授信</span>
       </div>
+      <div class="mvp-metric">
+        <strong>{{ totals.mediaConversion }}</strong
+        ><span>媒体转化</span>
+      </div>
+      <div class="mvp-metric">
+        <strong>{{ totals.spend.toFixed(2) }}</strong
+        ><span>媒体确认消耗</span>
+      </div>
     </div>
 
     <el-card class="mvp-card" shadow="never">
@@ -270,7 +291,7 @@ bootstrap().then(async () => {
         <div>
           <el-button @click="load">查询</el-button>
           <el-button
-            v-access:code="'ad:report:read'"
+            v-access:code="'ad:report:sync'"
             :loading="refreshing"
             type="primary"
             @click="refresh"
@@ -286,8 +307,13 @@ bootstrap().then(async () => {
             <span class="mvp-code">{{ row.taskId }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="曝光" prop="impressionCount" width="90" />
-        <el-table-column label="点击" prop="uniqueClickCount" width="90" />
+        <el-table-column
+          label="媒体曝光"
+          prop="mediaImpressionCount"
+          width="100"
+        />
+        <el-table-column label="媒体点击" prop="mediaClickCount" width="100" />
+        <el-table-column label="追踪点击" prop="uniqueClickCount" width="100" />
         <el-table-column label="有效" prop="eligibleClickCount" width="90" />
         <el-table-column
           label="去重"
@@ -314,6 +340,21 @@ bootstrap().then(async () => {
         <el-table-column label="拉活" prop="reactivateCount" width="90" />
         <el-table-column label="自定义" prop="customCount" width="90" />
         <el-table-column label="授信" prop="creditCount" width="90" />
+        <el-table-column
+          label="媒体转化"
+          prop="mediaConversionCount"
+          width="105"
+        />
+        <el-table-column label="消耗" min-width="120">
+          <template #default="{ row }">
+            {{ row.currency }} {{ Number(row.spendAmount || 0).toFixed(2) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="回传成功 / 失败" min-width="130">
+          <template #default="{ row }">
+            {{ row.callbackSucceededCount }} / {{ row.callbackFailedCount }}
+          </template>
+        </el-table-column>
         <el-table-column label="激活率" width="100">
           <template #default="{ row }">
             {{ rate(row.attributedActivateCount, row.eligibleClickCount) }}
@@ -322,6 +363,19 @@ bootstrap().then(async () => {
         <el-table-column label="快照版本" width="110">
           <template #default="{ row }">R{{ row.revision }}</template>
         </el-table-column>
+        <el-table-column label="数据状态" min-width="150">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.dataStatus }}</el-tag>
+            <div v-if="row.qualityCode" class="mt-1 text-xs text-orange-500">
+              {{ row.qualityCode }}
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          label="来源水位"
+          prop="sourceWatermark"
+          min-width="180"
+        />
         <el-table-column label="计算时间" prop="calculatedAt" min-width="180" />
         <template #empty>
           <div class="mvp-empty">

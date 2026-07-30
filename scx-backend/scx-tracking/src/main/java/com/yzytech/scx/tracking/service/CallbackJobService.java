@@ -240,6 +240,7 @@ public class CallbackJobService {
 			job.setNextRetryAt(null);
 			job.setLastErrorCode(null);
 			job.setLastErrorMessage(null);
+			job.setCompletedAt(LocalDateTime.now());
 		}
 		catch (CallbackDeliveryException exception) {
 			failDelivery(job, exception.retryable(), exception.code(), exception.getMessage());
@@ -332,6 +333,7 @@ public class CallbackJobService {
 		long[] delays = { 1, 2, 5, 10 };
 		job.setNextRetryAt(dead ? null : LocalDateTime.now()
 			.plusMinutes(delays[Math.max(0, Math.min(job.getAttempts() - 1, delays.length - 1))]));
+		job.setCompletedAt(dead ? LocalDateTime.now() : null);
 	}
 
 	private void requireRead(String mediaId) {

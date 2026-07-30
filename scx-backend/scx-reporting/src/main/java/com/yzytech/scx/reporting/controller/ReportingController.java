@@ -4,6 +4,8 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
+import com.yzytech.scx.reporting.dto.AttributionResultView;
+import com.yzytech.scx.reporting.dto.CallbackResultView;
 import com.yzytech.scx.reporting.dto.EventDetailView;
 import com.yzytech.scx.reporting.dto.ClickSensitiveDetail;
 import com.yzytech.scx.reporting.dto.ReportBreakdown;
@@ -19,78 +21,140 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
-@RestController @RequiredArgsConstructor @RequestMapping("/ad/reports")
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/ad/reports")
 public class ReportingController {
-    private final ReportingService service;
-    @GetMapping("/daily") @SaCheckPermission("ad:report:read")
-    public Result<IPage<ReportDaily>> daily(Page<ReportDaily> page,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam String mediaId, String productId, String taskId) { return call(() -> service.daily(page,date,mediaId,productId,taskId)); }
-    @GetMapping("/details") @SaCheckPermission("ad:event-detail:read")
-    public Result<IPage<EventDetailView>> details(Page<EventDetailView> page, String mediaId,
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, String eventType, String taskId,
-            String eventId, String dedupStatus, String attributionStatus) {
-        return call(() -> service.details(page, mediaId, date, eventType, taskId, eventId, dedupStatus, attributionStatus));
-    }
-    @GetMapping("/details/{rawEventId}/click-sensitive") @SaCheckPermission("ad:event-sensitive:read")
-    public Result<ClickSensitiveDetail> maskedClick(@PathVariable String rawEventId, @RequestParam String mediaId) {
-        return call(() -> service.maskedClick(rawEventId, mediaId));
-    }
-    @GetMapping("/breakdowns") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportBreakdown>> breakdown(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam String mediaId, @RequestParam(defaultValue = "TASK") String dimension,
-            String customerId, String productId, String linkId, String taskId, String channelId, String documentId) {
-        return call(() -> service.breakdown(startDate, endDate, mediaId, dimension, customerId, productId, linkId, taskId,
-                channelId, documentId));
-    }
-    @GetMapping("/cpa") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportBreakdown>> cpa(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
-            String documentId) {
-        return call(() -> service.cpa(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
-    }
-    @GetMapping("/hourly") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportBreakdown>> hourly(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
-            String documentId) {
-        return call(() -> service.hourly(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
-    }
-    @GetMapping("/result") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportBreakdown>> result(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
-            String documentId) {
-        return call(() -> service.result(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
-    }
-    @GetMapping("/result/cb") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportBreakdown>> resultCb(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam String mediaId, String customerId, String productId, String linkId, String taskId, String channelId,
-            String documentId) {
-        return call(() -> service.resultCb(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId, documentId));
-    }
 
-    @GetMapping("/overview") @SaCheckPermission("ad:report:read")
-    public Result<List<ReportTrendPoint>> overview(LocalDate endDate, String mediaId) {
-        try { return Result.success(service.overview(endDate, mediaId)); }
-        catch (IllegalArgumentException e) { return Result.fail(e.getMessage()); }
-    }
-    @PostMapping("/daily/{date}/refresh") @SaCheckPermission("ad:report:read")
-    public Result<ReportRun> refresh(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam String mediaId) { return call(() -> service.refresh(date, mediaId)); }
-    private <T> Result<T> call(java.util.concurrent.Callable<T> action) {
-        try {
-            return Result.success(action.call());
-        }
-        catch (IllegalArgumentException e) {
-            return Result.fail(e.getMessage());
-        }
-        catch (Exception e) {
-            log.error("广告报表操作失败", e);
-            return Result.fail("报表操作失败");
-        }
-    }
+	private final ReportingService service;
+
+	@GetMapping("/daily")
+	@SaCheckPermission("ad:report:read")
+	public Result<IPage<ReportDaily>> daily(Page<ReportDaily> page,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, @RequestParam String mediaId,
+			String productId, String taskId) {
+		return call(() -> service.daily(page, date, mediaId, productId, taskId));
+	}
+
+	@GetMapping("/details")
+	@SaCheckPermission("ad:event-detail:read")
+	public Result<IPage<EventDetailView>> details(Page<EventDetailView> page, String mediaId,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, String eventType, String taskId,
+			String eventId, String dedupStatus, String attributionStatus) {
+		return call(
+				() -> service.details(page, mediaId, date, eventType, taskId, eventId, dedupStatus, attributionStatus));
+	}
+
+	@GetMapping("/attribution-results")
+	@SaCheckPermission("ad:report:read")
+	public Result<IPage<AttributionResultView>> attributionResults(Page<AttributionResultView> page,
+			@RequestParam String mediaId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String eventType,
+			String status, String taskId) {
+		return call(() -> service.attributionResults(page, mediaId, startDate, endDate, eventType, status, taskId));
+	}
+
+	@GetMapping("/callback-results")
+	@SaCheckPermission("ad:report:read")
+	public Result<IPage<CallbackResultView>> callbackResults(Page<CallbackResultView> page,
+			@RequestParam String mediaId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String status,
+			String taskId) {
+		return call(() -> service.callbackResults(page, mediaId, startDate, endDate, status, taskId));
+	}
+
+	@GetMapping("/details/{rawEventId}/click-sensitive")
+	@SaCheckPermission("ad:event-sensitive:read")
+	public Result<ClickSensitiveDetail> maskedClick(@PathVariable String rawEventId, @RequestParam String mediaId) {
+		return call(() -> service.maskedClick(rawEventId, mediaId));
+	}
+
+	@GetMapping("/breakdowns")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportBreakdown>> breakdown(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam String mediaId, @RequestParam(defaultValue = "TASK") String dimension, String customerId,
+			String productId, String linkId, String taskId, String channelId, String documentId) {
+		return call(() -> service.breakdown(startDate, endDate, mediaId, dimension, customerId, productId, linkId,
+				taskId, channelId, documentId));
+	}
+
+	@GetMapping("/cpa")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportBreakdown>> cpa(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam String mediaId, String customerId, String productId, String linkId, String taskId,
+			String channelId, String documentId) {
+		return call(() -> service.cpa(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId,
+				documentId));
+	}
+
+	@GetMapping("/hourly")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportBreakdown>> hourly(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam String mediaId, String customerId, String productId, String linkId, String taskId,
+			String channelId, String documentId) {
+		return call(() -> service.hourly(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId,
+				documentId));
+	}
+
+	@GetMapping("/result")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportBreakdown>> result(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam String mediaId, String customerId, String productId, String linkId, String taskId,
+			String channelId, String documentId) {
+		return call(() -> service.result(startDate, endDate, mediaId, customerId, productId, linkId, taskId, channelId,
+				documentId));
+	}
+
+	@GetMapping("/result/cb")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportBreakdown>> resultCb(
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+			@RequestParam String mediaId, String customerId, String productId, String linkId, String taskId,
+			String channelId, String documentId) {
+		return call(() -> service.resultCb(startDate, endDate, mediaId, customerId, productId, linkId, taskId,
+				channelId, documentId));
+	}
+
+	@GetMapping("/overview")
+	@SaCheckPermission("ad:report:read")
+	public Result<List<ReportTrendPoint>> overview(LocalDate endDate, String mediaId) {
+		try {
+			return Result.success(service.overview(endDate, mediaId));
+		}
+		catch (IllegalArgumentException e) {
+			return Result.fail(e.getMessage());
+		}
+	}
+
+	@PostMapping("/daily/{date}/refresh")
+	@SaCheckPermission("ad:report:sync")
+	public Result<ReportRun> refresh(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+			@RequestParam String mediaId) {
+		return call(() -> service.refresh(date, mediaId));
+	}
+
+	private <T> Result<T> call(java.util.concurrent.Callable<T> action) {
+		try {
+			return Result.success(action.call());
+		}
+		catch (IllegalArgumentException e) {
+			return Result.fail(e.getMessage());
+		}
+		catch (Exception e) {
+			log.error("广告报表操作失败", e);
+			return Result.fail("报表操作失败");
+		}
+	}
+
 }

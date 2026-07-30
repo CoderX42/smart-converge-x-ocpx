@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import DimensionSummary from '../components/DimensionSummary.vue';
+import ResultTable from '../components/ResultTable.vue';
 
 defineOptions({ name: 'AdResultSummary' });
 </script>
 
 <template>
-  <DimensionSummary dimension="RESULT" />
+  <ResultTable mode="ATTRIBUTION" />
 </template>

@@ -10,9 +10,12 @@ import com.yzytech.scx.commercial.port.PublishingEligibilityPort;
 import com.yzytech.scx.commercial.service.CommercialService;
 import com.yzytech.scx.creative.entity.CreativeBinding;
 import com.yzytech.scx.creative.service.CreativeService;
+import com.yzytech.scx.delivery.entity.TrackingTask;
+import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
 import com.yzytech.scx.finance.service.FinanceService;
 import com.yzytech.scx.inventory.dto.PublishRequest;
 import com.yzytech.scx.inventory.dto.PublishResult;
+import com.yzytech.scx.inventory.entity.MediaAccount;
 import com.yzytech.scx.inventory.service.MediaAdapterService;
 import com.yzytech.scx.inventory.service.InventoryService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,6 +28,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +74,8 @@ public class CampaignService {
 	private final InventoryService inventoryService;
 
 	private final MediaAdapterService mediaAdapterService;
+
+	private final TrackingTaskMapper trackingTaskMapper;
 
 	private final CreativeService creativeService;
 
@@ -539,10 +545,35 @@ public class CampaignService {
 	// ═══ Publishing bindings ═══
 
 	@Transactional
-	public MediaPublishingBinding bindMedia(String campaignId, String mediaAccountId, String placementId) {
+	public MediaPublishingBinding bindMedia(String campaignId, String mediaAccountId, String placementId,
+			String trackingTaskId, String adGroupId, LocalDateTime effectiveFrom, LocalDateTime effectiveTo,
+			String bindingStatus) {
 		requireWritableCampaign(campaignId);
-		inventoryService.requireMediaAccount(mediaAccountId);
+		if (effectiveFrom == null || (effectiveTo != null && !effectiveFrom.isBefore(effectiveTo)))
+			throw new IllegalArgumentException("绑定生效区间无效");
+		if (!Set.of("ACTIVE", "INACTIVE").contains(bindingStatus))
+			throw new IllegalArgumentException("绑定状态无效");
+		MediaAccount mediaAccount = inventoryService.requireMediaAccount(mediaAccountId);
 		inventoryService.requirePlacementForMediaAccount(placementId, mediaAccountId);
+		TrackingTask task = trackingTaskMapper.selectById(trackingTaskId);
+		if (task == null || !"ACTIVE".equals(task.getStatus()) || !mediaAccount.getMediaId().equals(task.getMediaId()))
+			throw new IllegalArgumentException("监测任务不可用或不属于同一媒体范围");
+		AdGroup adGroup = adGroupMapper.selectById(adGroupId);
+		if (adGroup == null || !campaignId.equals(adGroup.getCampaignId())
+				|| !StringUtils.hasText(adGroup.getOptimizationGoalId()))
+			throw new IllegalArgumentException("广告组不可用或尚未配置优化目标");
+		if ("ACTIVE".equals(bindingStatus)) {
+			var overlap = Wrappers.<MediaPublishingBinding>lambdaQuery()
+				.eq(MediaPublishingBinding::getTrackingTaskId, trackingTaskId)
+				.eq(MediaPublishingBinding::getBindingStatus, "ACTIVE")
+				.and(q -> q.isNull(MediaPublishingBinding::getEffectiveTo)
+					.or()
+					.gt(MediaPublishingBinding::getEffectiveTo, effectiveFrom));
+			if (effectiveTo != null)
+				overlap.lt(MediaPublishingBinding::getEffectiveFrom, effectiveTo);
+			if (publishingBindingMapper.selectCount(overlap) > 0)
+				throw new IllegalArgumentException("监测任务在该时段已绑定其他有效媒体计划");
+		}
 		if (publishingBindingMapper.selectCount(Wrappers.<MediaPublishingBinding>lambdaQuery()
 			.eq(MediaPublishingBinding::getCampaignId, campaignId)
 			.eq(MediaPublishingBinding::getMediaAccountId, mediaAccountId)
@@ -552,6 +583,12 @@ public class CampaignService {
 		b.setCampaignId(campaignId);
 		b.setMediaAccountId(mediaAccountId);
 		b.setPlacementId(placementId);
+		b.setTrackingTaskId(trackingTaskId);
+		b.setAdGroupId(adGroupId);
+		b.setEffectiveFrom(effectiveFrom);
+		b.setEffectiveTo(effectiveTo);
+		b.setBindingStatus(bindingStatus);
+		b.setVersion(0);
 		publishingBindingMapper.insert(b);
 		return b;
 	}
@@ -572,7 +609,9 @@ public class CampaignService {
 		Campaign campaign = requireWritableCampaign(binding.getCampaignId());
 		if (!"DRAFT".equals(campaign.getStatus()))
 			throw new IllegalArgumentException("只有草稿计划可解除媒体绑定");
-		publishingBindingMapper.deleteById(id);
+		binding.setBindingStatus("INACTIVE");
+		binding.setEffectiveTo(LocalDateTime.now(ZoneOffset.UTC));
+		publishingBindingMapper.updateById(binding);
 	}
 
 	public Page<PublishingOperation> listPublishingOperations(Page<PublishingOperation> page, String campaignId) {

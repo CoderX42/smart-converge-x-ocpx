@@ -9,12 +9,13 @@ import { Page } from '@boot/common-ui';
 import { EchartsUI, useEcharts } from '@boot/plugins/echarts';
 
 import { getMedia, getReportOverview } from '#/api/ad';
+import { shanghaiDate } from '#/utils/report-date';
 
 defineOptions({ name: 'AdAnalyticsDashboard' });
 
 const media = ref<Media[]>([]);
 const mediaId = ref('');
-const endDate = ref(new Date().toISOString().slice(0, 10));
+const endDate = ref(shanghaiDate());
 const trend = ref<any[]>([]);
 const loading = ref(false);
 const chartRef = ref<EchartsUIType>();

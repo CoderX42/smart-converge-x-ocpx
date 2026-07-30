@@ -9,6 +9,7 @@ import {
   getReportBreakdown,
   getTrackingTasks,
 } from '#/api/ad';
+import { shanghaiDate } from '#/utils/report-date';
 
 import SummaryExportButton from '../components/SummaryExportButton.vue';
 import SummaryToolbar from '../components/SummaryToolbar.vue';
@@ -30,13 +31,13 @@ const documentId = ref('');
 const taskId = ref('');
 const loading = ref(false);
 const channelRows = ref<any[]>([]);
-const documentRows = ref<any[]>([]);
-const taskRows = ref<any[]>([]);
-const activeView = ref<'CHANNEL' | 'DOCUMENT' | 'TASK'>('CHANNEL');
+const mediaRows = ref<any[]>([]);
+const accountRows = ref<any[]>([]);
+const activeView = ref<'CHANNEL' | 'MEDIA' | 'MEDIA_ACCOUNT'>('MEDIA');
 
 const rows = computed(() => {
-  if (activeView.value === 'DOCUMENT') return documentRows.value;
-  if (activeView.value === 'TASK') return taskRows.value;
+  if (activeView.value === 'MEDIA') return mediaRows.value;
+  if (activeView.value === 'MEDIA_ACCOUNT') return accountRows.value;
   return channelRows.value;
 });
 
@@ -70,14 +71,14 @@ async function load() {
       startDate,
       taskId: taskId.value || undefined,
     };
-    const [channels, documents, tasks] = await Promise.all([
+    const [mediaResult, accounts, channels] = await Promise.all([
+      getReportBreakdown({ ...base, dimension: 'MEDIA' }),
+      getReportBreakdown({ ...base, dimension: 'MEDIA_ACCOUNT' }),
       getReportBreakdown({ ...base, dimension: 'CHANNEL' }),
-      getReportBreakdown({ ...base, dimension: 'DOCUMENT' }),
-      getReportBreakdown({ ...base, dimension: 'TASK' }),
     ]);
+    mediaRows.value = mediaResult;
+    accountRows.value = accounts;
     channelRows.value = channels;
-    documentRows.value = documents;
-    taskRows.value = tasks;
   } finally {
     loading.value = false;
   }
@@ -88,10 +89,8 @@ async function bootstrap() {
   media.value = result.records || [];
   mediaId.value = media.value[0]?.id || '';
   await loadOptions();
-  const end = new Date().toISOString().slice(0, 10);
-  const start = new Date(Date.now() - 6 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
+  const end = shanghaiDate();
+  const start = shanghaiDate(-6);
   dates.value = [start, end];
   await load();
 }
@@ -172,22 +171,22 @@ bootstrap();
           <div class="flex gap-2">
             <el-button-group>
               <el-button
+                :type="activeView === 'MEDIA' ? 'primary' : 'default'"
+                @click="activeView = 'MEDIA'"
+              >
+                授权媒体
+              </el-button>
+              <el-button
+                :type="activeView === 'MEDIA_ACCOUNT' ? 'primary' : 'default'"
+                @click="activeView = 'MEDIA_ACCOUNT'"
+              >
+                媒体账户
+              </el-button>
+              <el-button
                 :type="activeView === 'CHANNEL' ? 'primary' : 'default'"
                 @click="activeView = 'CHANNEL'"
               >
                 投放渠道
-              </el-button>
-              <el-button
-                :type="activeView === 'DOCUMENT' ? 'primary' : 'default'"
-                @click="activeView = 'DOCUMENT'"
-              >
-                媒体文档
-              </el-button>
-              <el-button
-                :type="activeView === 'TASK' ? 'primary' : 'default'"
-                @click="activeView = 'TASK'"
-              >
-                监测任务
               </el-button>
             </el-button-group>
             <el-button @click="load">刷新</el-button>
@@ -267,8 +266,13 @@ bootstrap();
             <div class="mvp-code">{{ row.dimensionId }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="曝光" prop="impressionCount" width="92" />
-        <el-table-column label="点击" prop="uniqueClickCount" width="92" />
+        <el-table-column
+          label="媒体曝光"
+          prop="mediaImpressionCount"
+          width="104"
+        />
+        <el-table-column label="媒体点击" prop="mediaClickCount" width="104" />
+        <el-table-column label="追踪点击" prop="uniqueClickCount" width="104" />
         <el-table-column
           label="有效点击"
           prop="eligibleClickCount"
@@ -286,6 +290,16 @@ bootstrap();
         />
         <el-table-column label="付费" prop="attributedPayCount" width="92" />
         <el-table-column label="下单" prop="attributedOrderCount" width="92" />
+        <el-table-column
+          label="媒体转化"
+          prop="mediaConversionCount"
+          width="105"
+        />
+        <el-table-column label="消耗" min-width="120">
+          <template #default="{ row }">
+            {{ row.currency }} {{ Number(row.spendAmount || 0).toFixed(2) }}
+          </template>
+        </el-table-column>
         <el-table-column label="次留" prop="nextDayReturnCount" width="92" />
         <el-table-column label="激活率" width="100">
           <template #default="{ row }">

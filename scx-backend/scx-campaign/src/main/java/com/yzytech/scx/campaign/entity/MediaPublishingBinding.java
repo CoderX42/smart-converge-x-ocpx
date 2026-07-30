@@ -17,9 +17,22 @@ public class MediaPublishingBinding {
 
 	private String placementId;
 
+	private String trackingTaskId;
+
+	private String adGroupId;
+
 	private String externalCampaignId;
 
 	private String externalStatus;
+
+	private LocalDateTime effectiveFrom;
+
+	private LocalDateTime effectiveTo;
+
+	private String bindingStatus;
+
+	@Version
+	private Integer version;
 
 	private LocalDateTime lastSyncedAt;
 

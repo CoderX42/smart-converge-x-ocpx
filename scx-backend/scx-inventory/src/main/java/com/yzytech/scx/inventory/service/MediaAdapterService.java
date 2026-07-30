@@ -69,4 +69,16 @@ public class MediaAdapterService {
 			throw new IllegalStateException("Fault injection only available for GENERIC_SANDBOX adapter");
 	}
 
+	public void putSandboxReport(String syncType, String mediaAccountId, String start, String end, String cursor,
+			ReportPullResult result) {
+		inventoryService.requireWritableMediaAccount(mediaAccountId);
+		if (!Set.of("PERFORMANCE", "BILLING").contains(syncType))
+			throw new IllegalArgumentException("同步类型必须为 PERFORMANCE 或 BILLING");
+		MediaAdapter adapter = registry.resolve(mediaAccountId);
+		if (adapter instanceof GenericSandboxMediaAdapter sandbox)
+			sandbox.putReport(syncType, mediaAccountId, start, end, cursor, result);
+		else
+			throw new IllegalArgumentException("该媒体账户不是沙箱适配器");
+	}
+
 }

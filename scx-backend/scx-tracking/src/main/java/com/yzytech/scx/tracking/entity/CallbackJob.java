@@ -48,4 +48,7 @@ public class CallbackJob {
 
 	private LocalDateTime updateTime;
 
+	@TableField(updateStrategy = FieldStrategy.ALWAYS)
+	private LocalDateTime completedAt;
+
 }

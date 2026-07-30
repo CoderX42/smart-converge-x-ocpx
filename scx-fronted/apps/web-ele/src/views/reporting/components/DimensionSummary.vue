@@ -16,6 +16,7 @@ import {
   getTrackingTasks,
   getUpstreamCustomers,
 } from '#/api/ad';
+import { shanghaiDate } from '#/utils/report-date';
 
 import SummaryExportButton from './SummaryExportButton.vue';
 import SummaryToolbar from './SummaryToolbar.vue';
@@ -53,13 +54,23 @@ const rows = ref<any[]>([]);
 const route = useRoute();
 
 const totals = computed(() => {
-  const total = { activate: 0, click: 0, impression: 0, pay: 0, register: 0 };
+  const total = {
+    activate: 0,
+    click: 0,
+    impression: 0,
+    mediaClick: 0,
+    pay: 0,
+    register: 0,
+    spend: 0,
+  };
   for (const row of rows.value) {
     total.activate += Number(row.attributedActivateCount || 0);
     total.click += Number(row.uniqueClickCount || 0);
     total.impression += Number(row.impressionCount || 0);
+    total.mediaClick += Number(row.mediaClickCount || 0);
     total.pay += Number(row.attributedPayCount || 0);
     total.register += Number(row.attributedRegisterCount || 0);
+    total.spend += Number(row.spendAmount || 0);
   }
   return total;
 });
@@ -152,10 +163,8 @@ async function bootstrap() {
   await loadOptions();
   applyQuery();
   if (!dates.value?.[0] || !dates.value?.[1]) {
-    const end = new Date().toISOString().slice(0, 10);
-    const start = new Date(Date.now() - 6 * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
+    const end = shanghaiDate();
+    const start = shanghaiDate(-6);
     dates.value = [start, end];
   }
   await load();
@@ -204,14 +213,18 @@ bootstrap();
       @reset="resetFilters"
     />
 
-    <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+    <section class="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
       <div class="mvp-metric">
         <strong>{{ totals.impression }}</strong
         ><span>曝光</span>
       </div>
       <div class="mvp-metric">
         <strong>{{ totals.click }}</strong
-        ><span>点击 · CTR {{ rate(totals.click, totals.impression) }}</span>
+        ><span>追踪点击</span>
+      </div>
+      <div class="mvp-metric">
+        <strong>{{ totals.mediaClick }}</strong
+        ><span>媒体点击 · 差异 {{ totals.mediaClick - totals.click }}</span>
       </div>
       <div class="mvp-metric">
         <strong>{{ totals.activate }}</strong
@@ -224,6 +237,10 @@ bootstrap();
       <div class="mvp-metric">
         <strong>{{ totals.pay }}</strong
         ><span>付费 · 激活付费率 {{ rate(totals.pay, totals.activate) }}</span>
+      </div>
+      <div class="mvp-metric">
+        <strong>{{ totals.spend.toFixed(2) }}</strong
+        ><span>媒体确认消耗</span>
       </div>
     </section>
 
@@ -314,8 +331,13 @@ bootstrap();
             <div class="mvp-code text-xs">{{ row.dimensionId }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="曝光" prop="impressionCount" width="92" />
-        <el-table-column label="点击" prop="uniqueClickCount" width="92" />
+        <el-table-column
+          label="媒体曝光"
+          prop="mediaImpressionCount"
+          width="104"
+        />
+        <el-table-column label="媒体点击" prop="mediaClickCount" width="104" />
+        <el-table-column label="追踪点击" prop="uniqueClickCount" width="104" />
         <el-table-column
           label="有效点击"
           prop="eligibleClickCount"
@@ -353,6 +375,31 @@ bootstrap();
           <template #default="{ row }">
             {{ row.reactivateCount }} / {{ row.customCount }} /
             {{ row.creditCount }}
+          </template>
+        </el-table-column>
+        <el-table-column label="点击差异" min-width="115">
+          <template #default="{ row }">
+            {{ row.clickDifferenceCount ?? 0 }} /
+            {{
+              row.clickDifferenceRate == null
+                ? '—'
+                : `${(Number(row.clickDifferenceRate) * 100).toFixed(2)}%`
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column label="消耗 / CPA" min-width="135">
+          <template #default="{ row }">
+            {{ row.currency || 'CNY' }}
+            {{ Number(row.spendAmount || 0).toFixed(2) }} /
+            {{ row.cpa == null ? '—' : Number(row.cpa).toFixed(2) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="数据状态" min-width="150">
+          <template #default="{ row }">
+            <el-tag size="small">{{ row.dataStatus || 'INCOMPLETE' }}</el-tag>
+            <div v-if="row.qualityCode" class="mt-1 text-xs text-orange-500">
+              {{ row.qualityCode }}
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="激活率" width="100">

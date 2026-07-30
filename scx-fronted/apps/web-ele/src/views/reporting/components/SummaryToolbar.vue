@@ -16,7 +16,20 @@ const emit = defineEmits<{
 
 <template>
   <div class="mvp-scope-toolbar">
-    <div class="mvp-control space-y-2">
+    <div class="mvp-control grid gap-2 md:grid-cols-[220px_1fr_auto]">
+      <el-select
+        :model-value="mediaId"
+        filterable
+        placeholder="媒体范围"
+        @update:model-value="(value: string) => emit('update:mediaId', value)"
+      >
+        <el-option
+          v-for="item in media"
+          :key="item.id"
+          :label="item.name"
+          :value="item.id"
+        />
+      </el-select>
       <el-date-picker
         :model-value="dates"
         class="!w-full"

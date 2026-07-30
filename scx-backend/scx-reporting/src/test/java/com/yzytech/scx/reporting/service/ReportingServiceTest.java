@@ -14,11 +14,13 @@ import com.yzytech.scx.reporting.dto.ReportBreakdown;
 import com.yzytech.scx.reporting.dto.ClickSensitiveDetail;
 import com.yzytech.scx.reporting.mapper.EventDetailMapper;
 import com.yzytech.scx.reporting.mapper.ReportDailyMapper;
+import com.yzytech.scx.reporting.mapper.ReportHourlyMapper;
 import com.yzytech.scx.reporting.mapper.ReportRunMapper;
+import com.yzytech.scx.delivery.mapper.ProductMapper;
+import com.yzytech.scx.delivery.mapper.TrackingLinkMapper;
 import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
 import com.yzytech.scx.delivery.service.TaskScopeService;
 import com.yzytech.scx.subject.service.MediaScopeService;
-import com.yzytech.scx.tracking.config.TrackingProperties;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -37,8 +39,9 @@ class ReportingServiceTest {
 
 	private final TrackingTaskMapper taskMapper = mock(TrackingTaskMapper.class);
 
-	private final ReportingService service = new ReportingService(scopeService, new TrackingProperties(), runMapper,
-			dailyMapper, eventDetailMapper, taskScopeService, taskMapper, new ObjectMapper());
+	private final ReportingService service = new ReportingService(scopeService, runMapper, dailyMapper,
+			mock(ReportHourlyMapper.class), eventDetailMapper, taskScopeService, taskMapper, mock(ProductMapper.class),
+			mock(TrackingLinkMapper.class), new ObjectMapper(), mock(ReportPipelineService.class));
 
 	@Test
 	void returnsLatestSnapshotsGroupedByRequestedDimension() {
@@ -62,7 +65,7 @@ class ReportingServiceTest {
 		LocalDate start = LocalDate.of(2026, 7, 1);
 
 		assertThatThrownBy(() -> service.breakdown(start, start.plusDays(31), "media-1", "task"))
-			.hasMessage("单次多维分析最多查询 31 天");
+			.hasMessage("单次查询最多 31 天");
 		assertThatThrownBy(() -> service.breakdown(start, start, "media-1", "unknown")).hasMessage("不支持的分析维度");
 	}
 

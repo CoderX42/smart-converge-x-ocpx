@@ -22,6 +22,7 @@ import com.yzytech.scx.creative.service.CreativeService;
 import com.yzytech.scx.finance.service.FinanceService;
 import com.yzytech.scx.inventory.service.InventoryService;
 import com.yzytech.scx.inventory.service.MediaAdapterService;
+import com.yzytech.scx.delivery.mapper.TrackingTaskMapper;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
@@ -46,8 +47,8 @@ class CampaignServiceTest {
 			adGroupMapper, mock(AdGroupRevisionMapper.class), adMapper, mock(AdRevisionMapper.class),
 			mock(OptimizationGoalMapper.class), mock(BudgetPlanMapper.class), mock(TargetingRevisionMapper.class),
 			mock(MediaPublishingBindingMapper.class), mock(PublishingOperationMapper.class), commercialService,
-			mock(FinanceService.class), mock(InventoryService.class), mock(MediaAdapterService.class), creativeService,
-			mock(PublishingEligibilityPort.class), new ObjectMapper());
+			mock(FinanceService.class), mock(InventoryService.class), mock(MediaAdapterService.class),
+			mock(TrackingTaskMapper.class), creativeService, mock(PublishingEligibilityPort.class), new ObjectMapper());
 
 	@Test
 	void campaignRejectsDailyBudgetAboveTotalBudget() {

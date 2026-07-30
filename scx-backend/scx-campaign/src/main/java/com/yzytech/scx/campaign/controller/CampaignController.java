@@ -9,6 +9,7 @@ import com.yzytech.scx.common.core.util.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -185,8 +186,13 @@ public class CampaignController {
 	@SaCheckPermission("campaign:write")
 	@Operation(summary = "绑定媒体广告位")
 	public Result<MediaPublishingBinding> bindMedia(@PathVariable String id, @RequestParam String mediaAccountId,
-			@RequestParam String placementId) {
-		return call(() -> service.bindMedia(id, mediaAccountId, placementId));
+			@RequestParam String placementId, @RequestParam String trackingTaskId, @RequestParam String adGroupId,
+			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime effectiveFrom,
+			@RequestParam(required = false) @DateTimeFormat(
+					iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime effectiveTo,
+			@RequestParam String bindingStatus) {
+		return call(() -> service.bindMedia(id, mediaAccountId, placementId, trackingTaskId, adGroupId, effectiveFrom,
+				effectiveTo, bindingStatus));
 	}
 
 	@GetMapping("/campaigns/{id}/media-bindings")
