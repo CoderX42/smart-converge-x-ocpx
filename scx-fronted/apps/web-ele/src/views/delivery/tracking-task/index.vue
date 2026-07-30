@@ -129,7 +129,7 @@ function open(row?: any) {
 
 async function submit() {
   if (!form.name || !form.code || !form.linkId || !form.channelId) {
-    ElMessage.warning('请完整填写名称、编码、追踪链接和媒体渠道');
+    ElMessage.warning('请完整填写名称、编码、追踪链接和投放渠道');
     return;
   }
   saving.value = true;
@@ -311,7 +311,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             v-model="channelFilter"
             clearable
             filterable
-            placeholder="全部媒体渠道"
+            placeholder="全部投放渠道"
             style="width: 170px"
           >
             <el-option
@@ -344,7 +344,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             {{ optionName(links, row.linkId) }}
           </template>
         </el-table-column>
-        <el-table-column label="媒体渠道" min-width="150">
+        <el-table-column label="投放渠道" min-width="150">
           <template #default="{ row }">
             {{ optionName(channels, row.channelId) }}
           </template>
@@ -570,7 +570,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="媒体渠道" required>
+        <el-form-item label="投放渠道" required>
           <el-select v-model="form.channelId" class="w-full" filterable>
             <el-option
               v-for="item in channels"

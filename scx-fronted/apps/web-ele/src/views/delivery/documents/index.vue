@@ -420,8 +420,8 @@ async function download(row: IntegrationDocument) {
   }
 }
 
-async function remove(row: IntegrationDocument) {
-  if (!canDelete.value) return;
+async function remove(row: IntegrationDocument): Promise<boolean> {
+  if (!canDelete.value) return false;
   try {
     const { value } = await ElMessageBox.prompt(
       `此操作会永久删除“${row.name}”及其底层文件，且不可恢复。请输入完整文档名称确认。`,
@@ -441,14 +441,15 @@ async function remove(row: IntegrationDocument) {
         type: 'error',
       },
     );
-    if (value !== row.name) return;
+    if (value !== row.name) return false;
     deletingId.value = row.id;
     await deleteIntegrationDocument(row.id, row.version);
     ElMessage.success('文档已永久删除');
     if (rows.value.length === 1 && current.value > 1) current.value -= 1;
     await load();
+    return true;
   } catch (error) {
-    if (error === 'cancel' || error === 'close') return;
+    if (error === 'cancel' || error === 'close') return false;
     const failure = error as { response?: { status?: number } };
     const status = failure.response?.status;
     let suggestion = '删除失败，请刷新后重试。';
@@ -460,9 +461,20 @@ async function remove(row: IntegrationDocument) {
         '底层文件暂未删除，请检查存储服务后重试，文档元数据仍会保留。';
     }
     ElMessage.error(`${readableError(error, '永久删除失败')} ${suggestion}`);
+    return false;
   } finally {
     deletingId.value = '';
   }
+}
+
+async function removeCurrent() {
+  if (!form.id) return;
+  const row = rows.value.find((item) => item.id === form.id);
+  if (!row) {
+    ElMessage.error('文档已不在当前列表，请刷新后重试');
+    return;
+  }
+  if (await remove(row)) drawerVisible.value = false;
 }
 
 function statusTagType(status: IntegrationDocumentStatus) {
@@ -909,7 +921,17 @@ void bootstrap();
 
       <template #footer>
         <div class="drawer-footer">
-          <span>
+          <el-button
+            v-if="form.id && canDelete"
+            :icon="Delete"
+            :loading="deletingId === form.id"
+            type="danger"
+            plain
+            @click="removeCurrent"
+          >
+            永久删除
+          </el-button>
+          <span v-else>
             {{
               form.id
                 ? `当前业务版本 v${rows.find((item) => item.id === form.id)?.documentVersion || 1}`

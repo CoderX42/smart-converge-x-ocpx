@@ -38,10 +38,12 @@ class MasterDataServiceTest {
 
 	private final IntegrationDocumentMapper documentMapper = mock(IntegrationDocumentMapper.class);
 
+	private final MediaChannelMapper channelMapper = mock(MediaChannelMapper.class);
+
 	private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
 
 	private final MasterDataService service = new MasterDataService(scopeService, partnerMapper, customerMapper,
-			productMapper, documentMapper, mock(MediaChannelMapper.class), storageUploadService);
+			productMapper, documentMapper, channelMapper, storageUploadService);
 
 	@Test
 	void externalUrlAllowsHttpAndHttpsWithoutFetchingContent() {
@@ -102,6 +104,33 @@ class MasterDataServiceTest {
 		when(scopeService.canWrite("media-1")).thenReturn(true);
 		assertThatThrownBy(() -> service.savePartner(invalid)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("不支持的合作方状态");
+	}
+
+	@Test
+	void deletesOnlyUnreferencedPartnerInsideWritableMediaScope() {
+		Partner partner = partner("PARTNER-1", "合作方一");
+		partner.setId("partner-1");
+		partner.setVersion(2);
+		when(partnerMapper.selectForUpdate("partner-1")).thenReturn(partner);
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(partnerMapper.countReferences("partner-1")).thenReturn(0L);
+		when(partnerMapper.deleteById("partner-1")).thenReturn(1);
+
+		assertThat(service.deletePartner("partner-1", 2)).isTrue();
+	}
+
+	@Test
+	void rejectsDeletingReferencedChannel() {
+		com.yzytech.scx.delivery.entity.MediaChannel channel = new com.yzytech.scx.delivery.entity.MediaChannel();
+		channel.setId("channel-1");
+		channel.setMediaId("media-1");
+		channel.setVersion(0);
+		when(channelMapper.selectForUpdate("channel-1")).thenReturn(channel);
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(channelMapper.countReferences("channel-1")).thenReturn(1L);
+
+		assertThatThrownBy(() -> service.deleteChannel("channel-1", 0)).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("仍被渠道用户");
 	}
 
 	@Test

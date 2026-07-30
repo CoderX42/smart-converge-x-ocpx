@@ -175,7 +175,7 @@ bootstrap();
                 :type="activeView === 'CHANNEL' ? 'primary' : 'default'"
                 @click="activeView = 'CHANNEL'"
               >
-                媒体渠道
+                投放渠道
               </el-button>
               <el-button
                 :type="activeView === 'DOCUMENT' ? 'primary' : 'default'"
@@ -221,7 +221,7 @@ bootstrap();
             class="!w-40"
             clearable
             filterable
-            placeholder="媒体渠道"
+            placeholder="投放渠道"
           >
             <el-option
               v-for="item in channels"

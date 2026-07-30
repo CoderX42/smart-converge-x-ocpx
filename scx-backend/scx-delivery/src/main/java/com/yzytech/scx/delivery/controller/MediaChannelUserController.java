@@ -3,6 +3,7 @@ package com.yzytech.scx.delivery.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
+import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.delivery.entity.MediaChannelUser;
 import com.yzytech.scx.delivery.service.MediaChannelUserService;
 import jakarta.validation.Valid;
@@ -41,6 +42,14 @@ public class MediaChannelUserController {
 		return call(() -> service.save(v));
 	}
 
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ad:channel-user:write")
+	@SysLog("删除渠道用户")
+	public Result<Boolean> delete(@PathVariable String id, @RequestParam String mediaId,
+			@RequestParam Integer version) {
+		return call(() -> service.delete(id, mediaId, version));
+	}
+
 	private Result<Boolean> call(java.util.concurrent.Callable<Boolean> a) {
 		try {
 			return Result.success(a.call());
@@ -48,8 +57,11 @@ public class MediaChannelUserController {
 		catch (IllegalArgumentException e) {
 			return Result.fail(e.getMessage());
 		}
+		catch (IllegalStateException e) {
+			return Result.fail(e.getMessage());
+		}
 		catch (Exception e) {
-			return Result.fail("渠道用户保存失败");
+			return Result.fail("渠道用户操作失败");
 		}
 	}
 

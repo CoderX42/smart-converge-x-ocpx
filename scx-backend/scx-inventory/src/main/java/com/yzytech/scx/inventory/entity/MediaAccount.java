@@ -14,6 +14,8 @@ public class MediaAccount {
 
 	private String mediaId;
 
+	private String channelId;
+
 	private String accountName;
 
 	private String accountIdExternal;

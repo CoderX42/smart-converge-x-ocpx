@@ -3,13 +3,16 @@ import type { Media } from '#/api/ad';
 import type { Capability, MediaAccount, Placement } from '#/api/inventory';
 
 import { computed, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
+import { Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { getMedia } from '#/api/ad';
+import { getMaster, getMedia } from '#/api/ad';
 import {
   changeMediaAccountStatus,
+  deleteMediaAccount,
+  deletePlacement,
   getAdapterHealth,
   getCapability,
   getMediaAccounts,
@@ -23,9 +26,20 @@ import '../business-domain.css';
 
 defineOptions({ name: 'InventoryWorkspace' });
 
+type DeliveryChannel = {
+  code: string;
+  id: string;
+  mediaId: string;
+  name: string;
+  status: 'ACTIVE' | 'DISABLED';
+};
+
 const route = useRoute();
+const router = useRouter();
 const media = ref<Media[]>([]);
 const mediaId = ref('');
+const channels = ref<DeliveryChannel[]>([]);
+const mediaChannelId = ref('');
 const accounts = ref<MediaAccount[]>([]);
 const mediaAccountId = ref('');
 const accountRows = ref<MediaAccount[]>([]);
@@ -36,6 +50,7 @@ const total = ref(0);
 const keyword = ref('');
 const loading = ref(false);
 const saving = ref(false);
+const deleting = ref(false);
 const drawer = ref(false);
 const capabilityDrawer = ref(false);
 const editingType = ref<'account' | 'placement'>('account');
@@ -44,6 +59,9 @@ const capability = reactive<Partial<Capability>>({});
 const selectedPlacement = ref('');
 const sectionKey = computed(() => route.path.split('/').findLast(Boolean));
 const isAccounts = computed(() => sectionKey.value === 'media-accounts');
+const activeChannels = computed(() =>
+  channels.value.filter((item) => item.status === 'ACTIVE'),
+);
 
 async function bootstrap() {
   const result = await getMedia({ current: 1, size: 200 });
@@ -51,9 +69,30 @@ async function bootstrap() {
   mediaId.value = result.records[0]?.id || '';
 }
 
+async function loadChannels() {
+  if (!mediaId.value) {
+    channels.value = [];
+    mediaChannelId.value = '';
+    return;
+  }
+  const result = await getMaster('media-channels', {
+    current: 1,
+    mediaId: mediaId.value,
+    size: 200,
+  });
+  channels.value = (result.records || []) as DeliveryChannel[];
+  if (
+    mediaChannelId.value &&
+    !channels.value.some((item) => item.id === mediaChannelId.value)
+  ) {
+    mediaChannelId.value = '';
+  }
+}
+
 async function loadAccounts() {
   if (!mediaId.value) return;
   const result = await getMediaAccounts({
+    channelId: mediaChannelId.value || undefined,
     current: 1,
     keyword: keyword.value || undefined,
     mediaId: mediaId.value,
@@ -61,7 +100,10 @@ async function loadAccounts() {
   });
   accounts.value = result.records;
   accountRows.value = result.records;
-  if (!mediaAccountId.value || !result.records.some((item) => item.id === mediaAccountId.value)) {
+  if (
+    !mediaAccountId.value ||
+    !result.records.some((item) => item.id === mediaAccountId.value)
+  ) {
     mediaAccountId.value = result.records[0]?.id || '';
   }
   if (isAccounts.value) total.value = result.total;
@@ -86,6 +128,11 @@ async function load() {
   }
 }
 
+function channelLabel(channelId?: string) {
+  const channel = channels.value.find((item) => item.id === channelId);
+  return channel ? `${channel.name} · ${channel.code}` : '待关联';
+}
+
 function openAccount(row?: MediaAccount) {
   editingType.value = 'account';
   Object.keys(form).forEach((key) => delete form[key]);
@@ -93,6 +140,7 @@ function openAccount(row?: MediaAccount) {
     form,
     row || {
       adapterType: 'GENERIC_SANDBOX',
+      channelId: mediaChannelId.value || activeChannels.value[0]?.id,
       mediaId: mediaId.value,
     },
   );
@@ -116,15 +164,15 @@ async function submit() {
   saving.value = true;
   try {
     if (editingType.value === 'account') {
-      if (!form.accountName || !form.mediaId) {
-        ElMessage.warning('请填写账户名称并选择媒体');
+      if (!form.accountName || !form.mediaId || !form.channelId) {
+        ElMessage.warning('请填写账户名称并选择投放渠道');
         return;
       }
       await saveMediaAccount(form);
-      ElMessage.success('媒体账户已保存');
+      ElMessage.success('媒体投放账户已保存');
     } else {
       if (!form.placementName || !form.placementCode || !form.mediaAccountId) {
-        ElMessage.warning('请填写广告位名称、编码和媒体账户');
+        ElMessage.warning('请填写广告位名称、编码和媒体投放账户');
         return;
       }
       await savePlacement(form);
@@ -137,9 +185,56 @@ async function submit() {
   }
 }
 
+function readableError(error: unknown, fallback: string) {
+  const failure = error as {
+    message?: string;
+    msg?: string;
+    response?: { data?: { msg?: string } };
+  };
+  return (
+    failure.response?.data?.msg || failure.msg || failure.message || fallback
+  );
+}
+
+async function removeCurrent() {
+  if (!form.id || deleting.value) return;
+  const isAccount = editingType.value === 'account';
+  const label = isAccount ? '媒体投放账户' : '广告位';
+  const name = isAccount ? form.accountName : form.placementName;
+  try {
+    await ElMessageBox.confirm(
+      `确定永久删除${label}“${name}”吗？存在业务引用或历史记录时将无法删除。`,
+      `删除${label}`,
+      {
+        cancelButtonText: '取消',
+        confirmButtonText: '永久删除',
+        type: 'error',
+      },
+    );
+    deleting.value = true;
+    await (isAccount ? deleteMediaAccount(form.id) : deletePlacement(form.id));
+    ElMessage.success(`${label}已删除`);
+    drawer.value = false;
+    if (
+      (isAccount ? accountRows.value.length : placementRows.value.length) ===
+        1 &&
+      current.value > 1
+    ) {
+      current.value -= 1;
+    }
+    await load();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(readableError(error, `${label}删除失败，请重试`));
+    }
+  } finally {
+    deleting.value = false;
+  }
+}
+
 async function toggleAccount(row: MediaAccount) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-  await ElMessageBox.confirm(`确认将媒体账户调整为 ${next}？`, '状态确认');
+  await ElMessageBox.confirm(`确认将媒体投放账户调整为 ${next}？`, '状态确认');
   await changeMediaAccountStatus(row.id, next);
   ElMessage.success('账户状态已更新');
   await load();
@@ -174,7 +269,26 @@ async function submitCapability() {
   }
 }
 
-watch([mediaId, () => route.path], () => {
+function goToChannels() {
+  void router.push('/delivery/media-channels');
+}
+
+watch(mediaId, async () => {
+  mediaChannelId.value = '';
+  mediaAccountId.value = '';
+  current.value = 1;
+  await loadChannels();
+  await load();
+});
+watch(
+  () => route.path,
+  () => {
+    current.value = 1;
+    void load();
+  },
+);
+watch(mediaChannelId, () => {
+  mediaAccountId.value = '';
   current.value = 1;
   void load();
 });
@@ -185,7 +299,10 @@ watch(mediaAccountId, () => {
   }
 });
 
-bootstrap().then(load);
+bootstrap().then(async () => {
+  await loadChannels();
+  await load();
+});
 </script>
 
 <template>
@@ -194,23 +311,24 @@ bootstrap().then(load);
       <div>
         <p class="domain-eyebrow">INVENTORY · MEDIA SUPPLY</p>
         <h1 class="domain-title">
-          {{ isAccounts ? '媒体账户' : '广告位与能力矩阵' }}
+          {{ isAccounts ? '媒体投放账户' : '广告位与能力矩阵' }}
         </h1>
         <p class="domain-description">
           {{
             isAccounts
-              ? '集中管理媒体账户、适配器健康、状态同步和报告拉取入口；认证配置始终脱敏。'
-              : '维护广告位形态、支持的计费方式、目标事件和素材规格。'
+              ? '在投放渠道下维护实际媒体账号、外部账户 ID、适配器健康和报告拉取入口。'
+              : '在媒体投放账户下维护广告位形态、计费方式、目标事件和素材规格。'
           }}
         </p>
       </div>
       <el-button
         v-if="isAccounts"
         v-access:code="'inventory:media-account:write'"
+        :disabled="activeChannels.length === 0"
         type="primary"
         @click="openAccount()"
       >
-        新增媒体账户
+        新增媒体投放账户
       </el-button>
       <el-button
         v-else
@@ -221,6 +339,22 @@ bootstrap().then(load);
         新增广告位
       </el-button>
     </header>
+
+    <el-alert
+      v-if="isAccounts && activeChannels.length === 0"
+      class="mb-4"
+      :closable="false"
+      show-icon
+      title="请先配置并启用投放渠道"
+      type="warning"
+    >
+      <template #default>
+        媒体投放账户必须归属于投放渠道。完成渠道配置后，即可继续创建账户。
+        <el-button link type="primary" @click="goToChannels">
+          前往投放渠道
+        </el-button>
+      </template>
+    </el-alert>
 
     <el-card class="domain-card" shadow="never">
       <div class="domain-toolbar">
@@ -239,10 +373,25 @@ bootstrap().then(load);
             />
           </el-select>
           <el-select
+            v-model="mediaChannelId"
+            clearable
+            filterable
+            placeholder="全部投放渠道"
+            style="width: 240px"
+          >
+            <el-option
+              v-for="item in channels"
+              :key="item.id"
+              :disabled="item.status !== 'ACTIVE'"
+              :label="`${item.name} · ${item.code}`"
+              :value="item.id"
+            />
+          </el-select>
+          <el-select
             v-if="!isAccounts"
             v-model="mediaAccountId"
             filterable
-            placeholder="选择媒体账户"
+            placeholder="选择媒体投放账户"
             style="width: 240px"
           >
             <el-option
@@ -270,6 +419,14 @@ bootstrap().then(load);
         row-key="id"
       >
         <el-table-column label="账户名称" prop="accountName" min-width="190" />
+        <el-table-column label="投放渠道" min-width="220">
+          <template #default="{ row }">
+            <div v-if="row.channelId" class="domain-code">
+              {{ channelLabel(row.channelId) }}
+            </div>
+            <el-tag v-else effect="plain" type="warning">待关联</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="外部账户 ID" min-width="180">
           <template #default="{ row }">
             <span class="domain-code">{{ row.accountIdExternal || '—' }}</span>
@@ -283,7 +440,10 @@ bootstrap().then(load);
         </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" effect="plain">
+            <el-tag
+              :type="row.status === 'ACTIVE' ? 'success' : 'info'"
+              effect="plain"
+            >
               {{ row.status }}
             </el-tag>
           </template>
@@ -310,20 +470,23 @@ bootstrap().then(load);
         </el-table-column>
       </el-table>
 
-      <el-table
-        v-else
-        v-loading="loading"
-        :data="placementRows"
-        row-key="id"
-      >
+      <el-table v-else v-loading="loading" :data="placementRows" row-key="id">
         <el-table-column label="广告位编码" min-width="180">
           <template #default="{ row }">
             <span class="domain-code">{{ row.placementCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="广告位名称" prop="placementName" min-width="180" />
+        <el-table-column
+          label="广告位名称"
+          prop="placementName"
+          min-width="180"
+        />
         <el-table-column label="类型" prop="placementType" width="130" />
-        <el-table-column label="素材规格" prop="supportedCreatives" min-width="220" />
+        <el-table-column
+          label="素材规格"
+          prop="supportedCreatives"
+          min-width="220"
+        />
         <el-table-column label="状态" prop="status" width="110" />
         <el-table-column align="right" label="操作" width="180">
           <template #default="{ row }">
@@ -354,11 +517,42 @@ bootstrap().then(load);
 
     <el-drawer
       v-model="drawer"
-      :title="editingType === 'account' ? '媒体账户' : '广告位'"
+      :title="editingType === 'account' ? '媒体投放账户' : '广告位'"
       size="500px"
     >
       <el-form label-position="top" :model="form">
         <template v-if="editingType === 'account'">
+          <el-form-item label="媒体主体" required>
+            <el-select v-model="form.mediaId" class="w-full" disabled>
+              <el-option
+                v-for="item in media"
+                :key="item.id"
+                :label="`${item.name} · ${item.code}`"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="投放渠道" required>
+            <el-select
+              v-model="form.channelId"
+              class="w-full"
+              filterable
+              placeholder="请选择投放渠道"
+            >
+              <el-option
+                v-for="item in channels"
+                :key="item.id"
+                :disabled="
+                  item.status !== 'ACTIVE' && item.id !== form.channelId
+                "
+                :label="`${item.name} · ${item.code}`"
+                :value="item.id"
+              />
+            </el-select>
+            <div class="mt-1 text-xs text-gray-500">
+              账户创建后将沿此渠道进入广告位、Campaign 发布和报表拉取链路。
+            </div>
+          </el-form-item>
           <el-form-item label="账户名称" required>
             <el-input v-model="form.accountName" />
           </el-form-item>
@@ -371,7 +565,10 @@ bootstrap().then(load);
         </template>
         <template v-else>
           <el-form-item label="广告位编码" required>
-            <el-input v-model="form.placementCode" :disabled="Boolean(form.id)" />
+            <el-input
+              v-model="form.placementCode"
+              :disabled="Boolean(form.id)"
+            />
           </el-form-item>
           <el-form-item label="广告位名称" required>
             <el-input v-model="form.placementName" />
@@ -390,24 +587,64 @@ bootstrap().then(load);
         </template>
       </el-form>
       <template #footer>
-        <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit">保存</el-button>
+        <div class="flex items-center justify-between">
+          <el-button
+            v-if="form.id"
+            :icon="Delete"
+            :loading="deleting"
+            type="danger"
+            plain
+            @click="removeCurrent"
+          >
+            {{ editingType === 'account' ? '删除账户' : '删除广告位' }}
+          </el-button>
+          <span v-else></span>
+          <div>
+            <el-button :disabled="saving || deleting" @click="drawer = false">
+              取消
+            </el-button>
+            <el-button
+              :disabled="deleting"
+              :loading="saving"
+              type="primary"
+              @click="submit"
+            >
+              保存
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
 
     <el-drawer v-model="capabilityDrawer" title="能力矩阵" size="540px">
       <el-form label-position="top" :model="capability">
         <el-form-item label="计费方式（JSON）">
-          <el-input v-model="capability.billingModes" :rows="2" type="textarea" />
+          <el-input
+            v-model="capability.billingModes"
+            :rows="2"
+            type="textarea"
+          />
         </el-form-item>
         <el-form-item label="目标事件（JSON）">
-          <el-input v-model="capability.targetEvents" :rows="2" type="textarea" />
+          <el-input
+            v-model="capability.targetEvents"
+            :rows="2"
+            type="textarea"
+          />
         </el-form-item>
         <el-form-item label="定向字段（JSON）">
-          <el-input v-model="capability.targetingFields" :rows="3" type="textarea" />
+          <el-input
+            v-model="capability.targetingFields"
+            :rows="3"
+            type="textarea"
+          />
         </el-form-item>
         <el-form-item label="素材格式（JSON）">
-          <el-input v-model="capability.creativeFormats" :rows="2" type="textarea" />
+          <el-input
+            v-model="capability.creativeFormats"
+            :rows="2"
+            type="textarea"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

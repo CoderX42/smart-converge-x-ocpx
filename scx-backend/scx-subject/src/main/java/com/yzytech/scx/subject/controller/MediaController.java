@@ -17,9 +17,11 @@ import java.util.Collections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -93,6 +95,13 @@ public class MediaController {
 	@SaCheckPermission("subject:media:write")
 	public Result<Media> changeStatus(@PathVariable String id, @Valid @RequestBody MediaStatusRequest request) {
 		return call(() -> mediaManagementService.changeStatus(id, request));
+	}
+
+	@DeleteMapping("/{id}")
+	@SysLog("删除媒体")
+	@SaCheckPermission("subject:media:write")
+	public Result<Boolean> delete(@PathVariable String id, @RequestParam Integer version) {
+		return call(() -> mediaManagementService.delete(id, version));
 	}
 
 	@GetMapping("/{id}")

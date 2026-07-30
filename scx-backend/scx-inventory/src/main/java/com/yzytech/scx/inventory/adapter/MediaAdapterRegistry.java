@@ -34,7 +34,7 @@ public class MediaAdapterRegistry {
 	public MediaAdapter resolve(String mediaAccountId) {
 		MediaAccount account = accountMapper.selectById(mediaAccountId);
 		if (account == null)
-			throw new IllegalArgumentException("媒体账户不存在: " + mediaAccountId);
+			throw new IllegalArgumentException("媒体投放账户不存在: " + mediaAccountId);
 		MediaAdapter adapter = adapters.get(account.getAdapterType());
 		if (adapter == null)
 			throw new IllegalStateException("未注册的适配器类型: " + account.getAdapterType());

@@ -10,13 +10,20 @@ import { useAccess } from '@boot/access';
 import {
   CirclePlus,
   Connection,
+  Delete,
   EditPen,
   Refresh,
   Search,
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { getManagedMedia, getMedia, getPartners, savePartner } from '#/api/ad';
+import {
+  deletePartner,
+  getManagedMedia,
+  getMedia,
+  getPartners,
+  savePartner,
+} from '#/api/ad';
 
 import { generateRandomBusinessCode } from '../components/random-code';
 
@@ -35,6 +42,7 @@ const canManageMedia = computed(() =>
 const bootstrapping = ref(true);
 const loading = ref(false);
 const saving = ref(false);
+const deleting = ref(false);
 const media = ref<Media[]>([]);
 const mediaId = ref('');
 const rows = ref<Partner[]>([]);
@@ -212,6 +220,33 @@ async function submit() {
     ElMessage.error(readableError(error, '合作方保存失败，请检查后重试'));
   } finally {
     saving.value = false;
+  }
+}
+
+async function deleteCurrentPartner() {
+  if (!form.id || form.version === undefined || deleting.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定永久删除合作方“${form.name}”吗？已被产品、追踪链接或历史报表引用时将无法删除。`,
+      '删除合作方',
+      {
+        cancelButtonText: '取消',
+        confirmButtonText: '永久删除',
+        type: 'error',
+      },
+    );
+    deleting.value = true;
+    await deletePartner(form.id, form.version);
+    ElMessage.success('合作方已删除');
+    drawerVisible.value = false;
+    if (rows.value.length === 1 && current.value > 1) current.value -= 1;
+    await load();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(readableError(error, '合作方删除失败，请重试'));
+    }
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -459,12 +494,35 @@ void bootstrap().then(load);
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button :disabled="saving" @click="drawerVisible = false">
-          取消
-        </el-button>
-        <el-button :loading="saving" type="primary" @click="submit">
-          保存合作方
-        </el-button>
+        <div class="flex items-center justify-between">
+          <el-button
+            v-if="form.id"
+            :icon="Delete"
+            :loading="deleting"
+            type="danger"
+            plain
+            @click="deleteCurrentPartner"
+          >
+            删除合作方
+          </el-button>
+          <span v-else></span>
+          <div>
+            <el-button
+              :disabled="saving || deleting"
+              @click="drawerVisible = false"
+            >
+              取消
+            </el-button>
+            <el-button
+              :disabled="deleting"
+              :loading="saving"
+              type="primary"
+              @click="submit"
+            >
+              保存合作方
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
   </main>

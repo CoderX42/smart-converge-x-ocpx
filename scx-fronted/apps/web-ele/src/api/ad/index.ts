@@ -164,6 +164,11 @@ export function saveMedia(data: Partial<Media>) {
 export function changeMediaStatus(id: string, data: MediaStatusInput) {
   return requestClient.put<Media>(`/subjects/media/${id}/status`, data);
 }
+export function deleteMedia(id: string, version: number) {
+  return requestClient.delete<boolean>(`/subjects/media/${id}`, {
+    params: { version },
+  });
+}
 export function getMediaScopes(
   params: PageQuery & { mediaId: string; userId?: string },
 ) {
@@ -195,6 +200,11 @@ export function savePartner(data: PartnerInput) {
     ? requestClient.put<boolean>(`/ad/partners/${data.id}`, data)
     : requestClient.post<boolean>('/ad/partners', data);
 }
+export function deletePartner(id: string, version: number) {
+  return requestClient.delete<boolean>(`/ad/partners/${id}`, {
+    params: { version },
+  });
+}
 export function getMaster<T>(type: MasterType, params: Record<string, any>) {
   return requestClient.get<PageResult<T>>(`/ad/${type}`, { params });
 }
@@ -212,6 +222,11 @@ export function saveMaster(type: MasterType, data: Record<string, any>) {
   return data.id
     ? requestClient.put(`/ad/${type}/${data.id}`, data)
     : requestClient.post(`/ad/${type}`, data);
+}
+export function deleteMediaChannel(id: string, version: number) {
+  return requestClient.delete<boolean>(`/ad/media-channels/${id}`, {
+    params: { version },
+  });
 }
 export function getIntegrationDocuments(params: IntegrationDocumentQuery) {
   return requestClient.get<PageResult<IntegrationDocument>>(
@@ -460,6 +475,15 @@ export function saveChannelUser(data: Record<string, any>) {
   return data.id
     ? requestClient.put(`/ad/channel-users/${data.id}`, data)
     : requestClient.post('/ad/channel-users', data);
+}
+export function deleteChannelUser(
+  id: string,
+  mediaId: string,
+  version: number,
+) {
+  return requestClient.delete<boolean>(`/ad/channel-users/${id}`, {
+    params: { mediaId, version },
+  });
 }
 export function getChannelClients(params: Record<string, any>) {
   return requestClient.get<PageResult<any>>('/ad/channel-clients', { params });

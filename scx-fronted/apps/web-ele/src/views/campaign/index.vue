@@ -148,7 +148,10 @@ async function runAction(
     resume: '恢复',
     submit: '提交审批',
   };
-  await ElMessageBox.confirm(`确认${labels[action]}计划「${row.name}」？`, '状态确认');
+  await ElMessageBox.confirm(
+    `确认${labels[action]}计划「${row.name}」？`,
+    '状态确认',
+  );
   await campaignAction(row.id, action);
   ElMessage.success(`计划已${labels[action]}`);
   await load();
@@ -162,7 +165,9 @@ function money(value?: number) {
 }
 
 function can(row: Campaign, action: CampaignUiAction) {
-  return getCampaignUiActions(row.status, isReviewCenter.value).includes(action);
+  return getCampaignUiActions(row.status, isReviewCenter.value).includes(
+    action,
+  );
 }
 
 watch([adAccountId, () => route.path], () => {
@@ -437,7 +442,9 @@ bootstrap().then(load);
       </el-form>
       <template #footer>
         <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit">保存草稿</el-button>
+        <el-button :loading="saving" type="primary" @click="submit"
+          >保存草稿</el-button
+        >
       </template>
     </el-drawer>
 
@@ -457,7 +464,9 @@ bootstrap().then(load);
           </div>
           <div class="domain-metric">
             <div class="domain-metric-label">媒体绑定</div>
-            <div class="domain-metric-value">{{ detail.mediaBindings.length }}</div>
+            <div class="domain-metric-value">
+              {{ detail.mediaBindings.length }}
+            </div>
           </div>
         </div>
         <el-tabs v-model="activeDetailTab">
@@ -483,7 +492,7 @@ bootstrap().then(load);
           </el-tab-pane>
           <el-tab-pane label="媒体绑定" name="media">
             <el-table :data="detail.mediaBindings">
-              <el-table-column label="媒体账户" prop="mediaAccountId" />
+              <el-table-column label="媒体投放账户" prop="mediaAccountId" />
               <el-table-column label="广告位" prop="placementId" />
               <el-table-column label="外部状态" prop="externalStatus" />
             </el-table>
@@ -507,9 +516,17 @@ bootstrap().then(load);
             <el-table :data="operations" empty-text="暂无发布操作记录">
               <el-table-column label="操作" prop="operationType" width="150" />
               <el-table-column label="状态" prop="status" width="120" />
-              <el-table-column label="结果" min-width="220" prop="resultDetail" />
+              <el-table-column
+                label="结果"
+                min-width="220"
+                prop="resultDetail"
+              />
               <el-table-column label="开始时间" prop="createdAt" width="180" />
-              <el-table-column label="完成时间" prop="completedAt" width="180" />
+              <el-table-column
+                label="完成时间"
+                prop="completedAt"
+                width="180"
+              />
             </el-table>
             <el-divider content-position="left">计划版本</el-divider>
             <el-table :data="revisions" empty-text="暂无版本记录">

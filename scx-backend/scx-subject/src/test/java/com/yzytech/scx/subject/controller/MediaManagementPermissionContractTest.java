@@ -20,6 +20,7 @@ class MediaManagementPermissionContractTest {
 		assertMutation(MediaController.class, "update", "subject:media:write", String.class, MediaUpdateRequest.class);
 		assertMutation(MediaController.class, "changeStatus", "subject:media:write", String.class,
 				MediaStatusRequest.class);
+		assertMutation(MediaController.class, "delete", "subject:media:write", String.class, Integer.class);
 	}
 
 	@Test

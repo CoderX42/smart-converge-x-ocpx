@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent><groupId>com.scx</groupId><artifactId>scx</artifactId><version>2.1.2</version></parent>
     <artifactId>scx-inventory</artifactId>
-    <description>SCX 媒体账户、广告位与能力矩阵</description>
+    <description>SCX 媒体投放账户、广告位与能力矩阵</description>
     <dependencies>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
         <dependency><groupId>com.baomidou</groupId><artifactId>mybatis-plus-spring-boot3-starter</artifactId></dependency>

@@ -74,6 +74,18 @@ public class MasterDataService {
 	}
 
 	@Transactional
+	public boolean deletePartner(String id, Integer version) {
+		Partner partner = partnerMapper.selectForUpdate(id);
+		if (partner == null || !scopeService.canWrite(partner.getMediaId()))
+			throw new IllegalArgumentException("资源不存在");
+		if (!Objects.equals(partner.getVersion(), version))
+			throw new IllegalStateException("合作方已被其他用户修改，请刷新后重试");
+		if (partnerMapper.countReferences(id) > 0)
+			throw new IllegalStateException("该合作方仍被产品、追踪链接或历史报表引用，请先解除引用或将合作方设为停用");
+		return partnerMapper.deleteById(id) == 1;
+	}
+
+	@Transactional
 	public boolean saveCustomer(UpstreamCustomer value) {
 		requireWrite(value.getMediaId());
 		if (value.getId() != null) {
@@ -263,6 +275,18 @@ public class MasterDataService {
 		}
 		defaults(value);
 		return value.getId() == null ? channelMapper.insert(value) == 1 : channelMapper.updateById(value) == 1;
+	}
+
+	@Transactional
+	public boolean deleteChannel(String id, Integer version) {
+		MediaChannel channel = channelMapper.selectForUpdate(id);
+		if (channel == null || !scopeService.canWrite(channel.getMediaId()))
+			throw new IllegalArgumentException("资源不存在");
+		if (!Objects.equals(channel.getVersion(), version))
+			throw new IllegalStateException("投放渠道已被其他用户修改，请刷新后重试");
+		if (channelMapper.countReferences(id) > 0)
+			throw new IllegalStateException("该投放渠道仍被渠道用户、媒体投放账户、监测任务或历史报表引用，请先解除引用或将渠道设为停用");
+		return channelMapper.deleteById(id) == 1;
 	}
 
 	public void validateExternalUrl(String value) {

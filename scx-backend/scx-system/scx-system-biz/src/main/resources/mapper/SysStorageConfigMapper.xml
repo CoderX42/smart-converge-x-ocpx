@@ -16,7 +16,6 @@
 	sys_storage_config.create_time,
 	sys_storage_config.update_time,
 	sys_storage_config.dir,
-	sys_storage_config.is_https,
 	sys_storage_config.del_flag,
 	sys_storage_config.create_by,
 	sys_storage_config.update_by,

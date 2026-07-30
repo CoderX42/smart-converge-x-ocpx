@@ -71,6 +71,13 @@ public class MasterDataController {
 		return call(() -> service.savePartner(value));
 	}
 
+	@DeleteMapping("/partners/{id}")
+	@SaCheckPermission(value = { "ad:partner:write", "ad:master:write" }, mode = SaMode.OR)
+	@SysLog("删除合作方")
+	public Result<Boolean> deletePartner(@PathVariable String id, @RequestParam Integer version) {
+		return call(() -> service.deletePartner(id, version));
+	}
+
 	@GetMapping("/upstream-customers")
 	@SaCheckPermission("ad:customer:read")
 	public Result<Page<UpstreamCustomer>> customers(Page<UpstreamCustomer> page, String mediaId, String keyword,
@@ -130,6 +137,13 @@ public class MasterDataController {
 	public Result<Boolean> updateChannel(@PathVariable String id, @Valid @RequestBody MediaChannel value) {
 		value.setId(id);
 		return call(() -> service.saveChannel(value));
+	}
+
+	@DeleteMapping("/media-channels/{id}")
+	@SaCheckPermission("ad:master:write")
+	@SysLog("删除投放渠道")
+	public Result<Boolean> deleteChannel(@PathVariable String id, @RequestParam Integer version) {
+		return call(() -> service.deleteChannel(id, version));
 	}
 
 	@GetMapping("/integration-documents")
@@ -275,8 +289,11 @@ public class MasterDataController {
 		catch (IllegalArgumentException e) {
 			return Result.fail(e.getMessage());
 		}
+		catch (IllegalStateException e) {
+			return Result.fail(e.getMessage());
+		}
 		catch (Exception e) {
-			return Result.fail("保存失败");
+			return Result.fail("操作失败");
 		}
 	}
 

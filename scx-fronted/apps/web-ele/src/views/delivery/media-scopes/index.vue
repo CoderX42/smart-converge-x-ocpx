@@ -10,6 +10,7 @@ import { useUserStore } from '@boot/stores';
 
 import {
   CirclePlus,
+  Delete,
   EditPen,
   Key,
   Refresh,
@@ -21,6 +22,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   changeMediaStatus,
+  deleteMedia,
   getManagedMedia,
   getMedia,
   getMediaScopeCandidates,
@@ -62,6 +64,7 @@ const roleDescription = computed(() => {
 
 const loading = ref(false);
 const saving = ref(false);
+const deleting = ref(false);
 const changingStatusId = ref('');
 const rows = ref<Media[]>([]);
 const current = ref(1);
@@ -237,6 +240,33 @@ async function submitMedia() {
     ElMessage.error(readableError(error, '媒体保存失败，请检查后重试'));
   } finally {
     saving.value = false;
+  }
+}
+
+async function deleteCurrentMedia() {
+  if (!form.id || form.version === undefined || deleting.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定永久删除媒体“${form.name}”吗？仅未产生授权和业务数据的媒体可以删除。`,
+      '删除媒体',
+      {
+        cancelButtonText: '取消',
+        confirmButtonText: '永久删除',
+        type: 'error',
+      },
+    );
+    deleting.value = true;
+    await deleteMedia(form.id, form.version);
+    ElMessage.success('媒体已删除');
+    editorVisible.value = false;
+    if (rows.value.length === 1 && current.value > 1) current.value -= 1;
+    await load();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(readableError(error, '媒体删除失败，请重试'));
+    }
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -566,12 +596,35 @@ void load();
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button :disabled="saving" @click="editorVisible = false">
-          取消
-        </el-button>
-        <el-button :loading="saving" type="primary" @click="submitMedia">
-          保存媒体
-        </el-button>
+        <div class="flex items-center justify-between">
+          <el-button
+            v-if="form.id"
+            :icon="Delete"
+            :loading="deleting"
+            type="danger"
+            plain
+            @click="deleteCurrentMedia"
+          >
+            删除媒体
+          </el-button>
+          <span v-else></span>
+          <div>
+            <el-button
+              :disabled="saving || deleting"
+              @click="editorVisible = false"
+            >
+              取消
+            </el-button>
+            <el-button
+              :disabled="deleting"
+              :loading="saving"
+              type="primary"
+              @click="submitMedia"
+            >
+              保存媒体
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
 

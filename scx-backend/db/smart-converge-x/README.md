@@ -10,8 +10,10 @@
 4. `smart_converge_x_baseline.sql`：聚合入口脚本，按以上顺序 `SOURCE` 执行。
 5. `init-database.sh`：直连 MySQL 初始化基线，并按 `scx_schema_migration` 只应用尚未执行的业务迁移。
 6. `verify-database.sh`：只读校验基础表、主体表、默认管理员和主体权限。
+7. `reconcile-missing-tables.sh`：扫描迁移账本与实际结构发生漂移后缺失的必需表；默认只读，显式 `--apply` 才创建缺失表。
 
-当前业务迁移最高版本为 V46；已有数据库必须通过 `init-database.sh` 前向应用，不能修改已登记的历史迁移。
+当前业务迁移版本以 `scx-boot/src/main/resources/db/migration/` 为准；已有数据库必须通过
+`init-database.sh` 前向应用，不能修改已登记的历史迁移。
 
 ## 推荐导入方式
 
@@ -42,6 +44,30 @@ cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profile
 ```bash
 MYSQL_HOST=数据库地址 MYSQL_USERNAME=用户名 MYSQL_PASSWORD=密码 ./verify-database.sh
 ```
+
+迁移账本存在、但实际业务表缺失时，先只读扫描：
+
+```bash
+cd scx-backend/db/smart-converge-x
+MYSQL_HOST=数据库地址 \
+MYSQL_USERNAME=用户名 \
+MYSQL_PASSWORD=密码 \
+./reconcile-missing-tables.sh
+```
+
+完成生产备份并复核缺失表清单后，再显式执行补全：
+
+```bash
+MYSQL_HOST=数据库地址 \
+MYSQL_USERNAME=用户名 \
+MYSQL_PASSWORD=密码 \
+./reconcile-missing-tables.sh --apply
+```
+
+脚本仅执行缺失表对应的幂等 `CREATE TABLE`，不会重放历史迁移中的
+`ALTER`、业务数据、菜单权限或迁移账本。若连接在 DDL 期间中断，可在连接稳定后安全重跑。
+表补齐后仍需运行 `init-database.sh` 应用尚未登记的前向迁移，再执行
+`verify-database.sh`；该脚本不替代完整迁移和字段/索引对账。
 
 仅初始化通用系统基线时，也可以直接使用 MySQL 客户端：
 

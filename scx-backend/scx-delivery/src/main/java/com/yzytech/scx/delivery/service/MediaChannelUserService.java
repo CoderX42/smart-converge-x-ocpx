@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
+
 @Service
 @RequiredArgsConstructor
 public class MediaChannelUserService {
@@ -39,7 +41,7 @@ public class MediaChannelUserService {
 		write(v.getMediaId());
 		MediaChannel channel = channelMapper.selectById(v.getChannelId());
 		if (channel == null || !v.getMediaId().equals(channel.getMediaId()))
-			throw new IllegalArgumentException("媒体渠道不在当前范围");
+			throw new IllegalArgumentException("投放渠道不在当前范围");
 		if (v.getId() != null) {
 			MediaChannelUser old = mapper.selectById(v.getId());
 			if (old == null || !old.getMediaId().equals(v.getMediaId()))
@@ -50,6 +52,22 @@ public class MediaChannelUserService {
 		if (v.getVersion() == null)
 			v.setVersion(0);
 		return v.getId() == null ? mapper.insert(v) == 1 : mapper.updateById(v) == 1;
+	}
+
+	@Transactional
+	public boolean delete(String id, String mediaId, Integer version) {
+		write(mediaId);
+		MediaChannelUser existing = mapper.selectById(id);
+		if (existing == null || !mediaId.equals(existing.getMediaId()))
+			throw new IllegalArgumentException("资源不存在");
+		if (!Objects.equals(existing.getVersion(), version))
+			throw new IllegalStateException("渠道用户已被其他用户修改，请刷新后重试");
+		int deleted = mapper.delete(Wrappers.<MediaChannelUser>lambdaQuery()
+			.eq(MediaChannelUser::getId, id)
+			.eq(MediaChannelUser::getVersion, version));
+		if (deleted != 1)
+			throw new IllegalStateException("渠道用户已被其他用户修改，请刷新后重试");
+		return true;
 	}
 
 	private void read(String id) {

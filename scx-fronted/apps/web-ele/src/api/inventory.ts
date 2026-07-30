@@ -6,6 +6,7 @@ export type MediaAccount = BaseRecord & {
   accountIdExternal?: string;
   accountName: string;
   adapterType: string;
+  channelId?: string;
   currency: 'CNY';
   mediaId: string;
   timezone: 'Asia/Shanghai';
@@ -31,7 +32,7 @@ export type Capability = {
 };
 
 export function getMediaAccounts(
-  params: PageQuery & { mediaId: string },
+  params: PageQuery & { channelId?: string; mediaId: string },
 ) {
   return requestClient.get<PageResult<MediaAccount>>(
     '/ad/inventory/media-accounts',
@@ -58,13 +59,16 @@ export function changeMediaAccountStatus(id: string, status: string) {
   );
 }
 
+export function deleteMediaAccount(id: string) {
+  return requestClient.delete<boolean>(`/ad/inventory/media-accounts/${id}`);
+}
+
 export function getPlacements(
   params: PageQuery & { mediaAccountId: string; type?: string },
 ) {
-  return requestClient.get<PageResult<Placement>>(
-    '/ad/inventory/placements',
-    { params },
-  );
+  return requestClient.get<PageResult<Placement>>('/ad/inventory/placements', {
+    params,
+  });
 }
 
 export function savePlacement(data: Partial<Placement>) {
@@ -86,6 +90,10 @@ export function savePlacement(data: Partial<Placement>) {
           type: params.placementType,
         },
       });
+}
+
+export function deletePlacement(id: string) {
+  return requestClient.delete<boolean>(`/ad/inventory/placements/${id}`);
 }
 
 export function getCapability(id: string) {

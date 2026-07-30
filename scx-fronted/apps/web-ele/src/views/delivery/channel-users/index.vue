@@ -3,9 +3,11 @@ import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
 
-import { ElMessage } from 'element-plus';
+import { Delete } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
+  deleteChannelUser,
   getChannelUsers,
   getMaster,
   getMedia,
@@ -22,6 +24,7 @@ const drawer = ref(false);
 const form = reactive<any>({});
 const keyword = ref('');
 const loading = ref(false);
+const deleting = ref(false);
 const media = ref<Media[]>([]);
 const mediaId = ref('');
 const rows = ref<any[]>([]);
@@ -85,6 +88,42 @@ async function submit() {
     await load();
   } finally {
     saving.value = false;
+  }
+}
+async function removeCurrent() {
+  if (!form.id || form.version === undefined || deleting.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定永久删除渠道用户“${form.name}（${form.account}）”吗？`,
+      '删除渠道用户',
+      {
+        cancelButtonText: '取消',
+        confirmButtonText: '永久删除',
+        type: 'error',
+      },
+    );
+    deleting.value = true;
+    await deleteChannelUser(form.id, mediaId.value, form.version);
+    ElMessage.success('渠道用户已删除');
+    drawer.value = false;
+    if (rows.value.length === 1 && current.value > 1) current.value -= 1;
+    await load();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      const failure = error as {
+        message?: string;
+        msg?: string;
+        response?: { data?: { msg?: string } };
+      };
+      ElMessage.error(
+        failure.response?.data?.msg ||
+          failure.msg ||
+          failure.message ||
+          '渠道用户删除失败，请重试',
+      );
+    }
+  } finally {
+    deleting.value = false;
   }
 }
 watch([mediaId, channelId], async () => {
@@ -169,7 +208,7 @@ bootstrap().then(async () => {
       size="460px"
     >
       <el-form label-position="top">
-        <el-form-item label="媒体渠道" required>
+        <el-form-item label="投放渠道" required>
           <el-select v-model="form.channelId" class="w-full">
             <el-option
               v-for="x in channels"
@@ -188,10 +227,32 @@ bootstrap().then(async () => {
           <el-input v-model="form.email" />
         </el-form-item> </el-form
       ><template #footer>
-        <el-button @click="drawer = false">取消</el-button
-        ><el-button :loading="saving" type="primary" @click="submit">
-          保存
-        </el-button>
+        <div class="flex items-center justify-between">
+          <el-button
+            v-if="form.id"
+            :icon="Delete"
+            :loading="deleting"
+            type="danger"
+            plain
+            @click="removeCurrent"
+          >
+            删除渠道用户
+          </el-button>
+          <span v-else></span>
+          <div>
+            <el-button :disabled="saving || deleting" @click="drawer = false">
+              取消
+            </el-button>
+            <el-button
+              :disabled="deleting"
+              :loading="saving"
+              type="primary"
+              @click="submit"
+            >
+              保存
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
   </main>

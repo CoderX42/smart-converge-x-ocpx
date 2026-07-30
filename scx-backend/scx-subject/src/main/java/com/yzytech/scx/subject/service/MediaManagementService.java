@@ -103,6 +103,21 @@ public class MediaManagementService {
 		return required(id);
 	}
 
+	@Transactional
+	public boolean delete(String id, Integer version) {
+		validateVersion(version);
+		required(id);
+		if (mediaMapper.countReferences(id) > 0) {
+			throw new IllegalStateException("该媒体仍存在授权或业务数据，请先解除关联；需保留历史数据时请改为停用");
+		}
+		int deleted = mediaMapper
+			.delete(Wrappers.<Media>lambdaQuery().eq(Media::getId, id).eq(Media::getVersion, version));
+		if (deleted != 1) {
+			throw new IllegalStateException("媒体已被其他操作修改，请刷新后重试");
+		}
+		return true;
+	}
+
 	private Media required(String id) {
 		Media media = mediaMapper.selectById(id);
 		if (media == null) {

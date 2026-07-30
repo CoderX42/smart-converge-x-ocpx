@@ -366,7 +366,7 @@ bootstrap().then(async () => {
               <el-option label="按合作方" value="PARTNER" />
               <el-option label="按上游客户" value="CUSTOMER" />
               <el-option label="按接入文档" value="DOCUMENT" />
-              <el-option label="按媒体渠道" value="CHANNEL" />
+              <el-option label="按投放渠道" value="CHANNEL" />
             </el-select>
             <el-button @click="loadBreakdown">查询</el-button>
           </div>

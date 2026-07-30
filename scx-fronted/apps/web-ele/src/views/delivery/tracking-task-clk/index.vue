@@ -213,7 +213,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             v-model="channelFilter"
             clearable
             filterable
-            placeholder="全部媒体渠道"
+            placeholder="全部投放渠道"
             style="width: 170px"
           >
             <el-option
@@ -239,7 +239,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
             {{ optionName(links, row.linkId) }}
           </template>
         </el-table-column>
-        <el-table-column label="媒体渠道" min-width="150">
+        <el-table-column label="投放渠道" min-width="150">
           <template #default="{ row }">
             {{ optionName(channels, row.channelId) }}
           </template>

@@ -3,10 +3,10 @@ import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
 
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { Delete, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { getMaster, getMedia, saveMaster } from '#/api/ad';
+import { deleteMediaChannel, getMaster, getMedia, saveMaster } from '#/api/ad';
 
 import { generateRandomBusinessCode } from '../components/random-code';
 
@@ -20,6 +20,7 @@ const keyword = ref('');
 const rows = ref<any[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const deleting = ref(false);
 const drawer = ref(false);
 const current = ref(1);
 const size = ref(20);
@@ -86,11 +87,48 @@ async function submit() {
   saving.value = true;
   try {
     await saveMaster('media-channels', { ...form, mediaId: mediaId.value });
-    ElMessage.success('媒体渠道配置已保存');
+    ElMessage.success('投放渠道配置已保存');
     drawer.value = false;
     await load();
   } finally {
     saving.value = false;
+  }
+}
+
+async function removeCurrent() {
+  if (!form.id || form.version === undefined || deleting.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定永久删除投放渠道“${form.name}”吗？存在渠道用户、媒体投放账户、监测任务或历史报表时将无法删除。`,
+      '删除投放渠道',
+      {
+        cancelButtonText: '取消',
+        confirmButtonText: '永久删除',
+        type: 'error',
+      },
+    );
+    deleting.value = true;
+    await deleteMediaChannel(form.id, form.version);
+    ElMessage.success('投放渠道已删除');
+    drawer.value = false;
+    if (rows.value.length === 1 && current.value > 1) current.value -= 1;
+    await load();
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      const failure = error as {
+        message?: string;
+        msg?: string;
+        response?: { data?: { msg?: string } };
+      };
+      ElMessage.error(
+        failure.response?.data?.msg ||
+          failure.msg ||
+          failure.message ||
+          '投放渠道删除失败，请重试',
+      );
+    }
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -103,6 +141,25 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
 <template>
   <main class="mvp-page">
+    <header class="channel-heading">
+      <div>
+        <p>MEDIA DELIVERY · CONFIGURATION</p>
+        <h1>投放渠道</h1>
+        <span>
+          定义媒体主体下的业务投放入口；媒体投放账户和监测任务均沿此层级归属。
+        </span>
+      </div>
+      <div class="configuration-chain" aria-label="媒体配置链路">
+        <span>媒体主体</span>
+        <b>→</b>
+        <strong>投放渠道</strong>
+        <b>→</b>
+        <span>媒体投放账户</span>
+        <b>→</b>
+        <span>广告位</span>
+      </div>
+    </header>
+
     <el-card class="mvp-card" shadow="never">
       <div class="mvp-toolbar">
         <div class="mvp-filters">
@@ -120,7 +177,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           type="primary"
           @click="open()"
         >
-          新增渠道
+          新增投放渠道
         </el-button>
       </div>
       <el-table v-loading="loading" :data="rows" row-key="id">
@@ -154,7 +211,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           </template>
         </el-table-column>
         <template #empty>
-          <div class="mvp-empty">当前范围尚无媒体渠道数据</div>
+          <div class="mvp-empty">当前媒体尚未配置投放渠道</div>
         </template>
       </el-table>
       <div class="mt-4 flex justify-end">
@@ -171,11 +228,11 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
 
     <el-drawer
       v-model="drawer"
-      :title="form.id ? '编辑渠道' : '新增渠道'"
+      :title="form.id ? '编辑投放渠道' : '新增投放渠道'"
       size="480px"
     >
       <el-form label-position="top" :model="form">
-        <el-form-item label="渠道名称" required>
+        <el-form-item label="投放渠道名称" required>
           <el-input v-model="form.name" maxlength="128" />
         </el-form-item>
         <el-form-item label="唯一编码" required>
@@ -212,11 +269,96 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="drawer = false">取消</el-button>
-        <el-button :loading="saving" type="primary" @click="submit"
-          >保存</el-button
-        >
+        <div class="flex items-center justify-between">
+          <el-button
+            v-if="form.id"
+            :icon="Delete"
+            :loading="deleting"
+            type="danger"
+            plain
+            @click="removeCurrent"
+          >
+            删除投放渠道
+          </el-button>
+          <span v-else></span>
+          <div>
+            <el-button :disabled="saving || deleting" @click="drawer = false">
+              取消
+            </el-button>
+            <el-button
+              :disabled="deleting"
+              :loading="saving"
+              type="primary"
+              @click="submit"
+            >
+              保存
+            </el-button>
+          </div>
+        </div>
       </template>
     </el-drawer>
   </main>
 </template>
+
+<style scoped>
+.channel-heading {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.channel-heading p {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mvp-accent);
+  letter-spacing: 0.08em;
+}
+
+.channel-heading h1 {
+  margin: 0 0 4px;
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.channel-heading > div > span {
+  color: var(--mvp-muted);
+}
+
+.configuration-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--mvp-muted);
+  background: color-mix(in srgb, var(--el-bg-color) 92%, var(--mvp-accent));
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+}
+
+.configuration-chain b {
+  font-weight: 500;
+  opacity: 0.5;
+}
+
+.configuration-chain strong {
+  color: var(--mvp-accent);
+}
+
+@media (max-width: 768px) {
+  .channel-heading {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .configuration-chain {
+    justify-content: flex-start;
+  }
+}
+</style>

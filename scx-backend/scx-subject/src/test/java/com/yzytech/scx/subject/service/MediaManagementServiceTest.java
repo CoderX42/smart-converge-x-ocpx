@@ -114,6 +114,26 @@ class MediaManagementServiceTest {
 		assertThat(service.update("media-1", request).getName()).isEqualTo("更新名称");
 	}
 
+	@Test
+	void deletesOnlyUnreferencedMediaAtTheExpectedVersion() {
+		MediaManagementService service = new MediaManagementService(mediaMapper);
+		when(mediaMapper.selectById("media-1")).thenReturn(existing());
+		when(mediaMapper.countReferences("media-1")).thenReturn(0L);
+		when(mediaMapper.delete(any())).thenReturn(1);
+
+		assertThat(service.delete("media-1", 0)).isTrue();
+	}
+
+	@Test
+	void rejectsDeletingMediaWithExistingBusinessReferences() {
+		MediaManagementService service = new MediaManagementService(mediaMapper);
+		when(mediaMapper.selectById("media-1")).thenReturn(existing());
+		when(mediaMapper.countReferences("media-1")).thenReturn(1L);
+
+		assertThatThrownBy(() -> service.delete("media-1", 0)).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("仍存在授权或业务数据");
+	}
+
 	private MediaCreateRequest createRequest() {
 		MediaCreateRequest request = new MediaCreateRequest();
 		request.setCode("uat-media");

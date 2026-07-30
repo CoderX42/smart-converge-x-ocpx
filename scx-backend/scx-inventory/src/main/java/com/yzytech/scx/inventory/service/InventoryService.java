@@ -2,6 +2,8 @@ package com.yzytech.scx.inventory.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yzytech.scx.delivery.entity.MediaChannel;
+import com.yzytech.scx.delivery.mapper.MediaChannelMapper;
 import com.yzytech.scx.inventory.entity.*;
 import com.yzytech.scx.inventory.mapper.*;
 import com.yzytech.scx.subject.service.MediaScopeService;
@@ -24,6 +26,8 @@ public class InventoryService {
 
 	private final MediaAdapterConfigMapper adapterMapper;
 
+	private final MediaChannelMapper channelMapper;
+
 	private final MediaScopeService scopeService;
 
 	public MediaAccount requireMediaAccount(String id) {
@@ -41,13 +45,17 @@ public class InventoryService {
 	}
 
 	@Transactional
-	public MediaAccount createMediaAccount(String mediaId, String accountName, String adapterType,
+	public MediaAccount createMediaAccount(String mediaId, String channelId, String accountName, String adapterType,
 			String accountIdExternal) {
 		if (!scopeService.canWrite(mediaId))
 			throw new IllegalArgumentException("资源不存在");
+		if (!StringUtils.hasText(accountName))
+			throw new IllegalArgumentException("媒体投放账户名称不能为空");
+		requireMediaChannel(mediaId, channelId, true);
 		MediaAccount a = new MediaAccount();
 		a.setMediaId(mediaId);
-		a.setAccountName(accountName);
+		a.setChannelId(channelId);
+		a.setAccountName(accountName.trim());
 		a.setAdapterType(StringUtils.hasText(adapterType) ? adapterType : "GENERIC_SANDBOX");
 		a.setAccountIdExternal(accountIdExternal);
 		a.setStatus("ACTIVE");
@@ -57,21 +65,29 @@ public class InventoryService {
 		return a;
 	}
 
-	public Page<MediaAccount> listMediaAccounts(Page<MediaAccount> page, String mediaId, String keyword) {
+	public Page<MediaAccount> listMediaAccounts(Page<MediaAccount> page, String mediaId, String channelId,
+			String keyword) {
 		if (!scopeService.canRead(mediaId))
 			throw new IllegalArgumentException("资源不存在");
+		if (StringUtils.hasText(channelId))
+			requireMediaChannel(mediaId, channelId, false);
 		var q = Wrappers.<MediaAccount>lambdaQuery()
 			.eq(MediaAccount::getMediaId, mediaId)
+			.eq(StringUtils.hasText(channelId), MediaAccount::getChannelId, channelId)
 			.and(StringUtils.hasText(keyword), x -> x.like(MediaAccount::getAccountName, keyword));
 		return mediaAccountMapper.selectPage(page, q.orderByDesc(MediaAccount::getCreateTime));
 	}
 
 	@Transactional
-	public MediaAccount updateMediaAccount(String id, String accountName, String accountIdExternal,
+	public MediaAccount updateMediaAccount(String id, String channelId, String accountName, String accountIdExternal,
 			String adapterType) {
 		MediaAccount account = requireWritableMediaAccount(id);
+		if (StringUtils.hasText(channelId)) {
+			requireMediaChannel(account.getMediaId(), channelId, true);
+			account.setChannelId(channelId);
+		}
 		if (StringUtils.hasText(accountName))
-			account.setAccountName(accountName);
+			account.setAccountName(accountName.trim());
 		if (accountIdExternal != null)
 			account.setAccountIdExternal(accountIdExternal);
 		if (StringUtils.hasText(adapterType))
@@ -83,11 +99,19 @@ public class InventoryService {
 	@Transactional
 	public MediaAccount updateMediaAccountStatus(String id, String status) {
 		if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status))
-			throw new IllegalArgumentException("媒体账户状态不合法");
+			throw new IllegalArgumentException("媒体投放账户状态不合法");
 		MediaAccount account = requireWritableMediaAccount(id);
 		account.setStatus(status);
 		mediaAccountMapper.updateById(account);
 		return account;
+	}
+
+	@Transactional
+	public boolean deleteMediaAccount(String id) {
+		MediaAccount account = requireWritableMediaAccount(id);
+		if (mediaAccountMapper.countReferences(id) > 0)
+			throw new IllegalStateException("该媒体投放账户仍被广告位、适配器配置或 Campaign 发布记录引用，请先解除引用或将账户设为停用");
+		return mediaAccountMapper.deleteById(account.getId()) == 1;
 	}
 
 	@Transactional
@@ -116,7 +140,7 @@ public class InventoryService {
 
 	public Page<Placement> listPlacements(Page<Placement> page, String mediaAccountId, String type) {
 		if (!StringUtils.hasText(mediaAccountId))
-			throw new IllegalArgumentException("媒体账户不能为空");
+			throw new IllegalArgumentException("媒体投放账户不能为空");
 		requireMediaAccount(mediaAccountId);
 		var q = Wrappers.<Placement>lambdaQuery()
 			.eq(Placement::getMediaAccountId, mediaAccountId)
@@ -145,6 +169,16 @@ public class InventoryService {
 		placement.setStatus(status);
 		placementMapper.updateById(placement);
 		return placement;
+	}
+
+	@Transactional
+	public boolean deletePlacement(String id) {
+		Placement placement = requireWritablePlacement(id);
+		if (placementMapper.countReferences(id) > 0)
+			throw new IllegalStateException("该广告位仍有质量快照或 Campaign 发布记录，请保留该广告位并改为停用");
+		capabilityMapper
+			.delete(Wrappers.<MediaCapability>lambdaQuery().eq(MediaCapability::getPlacementId, placement.getId()));
+		return placementMapper.deleteById(placement.getId()) == 1;
 	}
 
 	public MediaCapability getCapability(String placementId) {
@@ -220,6 +254,17 @@ public class InventoryService {
 				|| !account.getId().equals(placement.getMediaAccountId()))
 			throw new IllegalArgumentException("资源不存在");
 		return placement;
+	}
+
+	private MediaChannel requireMediaChannel(String mediaId, String channelId, boolean requireActive) {
+		if (!StringUtils.hasText(channelId))
+			throw new IllegalArgumentException("请选择投放渠道");
+		MediaChannel channel = channelMapper.selectById(channelId);
+		if (channel == null || !mediaId.equals(channel.getMediaId()))
+			throw new IllegalArgumentException("资源不存在");
+		if (requireActive && !"ACTIVE".equals(channel.getStatus()))
+			throw new IllegalArgumentException("请选择已启用的投放渠道");
+		return channel;
 	}
 
 }
