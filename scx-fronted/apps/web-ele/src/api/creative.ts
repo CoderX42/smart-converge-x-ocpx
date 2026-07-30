@@ -6,9 +6,35 @@ export type CreativeAsset = BaseRecord & {
   assetName: string;
   assetType: string;
   currentRevisionId?: string;
+  fileHash?: string;
+  fileSize?: number;
   fileUrl: string;
   mediaId: string;
+  mimeType?: string;
   orgId: string;
+  width?: number;
+  height?: number;
+};
+
+export type CreativeAssetRevision = {
+  createdAt?: string;
+  fileHash?: string;
+  fileSize?: number;
+  fileUrl: string;
+  height?: number;
+  id: string;
+  mimeType?: string;
+  version: number;
+  width?: number;
+};
+
+export type ReviewLog = {
+  comment?: string;
+  createdAt?: string;
+  fromStatus?: string;
+  id: string;
+  operatorName?: string;
+  toStatus: string;
 };
 
 export type ReviewCase = BaseRecord & {
@@ -49,6 +75,52 @@ export function createAsset(params: {
   return requestClient.post('/ad/creative/assets', undefined, { params });
 }
 
+export function uploadAsset(
+  params: {
+    assetName: string;
+    assetType: 'IMAGE';
+    height?: number;
+    mediaId: string;
+    orgId: string;
+    width?: number;
+  },
+  file: File,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
+) {
+  const formData = new FormData();
+  formData.append('mediaId', params.mediaId);
+  formData.append('orgId', params.orgId);
+  formData.append('assetType', params.assetType);
+  formData.append('assetName', params.assetName);
+  if (params.width) formData.append('width', String(params.width));
+  if (params.height) formData.append('height', String(params.height));
+  formData.append('file', file);
+  return requestClient.post<CreativeAsset>(
+    '/ad/creative/assets/upload',
+    formData,
+    {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (event: { loaded: number; total?: number }) => {
+        if (event.total && onProgress) {
+          onProgress(Math.round((event.loaded * 100) / event.total));
+        }
+      },
+      signal,
+    },
+  );
+}
+
+export function getAsset(id: string) {
+  return requestClient.get<CreativeAsset>(`/ad/creative/assets/${id}`);
+}
+
+export function getAssetRevisions(id: string) {
+  return requestClient.get<CreativeAssetRevision[]>(
+    `/ad/creative/assets/${id}/revisions`,
+  );
+}
+
 export function submitAsset(id: string) {
   return requestClient.post(`/ad/creative/assets/${id}/submit-review`);
 }
@@ -78,9 +150,11 @@ export function reviewAsset(
   );
 }
 
-export function getLandingPages(
-  params: PageQuery & { orgId: string },
-) {
+export function getReviewLogs(id: string) {
+  return requestClient.get<ReviewLog[]>(`/ad/creative/review-cases/${id}/logs`);
+}
+
+export function getLandingPages(params: PageQuery & { orgId: string }) {
   return requestClient.get<PageResult<LandingPage>>(
     '/ad/creative/landing-pages',
     { params },

@@ -21,7 +21,7 @@ describe('legacy master-data route', () => {
 
     expect(target).toEqual({
       hash: '#scope',
-      path: '/delivery/media-scopes',
+      path: '/inventory/media-access',
       query: { mediaId: 'media-1', source: 'bookmark' },
     });
   });
@@ -41,8 +41,12 @@ describe('legacy customer route', () => {
 
     expect(target).toEqual({
       hash: '#history',
-      path: '/delivery/partners',
-      query: { mediaId: 'media-1', source: 'bookmark' },
+      path: '/commercial/catalog',
+      query: {
+        mediaId: 'media-1',
+        source: 'bookmark',
+        tab: 'partners',
+      },
     });
   });
 });

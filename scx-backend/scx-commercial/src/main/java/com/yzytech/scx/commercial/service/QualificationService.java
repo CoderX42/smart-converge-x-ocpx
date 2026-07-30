@@ -5,13 +5,24 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.commercial.entity.*;
 import com.yzytech.scx.commercial.mapper.*;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.system.api.dto.ManagedStorageObject;
+import com.yzytech.scx.system.api.service.StorageUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Qualification case lifecycle management.
@@ -33,6 +44,12 @@ public class QualificationService {
 	private final OrganizationMapper orgMapper;
 
 	private final OrganizationScopeService scopeService;
+
+	private final StorageUploadService storageUploadService;
+
+	private static final long MAX_DOCUMENT_SIZE = 20L * 1024 * 1024;
+
+	private static final Set<String> DOCUMENT_EXTENSIONS = Set.of("pdf", "png", "jpg", "jpeg", "doc", "docx");
 
 	// ── Case CRUD ──
 
@@ -111,6 +128,8 @@ public class QualificationService {
 			case "REQUIRE_SUPPLEMENT" -> "SUPPLEMENT_REQUIRED";
 			default -> throw new IllegalArgumentException("无效审核决定: " + decision);
 		};
+		if (("REJECTED".equals(to) || "SUPPLEMENT_REQUIRED".equals(to)) && !StringUtils.hasText(comment))
+			throw new IllegalArgumentException("驳回或要求补充材料时必须填写原因");
 
 		c.setStatus(to);
 		c.setReviewedAt(LocalDateTime.now());
@@ -132,6 +151,8 @@ public class QualificationService {
 		scopeService.requireWrite(c.getOrgId());
 		if (!"APPROVED".equals(c.getStatus()))
 			throw new IllegalArgumentException("只有已通过的资质才能暂停");
+		if (!StringUtils.hasText(reason))
+			throw new IllegalArgumentException("暂停资质必须填写原因");
 		String from = c.getStatus();
 		c.setStatus("SUSPENDED");
 		caseMapper.updateById(c);
@@ -153,11 +174,118 @@ public class QualificationService {
 		return doc;
 	}
 
+	@Transactional
+	public QualificationDocument uploadDocument(String caseId, String docType, MultipartFile file) {
+		QualificationCase qualificationCase = requireCase(caseId);
+		scopeService.requireWrite(qualificationCase.getOrgId());
+		String fileName = cleanFileName(file);
+		byte[] content = readAndValidate(file, fileName);
+		String mimeType = contentType(fileName);
+		ManagedStorageObject stored = storageUploadService.uploadManaged(new ByteArrayInputStream(content), fileName,
+				mimeType, content.length);
+		try {
+			QualificationDocument doc = new QualificationDocument();
+			doc.setCaseId(caseId);
+			doc.setDocType(docType);
+			doc.setDocName(fileName);
+			doc.setFileUrl(stored.url());
+			doc.setOriginalFileName(fileName);
+			doc.setMimeType(mimeType);
+			doc.setFileSize((long) content.length);
+			doc.setStorageConfigId(stored.storageConfigId());
+			doc.setStorageProvider(stored.provider());
+			doc.setStorageObjectKey(stored.objectKey());
+			doc.setContentHash(sha256(content));
+			doc.setStatus("ACTIVE");
+			docMapper.insert(doc);
+			return doc;
+		}
+		catch (RuntimeException exception) {
+			try {
+				storageUploadService.delete(stored);
+			}
+			catch (RuntimeException cleanupFailure) {
+				exception.addSuppressed(cleanupFailure);
+			}
+			throw exception;
+		}
+	}
+
+	public QualificationDocumentContent openDocument(String documentId) {
+		QualificationDocument doc = docMapper.selectById(documentId);
+		if (doc == null || !"ACTIVE".equals(doc.getStatus()))
+			throw new IllegalArgumentException("资源不存在");
+		requireCase(doc.getCaseId());
+		ManagedStorageObject object;
+		if (StringUtils.hasText(doc.getStorageConfigId()) && StringUtils.hasText(doc.getStorageProvider())
+				&& StringUtils.hasText(doc.getStorageObjectKey())) {
+			object = new ManagedStorageObject(doc.getStorageConfigId(), doc.getStorageProvider(),
+					doc.getStorageObjectKey(), doc.getFileUrl());
+		}
+		else {
+			object = storageUploadService.resolve(doc.getFileUrl());
+		}
+		return new QualificationDocumentContent(doc, storageUploadService.open(object));
+	}
+
 	public java.util.List<QualificationDocument> listDocuments(String caseId) {
 		requireCase(caseId);
 		return docMapper.selectList(Wrappers.<QualificationDocument>lambdaQuery()
 			.eq(QualificationDocument::getCaseId, caseId)
 			.eq(QualificationDocument::getStatus, "ACTIVE"));
+	}
+
+	private byte[] readAndValidate(MultipartFile file, String fileName) {
+		if (file == null || file.isEmpty())
+			throw new IllegalArgumentException("请选择需要上传的资质文件");
+		if (file.getSize() > MAX_DOCUMENT_SIZE)
+			throw new IllegalArgumentException("资质文件大小不能超过 20MB");
+		String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+		if (!DOCUMENT_EXTENSIONS.contains(extension))
+			throw new IllegalArgumentException("仅支持 PDF、图片和 Word 资质文件");
+		try {
+			byte[] content = file.getBytes();
+			if (content.length == 0 || content.length > MAX_DOCUMENT_SIZE)
+				throw new IllegalArgumentException("资质文件为空或超过 20MB");
+			return content;
+		}
+		catch (IOException exception) {
+			throw new IllegalArgumentException("读取资质文件失败", exception);
+		}
+	}
+
+	private String cleanFileName(MultipartFile file) {
+		String fileName = StringUtils.cleanPath(
+				file == null || file.getOriginalFilename() == null ? "" : file.getOriginalFilename());
+		if (!StringUtils.hasText(fileName) || fileName.length() > 255 || !fileName.contains(".")
+				|| fileName.contains("..") || fileName.contains("/") || fileName.contains("\\")
+				|| fileName.chars().anyMatch(Character::isISOControl))
+			throw new IllegalArgumentException("文件名无效");
+		return fileName;
+	}
+
+	private String contentType(String fileName) {
+		String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+		return switch (extension) {
+			case "pdf" -> "application/pdf";
+			case "png" -> "image/png";
+			case "jpg", "jpeg" -> "image/jpeg";
+			case "doc" -> "application/msword";
+			case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+			default -> "application/octet-stream";
+		};
+	}
+
+	private String sha256(byte[] content) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+		}
+		catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("系统不支持 SHA-256", exception);
+		}
+	}
+
+	public record QualificationDocumentContent(QualificationDocument document, InputStream stream) {
 	}
 
 	// ── Review logs (immutable) ──

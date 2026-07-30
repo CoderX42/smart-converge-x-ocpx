@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.creative.entity.*;
 import com.yzytech.scx.creative.service.CreativeService;
+import com.yzytech.scx.system.api.dto.ManagedStorageObject;
 import com.yzytech.scx.system.api.service.StorageUploadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
@@ -32,18 +35,40 @@ public class CreativeController {
 	@SaCheckPermission("creative:asset:write")
 	@Operation(summary = "上传素材文件")
 	public Result<CreativeAsset> upload(@RequestParam String mediaId, @RequestParam String orgId,
-			@RequestParam String assetType, @RequestParam String assetName, @RequestParam("file") MultipartFile file) {
+			@RequestParam String assetType, @RequestParam String assetName,
+			@RequestParam(required = false) Integer width, @RequestParam(required = false) Integer height,
+			@RequestParam("file") MultipartFile file) {
 		return call(() -> {
+			if (!"IMAGE".equals(assetType))
+				throw new IllegalArgumentException("当前上传入口仅支持图片素材");
 			if (file.isEmpty() || file.getSize() > 50L * 1024 * 1024)
-				throw new IllegalArgumentException("素材文件为空或超过50MB");
+				throw new IllegalArgumentException("图片为空或超过50MB");
 			if (file.getOriginalFilename() == null || file.getOriginalFilename().isBlank())
 				throw new IllegalArgumentException("素材文件名不能为空");
+			if (file.getContentType() == null || !file.getContentType().startsWith("image/"))
+				throw new IllegalArgumentException("仅支持图片格式");
 			byte[] bytes = file.getBytes();
 			String fileHash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-			String fileUrl = storageUploadService.upload(file.getInputStream(), file.getOriginalFilename(),
-					file.getContentType(), file.getSize());
-			return service.createAsset(mediaId, orgId, assetType, assetName, fileUrl, file.getContentType(),
-					file.getSize(), fileHash);
+			BufferedImage image = ImageIO.read(new java.io.ByteArrayInputStream(bytes));
+			if (image == null && !"image/webp".equalsIgnoreCase(file.getContentType()))
+				throw new IllegalArgumentException("图片格式无法解析");
+			Integer imageWidth = image != null ? image.getWidth() : width;
+			Integer imageHeight = image != null ? image.getHeight() : height;
+			ManagedStorageObject stored = storageUploadService.uploadManaged(file.getInputStream(),
+					file.getOriginalFilename(), file.getContentType(), file.getSize());
+			try {
+				return service.createAsset(mediaId, orgId, assetType, assetName, stored.url(), file.getContentType(),
+						file.getSize(), fileHash, imageWidth, imageHeight, stored.objectKey(), stored.provider());
+			}
+			catch (Exception exception) {
+				try {
+					storageUploadService.delete(stored);
+				}
+				catch (Exception cleanupException) {
+					log.warn("创意素材记录创建失败，OSS 对象清理失败: {}", cleanupException.getMessage());
+				}
+				throw exception;
+			}
 		});
 	}
 
@@ -195,7 +220,7 @@ public class CreativeController {
 		try {
 			return Result.success(action.call());
 		}
-		catch (IllegalArgumentException e) {
+		catch (IllegalArgumentException | IllegalStateException e) {
 			return Result.fail(e.getMessage());
 		}
 		catch (Exception e) {

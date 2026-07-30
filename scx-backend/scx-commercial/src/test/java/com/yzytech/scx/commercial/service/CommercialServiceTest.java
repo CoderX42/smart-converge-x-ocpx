@@ -99,6 +99,25 @@ class CommercialServiceTest {
 		assertThat(rel.getStatus()).isEqualTo("REVOKED");
 	}
 
+	@Test
+	void updateAgencyRelationChangesTermsWithoutRevoking() {
+		AgencyRelation rel = new AgencyRelation();
+		rel.setId("rel-1");
+		rel.setParentAgencyOrgId("org-1");
+		rel.setChildOrgId("org-2");
+		rel.setStatus("ACTIVE");
+		when(agencyRelationMapper.selectById("rel-1")).thenReturn(rel);
+
+		CreateAgencyRelationRequest request = new CreateAgencyRelationRequest("org-1", "org-2", "RESELLER",
+				"[\"ACCOUNT\"]", java.time.LocalDate.of(2026, 7, 1), java.time.LocalDate.of(2026, 12, 31));
+		AgencyRelation updated = service.updateAgencyRelation("rel-1", request);
+
+		assertThat(updated.getStatus()).isEqualTo("ACTIVE");
+		assertThat(updated.getRelationType()).isEqualTo("RESELLER");
+		assertThat(updated.getAuthorizedScopes()).isEqualTo("[\"ACCOUNT\"]");
+		verify(agencyRelationMapper).updateById(rel);
+	}
+
 	// ── Ad Account ──
 
 	@Test

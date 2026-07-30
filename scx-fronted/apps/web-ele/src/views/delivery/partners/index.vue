@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { Media, Partner, PartnerInput, PartnerStatus } from '#/api/ad';
 
 import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import { useAccess } from '@boot/access';
 
@@ -25,6 +26,7 @@ import {
   savePartner,
 } from '#/api/ad';
 
+import { resolveMediaId, withMediaContext } from '../components/media-context';
 import { generateRandomBusinessCode } from '../components/random-code';
 
 import '../components/mvp-page.css';
@@ -34,6 +36,8 @@ defineOptions({ name: 'AdPartners' });
 type PartnerForm = PartnerInput;
 
 const { hasAccessByCodes } = useAccess();
+const route = useRoute();
+const router = useRouter();
 const canWrite = computed(() => hasAccessByCodes(['ad:partner:write']));
 const canManageMedia = computed(() =>
   hasAccessByCodes(['subject:media:write']),
@@ -107,7 +111,7 @@ async function bootstrap() {
       ? await getManagedMedia({ current: 1, size: 200 })
       : await getMedia({ current: 1, size: 200 });
     media.value = result.records || [];
-    mediaId.value = media.value[0]?.id || '';
+    mediaId.value = resolveMediaId(media.value, route.query.mediaId);
   } catch (error) {
     ElMessage.error(readableError(error, '媒体范围加载失败，请重试'));
   } finally {
@@ -252,6 +256,7 @@ async function deleteCurrentPartner() {
 
 watch(mediaId, () => {
   current.value = 1;
+  void router.replace({ query: withMediaContext(route.query, mediaId.value) });
   void load();
 });
 
@@ -260,6 +265,14 @@ void bootstrap().then(load);
 
 <template>
   <main class="mvp-page partners-page">
+    <el-alert
+      v-if="media.length > 1 && !mediaId"
+      class="mb-4"
+      :closable="false"
+      show-icon
+      title="请选择媒体范围后继续"
+      type="info"
+    />
     <section class="page-heading" aria-labelledby="partner-page-title">
       <div>
         <div class="eyebrow">

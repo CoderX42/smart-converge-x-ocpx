@@ -116,6 +116,11 @@ public class CommercialService {
 	}
 
 	public Page<Organization> listOrganizations(Page<Organization> page, String orgType, String keyword) {
+		return listOrganizations(page, orgType, keyword, null);
+	}
+
+	public Page<Organization> listOrganizations(Page<Organization> page, String orgType, String keyword,
+			String status) {
 		List<String> readableIds = scopeService.readableOrganizationIds();
 		if (!scopeService.isAdmin() && readableIds.isEmpty()) {
 			page.setRecords(List.of());
@@ -125,6 +130,7 @@ public class CommercialService {
 		var q = Wrappers.<Organization>lambdaQuery()
 			.in(!scopeService.isAdmin(), Organization::getId, readableIds)
 			.eq(StringUtils.hasText(orgType), Organization::getOrgType, orgType)
+			.eq(StringUtils.hasText(status), Organization::getStatus, status)
 			.and(StringUtils.hasText(keyword), x -> x.like(Organization::getName, keyword))
 			.orderByDesc(Organization::getCreateTime)
 			.orderByDesc(Organization::getId);
@@ -188,7 +194,7 @@ public class CommercialService {
 		advertiserMapper.updateById(a);
 	}
 
-	public Advertiser updateAdvertiserProfile(String id, CreateAdvertiserRequest request) {
+	public Advertiser updateAdvertiserProfile(String id, UpdateAdvertiserRequest request) {
 		Advertiser advertiser = requireAdvertiser(id);
 		scopeService.requireWrite(advertiser.getOrgId());
 		advertiser.setAdvertiserName(request.advertiserName());
@@ -202,6 +208,7 @@ public class CommercialService {
 
 	@Transactional
 	public AgencyRelation createAgencyRelation(CreateAgencyRelationRequest req) {
+		validateAgencyRelationDates(req);
 		scopeService.requireWrite(req.parentAgencyOrgId());
 		scopeService.requireWrite(req.childOrgId());
 		Organization parent = requireOrgInternal(req.parentAgencyOrgId());
@@ -244,6 +251,27 @@ public class CommercialService {
 		return rel;
 	}
 
+	@Transactional
+	public AgencyRelation updateAgencyRelation(String id, CreateAgencyRelationRequest req) {
+		AgencyRelation rel = agencyRelationMapper.selectById(id);
+		if (rel == null)
+			throw new IllegalArgumentException("资源不存在");
+		scopeService.requireWrite(rel.getParentAgencyOrgId());
+		scopeService.requireWrite(rel.getChildOrgId());
+		if (!rel.getParentAgencyOrgId().equals(req.parentAgencyOrgId())
+				|| !rel.getChildOrgId().equals(req.childOrgId()))
+			throw new IllegalArgumentException("代理关系双方不可修改，请撤销后重新创建");
+		if (!"ACTIVE".equals(rel.getStatus()))
+			throw new IllegalArgumentException("已撤销的代理关系不可修改");
+		validateAgencyRelationDates(req);
+		rel.setRelationType(StringUtils.hasText(req.relationType()) ? req.relationType() : "DIRECT");
+		rel.setAuthorizedScopes(req.authorizedScopes());
+		rel.setStartDate(req.startDate());
+		rel.setEndDate(req.endDate());
+		agencyRelationMapper.updateById(rel);
+		return rel;
+	}
+
 	public void revokeAgencyRelation(String id) {
 		AgencyRelation rel = agencyRelationMapper.selectById(id);
 		if (rel == null)
@@ -252,6 +280,11 @@ public class CommercialService {
 		scopeService.requireWrite(rel.getChildOrgId());
 		rel.setStatus("REVOKED");
 		agencyRelationMapper.updateById(rel);
+	}
+
+	private void validateAgencyRelationDates(CreateAgencyRelationRequest req) {
+		if (req.startDate() != null && req.endDate() != null && req.endDate().isBefore(req.startDate()))
+			throw new IllegalArgumentException("代理关系结束日期不能早于开始日期");
 	}
 
 	public List<AgencyRelation> listAgencyRelations(String parentOrgId) {

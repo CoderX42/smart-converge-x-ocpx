@@ -16,6 +16,7 @@ import com.yzytech.scx.subject.service.MediaScopeService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +62,17 @@ class CreativeServiceTest {
 		assertThatThrownBy(() -> service.reviewAsset("case-1", "APPROVE", null))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("安全扫描");
+	}
+
+	@Test
+	void duplicateAssetHashIsRejectedWithinTheSameScope() {
+		when(mediaScopeService.canWrite("media-1")).thenReturn(true);
+		when(assetMapper.selectOne(any())).thenReturn(asset());
+
+		assertThatThrownBy(() -> service.createAsset("media-1", "org-1", "IMAGE", "banner", "https://oss.example/banner.jpg",
+				"image/jpeg", 1024L, "same-hash", 1200, 628))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("相同图片已存在，请直接使用素材库中的已有版本");
 	}
 
 	private CreativeAsset asset() {

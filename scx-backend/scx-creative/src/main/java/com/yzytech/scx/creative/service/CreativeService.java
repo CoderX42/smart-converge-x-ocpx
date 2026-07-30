@@ -54,12 +54,32 @@ public class CreativeService {
 	@Transactional
 	public CreativeAsset createAsset(String mediaId, String orgId, String assetType, String assetName, String fileUrl,
 			String mimeType, Long fileSize, String fileHash) {
+		return createAsset(mediaId, orgId, assetType, assetName, fileUrl, mimeType, fileSize, fileHash, null, null);
+	}
+
+	@Transactional
+	public CreativeAsset createAsset(String mediaId, String orgId, String assetType, String assetName, String fileUrl,
+			String mimeType, Long fileSize, String fileHash, Integer width, Integer height) {
+		return createAsset(mediaId, orgId, assetType, assetName, fileUrl, mimeType, fileSize, fileHash, width, height,
+				fileUrl, "SYSTEM");
+	}
+
+	@Transactional
+	public CreativeAsset createAsset(String mediaId, String orgId, String assetType, String assetName, String fileUrl,
+			String mimeType, Long fileSize, String fileHash, Integer width, Integer height, String storageKey,
+			String storageProvider) {
 		if (!scopeService.canWrite(mediaId))
 			throw new IllegalArgumentException("资源不存在");
 		organizationScopeService.requireWrite(orgId);
 		if (!StringUtils.hasText(assetName) || !StringUtils.hasText(assetType) || !StringUtils.hasText(fileUrl)
 				|| !StringUtils.hasText(fileHash) || fileSize == null || fileSize <= 0)
 			throw new IllegalArgumentException("素材信息不完整");
+		if (assetMapper.selectOne(Wrappers.<CreativeAsset>lambdaQuery()
+			.eq(CreativeAsset::getMediaId, mediaId)
+			.eq(CreativeAsset::getOrgId, orgId)
+			.eq(CreativeAsset::getFileHash, fileHash)
+			.last("LIMIT 1")) != null)
+			throw new IllegalArgumentException("相同图片已存在，请直接使用素材库中的已有版本");
 		CreativeAsset a = new CreativeAsset();
 		a.setMediaId(mediaId);
 		a.setOrgId(orgId);
@@ -69,6 +89,8 @@ public class CreativeService {
 		a.setMimeType(mimeType);
 		a.setFileSize(fileSize);
 		a.setFileHash(fileHash);
+		a.setWidth(width);
+		a.setHeight(height);
 		a.setStatus("DRAFT");
 		assetMapper.insert(a);
 
@@ -80,11 +102,13 @@ public class CreativeService {
 		rev.setMimeType(mimeType);
 		rev.setFileSize(fileSize);
 		rev.setFileHash(fileHash);
+		rev.setWidth(width);
+		rev.setHeight(height);
 		revisionMapper.insert(rev);
 		AssetBinary binary = new AssetBinary();
 		binary.setRevisionId(rev.getId());
-		binary.setStorageKey(fileUrl);
-		binary.setStorageProvider("SYSTEM");
+		binary.setStorageKey(StringUtils.hasText(storageKey) ? storageKey : fileUrl);
+		binary.setStorageProvider(StringUtils.hasText(storageProvider) ? storageProvider : "SYSTEM");
 		binary.setContentLength(fileSize);
 		binary.setContentHash(fileHash);
 		binaryMapper.insert(binary);

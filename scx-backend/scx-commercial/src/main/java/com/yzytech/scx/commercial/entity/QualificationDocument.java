@@ -19,6 +19,20 @@ public class QualificationDocument {
 
 	private String fileUrl;
 
+	private String originalFileName;
+
+	private String mimeType;
+
+	private Long fileSize;
+
+	private String storageConfigId;
+
+	private String storageProvider;
+
+	private String storageObjectKey;
+
+	private String contentHash;
+
 	private String status;
 
 	@TableField(fill = FieldFill.INSERT)

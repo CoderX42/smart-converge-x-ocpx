@@ -13,8 +13,19 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -77,12 +88,20 @@ public class QualificationController {
 		});
 	}
 
-	@PostMapping("/qualification-cases/{id}/documents")
+	@PostMapping(value = "/qualification-cases/{id}/documents", params = "fileUrl")
 	@SaCheckPermission("commercial:qualification:write")
-	@Operation(summary = "上传资质文档")
+	@Operation(summary = "关联历史资质文档 URL（兼容接口）")
 	public Result<QualificationDocument> addDocument(@PathVariable String id, @RequestParam String docType,
 			@RequestParam String docName, @RequestParam String fileUrl) {
 		return call(() -> qualificationService.addDocument(id, docType, docName, fileUrl));
+	}
+
+	@PostMapping(value = "/qualification-cases/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@SaCheckPermission("commercial:qualification:write")
+	@Operation(summary = "上传受控资质文档")
+	public Result<QualificationDocument> uploadDocument(@PathVariable String id, @RequestParam String docType,
+			@RequestPart("file") MultipartFile file) {
+		return call(() -> qualificationService.uploadDocument(id, docType, file));
 	}
 
 	@GetMapping("/qualification-cases/{id}/documents")
@@ -90,6 +109,46 @@ public class QualificationController {
 	@Operation(summary = "查询资质文档列表")
 	public Result<List<QualificationDocument>> listDocuments(@PathVariable String id) {
 		return call(() -> qualificationService.listDocuments(id));
+	}
+
+	@GetMapping("/qualification-documents/{documentId}/content")
+	@SaCheckPermission("commercial:qualification:read")
+	@Operation(summary = "鉴权读取资质文档")
+	public ResponseEntity<StreamingResponseBody> documentContent(@PathVariable String documentId) {
+		try {
+			QualificationService.QualificationDocumentContent content = qualificationService.openDocument(documentId);
+			QualificationDocument document = content.document();
+			String fileName = StringUtils.hasText(document.getOriginalFileName()) ? document.getOriginalFileName()
+					: document.getDocName();
+			MediaType mediaType;
+			try {
+				mediaType = MediaType.parseMediaType(StringUtils.hasText(document.getMimeType())
+						? document.getMimeType() : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+			}
+			catch (IllegalArgumentException ignored) {
+				mediaType = MediaType.APPLICATION_OCTET_STREAM;
+			}
+			StreamingResponseBody body = outputStream -> {
+				try (var inputStream = content.stream()) {
+					inputStream.transferTo(outputStream);
+				}
+			};
+			ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+				.contentType(mediaType)
+				.cacheControl(CacheControl.noStore().cachePrivate())
+				.header(HttpHeaders.CONTENT_DISPOSITION,
+						ContentDisposition.inline().filename(fileName, StandardCharsets.UTF_8).build().toString())
+				.header("X-Content-Type-Options", "nosniff");
+			if (document.getFileSize() != null)
+				response.contentLength(document.getFileSize());
+			return response.body(body);
+		}
+		catch (IllegalArgumentException exception) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "资源不存在");
+		}
+		catch (IllegalStateException exception) {
+			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
+		}
 	}
 
 	@GetMapping("/qualification-cases/{id}/review-logs")

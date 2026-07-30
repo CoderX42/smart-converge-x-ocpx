@@ -10,7 +10,9 @@ import type {
 import type { AdAccount } from '#/api/commercial';
 
 import { computed, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+
+import { useAccess } from '@boot/access';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -31,6 +33,8 @@ import '../business-domain.css';
 defineOptions({ name: 'CampaignWorkspace' });
 
 const route = useRoute();
+const router = useRouter();
+const { hasAccessByCodes } = useAccess();
 const adAccounts = ref<AdAccount[]>([]);
 const adAccountId = ref('');
 const keyword = ref('');
@@ -47,13 +51,45 @@ const activeDetailTab = ref('groups');
 const detail = ref<CampaignDetail>();
 const operations = ref<PublishingOperation[]>([]);
 const revisions = ref<CampaignRevision[]>([]);
+const reviewTotal = ref(0);
 const form = reactive<Partial<Campaign>>({});
-const isReviewCenter = computed(() => route.path.endsWith('/reviews'));
+const canReview = computed(() => hasAccessByCodes(['campaign:review']));
+const isReviewCenter = computed(
+  () => route.path.endsWith('/reviews') || route.query.tab === 'review',
+);
+const activeWorkspaceTab = computed({
+  get: () => (isReviewCenter.value && canReview.value ? 'review' : 'all'),
+  set: (tab: string) => {
+    void router.replace({
+      query: {
+        ...route.query,
+        tab: tab === 'review' ? 'review' : 'all',
+      },
+    });
+  },
+});
 
 async function bootstrap() {
   const result = await getAdAccounts({ current: 1, size: 200 });
   adAccounts.value = result.records;
-  adAccountId.value = result.records[0]?.id || '';
+  const requested = String(route.query.adAccountId || '');
+  adAccountId.value = result.records.some((item) => item.id === requested)
+    ? requested
+    : result.records[0]?.id || '';
+}
+
+async function loadReviewTotal() {
+  if (!adAccountId.value || !canReview.value) {
+    reviewTotal.value = 0;
+    return;
+  }
+  const result = await getCampaigns({
+    adAccountId: adAccountId.value,
+    current: 1,
+    size: 1,
+    status: 'PENDING_REVIEW',
+  });
+  reviewTotal.value = result.total;
 }
 
 async function load() {
@@ -74,6 +110,7 @@ async function load() {
     });
     rows.value = result.records;
     total.value = result.total;
+    if (isReviewCenter.value) reviewTotal.value = result.total;
   } finally {
     loading.value = false;
   }
@@ -170,15 +207,34 @@ function can(row: Campaign, action: CampaignUiAction) {
   );
 }
 
-watch([adAccountId, () => route.path], () => {
+watch([adAccountId, () => route.path, () => route.query.tab], () => {
   current.value = 1;
-  void load();
+  if (adAccountId.value) {
+    void router.replace({
+      query: { ...route.query, adAccountId: adAccountId.value },
+    });
+  }
+  void Promise.all([load(), loadReviewTotal()]);
 });
-bootstrap().then(load);
+bootstrap().then(() => Promise.all([load(), loadReviewTotal()]));
 </script>
 
 <template>
   <main class="domain-page">
+    <el-tabs v-model="activeWorkspaceTab" class="workspace-tabs mb-4">
+      <el-tab-pane label="全部计划" name="all" />
+      <el-tab-pane v-if="canReview" name="review">
+        <template #label>
+          待我审核
+          <el-badge
+            v-if="reviewTotal"
+            class="ml-2"
+            :value="reviewTotal"
+            :max="99"
+          />
+        </template>
+      </el-tab-pane>
+    </el-tabs>
     <header class="domain-hero">
       <div>
         <p class="domain-eyebrow">CAMPAIGN · DELIVERY CONTROL</p>
@@ -198,6 +254,26 @@ bootstrap().then(load);
         新建推广计划
       </el-button>
     </header>
+
+    <el-alert
+      v-if="adAccounts.length === 0"
+      class="mb-4"
+      :closable="false"
+      show-icon
+      title="尚无可用广告账户"
+      type="warning"
+    >
+      <template #default>
+        创建并激活广告账户后才能新建推广计划。
+        <el-button
+          link
+          type="primary"
+          @click="router.push('/commercial/ad-accounts')"
+        >
+          前往广告账户
+        </el-button>
+      </template>
+    </el-alert>
 
     <el-card class="domain-card" shadow="never">
       <div class="domain-toolbar">

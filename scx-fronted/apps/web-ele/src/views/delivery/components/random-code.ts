@@ -1,7 +1,8 @@
 const CODE_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const RANDOM_PART_LENGTH = 12;
 
-export type BusinessCodePrefix = 'channel' | 'customer' | 'media' | 'partner';
+export type BusinessCodePrefix =
+  'channel' | 'customer' | 'media' | 'partner' | 'placement';
 
 export function generateRandomBusinessCode(
   prefix: BusinessCodePrefix,

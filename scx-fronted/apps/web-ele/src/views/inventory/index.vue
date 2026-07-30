@@ -5,7 +5,7 @@ import type { Capability, MediaAccount, Placement } from '#/api/inventory';
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-import { Delete } from '@element-plus/icons-vue';
+import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import { getMaster, getMedia } from '#/api/ad';
@@ -21,6 +21,13 @@ import {
   saveMediaAccount,
   savePlacement,
 } from '#/api/inventory';
+
+import {
+  resolveMediaId,
+  withMediaContext,
+} from '../delivery/components/media-context';
+import { parseCapability, serializeCapability } from './capability-editor';
+import { generateRandomPlacementCode } from './placement-code';
 
 import '../business-domain.css';
 
@@ -56,9 +63,14 @@ const capabilityDrawer = ref(false);
 const editingType = ref<'account' | 'placement'>('account');
 const form = reactive<Record<string, string | undefined>>({});
 const capability = reactive<Partial<Capability>>({});
+const capabilityEditor = ref(parseCapability({}));
 const selectedPlacement = ref('');
 const sectionKey = computed(() => route.path.split('/').findLast(Boolean));
-const isAccounts = computed(() => sectionKey.value === 'media-accounts');
+const isAccounts = computed(
+  () =>
+    sectionKey.value === 'media-accounts' ||
+    (sectionKey.value === 'supply' && route.query.tab !== 'placements'),
+);
 const activeChannels = computed(() =>
   channels.value.filter((item) => item.status === 'ACTIVE'),
 );
@@ -66,7 +78,7 @@ const activeChannels = computed(() =>
 async function bootstrap() {
   const result = await getMedia({ current: 1, size: 200 });
   media.value = result.records;
-  mediaId.value = result.records[0]?.id || '';
+  mediaId.value = resolveMediaId(result.records, route.query.mediaId);
 }
 
 async function loadChannels() {
@@ -154,10 +166,16 @@ function openPlacement(row?: Placement) {
     form,
     row || {
       mediaAccountId: mediaAccountId.value,
+      placementCode: generateRandomPlacementCode(),
       placementType: 'FEED',
     },
   );
   drawer.value = true;
+}
+
+function replaceRandomPlacementCode() {
+  if (form.id) return;
+  form.placementCode = generateRandomPlacementCode();
 }
 
 async function submit() {
@@ -254,6 +272,7 @@ async function openCapability(row: Placement) {
     (key) => delete capability[key as keyof Capability],
   );
   Object.assign(capability, data);
+  capabilityEditor.value = parseCapability(data);
   selectedPlacement.value = row.id;
   capabilityDrawer.value = true;
 }
@@ -261,12 +280,30 @@ async function openCapability(row: Placement) {
 async function submitCapability() {
   saving.value = true;
   try {
-    await saveCapability(selectedPlacement.value, capability);
+    let serialized;
+    try {
+      serialized = serializeCapability(capabilityEditor.value);
+    } catch {
+      ElMessage.warning('能力矩阵 JSON 校验失败，请修正后再保存');
+      return;
+    }
+    await saveCapability(selectedPlacement.value, {
+      ...capability,
+      ...serialized,
+    });
     ElMessage.success('能力矩阵已更新');
     capabilityDrawer.value = false;
   } finally {
     saving.value = false;
   }
+}
+
+function addTargetingField() {
+  capabilityEditor.value.targetingFields.push({ key: '', value: '' });
+}
+
+function removeTargetingField(index: number) {
+  capabilityEditor.value.targetingFields.splice(index, 1);
 }
 
 function goToChannels() {
@@ -277,16 +314,16 @@ watch(mediaId, async () => {
   mediaChannelId.value = '';
   mediaAccountId.value = '';
   current.value = 1;
+  await router.replace({
+    query: withMediaContext(route.query, mediaId.value),
+  });
   await loadChannels();
   await load();
 });
-watch(
-  () => route.path,
-  () => {
-    current.value = 1;
-    void load();
-  },
-);
+watch([() => route.path, () => route.query.tab], () => {
+  current.value = 1;
+  void load();
+});
 watch(mediaChannelId, () => {
   mediaAccountId.value = '';
   current.value = 1;
@@ -339,6 +376,17 @@ bootstrap().then(async () => {
         新增广告位
       </el-button>
     </header>
+
+    <el-alert
+      v-if="media.length > 1 && !mediaId"
+      class="mb-4"
+      :closable="false"
+      show-icon
+      title="请选择媒体主体后继续"
+      type="info"
+    >
+      当前账号可访问多个媒体。为避免误读或误写数据，系统不会自动选择第一项。
+    </el-alert>
 
     <el-alert
       v-if="isAccounts && activeChannels.length === 0"
@@ -567,8 +615,24 @@ bootstrap().then(async () => {
           <el-form-item label="广告位编码" required>
             <el-input
               v-model="form.placementCode"
+              autocomplete="off"
               :disabled="Boolean(form.id)"
-            />
+              maxlength="64"
+              placeholder="新增时自动生成"
+            >
+              <template v-if="!form.id" #append>
+                <el-button
+                  :icon="Refresh"
+                  aria-label="换一个随机广告位编码"
+                  @click="replaceRandomPlacementCode"
+                >
+                  换一个
+                </el-button>
+              </template>
+            </el-input>
+            <div class="mt-1 text-xs text-gray-500">
+              新增时自动生成，可手动修改或换一个随机编码；创建后不可修改。
+            </div>
           </el-form-item>
           <el-form-item label="广告位名称" required>
             <el-input v-model="form.placementName" />
@@ -618,34 +682,108 @@ bootstrap().then(async () => {
 
     <el-drawer v-model="capabilityDrawer" title="能力矩阵" size="540px">
       <el-form label-position="top" :model="capability">
-        <el-form-item label="计费方式（JSON）">
-          <el-input
-            v-model="capability.billingModes"
-            :rows="2"
-            type="textarea"
-          />
-        </el-form-item>
-        <el-form-item label="目标事件（JSON）">
-          <el-input
-            v-model="capability.targetEvents"
-            :rows="2"
-            type="textarea"
-          />
-        </el-form-item>
-        <el-form-item label="定向字段（JSON）">
-          <el-input
-            v-model="capability.targetingFields"
-            :rows="3"
-            type="textarea"
-          />
-        </el-form-item>
-        <el-form-item label="素材格式（JSON）">
-          <el-input
-            v-model="capability.creativeFormats"
-            :rows="2"
-            type="textarea"
-          />
-        </el-form-item>
+        <el-alert
+          v-if="capabilityEditor.advanced"
+          class="mb-4"
+          :closable="false"
+          show-icon
+          title="检测到无法结构化解析的历史 JSON"
+          type="warning"
+        >
+          为避免覆盖历史数据，当前已进入高级编辑模式；所有字段通过 JSON
+          校验后才能保存。
+        </el-alert>
+        <template v-if="!capabilityEditor.advanced">
+          <el-form-item label="计费方式">
+            <el-select
+              v-model="capabilityEditor.billingModes"
+              allow-create
+              class="w-full"
+              filterable
+              multiple
+            >
+              <el-option label="CPC" value="CPC" />
+              <el-option label="CPM" value="CPM" />
+              <el-option label="媒体托管 oCPC" value="MEDIA_MANAGED_OCPC" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="目标事件">
+            <el-select
+              v-model="capabilityEditor.targetEvents"
+              allow-create
+              class="w-full"
+              filterable
+              multiple
+            >
+              <el-option label="激活" value="ACTIVATION" />
+              <el-option label="注册" value="REGISTER" />
+              <el-option label="付费" value="PURCHASE" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="素材格式">
+            <el-select
+              v-model="capabilityEditor.creativeFormats"
+              allow-create
+              class="w-full"
+              filterable
+              multiple
+            >
+              <el-option label="图片" value="IMAGE" />
+              <el-option label="视频" value="VIDEO" />
+              <el-option label="原生" value="NATIVE" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="定向字段">
+            <div class="w-full space-y-2">
+              <div
+                v-for="(item, index) in capabilityEditor.targetingFields"
+                :key="index"
+                class="flex gap-2"
+              >
+                <el-input v-model="item.key" placeholder="字段名" />
+                <el-input v-model="item.value" placeholder="说明或取值" />
+                <el-button
+                  :icon="Delete"
+                  aria-label="删除定向字段"
+                  @click="removeTargetingField(index)"
+                />
+              </div>
+              <el-button plain @click="addTargetingField">
+                添加定向字段
+              </el-button>
+            </div>
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item label="计费方式 JSON">
+            <el-input
+              v-model="capabilityEditor.raw.billingModes"
+              :rows="2"
+              type="textarea"
+            />
+          </el-form-item>
+          <el-form-item label="目标事件 JSON">
+            <el-input
+              v-model="capabilityEditor.raw.targetEvents"
+              :rows="2"
+              type="textarea"
+            />
+          </el-form-item>
+          <el-form-item label="定向字段 JSON">
+            <el-input
+              v-model="capabilityEditor.raw.targetingFields"
+              :rows="3"
+              type="textarea"
+            />
+          </el-form-item>
+          <el-form-item label="素材格式 JSON">
+            <el-input
+              v-model="capabilityEditor.raw.creativeFormats"
+              :rows="2"
+              type="textarea"
+            />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="capabilityDrawer = false">关闭</el-button>

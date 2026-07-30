@@ -2,8 +2,11 @@ package com.yzytech.scx.commercial.service;
 
 import com.yzytech.scx.commercial.entity.*;
 import com.yzytech.scx.commercial.mapper.*;
+import com.yzytech.scx.system.api.dto.ManagedStorageObject;
+import com.yzytech.scx.system.api.service.StorageUploadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,12 +25,14 @@ class QualificationServiceTest {
 
 	private final OrganizationScopeService scopeService = mock(OrganizationScopeService.class);
 
+	private final StorageUploadService storageUploadService = mock(StorageUploadService.class);
+
 	private final QualificationService service = new QualificationService(caseMapper, docMapper, reviewLogMapper,
-			orgMapper, scopeService);
+			orgMapper, scopeService, storageUploadService);
 
 	@BeforeEach
 	void setUp() {
-		reset(caseMapper, docMapper, reviewLogMapper, orgMapper, scopeService);
+		reset(caseMapper, docMapper, reviewLogMapper, orgMapper, scopeService, storageUploadService);
 		when(scopeService.canRead(any())).thenReturn(true);
 	}
 
@@ -105,6 +110,18 @@ class QualificationServiceTest {
 	}
 
 	@Test
+	void reviewCaseRequiresReasonWhenRejecting() {
+		QualificationCase c = new QualificationCase();
+		c.setId("case-1");
+		c.setStatus("SUBMITTED");
+		when(caseMapper.selectById("case-1")).thenReturn(c);
+
+		assertThatThrownBy(() -> service.reviewCase("case-1", "REJECT", " "))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("原因");
+	}
+
+	@Test
 	void reviewCaseRequiresSupplement() {
 		QualificationCase c = new QualificationCase();
 		c.setId("case-1");
@@ -162,6 +179,39 @@ class QualificationServiceTest {
 		assertThat(doc.getCaseId()).isEqualTo("case-1");
 		assertThat(doc.getStatus()).isEqualTo("ACTIVE");
 		// state assertion is sufficient
+	}
+
+	@Test
+	void uploadsQualificationDocumentToManagedStorage() {
+		QualificationCase c = new QualificationCase();
+		c.setId("case-1");
+		c.setOrgId("org-1");
+		when(caseMapper.selectById("case-1")).thenReturn(c);
+		when(storageUploadService.uploadManaged(any(), eq("license.pdf"), eq("application/pdf"), eq(3L)))
+			.thenReturn(new ManagedStorageObject("storage-1", "local", "qualification/license.pdf",
+					"https://files.example/qualification/license.pdf"));
+
+		QualificationDocument doc = service.uploadDocument("case-1", "BUSINESS_LICENSE",
+				new MockMultipartFile("file", "license.pdf", "application/pdf", new byte[] { 1, 2, 3 }));
+
+		assertThat(doc.getStorageConfigId()).isEqualTo("storage-1");
+		assertThat(doc.getStorageObjectKey()).isEqualTo("qualification/license.pdf");
+		assertThat(doc.getContentHash()).hasSize(64);
+		verify(docMapper).insert(doc);
+	}
+
+	@Test
+	void rejectsUnsupportedQualificationDocumentTypeBeforeUpload() {
+		QualificationCase c = new QualificationCase();
+		c.setId("case-1");
+		c.setOrgId("org-1");
+		when(caseMapper.selectById("case-1")).thenReturn(c);
+
+		assertThatThrownBy(() -> service.uploadDocument("case-1", "BUSINESS_LICENSE",
+				new MockMultipartFile("file", "script.exe", "application/octet-stream", new byte[] { 1 })))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("仅支持");
+		verifyNoInteractions(storageUploadService);
 	}
 
 }

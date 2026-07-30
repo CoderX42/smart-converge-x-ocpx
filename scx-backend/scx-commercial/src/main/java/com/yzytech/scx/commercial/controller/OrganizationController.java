@@ -33,8 +33,8 @@ public class OrganizationController {
 
 	@GetMapping
 	@SaCheckPermission("commercial:organization:read")
-	public Result<Page<Organization>> page(Page<Organization> page, String orgType, String keyword) {
-		return Result.success(service.listOrganizations(page, orgType, keyword));
+	public Result<Page<Organization>> page(Page<Organization> page, String orgType, String keyword, String status) {
+		return Result.success(service.listOrganizations(page, orgType, keyword, status));
 	}
 
 	@GetMapping("/{id}")

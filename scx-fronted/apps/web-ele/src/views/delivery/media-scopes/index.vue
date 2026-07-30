@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { Media, MediaScope, MediaScopeUserOption } from '#/api/ad';
 
 import { computed, nextTick, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { useAccess } from '@boot/access';
 import { useUserStore } from '@boot/stores';
@@ -49,6 +50,7 @@ type MediaForm = {
 };
 
 const { hasAccessByCodes } = useAccess();
+const router = useRouter();
 const userStore = useUserStore();
 const canManageMedia = computed(() =>
   hasAccessByCodes(['subject:media:write']),
@@ -479,7 +481,7 @@ void load();
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column align="right" label="操作" min-width="230">
+        <el-table-column align="right" label="操作" min-width="360">
           <template #default="{ row }">
             <div class="row-actions">
               <el-button
@@ -489,6 +491,28 @@ void load();
                 @click="openScopeManager(row)"
               >
                 管理授权
+              </el-button>
+              <el-button
+                link
+                @click="
+                  router.push({
+                    path: '/inventory/channel-access',
+                    query: { mediaId: row.id, tab: 'channels' },
+                  })
+                "
+              >
+                渠道接入
+              </el-button>
+              <el-button
+                link
+                @click="
+                  router.push({
+                    path: '/inventory/supply',
+                    query: { mediaId: row.id, tab: 'accounts' },
+                  })
+                "
+              >
+                媒体库存
               </el-button>
               <template v-if="canManageMedia">
                 <el-button :icon="EditPen" link @click="openEditor(row)">
@@ -504,12 +528,6 @@ void load();
                   {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
                 </el-button>
               </template>
-              <span
-                v-if="!canManageScopes && !canManageMedia"
-                class="read-only"
-              >
-                只读
-              </span>
             </div>
           </template>
         </el-table-column>
