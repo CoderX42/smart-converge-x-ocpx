@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.commercial.dto.CreateQualificationCaseRequest;
 import com.yzytech.scx.commercial.dto.ReviewQualificationRequest;
+import com.yzytech.scx.commercial.dto.UpdateQualificationCaseRequest;
 import com.yzytech.scx.commercial.entity.QualificationCase;
 import com.yzytech.scx.commercial.entity.QualificationDocument;
 import com.yzytech.scx.commercial.entity.QualificationReviewLog;
@@ -45,6 +46,24 @@ public class QualificationController {
 	@Operation(summary = "查询资质案件详情")
 	public Result<QualificationCase> get(@PathVariable String id) {
 		return call(() -> qualificationService.requireCase(id));
+	}
+
+	@PutMapping("/qualification-cases/{id}")
+	@SaCheckPermission("commercial:qualification:write")
+	@Operation(summary = "更新资质案件")
+	public Result<QualificationCase> update(@PathVariable String id,
+			@Valid @RequestBody UpdateQualificationCaseRequest req) {
+		return call(() -> qualificationService.updateCase(id, req.caseType()));
+	}
+
+	@DeleteMapping("/qualification-cases/{id}")
+	@SaCheckPermission("commercial:qualification:write")
+	@Operation(summary = "作废资质案件")
+	public Result<Boolean> delete(@PathVariable String id) {
+		return call(() -> {
+			qualificationService.cancelCase(id);
+			return true;
+		});
 	}
 
 	@PostMapping("/qualification-cases/{id}/submit")
@@ -90,6 +109,13 @@ public class QualificationController {
 	@Operation(summary = "查询资质文档列表")
 	public Result<List<QualificationDocument>> listDocuments(@PathVariable String id) {
 		return call(() -> qualificationService.listDocuments(id));
+	}
+
+	@DeleteMapping("/qualification-cases/{caseId}/documents/{documentId}")
+	@SaCheckPermission("commercial:qualification:write")
+	@Operation(summary = "移除资质文档")
+	public Result<Boolean> deleteDocument(@PathVariable String caseId, @PathVariable String documentId) {
+		return call(() -> qualificationService.removeDocument(caseId, documentId));
 	}
 
 	@GetMapping("/qualification-cases/{id}/review-logs")

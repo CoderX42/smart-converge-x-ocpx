@@ -107,12 +107,38 @@ public class CommercialService {
 	public Organization updateOrganizationStatus(String id, String status) {
 		Organization org = requireOrg(id);
 		scopeService.requireWrite(id);
+		if ("ARCHIVED".equals(org.getStatus())) {
+			throw new IllegalArgumentException("已归档组织不可重新启用");
+		}
 		if (!Set.of("ACTIVE", "DISABLED").contains(status)) {
 			throw new IllegalArgumentException("组织状态无效");
 		}
 		org.setStatus(status);
 		orgMapper.updateById(org);
 		return org;
+	}
+
+	@Transactional
+	public void archiveOrganization(String id) {
+		Organization org = requireOrg(id);
+		scopeService.requireWrite(id);
+		if ("ENTERPRISE".equals(org.getOrgType())) {
+			throw new IllegalArgumentException("企业根组织不能删除");
+		}
+		long activeChildren = orgMapper.selectCount(Wrappers.<Organization>lambdaQuery()
+			.eq(Organization::getParentOrgId, id)
+			.eq(Organization::getStatus, "ACTIVE"));
+		long activeRelations = agencyRelationMapper.selectCount(Wrappers.<AgencyRelation>lambdaQuery()
+			.and(q -> q.eq(AgencyRelation::getParentAgencyOrgId, id).or().eq(AgencyRelation::getChildOrgId, id))
+			.eq(AgencyRelation::getStatus, "ACTIVE"));
+		long openAccounts = adAccountMapper.selectCount(Wrappers.<AdAccount>lambdaQuery()
+			.eq(AdAccount::getAdvertiserOrgId, id)
+			.ne(AdAccount::getStatus, "CLOSED"));
+		if (activeChildren + activeRelations + openAccounts > 0) {
+			throw new IllegalArgumentException("组织仍有启用的下级、代理关系或广告账户，请先处理关联数据");
+		}
+		org.setStatus("ARCHIVED");
+		orgMapper.updateById(org);
 	}
 
 	public Page<Organization> listOrganizations(Page<Organization> page, String orgType, String keyword) {
@@ -179,6 +205,9 @@ public class CommercialService {
 	public void updateAdvertiserStatus(String id, String newStatus) {
 		Advertiser a = requireAdvertiser(id);
 		scopeService.requireWrite(a.getOrgId());
+		if ("ARCHIVED".equals(a.getStatus()) && !"ARCHIVED".equals(newStatus)) {
+			throw new IllegalArgumentException("已归档广告主不可重新启用");
+		}
 		if (!ADVERTISER_STATUSES.contains(newStatus)) {
 			throw new IllegalArgumentException("无效广告主状态");
 		}
@@ -188,7 +217,7 @@ public class CommercialService {
 		advertiserMapper.updateById(a);
 	}
 
-	public Advertiser updateAdvertiserProfile(String id, CreateAdvertiserRequest request) {
+	public Advertiser updateAdvertiserProfile(String id, UpdateAdvertiserRequest request) {
 		Advertiser advertiser = requireAdvertiser(id);
 		scopeService.requireWrite(advertiser.getOrgId());
 		advertiser.setAdvertiserName(request.advertiserName());
@@ -196,6 +225,19 @@ public class CommercialService {
 		advertiser.setWebsiteUrl(request.websiteUrl());
 		advertiserMapper.updateById(advertiser);
 		return advertiser;
+	}
+
+	public void archiveAdvertiser(String id) {
+		Advertiser advertiser = requireAdvertiser(id);
+		scopeService.requireWrite(advertiser.getOrgId());
+		long openAccounts = adAccountMapper.selectCount(Wrappers.<AdAccount>lambdaQuery()
+			.eq(AdAccount::getAdvertiserOrgId, advertiser.getOrgId())
+			.ne(AdAccount::getStatus, "CLOSED"));
+		if (openAccounts > 0) {
+			throw new IllegalArgumentException("广告主仍有未关闭的广告账户");
+		}
+		advertiser.setStatus("ARCHIVED");
+		advertiserMapper.updateById(advertiser);
 	}
 
 	// ── Agency Relation ──
@@ -252,6 +294,31 @@ public class CommercialService {
 		scopeService.requireWrite(rel.getChildOrgId());
 		rel.setStatus("REVOKED");
 		agencyRelationMapper.updateById(rel);
+	}
+
+	public AgencyRelation updateAgencyRelation(String id, CreateAgencyRelationRequest req) {
+		AgencyRelation rel = agencyRelationMapper.selectById(id);
+		if (rel == null) {
+			throw new IllegalArgumentException("资源不存在");
+		}
+		scopeService.requireWrite(rel.getParentAgencyOrgId());
+		scopeService.requireWrite(rel.getChildOrgId());
+		if (!rel.getParentAgencyOrgId().equals(req.parentAgencyOrgId())
+				|| !rel.getChildOrgId().equals(req.childOrgId())) {
+			throw new IllegalArgumentException("代理双方不可编辑，请撤销后重新建立关系");
+		}
+		if (!"ACTIVE".equals(rel.getStatus())) {
+			throw new IllegalArgumentException("只有生效中的代理关系可编辑");
+		}
+		if (req.endDate() != null && req.startDate() != null && req.endDate().isBefore(req.startDate())) {
+			throw new IllegalArgumentException("失效日期不能早于生效日期");
+		}
+		rel.setRelationType(StringUtils.hasText(req.relationType()) ? req.relationType() : "DIRECT");
+		rel.setAuthorizedScopes(req.authorizedScopes());
+		rel.setStartDate(req.startDate());
+		rel.setEndDate(req.endDate());
+		agencyRelationMapper.updateById(rel);
+		return rel;
 	}
 
 	public List<AgencyRelation> listAgencyRelations(String parentOrgId) {
@@ -376,6 +443,9 @@ public class CommercialService {
 	public void updateAdAccountStatus(String id, String newStatus) {
 		AdAccount a = requireAdAccount(id);
 		scopeService.requireWrite(a.getAdvertiserOrgId());
+		if ("CLOSED".equals(a.getStatus()) && !"CLOSED".equals(newStatus)) {
+			throw new IllegalArgumentException("已关闭广告账户不可重新启用");
+		}
 		if (!ACCOUNT_STATUSES.contains(newStatus)) {
 			throw new IllegalArgumentException("无效广告账户状态");
 		}
@@ -398,6 +468,34 @@ public class CommercialService {
 		account.setAccountName(accountName);
 		adAccountMapper.updateById(account);
 		return account;
+	}
+
+	public AdAccount updateAdAccount(String id, UpdateAdAccountRequest request) {
+		AdAccount account = requireAdAccount(id);
+		scopeService.requireWrite(account.getAdvertiserOrgId());
+		if (!StringUtils.hasText(request.accountName())) {
+			throw new IllegalArgumentException("账户名称不能为空");
+		}
+		CreateAdAccountRequest validationRequest = new CreateAdAccountRequest(account.getAdvertiserOrgId(),
+				request.accountName(), request.currency(), request.timezone(), request.responsibleOrgId(),
+				request.rebateOrgId(), request.refundOrgId());
+		validateResponsibleOrganizations(validationRequest);
+		account.setAccountName(request.accountName().trim());
+		account.setCurrency(StringUtils.hasText(request.currency()) ? request.currency() : "CNY");
+		account.setTimezone(StringUtils.hasText(request.timezone()) ? request.timezone() : "Asia/Shanghai");
+		account.setResponsibleOrgId(StringUtils.hasText(request.responsibleOrgId()) ? request.responsibleOrgId()
+				: account.getAdvertiserOrgId());
+		account.setRebateOrgId(request.rebateOrgId());
+		account.setRefundOrgId(request.refundOrgId());
+		adAccountMapper.updateById(account);
+		return account;
+	}
+
+	public void closeAdAccount(String id) {
+		AdAccount account = requireAdAccount(id);
+		scopeService.requireWrite(account.getAdvertiserOrgId());
+		account.setStatus("CLOSED");
+		adAccountMapper.updateById(account);
 	}
 
 	// ── Account Tree ──

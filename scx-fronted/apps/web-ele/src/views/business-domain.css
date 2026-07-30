@@ -52,6 +52,18 @@
   border-radius: 14px !important;
 }
 
+.domain-tabs {
+  margin-top: -4px;
+  margin-bottom: 14px;
+}
+
+.domain-inline-fields {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
 .domain-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -133,6 +145,10 @@
   }
 
   .domain-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .domain-inline-fields {
     grid-template-columns: 1fr;
   }
 }

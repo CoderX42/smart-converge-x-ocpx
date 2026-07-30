@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.commercial.dto.CreateAdAccountRequest;
+import com.yzytech.scx.commercial.dto.UpdateAdAccountRequest;
 import com.yzytech.scx.commercial.entity.AdAccount;
 import com.yzytech.scx.commercial.service.CommercialService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -54,9 +55,16 @@ public class AdAccountController {
 	@PutMapping("/ad-accounts/{id}")
 	@SaCheckPermission("commercial:ad-account:write")
 	@Operation(summary = "更新广告账户")
-	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody CreateAdAccountRequest req) {
+	public Result<AdAccount> update(@PathVariable String id, @Valid @RequestBody UpdateAdAccountRequest req) {
+		return call(() -> commercialService.updateAdAccount(id, req));
+	}
+
+	@DeleteMapping("/ad-accounts/{id}")
+	@SaCheckPermission("commercial:ad-account:write")
+	@Operation(summary = "关闭广告账户")
+	public Result<Boolean> delete(@PathVariable String id) {
 		return call(() -> {
-			commercialService.updateAdAccountName(id, req.accountName());
+			commercialService.closeAdAccount(id);
 			return true;
 		});
 	}

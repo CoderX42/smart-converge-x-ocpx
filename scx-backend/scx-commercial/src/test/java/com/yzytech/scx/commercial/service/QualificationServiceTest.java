@@ -164,4 +164,19 @@ class QualificationServiceTest {
 		// state assertion is sufficient
 	}
 
+	@Test
+	void cancellingDraftKeepsAnAuditLog() {
+		QualificationCase c = new QualificationCase();
+		c.setId("case-1");
+		c.setOrgId("org-1");
+		c.setStatus("DRAFT");
+		when(caseMapper.selectById("case-1")).thenReturn(c);
+
+		service.cancelCase("case-1");
+
+		assertThat(c.getStatus()).isEqualTo("CANCELLED");
+		verify(caseMapper).updateById(c);
+		verify(reviewLogMapper).insert(any(QualificationReviewLog.class));
+	}
+
 }

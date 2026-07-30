@@ -118,6 +118,18 @@ public class MasterDataService {
 	}
 
 	@Transactional
+	public boolean deleteProduct(String id, Integer version) {
+		Product product = productMapper.selectForUpdate(id);
+		if (product == null || !scopeService.canWrite(product.getMediaId()))
+			throw new IllegalArgumentException("资源不存在");
+		if (!Objects.equals(product.getVersion(), version))
+			throw new IllegalStateException("产品已被其他用户修改，请刷新后重试");
+		if (productMapper.countReferences(id) > 0)
+			throw new IllegalStateException("该产品仍被追踪链接或历史报表引用，请先解除引用或将产品设为停用");
+		return productMapper.deleteById(id) == 1;
+	}
+
+	@Transactional
 	public boolean saveDocument(IntegrationDocument value) {
 		return saveDocument(value, null) != null;
 	}

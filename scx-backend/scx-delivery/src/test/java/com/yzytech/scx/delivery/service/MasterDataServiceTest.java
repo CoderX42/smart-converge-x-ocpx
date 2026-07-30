@@ -168,6 +168,31 @@ class MasterDataServiceTest {
 	}
 
 	@Test
+	void deletesOnlyUnreferencedProductWithMatchingVersion() {
+		Product product = product("product-1", null);
+		product.setVersion(3);
+		when(productMapper.selectForUpdate("product-1")).thenReturn(product);
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(productMapper.countReferences("product-1")).thenReturn(0L);
+		when(productMapper.deleteById("product-1")).thenReturn(1);
+
+		assertThat(service.deleteProduct("product-1", 3)).isTrue();
+		verify(productMapper).deleteById("product-1");
+	}
+
+	@Test
+	void blocksDeletingReferencedProduct() {
+		Product product = product("product-1", null);
+		when(productMapper.selectForUpdate("product-1")).thenReturn(product);
+		when(scopeService.canWrite("media-1")).thenReturn(true);
+		when(productMapper.countReferences("product-1")).thenReturn(1L);
+
+		assertThatThrownBy(() -> service.deleteProduct("product-1", 0)).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("历史报表引用");
+		verify(productMapper, never()).deleteById("product-1");
+	}
+
+	@Test
 	void uploadsAllowedDocumentOnlyWithinWritableMediaScope() {
 		MockMultipartFile file = new MockMultipartFile("file", "integration-guide.pdf", "text/html",
 				"guide".getBytes());

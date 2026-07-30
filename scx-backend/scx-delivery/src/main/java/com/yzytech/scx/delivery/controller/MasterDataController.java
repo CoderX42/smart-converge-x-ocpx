@@ -100,23 +100,30 @@ public class MasterDataController {
 	}
 
 	@GetMapping("/products")
-	@SaCheckPermission("ad:master:read")
+	@SaCheckPermission(value = { "ad:product:read", "ad:master:read" }, mode = SaMode.OR)
 	public Result<Page<Product>> products(Page<Product> page, String mediaId, String keyword, String status) {
 		return page(page, productMapper, mediaId, keyword, status, Product::getMediaId, Product::getCode,
 				Product::getName, Product::getStatus);
 	}
 
 	@PostMapping("/products")
-	@SaCheckPermission("ad:master:write")
+	@SaCheckPermission(value = { "ad:product:write", "ad:master:write" }, mode = SaMode.OR)
 	public Result<Boolean> saveProduct(@Valid @RequestBody Product value) {
 		return call(() -> service.saveProduct(value));
 	}
 
 	@PutMapping("/products/{id}")
-	@SaCheckPermission("ad:master:write")
+	@SaCheckPermission(value = { "ad:product:write", "ad:master:write" }, mode = SaMode.OR)
 	public Result<Boolean> updateProduct(@PathVariable String id, @Valid @RequestBody Product value) {
 		value.setId(id);
 		return call(() -> service.saveProduct(value));
+	}
+
+	@DeleteMapping("/products/{id}")
+	@SaCheckPermission(value = { "ad:product:write", "ad:master:write" }, mode = SaMode.OR)
+	@SysLog("删除产品")
+	public Result<Boolean> deleteProduct(@PathVariable String id, @RequestParam Integer version) {
+		return call(() -> service.deleteProduct(id, version));
 	}
 
 	@GetMapping("/media-channels")

@@ -8,13 +8,16 @@ import static org.mockito.Mockito.when;
 
 import com.yzytech.scx.commercial.dto.CreateAgreementInstanceRequest;
 import com.yzytech.scx.commercial.dto.CreateAgreementTemplateRequest;
+import com.yzytech.scx.commercial.dto.CreateDataAuthorizationRequest;
 import com.yzytech.scx.commercial.entity.AgreementInstance;
 import com.yzytech.scx.commercial.entity.AgreementTemplate;
+import com.yzytech.scx.commercial.entity.DataAuthorization;
 import com.yzytech.scx.commercial.mapper.AgreementInstanceMapper;
 import com.yzytech.scx.commercial.mapper.AgreementTemplateMapper;
 import com.yzytech.scx.commercial.mapper.DataAuthorizationMapper;
 import com.yzytech.scx.commercial.mapper.OrganizationMapper;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
 class AgreementServiceTest {
@@ -71,6 +74,23 @@ class AgreementServiceTest {
 
 		assertThatThrownBy(() -> service.sign("agr-1")).isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("过期");
+	}
+
+	@Test
+	void updateAuthorizationKeepsBothPartiesImmutable() {
+		DataAuthorization authorization = new DataAuthorization();
+		authorization.setId("auth-1");
+		authorization.setGrantorOrgId("org-1");
+		authorization.setGranteeOrgId("org-2");
+		authorization.setStatus("ACTIVE");
+		when(authorizationMapper.selectById("auth-1")).thenReturn(authorization);
+		LocalDate endDate = LocalDate.now().plusDays(30);
+
+		DataAuthorization updated = service.updateAuthorization("auth-1", new CreateDataAuthorizationRequest("org-1",
+				"org-2", "REPORT_READ", "[\"SUMMARY\"]", LocalDate.now(), endDate));
+
+		assertThat(updated.getAuthorizationType()).isEqualTo("REPORT_READ");
+		assertThat(updated.getEndDate()).isEqualTo(endDate);
 	}
 
 }

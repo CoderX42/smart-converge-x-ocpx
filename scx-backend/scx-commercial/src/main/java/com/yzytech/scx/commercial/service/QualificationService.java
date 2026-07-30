@@ -76,6 +76,37 @@ public class QualificationService {
 				q.orderByDesc(QualificationCase::getCreateTime).orderByDesc(QualificationCase::getId));
 	}
 
+	@Transactional
+	public QualificationCase updateCase(String id, String caseType) {
+		QualificationCase qualificationCase = requireCase(id);
+		scopeService.requireWrite(qualificationCase.getOrgId());
+		if (!"DRAFT".equals(qualificationCase.getStatus())
+				&& !"SUPPLEMENT_REQUIRED".equals(qualificationCase.getStatus())) {
+			throw new IllegalArgumentException("只有草稿或待补充案件可编辑");
+		}
+		if (!StringUtils.hasText(caseType)) {
+			throw new IllegalArgumentException("资质类型不能为空");
+		}
+		qualificationCase.setCaseType(caseType.trim());
+		caseMapper.updateById(qualificationCase);
+		return qualificationCase;
+	}
+
+	@Transactional
+	public void cancelCase(String id) {
+		QualificationCase qualificationCase = requireCase(id);
+		scopeService.requireWrite(qualificationCase.getOrgId());
+		if ("APPROVED".equals(qualificationCase.getStatus()) || "SUBMITTED".equals(qualificationCase.getStatus())
+				|| "MANUAL_REVIEW".equals(qualificationCase.getStatus())
+				|| "AUTO_CHECKING".equals(qualificationCase.getStatus())) {
+			throw new IllegalArgumentException("审核中或已通过的资质不可作废");
+		}
+		String from = qualificationCase.getStatus();
+		qualificationCase.setStatus("CANCELLED");
+		caseMapper.updateById(qualificationCase);
+		appendLog(id, from, "CANCELLED", "作废资质案件");
+	}
+
 	// ── State transitions ──
 
 	@Transactional
@@ -158,6 +189,22 @@ public class QualificationService {
 		return docMapper.selectList(Wrappers.<QualificationDocument>lambdaQuery()
 			.eq(QualificationDocument::getCaseId, caseId)
 			.eq(QualificationDocument::getStatus, "ACTIVE"));
+	}
+
+	@Transactional
+	public boolean removeDocument(String caseId, String documentId) {
+		QualificationCase qualificationCase = requireCase(caseId);
+		scopeService.requireWrite(qualificationCase.getOrgId());
+		if (!"DRAFT".equals(qualificationCase.getStatus())
+				&& !"SUPPLEMENT_REQUIRED".equals(qualificationCase.getStatus())) {
+			throw new IllegalArgumentException("当前状态不可移除资质文档");
+		}
+		QualificationDocument document = docMapper.selectById(documentId);
+		if (document == null || !caseId.equals(document.getCaseId())) {
+			throw new IllegalArgumentException("资源不存在");
+		}
+		document.setStatus("DISABLED");
+		return docMapper.updateById(document) == 1;
 	}
 
 	// ── Review logs (immutable) ──

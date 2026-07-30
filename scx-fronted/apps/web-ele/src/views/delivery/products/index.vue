@@ -3,9 +3,9 @@ import type { Media } from '#/api/ad';
 
 import { reactive, ref, watch } from 'vue';
 
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { getMaster, getMedia, saveMaster } from '#/api/ad';
+import { deleteProduct, getMaster, getMedia, saveMaster } from '#/api/ad';
 
 import '../components/mvp-page.css';
 
@@ -90,6 +90,17 @@ async function submit() {
   }
 }
 
+async function remove(row: any) {
+  await ElMessageBox.confirm(
+    '确认删除该产品？被追踪链接或历史报表引用的产品将由服务端阻止删除，建议改为停用。',
+    '删除确认',
+    { type: 'warning' },
+  );
+  await deleteProduct(row.id, row.version);
+  ElMessage.success('产品已删除');
+  await load();
+}
+
 watch(mediaId, async () => {
   current.value = 1;
   await Promise.all([load(), loadOptions()]);
@@ -113,7 +124,7 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           <el-button @click="load">查询</el-button>
         </div>
         <el-button
-          v-access:code="'ad:master:write'"
+          v-access:code="'ad:product:write'"
           type="primary"
           @click="open()"
         >
@@ -139,15 +150,23 @@ bootstrap().then(() => Promise.all([load(), loadOptions()]));
           </template>
         </el-table-column>
         <el-table-column label="更新时间" prop="updateTime" min-width="175" />
-        <el-table-column align="right" label="操作" width="100">
+        <el-table-column align="right" label="操作" width="150">
           <template #default="{ row }">
             <el-button
-              v-access:code="'ad:master:write'"
+              v-access:code="'ad:product:write'"
               link
               type="primary"
               @click="open(row)"
             >
               编辑
+            </el-button>
+            <el-button
+              v-access:code="'ad:product:write'"
+              link
+              type="danger"
+              @click="remove(row)"
+            >
+              删除
             </el-button>
           </template>
         </el-table-column>

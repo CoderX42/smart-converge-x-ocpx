@@ -9,6 +9,7 @@ import com.yzytech.scx.commercial.service.CommercialService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -59,6 +60,15 @@ public class OrganizationController {
 	@SaCheckPermission("commercial:organization:write")
 	public Result<Organization> updateStatus(@PathVariable String id, @RequestParam String status) {
 		return call(() -> service.updateOrganizationStatus(id, status));
+	}
+
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("commercial:organization:write")
+	public Result<Boolean> delete(@PathVariable String id) {
+		return call(() -> {
+			service.archiveOrganization(id);
+			return true;
+		});
 	}
 
 	private <T> Result<T> call(java.util.concurrent.Callable<T> action) {

@@ -73,6 +73,37 @@ public class AgreementService {
 	}
 
 	@Transactional
+	public AgreementTemplate updateTemplate(String id, CreateAgreementTemplateRequest request) {
+		if (!scopeService.isAdmin()) {
+			throw new IllegalArgumentException("资源不存在");
+		}
+		AgreementTemplate template = requireTemplate(id);
+		if (!"DRAFT".equals(template.getStatus())) {
+			throw new IllegalArgumentException("只有草稿模板可编辑");
+		}
+		if (!template.getTemplateType().equals(request.templateType())) {
+			throw new IllegalArgumentException("模板类型不可修改，请新建模板版本");
+		}
+		template.setName(request.name());
+		template.setContent(request.content());
+		templateMapper.updateById(template);
+		return template;
+	}
+
+	@Transactional
+	public void archiveTemplate(String id) {
+		if (!scopeService.isAdmin()) {
+			throw new IllegalArgumentException("资源不存在");
+		}
+		AgreementTemplate template = requireTemplate(id);
+		if ("ACTIVE".equals(template.getStatus())) {
+			throw new IllegalArgumentException("启用中的模板不可删除，请先启用替代版本");
+		}
+		template.setStatus("ARCHIVED");
+		templateMapper.updateById(template);
+	}
+
+	@Transactional
 	public AgreementInstance createInstance(CreateAgreementInstanceRequest request) {
 		scopeService.requireWrite(request.organizationId());
 		AgreementTemplate template = requireTemplate(request.templateId());
@@ -90,6 +121,43 @@ public class AgreementService {
 		instance.setExpiredAt(request.expiredAt());
 		instanceMapper.insert(instance);
 		return instance;
+	}
+
+	@Transactional
+	public AgreementInstance updateInstance(String id, CreateAgreementInstanceRequest request) {
+		AgreementInstance instance = requireInstance(id, true);
+		if (!"DRAFT".equals(instance.getStatus())) {
+			throw new IllegalArgumentException("只有草稿协议可编辑");
+		}
+		if (!instance.getOrgId().equals(request.organizationId())) {
+			throw new IllegalArgumentException("协议所属组织不可修改");
+		}
+		AgreementTemplate template = requireTemplate(request.templateId());
+		if (!"ACTIVE".equals(template.getStatus())) {
+			throw new IllegalArgumentException("协议模板未启用");
+		}
+		if (request.expiredAt() != null && !request.expiredAt().isAfter(LocalDateTime.now())) {
+			throw new IllegalArgumentException("协议失效时间必须晚于当前时间");
+		}
+		instance.setTemplateId(template.getId());
+		instance.setTemplateVersion(template.getVersion());
+		instance.setExpiredAt(request.expiredAt());
+		instanceMapper.updateById(instance);
+		return instance;
+	}
+
+	@Transactional
+	public void cancelInstance(String id) {
+		AgreementInstance instance = requireInstance(id, true);
+		if ("SIGNED".equals(instance.getStatus())) {
+			terminate(id);
+			return;
+		}
+		if (!"DRAFT".equals(instance.getStatus())) {
+			throw new IllegalArgumentException("当前协议不可作废");
+		}
+		instance.setStatus("CANCELLED");
+		instanceMapper.updateById(instance);
 	}
 
 	@Transactional
@@ -137,9 +205,6 @@ public class AgreementService {
 	}
 
 	public Page<AgreementTemplate> pageTemplates(Page<AgreementTemplate> page, String templateType, String status) {
-		if (!scopeService.isAdmin()) {
-			throw new IllegalArgumentException("资源不存在");
-		}
 		return templateMapper.selectPage(page,
 				Wrappers.<AgreementTemplate>lambdaQuery()
 					.eq(templateType != null, AgreementTemplate::getTemplateType, templateType)
@@ -207,6 +272,32 @@ public class AgreementService {
 			throw new IllegalArgumentException("授权已失效");
 		}
 		authorization.setStatus("REVOKED");
+		authorizationMapper.updateById(authorization);
+		return authorization;
+	}
+
+	@Transactional
+	public DataAuthorization updateAuthorization(String id, CreateDataAuthorizationRequest request) {
+		DataAuthorization authorization = authorizationMapper.selectById(id);
+		if (authorization == null) {
+			throw new IllegalArgumentException("资源不存在");
+		}
+		scopeService.requireWrite(authorization.getGrantorOrgId());
+		if (!"ACTIVE".equals(authorization.getStatus())) {
+			throw new IllegalArgumentException("只有生效中的授权可编辑");
+		}
+		if (!authorization.getGrantorOrgId().equals(request.grantorOrganizationId())
+				|| !authorization.getGranteeOrgId().equals(request.granteeOrganizationId())) {
+			throw new IllegalArgumentException("授权双方不可修改，请撤销后重新授权");
+		}
+		if (request.endDate() != null && request.startDate() != null
+				&& request.endDate().isBefore(request.startDate())) {
+			throw new IllegalArgumentException("授权结束日期不能早于开始日期");
+		}
+		authorization.setAuthorizationType(request.authorizationType());
+		authorization.setScope(request.scope());
+		authorization.setStartDate(request.startDate());
+		authorization.setEndDate(request.endDate());
 		authorizationMapper.updateById(authorization);
 		return authorization;
 	}

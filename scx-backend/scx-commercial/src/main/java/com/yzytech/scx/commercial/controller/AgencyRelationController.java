@@ -48,11 +48,8 @@ public class AgencyRelationController {
 	@PutMapping("/agency-relations/{id}")
 	@SaCheckPermission("commercial:agency:write")
 	@Operation(summary = "更新代理关系")
-	public Result<Boolean> update(@PathVariable String id, @Valid @RequestBody CreateAgencyRelationRequest req) {
-		return call(() -> {
-			commercialService.revokeAgencyRelation(id);
-			return true;
-		});
+	public Result<AgencyRelation> update(@PathVariable String id, @Valid @RequestBody CreateAgencyRelationRequest req) {
+		return call(() -> commercialService.updateAgencyRelation(id, req));
 	}
 
 	@DeleteMapping("/agency-relations/{id}")

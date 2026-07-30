@@ -2,6 +2,7 @@ package com.yzytech.scx.commercial.service;
 
 import com.yzytech.scx.commercial.dto.AccountTreeView;
 import com.yzytech.scx.commercial.dto.CreateAgencyRelationRequest;
+import java.time.LocalDate;
 import com.yzytech.scx.commercial.entity.*;
 import com.yzytech.scx.commercial.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,6 +100,25 @@ class CommercialServiceTest {
 		assertThat(rel.getStatus()).isEqualTo("REVOKED");
 	}
 
+	@Test
+	void updateAgencyRelationChangesTermsWithoutRevokingIt() {
+		AgencyRelation rel = new AgencyRelation();
+		rel.setId("rel-1");
+		rel.setParentAgencyOrgId("agency-1");
+		rel.setChildOrgId("advertiser-1");
+		rel.setStatus("ACTIVE");
+		when(agencyRelationMapper.selectById("rel-1")).thenReturn(rel);
+		LocalDate endDate = LocalDate.now().plusMonths(1);
+
+		AgencyRelation updated = service.updateAgencyRelation("rel-1", new CreateAgencyRelationRequest("agency-1",
+				"advertiser-1", "MANAGED", "[\"REPORT\"]", LocalDate.now(), endDate));
+
+		assertThat(updated.getStatus()).isEqualTo("ACTIVE");
+		assertThat(updated.getRelationType()).isEqualTo("MANAGED");
+		assertThat(updated.getEndDate()).isEqualTo(endDate);
+		verify(agencyRelationMapper).updateById(rel);
+	}
+
 	// ── Ad Account ──
 
 	@Test
@@ -116,6 +136,19 @@ class CommercialServiceTest {
 		assertThatThrownBy(() -> service.updateAdAccountStatus("acct-1", "ACTIVE"))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("未激活");
+	}
+
+	@Test
+	void closedAdAccountCannotBeReactivated() {
+		AdAccount account = new AdAccount();
+		account.setId("acct-1");
+		account.setAdvertiserOrgId("adv-1");
+		account.setStatus("CLOSED");
+		when(adAccountMapper.selectById("acct-1")).thenReturn(account);
+
+		assertThatThrownBy(() -> service.updateAdAccountStatus("acct-1", "ACTIVE"))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("不可重新启用");
 	}
 
 	// ── Account Tree ──

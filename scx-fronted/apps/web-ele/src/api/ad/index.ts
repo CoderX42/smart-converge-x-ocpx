@@ -223,6 +223,11 @@ export function saveMaster(type: MasterType, data: Record<string, any>) {
     ? requestClient.put(`/ad/${type}/${data.id}`, data)
     : requestClient.post(`/ad/${type}`, data);
 }
+export function deleteProduct(id: string, version: number) {
+  return requestClient.delete<boolean>(`/ad/products/${id}`, {
+    params: { version },
+  });
+}
 export function deleteMediaChannel(id: string, version: number) {
   return requestClient.delete<boolean>(`/ad/media-channels/${id}`, {
     params: { version },
