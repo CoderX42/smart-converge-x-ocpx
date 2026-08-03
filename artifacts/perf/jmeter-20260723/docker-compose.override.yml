@@ -1,5 +1,0 @@
-services:
-  smart-converge-x-rocketmq-namesrv:
-    image: apache/rocketmq:5.3.0
-  smart-converge-x-rocketmq-broker:
-    image: apache/rocketmq:5.3.0
