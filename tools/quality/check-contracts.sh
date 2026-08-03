@@ -23,6 +23,12 @@ required = [
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
     raise SystemExit(f"missing contract files: {', '.join(missing)}")
+uat_scripts = [root.parent / "uat" / name for name in ("sign_request.py", "verify_request.py")]
+missing_scripts = [str(path) for path in uat_scripts if not path.is_file()]
+if missing_scripts:
+    raise SystemExit(f"missing UAT scripts: {', '.join(missing_scripts)}")
+for path in uat_scripts:
+    compile(path.read_text(encoding="utf-8"), str(path), "exec")
 
 with (root / "openapi.yaml").open(encoding="utf-8") as handle:
     openapi = yaml.safe_load(handle)
@@ -31,6 +37,10 @@ paths = openapi.get("paths", {})
 assert "/open-api/ocpx/v1/channels/{channelCode}/feedback" in paths
 assert "/open-api/ocpx/v1/upstreams/coco/callback" in paths
 assert all(not path.startswith("/open-api/events/v1") for path in paths), "historical event API must not be active"
+webhooks = openapi.get("webhooks", {})
+assert "downstreamCallback" in webhooks, "standard downstream callback webhook must be documented"
+callback_operation = webhooks["downstreamCallback"].get("post", {})
+assert callback_operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == "./callback-req-v1.schema.json"
 
 with (root / "asyncapi.yaml").open(encoding="utf-8") as handle:
     asyncapi = yaml.safe_load(handle)

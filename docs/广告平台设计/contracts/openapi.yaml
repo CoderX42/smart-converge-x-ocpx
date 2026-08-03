@@ -4,9 +4,15 @@ info:
   version: 1.0.0
   description: >-
     scx-rtb 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco callback
-    由上游发送给 SCX；下游 CallbackReqV1 是 SCX 主动投递协议，不是本文件中的接收接口。
+    由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
     RTA、实时扣费和历史 /open-api/events/v1 接口不属于当前运行契约。
 servers:
+  - url: https://{domain}/rtb
+    description: 下游联调或生产环境；真实域名由 SCX 单独提供
+    variables:
+      domain:
+        default: sandbox.example.invalid
+        description: 替换为 SCX 提供的沙箱或生产域名
   - url: http://localhost:10000/rtb
     description: 本地联调（生产必须 HTTPS）
 paths:
@@ -95,6 +101,35 @@ paths:
         '400': { $ref: '#/components/responses/CocoError' }
         '401': { $ref: '#/components/responses/CocoError' }
         '410': { $ref: '#/components/responses/CocoError' }
+webhooks:
+  downstreamCallback:
+    post:
+      operationId: deliverDownstreamCallback
+      summary: SCX 向下游投递标准 CallbackReqV1
+      description: >-
+        下游在管理面为已发布路由提供公网 HTTPS callback URL。SCX 使用本 webhook
+        主动 POST；下游应先验签，再以 Idempotency-Key/event_id 幂等持久化，最后返回
+        任意 HTTP 2xx。非 2xx 或超时按 1/2/5/10 分钟重试，最多尝试 5 次。
+      parameters:
+        - $ref: '#/components/parameters/ClientId'
+        - $ref: '#/components/parameters/KeyVersion'
+        - $ref: '#/components/parameters/Timestamp'
+        - $ref: '#/components/parameters/Nonce'
+        - $ref: '#/components/parameters/Signature'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './callback-req-v1.schema.json'
+      responses:
+        '200':
+          description: 示例成功响应；实际任意 HTTP 2xx 均视为成功
+        '400':
+          description: 下游拒绝了无效请求，SCX 将按任务策略处理失败
+        '500':
+          description: 下游暂时不可用，SCX 将按任务策略重试
 components:
   parameters:
     ClientId:
@@ -123,6 +158,12 @@ components:
       in: header
       required: true
       schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 与 CallbackReqV1.event_id 相同；下游必须据此幂等处理
+      schema: { type: string, minLength: 1, maxLength: 128 }
   schemas:
     IngressResult:
       type: object
