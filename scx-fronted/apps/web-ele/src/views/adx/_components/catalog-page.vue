@@ -57,7 +57,7 @@ const config = computed(() => {
   const values = {
     advertiser: {
       add: '新增广告主',
-      description: '维护竞价接口、登录账号和账户余额。密钥与密码只写不回显。',
+      description: '维护请求地址、登录账号和账户余额。密钥与密码只写不回显。',
       permission: 'adx:advertiser:write',
       title: '广告主管理',
     },
@@ -96,7 +96,7 @@ const columns = computed<Column[]>(() => {
       { label: '广告主名称', minWidth: 150, prop: 'advertiserName' },
       { label: '登录账号', minWidth: 140, prop: 'account' },
       { label: '余额', minWidth: 120, prop: 'balance' },
-      { label: '竞价地址', minWidth: 240, prop: 'bidUrl' },
+      { label: '请求地址', minWidth: 240, prop: 'bidUrl' },
       { label: '密钥', minWidth: 90, prop: 'secretConfigured' },
       { label: '宏参数', minWidth: 220, prop: 'macroParams' },
       { label: '修改时间', minWidth: 170, prop: 'updateTime' },
@@ -186,6 +186,10 @@ function display(row: Row, prop: string) {
     return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
   }
   return value ?? '—';
+}
+
+function isCopyableColumn(prop: string) {
+  return prop === 'bidUrl' || prop === 'macroParams';
 }
 
 async function loadDependencies() {
@@ -359,7 +363,7 @@ onMounted(async () => {
           :min-width="column.minWidth"
           :prop="column.prop"
           :width="column.width"
-          :show-overflow-tooltip="column.prop !== 'macroParams'"
+          :show-overflow-tooltip="!isCopyableColumn(column.prop)"
         >
           <template #default="{ row }">
             <el-tag
@@ -370,17 +374,17 @@ onMounted(async () => {
               {{ display(row, column.prop) }}
             </el-tag>
             <el-tooltip
-              v-else-if="column.prop === 'macroParams' && row.macroParams"
-              :content="row.macroParams"
+              v-else-if="isCopyableColumn(column.prop) && row[column.prop]"
+              :content="row[column.prop]"
               placement="top"
             >
               <button
-                :aria-label="`复制宏参数：${row.macroParams}`"
+                :aria-label="`复制${column.label}：${row[column.prop]}`"
                 class="copyable-cell"
                 type="button"
-                @click="copy(row.macroParams, '宏参数')"
+                @click="copy(row[column.prop], column.label)"
               >
-                <span class="copyable-cell__text">{{ row.macroParams }}</span>
+                <span class="copyable-cell__text">{{ row[column.prop] }}</span>
                 <el-icon aria-hidden="true" class="copyable-cell__icon">
                   <CopyDocument />
                 </el-icon>
@@ -506,7 +510,7 @@ onMounted(async () => {
           <el-form-item label="广告主名称" prop="advertiserName">
             <el-input v-model="form.advertiserName" maxlength="100" />
           </el-form-item>
-          <el-form-item label="竞价地址" prop="bidUrl">
+          <el-form-item label="请求地址" prop="bidUrl">
             <el-input v-model="form.bidUrl" placeholder="https://..." />
           </el-form-item>
           <el-form-item label="广告主密钥">
