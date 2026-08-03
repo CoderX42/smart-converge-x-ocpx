@@ -8,23 +8,42 @@ export type CatalogRecord = {
   updateTime?: string;
 };
 
+export type AdapterDefinition = {
+  adapterCode: string;
+  adapterName: string;
+  capabilitiesJson: string;
+  direction: 'DOWNSTREAM' | 'UPSTREAM';
+  status: string;
+};
+
 export type Channel = CatalogRecord & {
+  adapterCode: string;
+  authType: string;
+  callbackHostAllowlist: string;
+  channelCode: string;
   channelName: string;
+  configVersion: number;
+  keyVersion: number;
   macroParams: string;
   secretConfigured: boolean;
   secretKey?: string;
+  status: string;
   uri: string;
 };
 
 export type Advertiser = CatalogRecord & {
   account: string;
+  adapterCode: string;
   advertiserName: string;
   balance: number;
   bidUrl: string;
+  configVersion: number;
   macroParams?: string;
   password?: string;
   secretConfigured: boolean;
   secretKey?: string;
+  status: string;
+  upstreamHostAllowlist: string;
 };
 
 export type AppLink = CatalogRecord & {
@@ -44,12 +63,18 @@ export type MonitorLink = CatalogRecord & {
   advertiserName?: string;
   appLinkId: string;
   appLinkName?: string;
+  billingMode: string;
   bizId?: string;
   channelId: string;
   channelName?: string;
   clickUrl?: string;
+  configVersion: number;
+  downstreamCallbackUrl?: string;
   monitorName: string;
+  publishedAt?: string;
   remark?: string;
+  routeStatus: string;
+  rtaMode: string;
   showUrl?: string;
   unitPrice: number;
 };
@@ -59,6 +84,7 @@ export type DeductionRule = CatalogRecord & {
   appLinkName?: string;
   channelId: string;
   channelName?: string;
+  configVersion: number;
   ratio: number;
 };
 
@@ -75,9 +101,12 @@ export type ReportRow = {
   clickRate: number;
   clicks: number;
   costAmount: number;
+  deductedConversionCount: number;
   deductionRatio: number;
+  deliveryFailureCount: number;
   evokeCount: number;
   finishOrderCount: number;
+  forwardedConversionCount: number;
   impressions: number;
   loginCount: number;
   monitorId: string;
@@ -85,10 +114,46 @@ export type ReportRow = {
   nextStayCount: number;
   orderCount: number;
   paymentCount: number;
+  rawConversionCount: number;
   registerCount: number;
   revenueAmount: number;
   timeBucket: string;
   visitCount: number;
+};
+
+export type RuntimeOverview = {
+  byDirection: Record<string, number>;
+  deadDeliveries: number;
+  feedbackStreamPending: number;
+  ingressDlq: number;
+  pendingDeliveries: number;
+  retryDeliveries: number;
+  successfulDeliveries: number;
+};
+
+export type RuntimeDelivery = {
+  adapterCode: string;
+  attemptCount: number;
+  createTime: string;
+  direction: string;
+  eventId: string;
+  id: string;
+  lastError?: string;
+  nextRetryAt: string;
+  sourceEventId: string;
+  status: string;
+  updateTime: string;
+};
+
+export type RuntimeIngressDlq = {
+  createTime: string;
+  eventId?: string;
+  id: string;
+  partitionNo: number;
+  reason: string;
+  replayedAt?: string;
+  status: string;
+  streamRecordId: string;
 };
 
 export type Clue = CatalogRecord & {
@@ -156,6 +221,10 @@ export function getCatalog<K extends CatalogKind>(kind: K, params: Query) {
   });
 }
 
+export function getAdapters() {
+  return requestClient.get<AdapterDefinition[]>('/adx/adapters');
+}
+
 export function saveCatalog<K extends CatalogKind>(
   kind: K,
   data: Partial<KindRecord<K>>,
@@ -171,6 +240,36 @@ export function deleteCatalog(kind: CatalogKind, id: string) {
 
 export function rechargeAdvertiser(id: string, amount: number) {
   return requestClient.post(`/adx/advertisers/${id}/recharge`, { amount });
+}
+
+export function publishMonitor(id: string) {
+  return requestClient.post(`/adx/monitors/${id}/publish`);
+}
+
+export function getRuntimeOverview() {
+  return requestClient.get<RuntimeOverview>('/adx/runtime/overview');
+}
+
+export function getRuntimeDeliveries(params: Query) {
+  return requestClient.get<PageResult<RuntimeDelivery>>(
+    '/adx/runtime/deliveries',
+    { params },
+  );
+}
+
+export function replayRuntimeDelivery(id: string) {
+  return requestClient.post(`/adx/runtime/deliveries/${id}/replay`);
+}
+
+export function getRuntimeIngressDlq(params: Query) {
+  return requestClient.get<PageResult<RuntimeIngressDlq>>(
+    '/adx/runtime/ingress-dlq',
+    { params },
+  );
+}
+
+export function replayRuntimeIngressDlq(id: string) {
+  return requestClient.post(`/adx/runtime/ingress-dlq/${id}/replay`);
 }
 
 export function getReport(params: Query) {

@@ -1,63 +1,64 @@
 {
   "info": {
-    "name": "SCX 通用渠道 OCPX v1.1",
+    "_postman_id": "ad9e2740-e0eb-45d2-9f48-82ddcbb499fe",
+    "name": "SCX OCPX 双向转发 v1",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:9999/boot" },
-    { "key": "clientId", "value": "" },
-    { "key": "keyVersion", "value": "" },
-    { "key": "channelSecret", "value": "", "type": "secret" },
-    { "key": "taskCode", "value": "" },
-    { "key": "deviceHash", "value": "" }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "const CryptoJS = pm.require('npm:crypto-js@4.2.0');",
-          "const body = pm.request.body && pm.request.body.raw ? JSON.parse(pm.variables.replaceIn(pm.request.body.raw)) : null;",
-          "const canonical = body ? JSON.stringify({schemaVersion: body.schemaVersion, eventId: body.eventId, taskCode: body.taskCode, eventType: body.eventType.toUpperCase(), occurredAt: body.occurredAt, device: body.device, businessEventKey: body.businessEventKey || null, callbackRef: body.callbackRef || null, callbackUrl: body.callbackUrl || null, attributes: Object.fromEntries(Object.entries(body.attributes || {}).sort(([a],[b]) => a.localeCompare(b)))}) : '';",
-          "const timestamp = Date.now().toString();",
-          "const nonce = pm.variables.replaceIn('{{$guid}}').replaceAll('-', '');",
-          "const path = pm.request.url.getPath().replace(/^\\/boot/, '');",
-          "const payloadHash = CryptoJS.SHA256(canonical).toString(CryptoJS.enc.Hex);",
-          "const input = [pm.request.method.toUpperCase(), path, timestamp, nonce, payloadHash].join('\\n');",
-          "const sign = CryptoJS.HmacSHA256(input, pm.variables.get('channelSecret')).toString(CryptoJS.enc.Hex);",
-          "pm.request.headers.upsert({key: 'X-Client-Id', value: pm.variables.get('clientId')});",
-          "pm.request.headers.upsert({key: 'X-Key-Version', value: pm.variables.get('keyVersion')});",
-          "pm.request.headers.upsert({key: 'X-Timestamp', value: timestamp});",
-          "pm.request.headers.upsert({key: 'X-Nonce', value: nonce});",
-          "pm.request.headers.upsert({key: 'X-Sign', value: sign});"
-        ]
-      }
-    }
+    { "key": "baseUrl", "value": "http://localhost:10000/rtb" },
+    { "key": "channelCode", "value": "sandbox_channel" },
+    { "key": "keyVersion", "value": "1" },
+    { "key": "channelSecret", "value": "replace-with-sandbox-secret" },
+    { "key": "monitorId", "value": "replace-with-published-monitor-id" },
+    { "key": "cocoExt", "value": "replace-with-ext-from-coco-click-url" }
   ],
   "item": [
     {
-      "name": "Feedback 点击",
+      "name": "下游 FeedbackReqV1",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const timestamp = Date.now().toString();",
+              "const nonce = pm.variables.replaceIn('{{$guid}}').replaceAll('-', '');",
+              "const path = '/rtb/open-api/ocpx/v1/channels/' + pm.collectionVariables.get('channelCode') + '/feedback';",
+              "const body = pm.variables.replaceIn(pm.request.body.raw);",
+              "pm.request.body.update(body);",
+              "const digest = CryptoJS.SHA256(body).toString(CryptoJS.enc.Hex);",
+              "const canonical = ['POST', path, timestamp, nonce, digest].join('\\n');",
+              "const sign = CryptoJS.HmacSHA256(canonical, pm.collectionVariables.get('channelSecret')).toString(CryptoJS.enc.Hex);",
+              "pm.variables.set('timestamp', timestamp);",
+              "pm.variables.set('nonce', nonce);",
+              "pm.variables.set('sign', sign);"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Client-Id", "value": "{{channelCode}}" },
+          { "key": "X-Key-Version", "value": "{{keyVersion}}" },
+          { "key": "X-Timestamp", "value": "{{timestamp}}" },
+          { "key": "X-Nonce", "value": "{{nonce}}" },
+          { "key": "X-Sign", "value": "{{sign}}" }
+        ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"schemaVersion\": \"1.1\",\n  \"eventId\": \"click-{{$guid}}\",\n  \"taskCode\": \"{{taskCode}}\",\n  \"eventType\": \"CLICK\",\n  \"occurredAt\": \"2026-07-22T20:00:00+08:00\",\n  \"device\": {\"platform\": \"ANDROID\", \"idType\": \"OAID\", \"hashAlgorithm\": \"SHA256\", \"idHash\": \"{{deviceHash}}\", \"idVersion\": null},\n  \"attributes\": {}\n}"
+          "raw": "{\n  \"schema_version\": \"1.0\",\n  \"event_id\": \"{{$guid}}\",\n  \"event\": \"click\",\n  \"monitor_id\": \"{{monitorId}}\",\n  \"clickid\": \"click-demo-001\",\n  \"oaid\": \"sandbox-device-only\",\n  \"ip\": \"203.0.113.10\",\n  \"ua\": \"SCX-UAT/1.0\",\n  \"os\": \"android\",\n  \"model\": \"sandbox\"\n}"
         },
-        "url": "{{baseUrl}}/open-api/events/v1/clicks"
+        "url": "{{baseUrl}}/open-api/ocpx/v1/channels/{{channelCode}}/feedback"
       }
     },
     {
-      "name": "广告主转化 Callback",
+      "name": "Coco Callback",
       "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"schemaVersion\": \"1.1\",\n  \"eventId\": \"conversion-{{$guid}}\",\n  \"taskCode\": \"{{taskCode}}\",\n  \"eventType\": \"ACTIVATE\",\n  \"occurredAt\": \"2026-07-22T20:05:00+08:00\",\n  \"device\": {\"platform\": \"ANDROID\", \"idType\": \"OAID\", \"hashAlgorithm\": \"SHA256\", \"idHash\": \"{{deviceHash}}\", \"idVersion\": null},\n  \"businessEventKey\": \"business-{{$guid}}\",\n  \"attributes\": {}\n}"
-        },
-        "url": "{{baseUrl}}/open-api/events/v1/conversions"
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=activate&currency_amount=1.00"
       }
     }
   ]

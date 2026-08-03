@@ -21,6 +21,8 @@ public class AdxAdvertiser {
 
 	private String advertiserName;
 
+	private String adapterCode;
+
 	private String bidUrl;
 
 	@JsonIgnore
@@ -28,12 +30,18 @@ public class AdxAdvertiser {
 
 	private String macroParams;
 
+	private String upstreamHostAllowlist;
+
 	private String account;
 
 	@JsonIgnore
 	private String passwordHash;
 
 	private BigDecimal balance;
+
+	private String status;
+
+	private Long configVersion;
 
 	@TableLogic
 	private Boolean deleted;

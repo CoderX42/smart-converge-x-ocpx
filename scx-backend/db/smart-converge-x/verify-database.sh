@@ -63,4 +63,20 @@ if [[ "$admin_system_permission_count" -ne 8 ]]; then
   exit 1
 fi
 
+ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name='upstream_host_allowlist') OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count')));")"
+
+if [[ "$ocpx_column_count" -ne 13 ]]; then
+  echo "Database verification failed: V70 OCPX routing/report columns are incomplete." >&2
+  exit 1
+fi
+
+admin_ocpx_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish');")"
+
+if [[ "$admin_ocpx_permission_count" -ne 3 ]]; then
+  echo "Database verification failed: administrator OCPX runtime permissions are incomplete." >&2
+  exit 1
+fi
+
 echo "Smart Converge X database verification passed: ${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}"

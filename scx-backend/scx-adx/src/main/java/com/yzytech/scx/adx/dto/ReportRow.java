@@ -59,4 +59,12 @@ public class ReportRow {
 
 	private Long finishOrderCount;
 
+	private Long rawConversionCount;
+
+	private Long forwardedConversionCount;
+
+	private Long deductedConversionCount;
+
+	private Long deliveryFailureCount;
+
 }

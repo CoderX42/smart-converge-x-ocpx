@@ -73,22 +73,6 @@ knife4j:
   setting:
     language: zh_cn
 
-scx:
-  tracking:
-    sandbox-enabled: false
-    attribution-rule-version: last-click-v1
-    feedback-store: redis
-    ingress-enabled: true
-    worker-enabled: true
-    outbox-publisher-enabled: false
-    outbox-scheduler-enabled: false
-    outbox-topic: scx_tracking_events
-    # 32 字节密钥的 Base64；上线请替换
-    channel-master-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    device-hmac-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    callback-sandbox-endpoint:
-    callback-allowed-hosts:
-
 logging:
   level:
     # RocketMQTemplate includes the complete message object in send-failure

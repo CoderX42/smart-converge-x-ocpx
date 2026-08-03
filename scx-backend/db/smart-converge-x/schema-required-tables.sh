@@ -11,5 +11,8 @@ SCX_REQUIRED_TABLES=(
   sys_user sys_user_role
   scx_adx_channel scx_adx_advertiser scx_adx_app_link
   scx_adx_monitor_link scx_adx_deduction_rule scx_adx_hourly_report
-  scx_adx_clue scx_schema_migration
+  scx_adx_clue scx_ocpx_adapter scx_ocpx_event scx_ocpx_protocol_snapshot scx_ocpx_callback_ref
+  scx_ocpx_delivery_job scx_ocpx_delivery_attempt scx_ocpx_deduction_decision
+  scx_ocpx_ingress_dlq scx_ocpx_config_outbox scx_ocpx_rta_decision_log
+  scx_ocpx_billing_entry scx_schema_migration
 )

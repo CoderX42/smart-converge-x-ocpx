@@ -10,15 +10,16 @@
 2. [ADX 重构实现说明](ADX重构实现说明.md)。
 3. [MVP 开发规划（历史执行基线）](MVP开发规划.md)。
 4. [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md)。
-5. [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
-6. 使用 Claude Code 多 Agent 实施时阅读
+5. 阅读 [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) 了解 V70 与 Coco 首接的当前代码事实。
+6. 需要追溯 V70 前沙箱时再读 [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
+7. 使用 Claude Code 多 Agent 实施时阅读
    [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md)。
-7. 使用 Codex 实施时阅读 [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md)。
-8. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
-9. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
-10. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
-11. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
-12. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+8. 使用 Codex 实施时阅读 [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md)。
+9. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
+10. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
+11. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
+12. 对接第三方渠道时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
+13. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
 当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
 
@@ -27,9 +28,11 @@
 | 文档 | 用途 | 权威边界 |
 |---|---|---|
 | [ADX 重构实现说明](ADX重构实现说明.md) | 当前目标菜单、前后端契约、表结构与旧域退役门禁 | 当前实现基线；优先于历史 OCPX 扩展规划 |
+| [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) | 独立 scx-rtb、Coco 首接、可靠队列、配置发布和验收边界 | V70 源码实现；目标环境迁移、真实外发、容量与 UAT 未执行 |
+| [ADR-001 独立数据面](adr/ADR-001-OCPX双向转发独立数据面.md) | 管理面与高并发数据面拆分决策 | Accepted |
 | [MVP 开发规划](MVP开发规划.md) | MVP 范围、Agent 合同、架构/数据方案、任务队列、验收与开放决策 | Accepted；第 15 节默认方案已接受 |
 | [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md) | 完整 OCPX 目标边界、锁定决策、模块与 R1–R9 依赖 | 产品方向 Accepted；按任务增量实现 |
-| [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md) | 当前能力、缺口、R1-00 操作与生产放行清单 | 当前代码事实与验收边界 |
+| [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md) | V70 前 OCPX 沙箱能力与验收记录 | 历史基线，不是当前运行契约 |
 | [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md) | Claude Code 会话总控、多 Agent 文件所有权、R1–R9 最小 Task 与逐项 Prompt | 执行方案；实现状态仍以代码和验收证据为准 |
 | [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md) | Codex 当前收口 Task、R1–R9 总任务、依赖顺序和当前领取指令 | 执行清单；实现状态仍以代码和验收证据为准 |
 | [MVP 交付说明](MVP交付说明.md) | 当前实现范围、验证结果、数据库升级与运行态验收入口 | 代码完成；运行态验收待执行 |
@@ -45,9 +48,9 @@
 
 - 文档状态：ADX 重构说明为当前实现基线；原 MVP/OCPX 文档保留为历史决策记录。
 - 产品阶段：精简 ADX 管理闭环已进入源码实现与本地门禁阶段。
-- 已有代码：`scx-adx` 统一承载渠道、广告主、应用链接、监测链接、扣量、报表和线索；系统管理完整复用 `scx-system` 的 Sa-Token + RBAC。
-- 未交付：目标数据库迁移、旧表物理退役、生产部署、真实报表数据接入、汽车之家任务凭据联调与浏览器多角色 UAT。
-- 契约状态：`contracts/` 已包含 OpenAPI、AsyncAPI 与事件 JSON Schema，`make contract-check` 为有效质量门。
+- 已有代码：`scx-adx` 承载管理面；`scx-ocpx-contract`、`scx-ocpx-runtime` 与独立 `scx-rtb` 已形成 FeedbackReq → Coco → Coco callback → CallbackReq 双向代码闭环。V70 为待授权应用的前向迁移。
+- 未交付：目标数据库迁移、生产部署、真实 Coco/下游 UAT、生产密钥轮换、Redis AOF/副本验收、故障演练与两实例 20,000 accepted QPS 容量门槛。
+- 契约状态：`contracts/` 已切换为当前双向转发 OpenAPI、Redis Stream AsyncAPI、FeedbackReq/CallbackReq JSON Schema；历史 `/open-api/events/v1` 已明确退出当前契约。
 - 状态更新时间：2026-08-03。
 
 ## 4. 事实与状态规则

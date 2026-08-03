@@ -44,19 +44,21 @@ class AdxCatalogServiceTest {
 
 	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
 
+	private final AdxConfigChangeService configChangeService = mock(AdxConfigChangeService.class);
+
 	private AdxCatalogService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new AdxCatalogService(channelMapper, advertiserMapper, appLinkMapper, monitorMapper, deductionMapper,
-				systemUserMapper, systemUserRoleMapper, accessScope);
+				systemUserMapper, systemUserRoleMapper, accessScope, configChangeService);
 	}
 
 	@Test
 	void createAdvertiserRequiresPassword() {
 		when(advertiserMapper.selectCount(any())).thenReturn(0L);
-		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "https://example.test/bid",
-				null, null, "advertiser", null);
+		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "COCO",
+				"https://example.test/bid", null, null, "example.test", "advertiser", null, "ACTIVE");
 
 		assertThatThrownBy(() -> service.saveAdvertiser(null, request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("新增广告主时密码必填");
@@ -75,8 +77,8 @@ class AdxCatalogServiceTest {
 			((SysUser) invocation.getArgument(0)).setId("user-1");
 			return 1;
 		});
-		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "https://example.test/bid",
-				null, null, "advertiser", "password-123");
+		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "COCO",
+				"https://example.test/bid", null, null, "example.test", "advertiser", "password-123", "ACTIVE");
 
 		service.saveAdvertiser(null, request);
 
@@ -106,7 +108,7 @@ class AdxCatalogServiceTest {
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(advertiser);
 		when(appLinkMapper.selectById("link-1")).thenReturn(link);
 		CatalogRequests.SaveMonitor request = new CatalogRequests.SaveMonitor("channel-1", "advertiser-1", "link-1",
-				"监测链接", null, BigDecimal.ONE, null);
+				"监测链接", null, BigDecimal.ONE, null, null, "OFF", "OFF");
 
 		assertThatThrownBy(() -> service.saveMonitor(null, request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("应用链接不属于所选广告主");

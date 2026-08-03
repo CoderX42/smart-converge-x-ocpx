@@ -8,13 +8,14 @@ public final class CatalogViews {
 	private CatalogViews() {
 	}
 
-	public record Channel(String id, String channelName, String uri, boolean secretConfigured, String macroParams,
-			LocalDateTime createTime, LocalDateTime updateTime) {
+	public record Channel(String id, String channelCode, String channelName, String adapterCode, String authType,
+			Integer keyVersion, String uri, boolean secretConfigured, String macroParams, String callbackHostAllowlist,
+			String status, Long configVersion, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
-	public record Advertiser(String id, String advertiserName, String bidUrl, boolean secretConfigured,
-			String macroParams, String account, BigDecimal balance, LocalDateTime createTime,
-			LocalDateTime updateTime) {
+	public record Advertiser(String id, String advertiserName, String adapterCode, String bidUrl,
+			boolean secretConfigured, String macroParams, String upstreamHostAllowlist, String account,
+			BigDecimal balance, String status, Long configVersion, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
 	public record AppLink(String id, String advertiserId, String advertiserName, Integer linkPlatform, String linkName,
@@ -24,11 +25,17 @@ public final class CatalogViews {
 
 	public record Monitor(String id, String channelId, String channelName, String advertiserId, String advertiserName,
 			String appLinkId, String appLinkName, String monitorName, String bizId, BigDecimal unitPrice, String remark,
-			String showUrl, String clickUrl, LocalDateTime createTime, LocalDateTime updateTime) {
+			String showUrl, String clickUrl, String downstreamCallbackUrl, String routeStatus, Long configVersion,
+			String rtaMode, String billingMode, LocalDateTime publishedAt, LocalDateTime createTime,
+			LocalDateTime updateTime) {
 	}
 
 	public record Deduction(String id, String channelId, String channelName, String appLinkId, String appLinkName,
-			BigDecimal ratio, LocalDateTime createTime, LocalDateTime updateTime) {
+			BigDecimal ratio, Long configVersion, LocalDateTime createTime, LocalDateTime updateTime) {
+	}
+
+	public record Adapter(String adapterCode, String adapterName, String direction, String status,
+			String capabilitiesJson) {
 	}
 
 }

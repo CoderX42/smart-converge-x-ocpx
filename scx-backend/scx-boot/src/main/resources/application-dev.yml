@@ -58,19 +58,3 @@ knife4j:
     enable: false
   setting:
     language: zh_cn
-
-scx:
-  tracking:
-    sandbox-enabled: true
-    sandbox-signing-key: scx-dev-sandbox-signing-key
-    ingress-enabled: false
-    feedback-store: memory
-    worker-enabled: true
-    outbox-publisher-enabled: false
-    outbox-scheduler-enabled: false
-    outbox-topic: scx_tracking_events
-    channel-master-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    device-hmac-key: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-    callback-sandbox-endpoint: http://127.0.0.1:18080/postback
-    callback-allowed-hosts: 127.0.0.1,localhost
-    attribution-rule-version: last-click-v1

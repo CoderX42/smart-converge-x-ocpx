@@ -16,14 +16,19 @@ public final class CatalogRequests {
 	private CatalogRequests() {
 	}
 
-	public record SaveChannel(@NotBlank @Size(max = 100) String channelName, @NotBlank @Size(max = 512) String uri,
-			@Size(max = 255) String secretKey, @NotBlank @Size(max = 1000) String macroParams) {
+	public record SaveChannel(@NotBlank @Pattern(regexp = "^[a-z][a-z0-9_-]{1,63}$") String channelCode,
+			@NotBlank @Size(max = 100) String channelName, @NotBlank @Size(max = 32) String adapterCode,
+			@NotBlank @Pattern(regexp = "HMAC|NONE") String authType, @NotNull @DecimalMin("1") Integer keyVersion,
+			@NotBlank @Size(max = 512) String uri, @Size(max = 255) String secretKey,
+			@NotBlank @Size(max = 1000) String macroParams, @NotBlank @Size(max = 1000) String callbackHostAllowlist,
+			@NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status) {
 	}
 
 	public record SaveAdvertiser(@NotBlank @Size(max = 100) String advertiserName,
-			@NotBlank @Size(max = 512) String bidUrl, @Size(max = 255) String secretKey,
-			@Size(max = 1000) String macroParams, @NotBlank @Size(max = 100) String account,
-			@Size(min = 8, max = 72) String password) {
+			@NotBlank @Size(max = 32) String adapterCode, @NotBlank @Size(max = 512) String bidUrl,
+			@Size(max = 255) String secretKey, @Size(max = 1000) String macroParams,
+			@NotBlank @Size(max = 1000) String upstreamHostAllowlist, @NotBlank @Size(max = 100) String account,
+			@Size(min = 8, max = 72) String password, @NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status) {
 	}
 
 	public record Recharge(@NotNull @DecimalMin("0.01") BigDecimal amount) {
@@ -37,7 +42,9 @@ public final class CatalogRequests {
 
 	public record SaveMonitor(@NotBlank String channelId, @NotBlank String advertiserId, @NotBlank String appLinkId,
 			@NotBlank @Size(max = 100) String monitorName, @Size(max = 100) String bizId,
-			@NotNull @DecimalMin("0") BigDecimal unitPrice, @Size(max = 500) String remark) {
+			@NotNull @DecimalMin("0") BigDecimal unitPrice, @Size(max = 500) String remark,
+			@Size(max = 1500) String downstreamCallbackUrl, @NotBlank @Pattern(regexp = "OFF") String rtaMode,
+			@NotBlank @Pattern(regexp = "OFF|AUDIT_ONLY") String billingMode) {
 	}
 
 	public record SaveDeduction(@NotBlank String channelId, @NotBlank String appLinkId,

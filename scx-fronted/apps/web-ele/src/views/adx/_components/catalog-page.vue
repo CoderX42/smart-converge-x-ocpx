@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { Advertiser, AppLink, CatalogKind, Channel } from '#/api/adx';
+import type {
+  AdapterDefinition,
+  Advertiser,
+  AppLink,
+  CatalogKind,
+  Channel,
+} from '#/api/adx';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
@@ -11,7 +17,9 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   deleteCatalog,
+  getAdapters,
   getCatalog,
+  publishMonitor,
   rechargeAdvertiser,
   saveCatalog,
 } from '#/api/adx';
@@ -51,6 +59,7 @@ const selectedChannelMacroKeys = ref<string[]>([]);
 const channels = ref<Channel[]>([]);
 const advertisers = ref<Advertiser[]>([]);
 const appLinks = ref<AppLink[]>([]);
+const adapters = ref<AdapterDefinition[]>([]);
 const { copy: copyToClipboard } = useClipboard({ legacy: true });
 
 const config = computed(() => {
@@ -89,11 +98,18 @@ const columns = computed<Column[]>(() => {
     advertiser: [
       { label: '广告主ID', minWidth: 170, prop: 'id' },
       { label: '广告主名称', minWidth: 150, prop: 'advertiserName' },
+      { label: '上游适配器', minWidth: 120, prop: 'adapterCode' },
+      { label: '状态', minWidth: 100, prop: 'status' },
       { label: '登录账号', minWidth: 140, prop: 'account' },
       { label: '余额', minWidth: 120, prop: 'balance' },
       { label: '请求地址', minWidth: 240, prop: 'bidUrl' },
       { label: '密钥', minWidth: 90, prop: 'secretConfigured' },
-      { label: '宏参数', minWidth: 220, prop: 'macroParams' },
+      { label: 'Coco必填宏', minWidth: 220, prop: 'macroParams' },
+      {
+        label: '上游域名白名单',
+        minWidth: 200,
+        prop: 'upstreamHostAllowlist',
+      },
       { label: '修改时间', minWidth: 170, prop: 'updateTime' },
     ],
     appLink: [
@@ -109,9 +125,18 @@ const columns = computed<Column[]>(() => {
     channel: [
       { label: '渠道ID', minWidth: 170, prop: 'id' },
       { label: '渠道名称', minWidth: 160, prop: 'channelName' },
+      { label: '渠道编码', minWidth: 150, prop: 'channelCode' },
+      { label: '下游适配器', minWidth: 120, prop: 'adapterCode' },
+      { label: '鉴权', minWidth: 100, prop: 'authType' },
+      { label: '状态', minWidth: 100, prop: 'status' },
       { label: 'URI', minWidth: 280, prop: 'uri' },
       { label: '密钥', minWidth: 90, prop: 'secretConfigured' },
       { label: '宏参数', minWidth: 240, prop: 'macroParams' },
+      {
+        label: '回调域名白名单',
+        minWidth: 200,
+        prop: 'callbackHostAllowlist',
+      },
       { label: '创建时间', minWidth: 170, prop: 'createTime' },
       { label: '修改时间', minWidth: 170, prop: 'updateTime' },
     ],
@@ -131,6 +156,9 @@ const columns = computed<Column[]>(() => {
       { label: '应用链接', minWidth: 160, prop: 'appLinkName' },
       { label: '业务ID', minWidth: 130, prop: 'bizId' },
       { label: '单价', minWidth: 110, prop: 'unitPrice' },
+      { label: '发布状态', minWidth: 110, prop: 'routeStatus' },
+      { label: '版本', minWidth: 90, prop: 'configVersion' },
+      { label: '下游回调', minWidth: 260, prop: 'downstreamCallbackUrl' },
       { label: '展示链接', minWidth: 260, prop: 'showUrl' },
       { label: '点击链接', minWidth: 260, prop: 'clickUrl' },
       { label: '修改时间', minWidth: 170, prop: 'updateTime' },
@@ -141,9 +169,26 @@ const columns = computed<Column[]>(() => {
 
 const rules = computed<FormRules>(() => {
   const required: Record<CatalogKind, string[]> = {
-    advertiser: ['advertiserName', 'bidUrl', 'account'],
+    advertiser: [
+      'advertiserName',
+      'adapterCode',
+      'bidUrl',
+      'upstreamHostAllowlist',
+      'account',
+      'status',
+    ],
     appLink: ['advertiserId', 'linkPlatform', 'linkName', 'linkUrl'],
-    channel: ['channelName', 'uri', 'macroParams'],
+    channel: [
+      'channelCode',
+      'channelName',
+      'adapterCode',
+      'authType',
+      'keyVersion',
+      'uri',
+      'macroParams',
+      'callbackHostAllowlist',
+      'status',
+    ],
     deduction: ['channelId', 'appLinkId', 'ratio'],
     monitor: [
       'channelId',
@@ -151,6 +196,8 @@ const rules = computed<FormRules>(() => {
       'appLinkId',
       'monitorName',
       'unitPrice',
+      'rtaMode',
+      'billingMode',
     ],
   };
   return Object.fromEntries(
@@ -188,14 +235,17 @@ function isCopyableColumn(prop: string) {
 }
 
 async function loadDependencies() {
-  const [channelResult, advertiserResult, linkResult] = await Promise.all([
-    getCatalog('channel', { current: 1, size: 500 }),
-    getCatalog('advertiser', { current: 1, size: 500 }),
-    getCatalog('appLink', { current: 1, size: 1000 }),
-  ]);
+  const [channelResult, advertiserResult, linkResult, adapterResult] =
+    await Promise.all([
+      getCatalog('channel', { current: 1, size: 500 }),
+      getCatalog('advertiser', { current: 1, size: 500 }),
+      getCatalog('appLink', { current: 1, size: 1000 }),
+      getAdapters(),
+    ]);
   channels.value = channelResult.records;
   advertisers.value = advertiserResult.records;
   appLinks.value = linkResult.records;
+  adapters.value = adapterResult;
 }
 
 async function load() {
@@ -217,11 +267,17 @@ function resetForm() {
   Object.keys(form).forEach((key) => delete form[key]);
   selectedChannelMacroKeys.value = [];
   const defaults: Record<CatalogKind, Record<string, any>> = {
-    advertiser: { balance: 0 },
+    advertiser: { adapterCode: 'COCO', balance: 0, status: 'ACTIVE' },
     appLink: { linkPlatform: 1 },
-    channel: { macroParams: DEFAULT_CHANNEL_MACRO_PARAMS },
+    channel: {
+      adapterCode: 'STANDARD',
+      authType: 'HMAC',
+      keyVersion: 1,
+      macroParams: DEFAULT_CHANNEL_MACRO_PARAMS,
+      status: 'ACTIVE',
+    },
     deduction: { ratio: 1 },
-    monitor: { unitPrice: 0 },
+    monitor: { billingMode: 'OFF', rtaMode: 'OFF', unitPrice: 0 },
   };
   Object.assign(form, defaults[props.kind]);
 }
@@ -269,6 +325,17 @@ async function remove(row: Row) {
   await deleteCatalog(props.kind, row.id);
   ElMessage.success('已删除');
   await Promise.all([load(), loadDependencies()]);
+}
+
+async function publish(row: Row) {
+  await ElMessageBox.confirm(
+    '发布后数据面将按此版本接收并转发流量，确认继续？',
+    '发布路由',
+    { type: 'warning' },
+  );
+  await publishMonitor(row.id);
+  ElMessage.success('路由已发布');
+  await load();
 }
 
 function openRecharge(row: Row) {
@@ -384,7 +451,7 @@ onMounted(async () => {
             <span v-else>{{ display(row, column.prop) }}</span>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" width="210">
+        <el-table-column fixed="right" label="操作" width="260">
           <template #default="{ row }">
             <el-button
               v-access:code="config.permission"
@@ -408,6 +475,15 @@ onMounted(async () => {
               @click="copy(row.clickUrl, '链接')"
             >
               复制
+            </el-button>
+            <el-button
+              v-if="kind === 'monitor'"
+              v-access:code="'adx:monitor:publish'"
+              link
+              type="success"
+              @click="publish(row)"
+            >
+              发布
             </el-button>
             <el-button
               v-access:code="config.permission"
@@ -439,8 +515,36 @@ onMounted(async () => {
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="118px">
         <template v-if="kind === 'channel'">
+          <el-form-item label="渠道编码" prop="channelCode">
+            <el-input
+              v-model="form.channelCode"
+              placeholder="例如 toutiao_main"
+            />
+          </el-form-item>
           <el-form-item label="渠道名称" prop="channelName">
             <el-input v-model="form.channelName" maxlength="100" />
+          </el-form-item>
+          <el-form-item label="下游适配器" prop="adapterCode">
+            <el-select v-model="form.adapterCode">
+              <el-option
+                v-for="adapter in adapters.filter(
+                  (item) =>
+                    item.direction === 'DOWNSTREAM' && item.status === 'ACTIVE',
+                )"
+                :key="adapter.adapterCode"
+                :label="adapter.adapterName"
+                :value="adapter.adapterCode"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="鉴权方式" prop="authType">
+            <el-select v-model="form.authType">
+              <el-option label="HMAC-SHA256" value="HMAC" />
+              <el-option label="无鉴权（仅联调）" value="NONE" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="密钥版本" prop="keyVersion">
+            <el-input-number v-model="form.keyVersion" :min="1" />
           </el-form-item>
           <el-form-item label="URI" prop="uri">
             <el-input v-model="form.uri" placeholder="https://..." />
@@ -449,7 +553,7 @@ onMounted(async () => {
             <el-input
               v-model="form.secretKey"
               show-password
-              :placeholder="form.id ? '留空表示不修改' : '可选'"
+              :placeholder="form.id ? '留空表示不修改' : '发布前至少配置 32 位'"
             />
           </el-form-item>
           <el-form-item label="宏参数" prop="macroParams">
@@ -495,11 +599,36 @@ onMounted(async () => {
               </p>
             </div>
           </el-form-item>
+          <el-form-item label="回调域名白名单" prop="callbackHostAllowlist">
+            <el-input
+              v-model="form.callbackHostAllowlist"
+              placeholder="callback.media.example，多个用逗号分隔"
+            />
+          </el-form-item>
+          <el-form-item label="渠道状态" prop="status">
+            <el-radio-group v-model="form.status">
+              <el-radio-button value="ACTIVE">启用</el-radio-button>
+              <el-radio-button value="DISABLED">停用</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
         </template>
 
         <template v-else-if="kind === 'advertiser'">
           <el-form-item label="广告主名称" prop="advertiserName">
             <el-input v-model="form.advertiserName" maxlength="100" />
+          </el-form-item>
+          <el-form-item label="上游适配器" prop="adapterCode">
+            <el-select v-model="form.adapterCode">
+              <el-option
+                v-for="adapter in adapters.filter(
+                  (item) =>
+                    item.direction === 'UPSTREAM' && item.status === 'ACTIVE',
+                )"
+                :key="adapter.adapterCode"
+                :label="adapter.adapterName"
+                :value="adapter.adapterCode"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="请求地址" prop="bidUrl">
             <el-input v-model="form.bidUrl" placeholder="https://..." />
@@ -511,8 +640,19 @@ onMounted(async () => {
               :placeholder="form.id ? '留空表示不修改' : '可选'"
             />
           </el-form-item>
-          <el-form-item label="宏参数">
-            <el-input v-model="form.macroParams" :rows="3" type="textarea" />
+          <el-form-item label="Coco必填宏">
+            <el-input
+              v-model="form.macroParams"
+              :rows="3"
+              placeholder="例如 __OAID__,__CALLBACK__；留空表示仅要求 CALLBACK"
+              type="textarea"
+            />
+          </el-form-item>
+          <el-form-item label="上游域名白名单" prop="upstreamHostAllowlist">
+            <el-input
+              v-model="form.upstreamHostAllowlist"
+              placeholder="api.coco.example，多个用逗号分隔"
+            />
           </el-form-item>
           <el-form-item label="登录账号" prop="account">
             <el-input v-model="form.account" />
@@ -524,6 +664,12 @@ onMounted(async () => {
               show-password
               :placeholder="form.id ? '留空表示不修改' : '至少 8 位'"
             />
+          </el-form-item>
+          <el-form-item label="广告主状态" prop="status">
+            <el-radio-group v-model="form.status">
+              <el-radio-button value="ACTIVE">启用</el-radio-button>
+              <el-radio-button value="DISABLED">停用</el-radio-button>
+            </el-radio-group>
           </el-form-item>
         </template>
 
@@ -608,6 +754,23 @@ onMounted(async () => {
           </el-form-item>
           <el-form-item label="备注">
             <el-input v-model="form.remark" :rows="3" type="textarea" />
+          </el-form-item>
+          <el-form-item label="下游回调地址">
+            <el-input
+              v-model="form.downstreamCallbackUrl"
+              placeholder="https://媒体域名/callback"
+            />
+          </el-form-item>
+          <el-form-item label="RTA模式" prop="rtaMode">
+            <el-select v-model="form.rtaMode">
+              <el-option label="关闭" value="OFF" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="计费模式" prop="billingMode">
+            <el-select v-model="form.billingMode">
+              <el-option label="关闭" value="OFF" />
+              <el-option label="仅审计" value="AUDIT_ONLY" />
+            </el-select>
           </el-form-item>
         </template>
 

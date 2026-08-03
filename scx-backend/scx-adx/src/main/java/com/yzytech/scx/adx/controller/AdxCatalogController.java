@@ -11,6 +11,8 @@ import com.yzytech.scx.adx.entity.AdxChannel;
 import com.yzytech.scx.adx.entity.AdxDeductionRule;
 import com.yzytech.scx.adx.entity.AdxMonitorLink;
 import com.yzytech.scx.adx.service.AdxCatalogService;
+import com.yzytech.scx.adx.service.AdxAdapterService;
+import com.yzytech.scx.adx.service.AdxRoutePublishService;
 import com.yzytech.scx.common.core.util.Result;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.Callable;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,6 +36,16 @@ import java.util.Map;
 public class AdxCatalogController {
 
 	private final AdxCatalogService service;
+
+	private final AdxAdapterService adapterService;
+
+	private final AdxRoutePublishService routePublishService;
+
+	@GetMapping("/adapters")
+	@SaCheckPermission("adx:monitor:read")
+	public Result<List<CatalogViews.Adapter>> adapters() {
+		return Result.success(adapterService.list());
+	}
 
 	@GetMapping("/report-options")
 	@SaCheckPermission("adx:report:read")
@@ -159,6 +172,12 @@ public class AdxCatalogController {
 			service.deleteMonitor(id);
 			return true;
 		});
+	}
+
+	@PostMapping("/monitors/{id}/publish")
+	@SaCheckPermission("adx:monitor:publish")
+	public Result<Map<String, Object>> publishMonitor(@PathVariable String id) {
+		return call(() -> routePublishService.publish(id));
 	}
 
 	@GetMapping("/deduction-rules")

@@ -27,7 +27,7 @@ public class AdxReportService {
 	private static final Set<String> GRANULARITIES = Set.of("HOUR", "DATE", "MONTH", "YEAR");
 
 	private static final String[] HEADERS = { "时间", "渠道名称", "监测链接", "广告主", "应用链接", "扣量比例", "展示数", "点击数", "点击率(%)", "消耗",
-			"收入", "激活", "唤起", "登录", "注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单" };
+			"收入", "原始转化", "实际回传", "扣除转化", "投递失败", "激活", "唤起", "登录", "注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单" };
 
 	private final AdxHourlyReportMapper reportMapper;
 
@@ -104,9 +104,11 @@ public class AdxReportService {
 		Object[] cells = { value.getTimeBucket(), value.getChannelName(), value.getMonitorName(),
 				value.getAdvertiserName(), value.getAppLinkName(), value.getDeductionRatio(), value.getImpressions(),
 				value.getClicks(), value.getClickRate(), value.getCostAmount(), value.getRevenueAmount(),
-				value.getActivateCount(), value.getEvokeCount(), value.getLoginCount(), value.getRegisterCount(),
-				value.getPaymentCount(), value.getAcquisitionCount(), value.getNextStayCount(), value.getVisitCount(),
-				value.getAuthenticationCount(), value.getOrderCount(), value.getFinishOrderCount() };
+				value.getRawConversionCount(), value.getForwardedConversionCount(), value.getDeductedConversionCount(),
+				value.getDeliveryFailureCount(), value.getActivateCount(), value.getEvokeCount(), value.getLoginCount(),
+				value.getRegisterCount(), value.getPaymentCount(), value.getAcquisitionCount(),
+				value.getNextStayCount(), value.getVisitCount(), value.getAuthenticationCount(), value.getOrderCount(),
+				value.getFinishOrderCount() };
 		for (int index = 0; index < cells.length; index++) {
 			row.createCell(index).setCellValue(cells[index] == null ? "" : cells[index].toString());
 		}

@@ -1,70 +1,59 @@
 asyncapi: 3.0.0
 info:
-  title: SCX MVP Tracking Messages
+  title: SCX OCPX 内部可靠队列
   version: 1.0.0
-  description: Logical contracts emitted through the transactional outbox.
+  description: >-
+    scx-rtb 内部 Redis Streams 与配置失效通知的逻辑契约。MySQL 是最终事实源和投递任务源；
+    这些内部地址不是第三方接入 API。
 channels:
-  attributionCreated:
-    address: scx.tracking.attribution.created.v1
+  feedbackPartition:
+    address: 'scx:ocpx:{feedback:{partition}}:stream'
+    parameters:
+      partition:
+        description: 0 到 partition-count-1，默认 64 个分区
     messages:
-      attributionCreated:
-        $ref: '#/components/messages/AttributionCreated'
-  callbackRequested:
-    address: scx.tracking.callback.requested.v1
+      feedbackEnvelope:
+        $ref: '#/components/messages/FeedbackEnvelope'
+  feedbackDlqPartition:
+    address: 'scx:ocpx:{feedback:{partition}}:dlq'
+    parameters:
+      partition:
+        description: 与原 feedback 分区一致
     messages:
-      callbackRequested:
-        $ref: '#/components/messages/CallbackRequested'
+      feedbackEnvelope:
+        $ref: '#/components/messages/FeedbackEnvelope'
+  configChanged:
+    address: scx:ocpx:config:changed
+    messages:
+      routeConfigChanged:
+        $ref: '#/components/messages/RouteConfigChanged'
 operations:
-  publishAttributionCreated:
-    action: send
-    channel:
-      $ref: '#/channels/attributionCreated'
+  persistFeedback:
+    action: receive
+    channel: { $ref: '#/channels/feedbackPartition' }
     messages:
-      - $ref: '#/channels/attributionCreated/messages/attributionCreated'
-  publishCallbackRequested:
-    action: send
-    channel:
-      $ref: '#/channels/callbackRequested'
+      - $ref: '#/channels/feedbackPartition/messages/feedbackEnvelope'
+  observeConfigChange:
+    action: receive
+    channel: { $ref: '#/channels/configChanged' }
     messages:
-      - $ref: '#/channels/callbackRequested/messages/callbackRequested'
+      - $ref: '#/channels/configChanged/messages/routeConfigChanged'
 components:
   messages:
-    AttributionCreated:
-      name: AttributionCreatedV1
+    FeedbackEnvelope:
       payload:
-        $ref: '#/components/schemas/AttributionCreatedPayload'
-    CallbackRequested:
-      name: CallbackRequestedV1
+        type: object
+        required: [eventId, payloadHash, eventType, channelCode, routeId, routeVersion, encryptedFeedback, encryptedRoute]
+        properties:
+          eventId: { type: string }
+          payloadHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+          eventType: { type: string }
+          channelCode: { type: string }
+          routeId: { type: string }
+          routeVersion: { type: integer, minimum: 1 }
+          encryptedFeedback: { type: string }
+          encryptedRoute: { type: string }
+    RouteConfigChanged:
       payload:
-        $ref: '#/components/schemas/CallbackRequestedPayload'
-  schemas:
-    AttributionCreatedPayload:
-      type: object
-      additionalProperties: false
-      required: [schemaVersion, attributionResultId, conversionEventId, status]
-      properties:
-        schemaVersion:
-          const: '1.0'
-        attributionResultId:
-          type: string
-        conversionEventId:
-          type: string
-        clickEventId:
-          type: [string, 'null']
-        status:
-          enum: [ATTRIBUTED, UNATTRIBUTED]
-        reasonCode:
-          type: [string, 'null']
-    CallbackRequestedPayload:
-      type: object
-      additionalProperties: false
-      required: [schemaVersion, callbackJobId, attributionResultId, targetRef]
-      properties:
-        schemaVersion:
-          const: '1.0'
-        callbackJobId:
-          type: string
-        attributionResultId:
-          type: string
-        targetRef:
-          const: sandbox
+        type: string
+        description: aggregateId:configVersion:eventType；订阅方按 aggregateId 失效本地快照

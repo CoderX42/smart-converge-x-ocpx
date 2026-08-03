@@ -55,4 +55,12 @@ public class AdxHourlyReport {
 
 	private Long finishOrderCount;
 
+	private Long rawConversionCount;
+
+	private Long forwardedConversionCount;
+
+	private Long deductedConversionCount;
+
+	private Long deliveryFailureCount;
+
 }

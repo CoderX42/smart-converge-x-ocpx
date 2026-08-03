@@ -19,6 +19,7 @@ class AdxRouteContractTest {
 	@Test
 	void exposesTheCompactAdxApiContract() {
 		assertRoot(AdxCatalogController.class, "/adx");
+		assertRoute(AdxCatalogController.class, "adapters", GetMapping.class, "/adapters");
 		assertRoute(AdxCatalogController.class, "channels", GetMapping.class, "/channels");
 		assertRoute(AdxCatalogController.class, "createChannel", PostMapping.class, "/channels");
 		assertRoute(AdxCatalogController.class, "updateChannel", PutMapping.class, "/channels/{id}");
@@ -28,6 +29,7 @@ class AdxRouteContractTest {
 		assertRoute(AdxCatalogController.class, "recharge", PostMapping.class, "/advertisers/{id}/recharge");
 		assertRoute(AdxCatalogController.class, "appLinks", GetMapping.class, "/app-links");
 		assertRoute(AdxCatalogController.class, "monitors", GetMapping.class, "/monitors");
+		assertRoute(AdxCatalogController.class, "publishMonitor", PostMapping.class, "/monitors/{id}/publish");
 		assertRoute(AdxCatalogController.class, "deductions", GetMapping.class, "/deduction-rules");
 		assertRoute(AdxCatalogController.class, "reportOptions", GetMapping.class, "/report-options");
 
@@ -42,12 +44,19 @@ class AdxRouteContractTest {
 		assertRoute(AdxClueController.class, "batchStatus", PutMapping.class, "/batch-status");
 		assertRoute(AdxClueController.class, "submit", PostMapping.class, "/submit");
 		assertRoute(AdxClueController.class, "status", GetMapping.class, "/status");
+
+		assertRoot(AdxRuntimeController.class, "/adx/runtime");
+		assertRoute(AdxRuntimeController.class, "overview", GetMapping.class, "/overview");
+		assertRoute(AdxRuntimeController.class, "deliveries", GetMapping.class, "/deliveries");
+		assertRoute(AdxRuntimeController.class, "replay", PostMapping.class, "/deliveries/{id}/replay");
+		assertRoute(AdxRuntimeController.class, "ingressDlq", GetMapping.class, "/ingress-dlq");
+		assertRoute(AdxRuntimeController.class, "replayIngressDlq", PostMapping.class, "/ingress-dlq/{id}/replay");
 	}
 
 	@Test
 	void protectsEveryPublicAdxEndpointWithAPermissionCode() {
 		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxReportController.class,
-				AdxClueController.class)) {
+				AdxClueController.class, AdxRuntimeController.class)) {
 			for (Method method : controller.getDeclaredMethods()) {
 				if (hasHttpMapping(method)) {
 					SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);

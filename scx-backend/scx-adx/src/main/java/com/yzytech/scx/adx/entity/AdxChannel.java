@@ -18,7 +18,15 @@ public class AdxChannel {
 	@TableId(type = IdType.ASSIGN_ID)
 	private String id;
 
+	private String channelCode;
+
 	private String channelName;
+
+	private String adapterCode;
+
+	private String authType;
+
+	private Integer keyVersion;
 
 	private String uri;
 
@@ -26,6 +34,12 @@ public class AdxChannel {
 	private String secretKey;
 
 	private String macroParams;
+
+	private String callbackHostAllowlist;
+
+	private String status;
+
+	private Long configVersion;
 
 	@TableLogic
 	private Boolean deleted;

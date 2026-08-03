@@ -19,6 +19,8 @@ public class AdxDeductionRule {
 
 	private BigDecimal ratio;
 
+	private Long configVersion;
+
 	@TableLogic
 	private Boolean deleted;
 

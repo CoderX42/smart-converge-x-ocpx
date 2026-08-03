@@ -1,101 +1,28 @@
 openapi: 3.1.0
 info:
-  title: SCX 通用渠道 OCPX API
-  version: 1.1.0
+  title: SCX OCPX 双向转发 API
+  version: 1.0.0
   description: >-
-    第三方渠道沙箱接入契约。source 由 X-Client-Id 对应的渠道配置推导，调用方不得提交。
-    签名原文为 METHOD + 换行 + PATH + 换行 + X-Timestamp + 换行 + X-Nonce + 换行 +
-    sha256(canonical JSON)，最终使用渠道密钥计算小写十六进制 HMAC-SHA256。
-    当前代码与本契约不代表已经通过 20,000 QPS 或真实渠道生产验收。
+    scx-rtb 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco callback
+    由上游发送给 SCX；下游 CallbackReqV1 是 SCX 主动投递协议，不是本文件中的接收接口。
+    RTA、实时扣费和历史 /open-api/events/v1 接口不属于当前运行契约。
 servers:
-  - url: http://localhost:9999/boot
-    description: Local sandbox
+  - url: http://localhost:10000/rtb
+    description: 本地联调（生产必须 HTTPS）
 paths:
-  /open-api/events/v1/clicks:
+  /open-api/ocpx/v1/channels/{channelCode}/feedback:
     post:
-      operationId: ingestFeedbackClick
-      summary: 接收渠道 Feedback 点击
+      operationId: acceptChannelFeedback
+      summary: 接收下游 FeedbackReqV1
+      description: >-
+        签名原文为 METHOD、原始 PATH、X-Timestamp、X-Nonce、sha256(原始请求体)，
+        各行以换行符连接，再以渠道密钥计算小写十六进制 HMAC-SHA256。
+        202 只表示 Redis Stream 已可靠接收，不表示上游投递成功。
       parameters:
-        - $ref: '#/components/parameters/ClientId'
-        - $ref: '#/components/parameters/KeyVersion'
-        - $ref: '#/components/parameters/Timestamp'
-        - $ref: '#/components/parameters/Nonce'
-        - $ref: '#/components/parameters/Signature'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: './event-envelope.schema.json'
-                - type: object
-                  properties:
-                    eventType: { const: CLICK }
-      responses:
-        '202': { $ref: '#/components/responses/IngestionResult' }
-        '200': { $ref: '#/components/responses/DuplicateResult' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/Unavailable' }
-  /open-api/events/v1/conversions:
-    post:
-      operationId: ingestAdvertiserConversion
-      summary: 接收广告主转化 Callback
-      parameters:
-        - $ref: '#/components/parameters/ClientId'
-        - $ref: '#/components/parameters/KeyVersion'
-        - $ref: '#/components/parameters/Timestamp'
-        - $ref: '#/components/parameters/Nonce'
-        - $ref: '#/components/parameters/Signature'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: './event-envelope.schema.json'
-                - type: object
-                  required: [businessEventKey]
-                  properties:
-                    eventType:
-                      enum: [ACTIVATE, REGISTER, PAY, ORDER, NEXT_DAY_RETURN, RETAIN_3D, RETAIN_7D, FIRST_ACTIVATE, FIRST_ORDER, REACTIVATE, CUSTOM, CREDIT]
-      responses:
-        '202': { $ref: '#/components/responses/IngestionResult' }
-        '200': { $ref: '#/components/responses/DuplicateResult' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '429': { $ref: '#/components/responses/RateLimited' }
-        '503': { $ref: '#/components/responses/Unavailable' }
-  /open-api/events/v1/receipts/{receiptId}:
-    get:
-      operationId: getEventReceipt
-      summary: 查询已持久化事件回执
-      parameters:
-        - $ref: '#/components/parameters/ClientId'
-        - $ref: '#/components/parameters/KeyVersion'
-        - $ref: '#/components/parameters/Timestamp'
-        - $ref: '#/components/parameters/Nonce'
-        - $ref: '#/components/parameters/Signature'
-        - name: receiptId
+        - name: channelCode
           in: path
           required: true
-          schema: { type: string, format: uuid }
-      responses:
-        '200':
-          description: 回执存在且属于当前渠道
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404':
-          description: 回执不存在或不属于当前渠道
-  /open-api/rta/v1/decisions:
-    post:
-      operationId: decideRta
-      summary: 同步 RTA 决策
-      parameters:
+          schema: { type: string, minLength: 1, maxLength: 64 }
         - $ref: '#/components/parameters/ClientId'
         - $ref: '#/components/parameters/KeyVersion'
         - $ref: '#/components/parameters/Timestamp'
@@ -106,561 +33,131 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required: [schemaVersion, requestId, taskCode, device]
-              properties:
-                schemaVersion: { const: '1.1' }
-                requestId: { type: string, maxLength: 128 }
-                taskCode: { type: string, maxLength: 64 }
-                device: { $ref: './event-envelope.schema.json#/properties/device' }
-                attributes: { type: object, additionalProperties: true }
+              $ref: './feedback-req-v1.schema.json'
       responses:
-        '200':
-          description: ALLOW 或快速失败的 DENY 决策
-        '403': { $ref: '#/components/responses/Forbidden' }
-  /subjects/media:
-    get:
-      operationId: pageReadableMedia
-      summary: 分页查询当前用户可读取的有效媒体
-      description: 需要 subject:media:read；非管理员只返回显式授权的 ACTIVE 媒体。
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: keyword, in: query, schema: { type: string, maxLength: 128 } }
-      responses:
-        '200': { description: 管理端统一 Result 分页响应 }
-    post:
-      operationId: createMedia
-      summary: 创建媒体
-      description: 需要 subject:media:write；媒体编码创建后不可修改。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MediaCreate' }
-      responses:
-        '200':
-          description: 创建结果
+        '202':
+          description: 新事件已可靠进入接入队列
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Media' }
-        '409': { description: 媒体编码冲突 }
-  /subjects/media/manage:
-    get:
-      operationId: pageManagedMedia
-      summary: 管理员分页查询全部媒体
-      description: 需要 subject:media:write；可按 ACTIVE/DISABLED 状态过滤。
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: keyword, in: query, schema: { type: string } }
-        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, DISABLED] } }
-      responses:
-        '200': { description: 管理端统一 Result 分页响应 }
-  /subjects/media/{id}:
-    put:
-      operationId: updateMedia
-      summary: 更新媒体名称、时区和结算币种
-      description: 需要 subject:media:write；使用 version 乐观锁且不允许修改编码。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MediaUpdate' }
-      responses:
-        '200': { description: 统一 Result；业务 code=0 表示成功，code=409 表示资源不存在、输入冲突或版本冲突 }
-  /subjects/media/{id}/status:
-    put:
-      operationId: changeMediaStatus
-      summary: 启用或停用媒体
-      description: 需要 subject:media:write；停用不级联删除 Scope 或历史数据。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MediaStatusChange' }
-      responses:
-        '200': { description: 统一 Result；业务 code=0 表示成功，code=409 表示资源不存在或版本冲突 }
-  /subjects/media-scopes:
-    get:
-      operationId: pageMediaScopes
-      summary: 分页查询媒体对象授权
-      description: 需要 subject:media-scope:read。
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: mediaId, in: query, schema: { type: string } }
-        - { name: userId, in: query, schema: { type: string } }
-      responses:
-        '200': { description: 管理端统一 Result 分页响应 }
-    post:
-      operationId: grantMediaScope
-      summary: 授予用户媒体对象范围
-      description: 需要 subject:media-scope:write；重复授权幂等。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/MediaScopeGrant' }
-      responses:
+              schema: { $ref: '#/components/schemas/IngressResult' }
         '200':
-          description: 统一 Result；新建或已存在的授权，用户或媒体无效时业务 code=404
+          description: 相同事件 ID 与相同载荷的幂等重复请求
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/MediaScope' }
-  /subjects/media-scopes/{id}:
-    delete:
-      operationId: revokeMediaScope
-      summary: 撤销媒体对象授权
-      description: 需要 subject:media-scope:write；mediaId 防止跨媒体撤销。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 统一 Result；业务 code=0 表示成功，code=404 表示授权不存在或不属于该媒体 }
-  /ad/channel-clients:
-    get:
-      operationId: pageChannelClients
-      summary: 分页查询媒体范围内的渠道凭据元数据
-      description: 需要 ad:channel-client:read；响应永不包含密文、IV 或明文密钥。
-      parameters:
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-        - { name: keyword, in: query, schema: { type: string } }
-        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, DISABLED] } }
-      responses:
-        '200': { description: 管理端统一 Result 分页响应 }
-    post:
-      operationId: createChannelClient
-      summary: 创建渠道客户端并一次性展示 v1 密钥
-      description: 需要 ad:channel-client:write；secret 仅本响应展示一次。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ChannelClientCreate' }
-      responses:
-        '200':
-          description: 一次性凭据响应
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ChannelCredentialIssue' }
-  /ad/channel-clients/{id}:
-    put:
-      operationId: updateChannelClient
-      summary: 更新端点权限、配额、动态回调、精确域名白名单或状态
-      description: 需要 ad:channel-client:write；sourceCode 和 clientId 不可修改。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/ChannelClientUpdate' }
-      responses:
-        '200': { description: 更新结果 }
-  /ad/channel-clients/{id}/credentials:
-    get:
-      operationId: listChannelCredentialMetadata
-      summary: 查询密钥版本及有效期元数据
-      description: 需要 ad:channel-client:read；无密文、IV 或明文。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 密钥版本元数据列表 }
-  /ad/channel-clients/{id}/credentials/rotate:
-    post:
-      operationId: rotateChannelCredential
-      summary: 轮换密钥并保留旧版本 24 小时
-      description: 需要 ad:channel-client:rotate；新 secret 仅本响应展示一次。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200':
-          description: 一次性新凭据响应
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ChannelCredentialIssue' }
-  /ad/channel-clients/{id}/credentials/{keyVersion}/revoke:
-    post:
-      operationId: revokeChannelCredential
-      summary: 吊销非当前密钥版本
-      description: 需要 ad:channel-client:rotate；当前版本必须先轮换再吊销。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: keyVersion, in: path, required: true, schema: { type: string } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 吊销结果 }
-  /ad/reports/daily:
-    get:
-      operationId: pageDailyReports
-      summary: 查询最新自动日报
-      description: 保留旧字段并扩展媒体指标、消耗、币种、revision、数据状态、质量码和来源水位。
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: date, in: query, required: true, schema: { type: string, format: date } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-        - { name: productId, in: query, schema: { type: string } }
-        - { name: taskId, in: query, schema: { type: string } }
-      responses:
-        '200': { description: 受 Media Scope 和 Task Scope 裁剪的日报分页 }
-  /ad/reports/breakdowns:
-    get:
-      operationId: listReportBreakdowns
-      summary: 按真实日报执行维度汇总
-      parameters:
-        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-        - { name: dimension, in: query, schema: { type: string, enum: [DATE, MEDIA, MEDIA_ACCOUNT, PARTNER, CUSTOMER, PRODUCT, LINK, DOCUMENT, CHANNEL, TASK] } }
-      responses:
-        '200': { description: 带数据质量和新鲜度字段的维度行；无事实对象返回零值行 }
-  /ad/reports/hourly:
-    get:
-      operationId: listHourlyReports
-      summary: 查询 Asia/Shanghai 本地自然小时汇总
-      parameters:
-        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 双事实源小时汇总 }
-  /ad/reports/cpa:
-    get:
-      operationId: listCpaReports
-      summary: 查询按币种拆分的内部有效归因 CPA
-      description: CPA=媒体确认消耗/AdGroup 优化目标事件的有效内部归因数；零分母返回 null。
-      parameters:
-        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 按产品、任务、客户和币种拆分的 CPA 行 }
-  /ad/reports/attribution-results:
-    get:
-      operationId: pageAttributionResults
-      summary: 分页查询事件归因结果
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
-      responses:
-        '200': { description: RawEvent、AttributionResult 和命中点击的分页结果 }
-  /ad/reports/callback-results:
-    get:
-      operationId: pageCallbackResults
-      summary: 分页查询归因回传结果
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
-      responses:
-        '200': { description: CallbackJob、AttributionResult 和事件的分页结果 }
-  /ad/reports/sync-runs:
-    get:
-      operationId: pageMediaReportSyncRuns
-      summary: 查询媒体同步运行
-      parameters:
-        - { $ref: '#/components/parameters/PageCurrent' }
-        - { $ref: '#/components/parameters/PageSize' }
-        - { name: mediaAccountId, in: query, required: true, schema: { type: string } }
-        - { name: status, in: query, schema: { type: string } }
-      responses:
-        '200': { description: 游标、窗口、行数、错误和租约可审计的运行分页 }
-  /ad/reports/media-accounts/{id}/sync:
-    post:
-      operationId: syncMediaAccountReports
-      summary: 手工同步媒体账户 performance 和 billing
-      description: 需要 ad:report:sync。
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-        - { name: start, in: query, required: true, schema: { type: string, format: date-time } }
-        - { name: end, in: query, required: true, schema: { type: string, format: date-time } }
-      responses:
-        '200': { description: 两类同步运行；空结果明确为 SUCCEEDED_EMPTY }
-  /ad/reports/daily/{date}/refresh:
-    post:
-      operationId: refreshDailyReport
-      summary: 手工重算单日日报
-      description: 需要 ad:report:sync；无事实时返回 SUCCEEDED_EMPTY。
-      parameters:
-        - { name: date, in: path, required: true, schema: { type: string, format: date } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 报表运行及 revision、状态和来源水位 }
-  /ad/reports/backfills:
-    post:
-      operationId: createReportBackfill
-      summary: 创建历史补算或 dry-run 对账
-      description: 需要 ad:report:backfill。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [mediaId, startDate, endDate]
-              properties:
-                mediaId: { type: string }
-                startDate: { type: string, format: date }
-                endDate: { type: string, format: date }
-                dryRun: { type: boolean, default: true }
-      responses:
-        '200': { description: 异步补算任务 }
-  /ad/reports/backfills/{id}:
-    get:
-      operationId: getReportBackfill
-      summary: 查询补算进度和差异
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string } }
-      responses:
-        '200': { description: 旧快照、新快照、来源计数和处理进度 }
-  /ad/reports/details/{rawEventId}/click-sensitive:
-    get:
-      operationId: getMaskedClickSensitiveDetail
-      summary: 查询受控的点击排查摘要
-      description: >-
-        需要 ad:event-sensitive:read 和对应媒体/任务读取范围。点击、计划和创意标识仅返回掩码；
-        设备标识与 IP 只返回存在标记，不返回原值或完整哈希。
-      parameters:
-        - { name: rawEventId, in: path, required: true, schema: { type: string } }
-        - { name: mediaId, in: query, required: true, schema: { type: string } }
-      responses:
-        '200':
-          description: 受控排查摘要
+              schema: { $ref: '#/components/schemas/IngressResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409':
+          description: nonce 重放，或相同事件 ID 对应不同载荷
           content:
             application/json:
               schema:
-                type: object
-                required: [code, data]
-                properties:
-                  code: { type: integer, const: 0 }
-                  msg: { type: [string, 'null'] }
-                  data: { $ref: '#/components/schemas/ClickSensitiveDetail' }
-        '403': { description: 无敏感字段权限 }
-        '404': { description: 事件不存在或不在当前对象范围内 }
+                oneOf:
+                  - $ref: '#/components/schemas/IngressResult'
+                  - $ref: '#/components/schemas/Error'
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /open-api/ocpx/v1/upstreams/coco/callback:
+    get:
+      operationId: acceptCocoCallback
+      summary: 接收 Coco 上游 callback
+      parameters:
+        - name: ext
+          in: query
+          required: true
+          description: SCX 生成的不可猜测、有签名且有有效期的关联引用
+          schema: { type: string, minLength: 1, maxLength: 1024 }
+        - name: action_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [activate, register, day1retention, retention, purchase, payment, reactivation, new, firstreactivation, completeorder]
+        - name: currency_amount
+          in: query
+          required: false
+          description: 保留原始值；Coco 金额单位确认前不参与计费
+          schema: { type: string, maxLength: 64 }
+        - name: s
+          in: query
+          required: false
+          description: 仅用于诊断，不参与身份或路由信任判断
+          schema: { type: string, maxLength: 256 }
+      responses:
+        '200':
+          description: 新回调已先持久化，或相同回调已幂等处理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CocoResult'
+        '400': { $ref: '#/components/responses/CocoError' }
+        '401': { $ref: '#/components/responses/CocoError' }
+        '410': { $ref: '#/components/responses/CocoError' }
 components:
   parameters:
-    PageCurrent:
-      in: query
-      name: current
-      required: false
-      schema: { type: integer, minimum: 1, default: 1 }
-    PageSize:
-      in: query
-      name: size
-      required: false
-      schema: { type: integer, minimum: 1, maximum: 200, default: 10 }
     ClientId:
-      in: header
       name: X-Client-Id
+      in: header
       required: true
-      schema: { type: string, minLength: 1, maxLength: 64 }
+      schema: { type: string }
     KeyVersion:
-      in: header
       name: X-Key-Version
+      in: header
       required: true
-      schema: { type: string, minLength: 1, maxLength: 32 }
+      schema: { type: integer, minimum: 1 }
     Timestamp:
-      in: header
       name: X-Timestamp
-      required: true
-      schema: { type: string, pattern: '^[0-9]{13}$' }
-      description: Unix epoch milliseconds; accepted clock skew is 180 seconds.
-    Nonce:
       in: header
+      required: true
+      description: Unix 秒或毫秒时间戳，允许窗口默认为 5 分钟
+      schema: { type: integer }
+    Nonce:
       name: X-Nonce
+      in: header
       required: true
       schema: { type: string, minLength: 16, maxLength: 128 }
     Signature:
-      in: header
       name: X-Sign
+      in: header
       required: true
       schema: { type: string, pattern: '^[a-f0-9]{64}$' }
   schemas:
-    Media:
+    IngressResult:
       type: object
-      additionalProperties: false
-      required: [id, code, name, status, timezone, settlementCurrency, version]
+      required: [eventId, status, receivedAt]
       properties:
-        id: { type: string }
-        code: { type: string, pattern: '^[a-z0-9][a-z0-9-]{2,63}$' }
-        name: { type: string, maxLength: 128 }
-        status: { type: string, enum: [ACTIVE, DISABLED] }
-        timezone:
-          type: string
-          maxLength: 64
-          pattern: '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
-          description: IANA 时区，例如 Asia/Shanghai；服务端以 ZoneId 严格校验。
-        settlementCurrency: { const: CNY }
-        version: { type: integer, minimum: 0 }
-    MediaCreate:
-      type: object
-      additionalProperties: false
-      required: [code, name, timezone]
-      properties:
-        code: { type: string, pattern: '^[a-z0-9][a-z0-9-]{2,63}$' }
-        name: { type: string, minLength: 1, maxLength: 128 }
-        timezone:
-          type: string
-          default: Asia/Shanghai
-          maxLength: 64
-          pattern: '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
-          description: IANA 时区，例如 Asia/Shanghai；服务端以 ZoneId 严格校验。
-        settlementCurrency: { const: CNY, default: CNY }
-    MediaUpdate:
-      type: object
-      additionalProperties: false
-      required: [name, timezone, settlementCurrency, version]
-      properties:
-        name: { type: string, minLength: 1, maxLength: 128 }
-        timezone:
-          type: string
-          maxLength: 64
-          pattern: '^[A-Za-z][A-Za-z0-9._+-]*(/[A-Za-z0-9._+-]+)*$'
-          description: IANA 时区，例如 Asia/Shanghai；服务端以 ZoneId 严格校验。
-        settlementCurrency: { const: CNY }
-        version: { type: integer, minimum: 0 }
-    MediaStatusChange:
-      type: object
-      additionalProperties: false
-      required: [status, version]
-      properties:
-        status: { type: string, enum: [ACTIVE, DISABLED] }
-        version: { type: integer, minimum: 0 }
-    MediaScopeGrant:
-      type: object
-      additionalProperties: false
-      required: [userId, mediaId]
-      properties:
-        userId: { type: string, minLength: 1 }
-        mediaId: { type: string, minLength: 1 }
-    MediaScope:
-      type: object
-      additionalProperties: false
-      required: [id, userId, subjectType, subjectId]
-      properties:
-        id: { type: string }
-        userId: { type: string }
-        subjectType: { const: MEDIA }
-        subjectId: { type: string }
-        createTime: { type: [string, 'null'], format: date-time }
-    ClickSensitiveDetail:
-      type: object
-      additionalProperties: false
-      required:
-        - rawEventId
-        - oaidProtected
-        - oaidMd5Protected
-        - ipProtected
-        - attributeKeys
-      properties:
-        rawEventId: { type: string }
-        clickIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
-        deviceModel: { type: [string, 'null'] }
-        campaignIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
-        creativeIdMasked: { type: [string, 'null'], pattern: '^.{1,6}\*{3}$' }
-        oaidProtected: { type: boolean }
-        oaidMd5Protected: { type: boolean }
-        ipProtected: { type: boolean }
-        attributeKeys:
-          type: array
-          maxItems: 50
-          items: { type: string }
-    ChannelClientCreate:
-      type: object
-      additionalProperties: false
-      required: [mediaId, sourceCode, allowedScopes]
-      properties:
-        mediaId: { type: string }
-        sourceCode: { type: string, maxLength: 64 }
-        allowedScopes:
-          type: array
-          minItems: 1
-          maxItems: 3
-          uniqueItems: true
-          items: { type: string, enum: [CLICK, CONVERSION, RTA] }
-        maxQps: { type: integer, minimum: 1, maximum: 20000, default: 2000 }
-        dynamicCallbackEnabled: { type: boolean, default: false }
-        callbackAllowedHosts:
-          type: array
-          maxItems: 20
-          items: { type: string, maxLength: 255, description: 精确公网 DNS 域名，不接受通配符或 IP }
-    ChannelClientUpdate:
-      type: object
-      additionalProperties: false
-      required: [mediaId, allowedScopes, maxQps, dynamicCallbackEnabled, callbackAllowedHosts, status]
-      properties:
-        mediaId: { type: string }
-        allowedScopes:
-          type: array
-          minItems: 1
-          maxItems: 3
-          uniqueItems: true
-          items: { type: string, enum: [CLICK, CONVERSION, RTA] }
-        maxQps: { type: integer, minimum: 1, maximum: 20000 }
-        dynamicCallbackEnabled: { type: boolean }
-        callbackAllowedHosts:
-          type: array
-          maxItems: 20
-          items: { type: string, maxLength: 255, description: 精确公网 DNS 域名，不接受通配符或 IP }
-        status: { type: string, enum: [ACTIVE, DISABLED] }
-    ChannelCredentialIssue:
-      type: object
-      description: 管理端 Result.data；secret 只展示一次。
-      required: [channelClientId, clientId, keyVersion, secret, issuedAt]
-      properties:
-        channelClientId: { type: string }
-        clientId: { type: string }
-        keyVersion: { type: string }
-        secret: { type: string, writeOnly: true }
-        issuedAt: { type: string, format: date-time }
-        previousKeyValidUntil: { type: [string, 'null'], format: date-time }
-    IngestionData:
-      type: object
-      required: [receiptId, eventId, duplicateDelivery, acceptanceStatus, receivedAt]
-      properties:
-        receiptId: { type: string, format: uuid }
         eventId: { type: string }
-        duplicateDelivery: { type: boolean }
-        acceptanceStatus: { type: string, enum: [BUFFERED, ACCEPTED] }
+        status: { type: string, enum: [ACCEPTED, DUPLICATE, CONFLICT] }
         receivedAt: { type: string, format: date-time }
+    CocoResult:
+      type: object
+      required: [code]
+      properties:
+        code: { const: 0 }
+        event_id: { type: string }
+        status: { type: string, enum: [ACCEPTED, DUPLICATE] }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: integer }
+        message: { type: string }
+    CocoError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { const: 1 }
+        message: { type: string }
   responses:
-    IngestionResult:
-      description: 新事件已可靠受理；点击已写入配置的 Feedback Buffer，转化已提交 MySQL 原始事实和 Outbox。
+    Error:
+      description: 请求无效、未授权、限流或依赖服务不可用
       content:
         application/json:
-          schema:
-            type: object
-            required: [code, data]
-            properties:
-              code: { type: integer, const: 0 }
-              msg: { type: [string, 'null'] }
-              data: { $ref: '#/components/schemas/IngestionData' }
-    DuplicateResult:
-      description: 相同 eventId 与相同载荷的幂等重投。
+          schema: { $ref: '#/components/schemas/Error' }
+    CocoError:
+      description: Coco 回调参数、关联引用或签名无效
       content:
         application/json:
-          schema:
-            type: object
-            properties:
-              code: { type: integer, const: 0 }
-              data: { $ref: '#/components/schemas/IngestionData' }
-    BadRequest: { description: 字段、设备类型或 schemaVersion 无效 }
-    Unauthorized: { description: 凭据、签名、时间戳或 nonce 无效 }
-    Forbidden: { description: 渠道凭据未获准调用该类端点 }
-    Conflict: { description: 相同 eventId 使用了不同载荷 }
-    RateLimited: { description: 当前渠道与接口超过配置配额 }
-    Unavailable: { description: 必需的认证、缓存或数据库存储不可用；调用方必须重试 }
+          schema: { $ref: '#/components/schemas/CocoError' }

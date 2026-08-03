@@ -58,6 +58,8 @@ public class AdxCatalogService {
 
 	private final AdxAccessScope accessScope;
 
+	private final AdxConfigChangeService configChangeService;
+
 	public IPage<CatalogViews.Channel> channels(Page<AdxChannel> page, String keyword) {
 		return channelMapper
 			.selectPage(page,
@@ -70,11 +72,18 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Channel saveChannel(String id, CatalogRequests.SaveChannel request) {
-		ensureUniqueChannelName(id, request.channelName());
+		ensureUniqueChannel(id, request.channelName(), request.channelCode());
 		AdxChannel entity = StringUtils.hasText(id) ? requireChannel(id) : new AdxChannel();
+		entity.setChannelCode(request.channelCode().trim());
 		entity.setChannelName(request.channelName().trim());
+		entity.setAdapterCode(request.adapterCode().trim().toUpperCase());
+		entity.setAuthType(request.authType());
+		entity.setKeyVersion(request.keyVersion());
 		entity.setUri(request.uri().trim());
 		entity.setMacroParams(request.macroParams().trim());
+		entity.setCallbackHostAllowlist(request.callbackHostAllowlist().trim().toLowerCase());
+		entity.setStatus(request.status());
+		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (StringUtils.hasText(request.secretKey())) {
 			entity.setSecretKey(request.secretKey().trim());
 		}
@@ -83,6 +92,9 @@ public class AdxCatalogService {
 		}
 		else {
 			channelMapper.insert(entity);
+		}
+		if (StringUtils.hasText(id)) {
+			configChangeService.channelChanged(id);
 		}
 		return channelView(entity);
 	}
@@ -118,8 +130,10 @@ public class AdxCatalogService {
 			throw new IllegalArgumentException("新增广告主时密码必填");
 		}
 		entity.setAdvertiserName(request.advertiserName().trim());
+		entity.setAdapterCode(request.adapterCode().trim().toUpperCase());
 		entity.setBidUrl(request.bidUrl().trim());
 		entity.setMacroParams(trimToNull(request.macroParams()));
+		entity.setUpstreamHostAllowlist(request.upstreamHostAllowlist().trim().toLowerCase());
 		entity.setAccount(request.account().trim());
 		if (StringUtils.hasText(request.secretKey())) {
 			entity.setSecretKey(request.secretKey().trim());
@@ -130,6 +144,8 @@ public class AdxCatalogService {
 		if (entity.getBalance() == null) {
 			entity.setBalance(BigDecimal.ZERO);
 		}
+		entity.setStatus(request.status());
+		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (StringUtils.hasText(id)) {
 			advertiserMapper.updateById(entity);
 		}
@@ -137,6 +153,9 @@ public class AdxCatalogService {
 			advertiserMapper.insert(entity);
 		}
 		syncAdvertiserLogin(entity);
+		if (StringUtils.hasText(id)) {
+			configChangeService.advertiserChanged(id);
+		}
 		return advertiserView(entity);
 	}
 
@@ -189,6 +208,7 @@ public class AdxCatalogService {
 		entity.setLinkRemark(trimToNull(request.linkRemark()));
 		if (StringUtils.hasText(id)) {
 			appLinkMapper.updateById(entity);
+			configChangeService.appLinkChanged(id);
 		}
 		else {
 			appLinkMapper.insert(entity);
@@ -234,18 +254,28 @@ public class AdxCatalogService {
 		entity.setBizId(trimToNull(request.bizId()));
 		entity.setUnitPrice(request.unitPrice());
 		entity.setRemark(trimToNull(request.remark()));
+		entity.setDownstreamCallbackUrl(trimToNull(request.downstreamCallbackUrl()));
+		entity.setRtaMode(request.rtaMode());
+		entity.setBillingMode(request.billingMode());
+		entity.setRouteStatus("DRAFT");
+		entity.setPublishedAt(null);
+		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (!StringUtils.hasText(id)) {
 			monitorMapper.insert(entity);
 		}
 		entity.setShowUrl(eventUrl(channel.getUri(), entity.getId(), "show"));
 		entity.setClickUrl(eventUrl(channel.getUri(), entity.getId(), "click"));
 		monitorMapper.updateById(entity);
+		configChangeService.enqueueMonitor(entity.getId(), entity.getConfigVersion(), "ROUTE_DRAFTED");
 		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName());
 	}
 
 	@Transactional
 	public void deleteMonitor(String id) {
-		monitorMapper.deleteById(requireMonitor(id));
+		AdxMonitorLink monitor = requireMonitor(id);
+		monitorMapper.deleteById(monitor);
+		configChangeService.enqueueMonitor(id, monitor.getConfigVersion() == null ? 1 : monitor.getConfigVersion() + 1,
+				"ROUTE_DELETED");
 	}
 
 	public IPage<CatalogViews.Deduction> deductions(Page<AdxDeductionRule> page, String channelId, String appLinkId) {
@@ -306,18 +336,22 @@ public class AdxCatalogService {
 		entity.setChannelId(request.channelId());
 		entity.setAppLinkId(request.appLinkId());
 		entity.setRatio(request.ratio());
+		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (StringUtils.hasText(id)) {
 			deductionMapper.updateById(entity);
 		}
 		else {
 			deductionMapper.insert(entity);
 		}
+		configChangeService.deductionChanged(request.channelId(), request.appLinkId());
 		return deductionView(entity, channel.getChannelName(), appLink.getLinkName());
 	}
 
 	@Transactional
 	public void deleteDeduction(String id) {
-		deductionMapper.deleteById(requireDeduction(id));
+		AdxDeductionRule rule = requireDeduction(id);
+		deductionMapper.deleteById(rule);
+		configChangeService.deductionChanged(rule.getChannelId(), rule.getAppLinkId());
 	}
 
 	private IPage<CatalogViews.Monitor> decorateMonitors(Page<AdxMonitorLink> source) {
@@ -386,11 +420,11 @@ public class AdxCatalogService {
 		return value;
 	}
 
-	private void ensureUniqueChannelName(String id, String name) {
+	private void ensureUniqueChannel(String id, String name, String code) {
 		if (channelMapper.selectCount(Wrappers.<AdxChannel>lambdaQuery()
-			.eq(AdxChannel::getChannelName, name.trim())
+			.and(q -> q.eq(AdxChannel::getChannelName, name.trim()).or().eq(AdxChannel::getChannelCode, code.trim()))
 			.ne(StringUtils.hasText(id), AdxChannel::getId, id)) > 0) {
-			throw new IllegalArgumentException("渠道名称已存在");
+			throw new IllegalArgumentException("渠道名称或渠道编码已存在");
 		}
 	}
 
@@ -462,15 +496,17 @@ public class AdxCatalogService {
 	}
 
 	private CatalogViews.Channel channelView(AdxChannel entity) {
-		return new CatalogViews.Channel(entity.getId(), entity.getChannelName(), entity.getUri(),
-				StringUtils.hasText(entity.getSecretKey()), entity.getMacroParams(), entity.getCreateTime(),
-				entity.getUpdateTime());
+		return new CatalogViews.Channel(entity.getId(), entity.getChannelCode(), entity.getChannelName(),
+				entity.getAdapterCode(), entity.getAuthType(), entity.getKeyVersion(), entity.getUri(),
+				StringUtils.hasText(entity.getSecretKey()), entity.getMacroParams(), entity.getCallbackHostAllowlist(),
+				entity.getStatus(), entity.getConfigVersion(), entity.getCreateTime(), entity.getUpdateTime());
 	}
 
 	private CatalogViews.Advertiser advertiserView(AdxAdvertiser entity) {
-		return new CatalogViews.Advertiser(entity.getId(), entity.getAdvertiserName(), entity.getBidUrl(),
-				StringUtils.hasText(entity.getSecretKey()), entity.getMacroParams(), entity.getAccount(),
-				entity.getBalance(), entity.getCreateTime(), entity.getUpdateTime());
+		return new CatalogViews.Advertiser(entity.getId(), entity.getAdvertiserName(), entity.getAdapterCode(),
+				entity.getBidUrl(), StringUtils.hasText(entity.getSecretKey()), entity.getMacroParams(),
+				entity.getUpstreamHostAllowlist(), entity.getAccount(), entity.getBalance(), entity.getStatus(),
+				entity.getConfigVersion(), entity.getCreateTime(), entity.getUpdateTime());
 	}
 
 	private CatalogViews.AppLink appLinkView(AdxAppLink entity, String advertiserName) {
@@ -485,12 +521,15 @@ public class AdxCatalogService {
 		return new CatalogViews.Monitor(entity.getId(), entity.getChannelId(), channelName, entity.getAdvertiserId(),
 				advertiserName, entity.getAppLinkId(), appLinkName, entity.getMonitorName(), entity.getBizId(),
 				entity.getUnitPrice(), entity.getRemark(), entity.getShowUrl(), entity.getClickUrl(),
-				entity.getCreateTime(), entity.getUpdateTime());
+				entity.getDownstreamCallbackUrl(), entity.getRouteStatus(), entity.getConfigVersion(),
+				entity.getRtaMode(), entity.getBillingMode(), entity.getPublishedAt(), entity.getCreateTime(),
+				entity.getUpdateTime());
 	}
 
 	private CatalogViews.Deduction deductionView(AdxDeductionRule entity, String channelName, String appLinkName) {
 		return new CatalogViews.Deduction(entity.getId(), entity.getChannelId(), channelName, entity.getAppLinkId(),
-				appLinkName, entity.getRatio(), entity.getCreateTime(), entity.getUpdateTime());
+				appLinkName, entity.getRatio(), entity.getConfigVersion(), entity.getCreateTime(),
+				entity.getUpdateTime());
 	}
 
 }

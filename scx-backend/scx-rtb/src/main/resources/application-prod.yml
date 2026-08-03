@@ -1,0 +1,31 @@
+spring:
+  config:
+    fail-on-unresolved-placeholders: false
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 2
+      password: replace-before-production
+  datasource:
+    dynamic:
+      primary: master
+      strict: true
+      datasource:
+        master:
+          url: jdbc:mysql://127.0.0.1:3306/smart_converge_x?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+          username: scx
+          password: replace-before-production
+          driver-class-name: com.mysql.cj.jdbc.Driver
+
+scx:
+  ocpx:
+    public-base-url: https://ocpx.example.com/rtb
+    replica-acks-required: 1
+    allow-http: false
+    allow-private-addresses: false
+    upstream-delivery-enabled: false
+    downstream-delivery-enabled: false
+    device-hmac-key: replace-before-production-device-hmac-key
+    payload-aes-key: replace-before-production-payload-aes-key
+    callback-token-key: replace-before-production-callback-token-key

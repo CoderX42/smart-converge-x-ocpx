@@ -39,7 +39,11 @@
       SUM(r.visit_count) AS visit_count,
       SUM(r.authentication_count) AS authentication_count,
       SUM(r.order_count) AS order_count,
-      SUM(r.finish_order_count) AS finish_order_count
+      SUM(r.finish_order_count) AS finish_order_count,
+      SUM(r.raw_conversion_count) AS raw_conversion_count,
+      SUM(r.forwarded_conversion_count) AS forwarded_conversion_count,
+      SUM(r.deducted_conversion_count) AS deducted_conversion_count,
+      SUM(r.delivery_failure_count) AS delivery_failure_count
     FROM scx_adx_hourly_report r
     LEFT JOIN scx_adx_channel c ON c.id = r.channel_id AND c.deleted = 0
     LEFT JOIN scx_adx_monitor_link m ON m.id = r.monitor_id AND m.deleted = 0

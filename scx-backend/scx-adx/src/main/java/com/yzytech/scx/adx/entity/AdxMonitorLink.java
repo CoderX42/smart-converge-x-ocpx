@@ -31,6 +31,18 @@ public class AdxMonitorLink {
 
 	private String clickUrl;
 
+	private String downstreamCallbackUrl;
+
+	private String routeStatus;
+
+	private Long configVersion;
+
+	private String rtaMode;
+
+	private String billingMode;
+
+	private LocalDateTime publishedAt;
+
 	@TableLogic
 	private Boolean deleted;
 

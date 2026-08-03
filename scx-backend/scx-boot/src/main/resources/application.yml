@@ -92,8 +92,6 @@ secure:
       - /auth/token/**
       - /auth/code/**
       - /file/local/**
-      - /open-api/events/**
-      - /open-api/rta/**
       # Public redirect endpoints. Their targets are validated before persistence;
       # requiring a console session here would make generated tracking/short links unusable.
       - /ad/r/**
@@ -101,9 +99,8 @@ secure:
       - /ws/**
 
 scx:
-  tracking:
-    sandbox-enabled: false
-    attribution-rule-version: last-click-v1
+  ocpx:
+    partition-count: 64
 
 boot:
   swagger:

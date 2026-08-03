@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.local/contracts/feedback-req-v1.schema.json",
+  "title": "SCX FeedbackReqV1",
+  "type": "object",
+  "required": ["event"],
+  "properties": {
+    "schema_version": { "type": "string", "default": "1.0" },
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "event": {
+      "type": "string",
+      "enum": ["show", "impression", "click", "activate", "register", "day1retention", "next_day_retention", "next_stay", "retention", "recall", "purchase", "payment", "pay", "reactivation", "new", "customer_acquisition", "firstreactivation", "first_reactivation", "completeorder", "complete_order", "finish_order"]
+    },
+    "channel_id": { "type": "string" },
+    "dsp_id": { "type": "string" },
+    "link_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "monitor_id": { "type": "string" },
+    "callback_url": { "type": "string", "format": "uri" },
+    "event_time": { "type": "integer", "minimum": 0 },
+    "ip": { "type": "string" },
+    "ua": { "type": "string", "maxLength": 2048 },
+    "os": { "type": ["string", "integer"] },
+    "model": { "type": "string" },
+    "clickid": { "type": "string" },
+    "campaign_id": { "type": "string" },
+    "adgroup_id": { "type": "string" },
+    "creative_id": { "type": "string" },
+    "idfa": { "type": "string" },
+    "idfa_md5": { "type": "string" },
+    "imei": { "type": "string" },
+    "imei_md5": { "type": "string" },
+    "oaid": { "type": "string" },
+    "oaid_md5": { "type": "string" },
+    "caid": { "type": "string" },
+    "android_id": { "type": "string" },
+    "android_idmd5": { "type": "string" },
+    "aaid": { "type": "string" },
+    "gaid": { "type": "string" },
+    "idfv": { "type": "string" }
+  },
+  "anyOf": [
+    { "required": ["monitor_id"] },
+    { "required": ["task_id"] }
+  ],
+  "additionalProperties": true
+}
