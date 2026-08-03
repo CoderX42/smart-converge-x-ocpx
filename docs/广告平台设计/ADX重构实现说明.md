@@ -8,7 +8,7 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 2. 报表中心：时段报表，支持小时/日期/月/年、渠道、监测链接、广告主、应用链接、日期范围筛选与 Excel 下载。
 3. 渠道管理：渠道资料和监测链接管理。
 4. 广告主管理：广告主、应用链接和扣量规则管理，含广告主充值。
-5. 权限管理：原样复用 `scx-system` 的 RBAC 账号、角色、菜单和按钮授权。
+5. 系统管理：原样复用 `scx-system` 的 Sa-Token + RBAC，恢复用户、角色、菜单、部门、字典、存储配置、操作日志和登录日志管理。
 6. 线索上报：Excel 导入、手工维护、按勾选或筛选条件批量重置、任务状态和提交入口。
 
 原商业、财务/支付、媒体主体/资源、创意、投放、监测归因、旧报表和运营中心不再是运行模块。
@@ -18,7 +18,8 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 - 后端：`scx-backend/scx-adx`，包根 `com.yzytech.scx.adx`。
 - 前端 API：`scx-fronted/apps/web-ele/src/api/adx.ts`。
 - 前端页面：`scx-fronted/apps/web-ele/src/views/adx/`。
-- 建表与菜单迁移：`V68__create_compact_adx_platform.sql`。
+- 建表与精简菜单迁移：`V68__create_compact_adx_platform.sql`。
+- 原系统管理恢复迁移：`V69__restore_original_system_management.sql`。
 - 旧表物理退役：`scx-backend/db/smart-converge-x/retirement/retire-superseded-ad-domains.sql`。
 
 ## 3. 接口契约
@@ -50,12 +51,12 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 
 ## 5. 迁移与退役门禁
 
-常规数据库升级只执行 V68：创建新表、隐藏旧菜单、撤销旧权限并启用新菜单。它不会自动删除历史业务数据。
+常规数据库升级依次执行 V68、V69：V68 创建新表并精简业务菜单，V69 恢复原系统管理菜单与管理员授权。两者都不会自动删除历史业务数据。
 
 物理退役旧表必须单独执行：
 
 1. 明确目标库并完成全库备份。
-2. 运行 V68、部署新后端和前端，完成新功能冒烟。
+2. 依次运行 V68、V69，部署新后端和前端，完成新功能与系统管理 RBAC 冒烟。
 3. 确认旧域不再被任何进程、报表或外部任务读取。
 4. 预览 `retire-superseded-ad-domains.sql` 中的表清单并取得本次生产授权。
 5. 执行退役脚本，再运行 `make db-verify`。

@@ -9,7 +9,7 @@
 3. `20xxl_job_schema.sql`：XXL-JOB 调度表结构与默认调度管理员。
 4. `smart_converge_x_baseline.sql`：聚合入口脚本，按以上顺序 `SOURCE` 执行。
 5. `init-database.sh`：直连 MySQL 初始化基线，并按 `scx_schema_migration` 只应用尚未执行的业务迁移。
-6. `verify-database.sh`：只读校验基础表、主体表、默认管理员和主体权限。
+6. `verify-database.sh`：只读校验基础表、主体表、默认管理员、主体权限以及系统管理 RBAC 菜单与授权。
 7. `reconcile-missing-tables.sh`：扫描迁移账本与实际结构发生漂移后缺失的必需表；默认只读，显式 `--apply` 才创建缺失表。
 
 当前业务迁移版本以 `scx-boot/src/main/resources/db/migration/` 为准；已有数据库必须通过
@@ -22,7 +22,7 @@ cd scx-backend/db/smart-converge-x
 MYSQL_USERNAME=root MYSQL_PASSWORD=你的密码 ./init-database.sh
 ```
 
-可选环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`。脚本导入完成后会校验必需表以及默认管理员角色关系。
+可选环境变量：`MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USERNAME`、`MYSQL_PASSWORD`。脚本导入完成后会校验必需表、默认管理员角色关系以及系统管理菜单授权。
 
 当前工作树不提供版本聚合 SQL 或独立测试数据聚合入口；空库和已有库都必须使用
 `init-database.sh`，由同一迁移账本和校验和规则执行。
