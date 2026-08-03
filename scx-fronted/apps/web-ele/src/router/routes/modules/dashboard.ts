@@ -1,38 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
-const routes: RouteRecordRaw[] = [
-  {
-    meta: {
-      icon: 'lucide:layout-dashboard',
-      order: -1,
-      title: $t('page.dashboard.title'),
-    },
-    name: 'Dashboard',
-    path: '/dashboard',
-    children: [
-      {
-        name: 'Workspace',
-        path: '/workspace',
-        component: () => import('#/views/dashboard/workspace/index.vue'),
-        meta: {
-          affixTab: true,
-          icon: 'lucide:home',
-          title: $t('page.dashboard.workspace'),
-        },
-      },
-      {
-        name: 'Analytics',
-        path: '/analytics',
-        component: () => import('#/views/dashboard/analytics/index.vue'),
-        meta: {
-          icon: 'lucide:area-chart',
-          title: $t('page.dashboard.analytics'),
-        },
-      },
-    ],
-  },
-];
+// The dashboard is delivered by the permission-backed ADX menu. Keeping this
+// module empty prevents the template analytics/workspace pages from appearing.
+const routes: RouteRecordRaw[] = [];
 
 export default routes;

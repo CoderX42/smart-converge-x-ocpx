@@ -33,44 +33,7 @@
         </dependency>
         <dependency>
             <groupId>com.scx</groupId>
-            <artifactId>scx-pay-biz</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-subject</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-delivery</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-tracking</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-reporting</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-commercial</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-finance</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-inventory</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-creative</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-campaign</artifactId>
+            <artifactId>scx-adx</artifactId>
         </dependency>
 
         <!--        代码生成-->

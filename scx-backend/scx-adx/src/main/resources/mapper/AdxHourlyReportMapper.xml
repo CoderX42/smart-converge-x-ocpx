@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.adx.mapper.AdxHourlyReportMapper">
+
+  <sql id="timeBucket">
+    <choose>
+      <when test="granularity == 'HOUR'">DATE_FORMAT(r.time_hour, '%Y-%m-%d %H:00')</when>
+      <when test="granularity == 'MONTH'">DATE_FORMAT(r.time_hour, '%Y-%m')</when>
+      <when test="granularity == 'YEAR'">DATE_FORMAT(r.time_hour, '%Y')</when>
+      <otherwise>DATE_FORMAT(r.time_hour, '%Y-%m-%d')</otherwise>
+    </choose>
+  </sql>
+
+  <select id="summary" resultType="com.yzytech.scx.adx.dto.ReportRow">
+    SELECT
+      <include refid="timeBucket"/> AS time_bucket,
+      r.channel_id,
+      MAX(c.channel_name) AS channel_name,
+      r.monitor_id,
+      MAX(m.monitor_name) AS monitor_name,
+      r.advertiser_id,
+      MAX(a.advertiser_name) AS advertiser_name,
+      r.app_link_id,
+      MAX(l.link_name) AS app_link_name,
+      COALESCE(MAX(d.ratio), 1.0000) AS deduction_ratio,
+      SUM(r.impressions) AS impressions,
+      SUM(r.clicks) AS clicks,
+      CASE WHEN SUM(r.impressions) = 0 THEN 0
+           ELSE ROUND(SUM(r.clicks) * 100.0 / SUM(r.impressions), 4) END AS click_rate,
+      SUM(r.cost_amount) AS cost_amount,
+      SUM(r.revenue_amount) AS revenue_amount,
+      SUM(r.activate_count) AS activate_count,
+      SUM(r.evoke_count) AS evoke_count,
+      SUM(r.login_count) AS login_count,
+      SUM(r.register_count) AS register_count,
+      SUM(r.payment_count) AS payment_count,
+      SUM(r.acquisition_count) AS acquisition_count,
+      SUM(r.next_stay_count) AS next_stay_count,
+      SUM(r.visit_count) AS visit_count,
+      SUM(r.authentication_count) AS authentication_count,
+      SUM(r.order_count) AS order_count,
+      SUM(r.finish_order_count) AS finish_order_count
+    FROM scx_adx_hourly_report r
+    LEFT JOIN scx_adx_channel c ON c.id = r.channel_id AND c.deleted = 0
+    LEFT JOIN scx_adx_monitor_link m ON m.id = r.monitor_id AND m.deleted = 0
+    LEFT JOIN scx_adx_advertiser a ON a.id = r.advertiser_id AND a.deleted = 0
+    LEFT JOIN scx_adx_app_link l ON l.id = r.app_link_id AND l.deleted = 0
+    LEFT JOIN scx_adx_deduction_rule d
+      ON d.channel_id = r.channel_id AND d.app_link_id = r.app_link_id AND d.deleted = 0
+    WHERE r.time_hour &gt;= #{start} AND r.time_hour &lt; #{end}
+    <if test="channelId != null and channelId != ''">AND r.channel_id = #{channelId}</if>
+    <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
+    <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
+    <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
+    GROUP BY <include refid="timeBucket"/>, r.channel_id, r.monitor_id, r.advertiser_id, r.app_link_id
+    ORDER BY <include refid="timeBucket"/> DESC, MAX(c.channel_name), MAX(a.advertiser_name)
+  </select>
+
+  <select id="dashboardTotals" resultType="java.util.HashMap">
+    SELECT
+      COALESCE(SUM(CASE WHEN time_hour &gt;= #{yesterday} AND time_hour &lt; #{today}
+        THEN revenue_amount ELSE 0 END), 0) AS yesterdayIncome,
+      COALESCE(SUM(CASE WHEN time_hour &gt;= #{sevenDays}
+        THEN revenue_amount ELSE 0 END), 0) AS sevenDayIncome,
+      COALESCE(SUM(CASE WHEN time_hour &gt;= #{thirtyDays}
+        THEN revenue_amount ELSE 0 END), 0) AS thirtyDayIncome,
+      COALESCE(SUM(revenue_amount), 0) AS totalIncome
+    FROM scx_adx_hourly_report
+    WHERE 1=1
+    <if test="advertiserId != null and advertiserId != ''">AND advertiser_id = #{advertiserId}</if>
+  </select>
+
+  <select id="dashboardTrend" resultType="java.util.HashMap">
+    SELECT DATE_FORMAT(time_hour, '%Y-%m-%d') AS reportDate,
+           COALESCE(SUM(revenue_amount), 0) AS income
+    FROM scx_adx_hourly_report
+    WHERE time_hour &gt;= #{start}
+    <if test="advertiserId != null and advertiserId != ''">AND advertiser_id = #{advertiserId}</if>
+    GROUP BY DATE_FORMAT(time_hour, '%Y-%m-%d')
+    ORDER BY reportDate
+  </select>
+
+</mapper>

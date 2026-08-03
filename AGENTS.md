@@ -7,8 +7,8 @@
 ## 1. 项目概述
 
 - **项目代号**：`Smart Converge X`，简称 `SCX`。
-- **产品定位**：面向单一企业内部业务线的广告投放、流量分发、事件归因、报表、财务对账与风控平台。
-- **当前阶段**：M0 研发基线阶段，首个可运行的业务纵向切片是**广告主体（subject）/ 媒体主体只读能力**。
+- **产品定位**：面向单一企业内部业务线的精简广告服务管理平台，功能面收敛为渠道、广告主、监测链接、扣量、报表中心、线索上报与权限管理。
+- **当前阶段**：ADX 重构基线；原商业、财务/支付、媒体资源、创意、投放、监测归因、旧报表和运营中心已退出构建。
 - **权威文档入口**：`docs/广告平台设计/README.md`，其中规定了阅读顺序、文档权威级别（L0 基线 / L1 规范 / L2 执行 / L3 模板）以及 Agent 迭代治理规则。
 - **工程组织**：
   - `scx-backend/`：Java 单体后端，Maven 多模块。
@@ -183,16 +183,15 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。 |
-| `scx-pay` | 通用支付配置、交易、退款、回调；拆分为 `scx-pay-api` + `scx-pay-biz`。 |
-| `scx-subject` | 首个业务切片：媒体主体与对象级授权（`scx_media`、`scx_user_subject_scope`）。 |
+| `scx-adx` | 精简广告业务纵向模块：渠道、广告主、应用链接、监测链接、扣量、时段报表与线索。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
-典型包结构（以 `scx-subject` 为例）：
+典型包结构（以 `scx-adx` 为例）：
 
 ```text
-com.yzytech.scx.subject
+com.yzytech.scx.adx
 ├── controller/      # @RestController + @SaCheckPermission + Swagger
-├── service/         # @Service，只读/写操作可分离（如 MediaReadService）
+├── service/         # 渠道目录、报表与线索业务服务
 ├── mapper/          # MyBatis-Plus BaseMapper + 自定义 XML
 ├── entity/          # @Data + @TableName
 └── resources/mapper/*.xml
@@ -202,6 +201,7 @@ com.yzytech.scx.subject
 
 - 基线：`scx-backend/db/smart-converge-x/00schema.sql`、`10smart_converge_x_core.sql`、`20xxl_job_schema.sql`。
 - 业务增量迁移：`scx-backend/scx-boot/src/main/resources/db/migration/V{序号}__*.sql`，当前由 `init-database.sh` 按文件名排序应用。
+- 旧广告域物理删表脚本：`scx-backend/db/smart-converge-x/retirement/retire-superseded-ad-domains.sql`；必须先备份并单独确认，常规迁移不会自动执行。
 
 ### 5.2 前端（`scx-fronted/`）
 
@@ -311,7 +311,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 ### 7.1 后端
 
 - **单元测试**：JUnit 5 + Mockito + AssertJ，位于各模块 `src/test/java`。
-- **示例**：`scx-subject/src/test/java/.../MediaControllerTest.java`、`MediaReadServiceTest.java`。
+- **示例**：`scx-adx/src/test/java/.../AdxCatalogServiceTest.java`、`AdxReportServiceTest.java`。
 - **运行**：`make backend-test` 或 `cd scx-backend && mvn -pl scx-boot -am test`。
 - **测试原则**：
   - 服务层优先测权限分支（管理员 vs 普通用户）。
@@ -357,7 +357,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 
 ## 9. 安全与合规
 
-- **认证授权**：Sa-Token 会话 + 菜单/按钮权限码；`scx-subject` 已实现对象级授权（`scx_user_subject_scope`）。
+- **认证授权**：Sa-Token 会话 + 菜单/按钮权限码；ADX 使用 `adx:*` 权限组并复用 `scx-system` 的账号和角色管理。
 - **机器接口签名**：`api.sign.enabled` 默认为 `false`，规划中的事件接入等机器接口后续需启用签名，**禁止将签名密钥下发到浏览器**。
 - **敏感配置**：`.gitleaks.toml` 配置了默认规则与允许列表；CI 使用 `gitleaks/gitleaks-action@v2` 扫描密钥泄露。
 - **配置存放方式**：业务运行配置**直写**在 `application-*.yml` / xxl-job `application.properties`（见 **§6.4**）；不要把「必须 env 注入」当成新规范重新引入。

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
   `dept_id`         VARCHAR(64)  DEFAULT NULL COMMENT '部门ID',
   `phone`           VARCHAR(20)  DEFAULT NULL COMMENT '手机号',
   `status`          CHAR(1)      DEFAULT '0' COMMENT '状态：0.正常；1.停用；',
-  `type`            CHAR(1)      DEFAULT '0' COMMENT '账号类型：0.系统主账户；1.店铺账号',
+  `type`            CHAR(1)      DEFAULT '0' COMMENT '账号类型：0.系统主账户；1.店铺账号；2.广告主账号',
   `shop_id`         VARCHAR(64)  DEFAULT NULL COMMENT '店铺ID',
   `wx_open_id`      VARCHAR(100) DEFAULT NULL COMMENT '微信openId',
   `wx_mini_open_id` VARCHAR(100) DEFAULT NULL COMMENT '微信小程序openId',

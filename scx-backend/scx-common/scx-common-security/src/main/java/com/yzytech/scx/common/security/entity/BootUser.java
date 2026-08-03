@@ -45,7 +45,7 @@ public class BootUser implements Serializable {
 	@Schema(description = "openId")
 	private String openId;
 
-	@Schema(description = "账号类型：0.系统主账户（管理全部店铺）；1.店铺账号（关联店铺）")
+	@Schema(description = "账号类型：0.系统主账户；1.店铺账号；2.广告主账号")
 	private String type;
 
 	@Schema(description = "店铺ID")

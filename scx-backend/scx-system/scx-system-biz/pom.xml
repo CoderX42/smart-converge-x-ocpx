@@ -67,18 +67,6 @@
             <groupId>com.scx</groupId>
             <artifactId>scx-system-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-tracking</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-reporting</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-subject</artifactId>
-        </dependency>
         <!--            安全模块-->
         <dependency>
             <groupId>com.scx</groupId>

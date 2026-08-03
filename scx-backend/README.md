@@ -1,6 +1,6 @@
 # SCX Backend
 
-`scx-backend` 是 Smart Converge X 的 Java 通用管理后端，基于 Java 17、Spring Boot 3.x、MyBatis-Plus 和 MySQL 8.x，采用单体多模块结构。项目不包含租户隔离，保留认证授权、系统管理、代码生成、监控和通用支付能力。
+`scx-backend` 是 Smart Converge X 的 Java 广告服务管理后端，基于 Java 17、Spring Boot 3.x、MyBatis-Plus 和 MySQL 8.x，采用单体多模块结构。运行产品面收敛为认证授权、账号/角色管理与精简 ADX 业务闭环。
 
 ## 模块结构
 
@@ -9,7 +9,7 @@
 | `scx-auth` | 登录、验证码和令牌认证 |
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
-| `scx-pay` | 通用支付配置、交易、退款和回调能力 |
+| `scx-adx` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、时段报表和线索上报 |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |
@@ -23,7 +23,7 @@
 
 ## 初始化数据库
 
-数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。脚本会创建系统、权限、支付、代码生成和 XXL-JOB 所需表，并创建默认账号 `system / 123456`。
+数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。V68 会创建系统运行所需的 ADX 表和目标菜单。历史迁移保持不可变；旧广告域和支付表必须在备份、预览和单独授权后执行 `retirement/retire-superseded-ad-domains.sql` 退役。
 
 ```bash
 cd db/smart-converge-x
@@ -32,7 +32,7 @@ MYSQL_USERNAME=<mysql-user> MYSQL_PASSWORD=<mysql-password> \
 ./init-database.sh
 ```
 
-生产环境请替换密码，并通过环境变量或外部配置注入支付密钥、数据库密码等敏感信息。
+生产环境请替换默认管理员密码。
 
 ## 编译与启动
 
@@ -46,25 +46,7 @@ java -jar scx-boot/target/scx-boot.jar
 
 ## 配置方式
 
-默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。两个 profile 都从环境变量读取 MySQL/Redis 连接；先复制模板并在 Git 外填写真实值：
-
-```bash
-cp ../.env.example ../.env.local
-set -a
-source ../.env.local
-set +a
-```
-
-连接变量包括：
-
-- `SCX_DATASOURCE_URL`、`SCX_DATASOURCE_USERNAME`、`SCX_DATASOURCE_PASSWORD`
-- `SCX_REDIS_HOST`、`SCX_REDIS_PORT`、`SCX_REDIS_USERNAME`、`SCX_REDIS_PASSWORD`
-- 可选 `SCX_REDIS_DATABASE`；未设置时 dev/prod 均使用 DB 0
-- `ROCKETMQ_NAME_SERVER`
-
-`make prod-secret-injection-check` 会检查 dev/prod 配置没有回退为内联地址、用户名或密码，但不会输出变量值。
-
-不要将真实数据源地址、用户名、密码、支付证书或访问密钥提交到 Git；线上应由部署平台的密钥管理能力注入。
+默认配置在 `scx-boot/src/main/resources/application.yml`，开发和生产配置分别在 `application-dev.yml`、`application-prod.yml`。运行配置按项目规范直接写入对应 profile 文件，不使用 `${SCX_*}`、`${ROCKETMQ_*}` 等环境变量占位，也不依赖 `/etc/scx/scx.env`。配置变更后必须重新打包并重启；不要在代码评审、日志或文档中暴露真实密钥。
 
 ## 验证
 

@@ -10,16 +10,7 @@
         <module>scx-auth</module>
         <module>scx-common</module>
         <module>scx-system</module>
-        <module>scx-pay</module>
-        <module>scx-subject</module>
-        <module>scx-delivery</module>
-        <module>scx-tracking</module>
-        <module>scx-reporting</module>
-        <module>scx-commercial</module>
-        <module>scx-finance</module>
-        <module>scx-inventory</module>
-        <module>scx-creative</module>
-        <module>scx-campaign</module>
+        <module>scx-adx</module>
 
         <module>scx-visual</module>
         <module>scx-boot</module>
@@ -28,7 +19,7 @@
     <groupId>com.scx</groupId>
     <artifactId>scx</artifactId>
     <name>${project.artifactId}</name>
-    <description>Smart Converge X 通用管理系统模板</description>
+    <description>Smart Converge X 精简广告服务管理平台</description>
     <version>2.1.2</version>
     <packaging>pom</packaging>
     <url>https://example.com</url>
@@ -101,52 +92,7 @@
         <dependencies>
             <dependency>
                 <groupId>com.scx</groupId>
-                <artifactId>scx-subject</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-delivery</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-tracking</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-reporting</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-commercial</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-finance</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-inventory</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-creative</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-campaign</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-pay-api</artifactId>
+                <artifactId>scx-adx</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!--            权限系统公共模块-->
