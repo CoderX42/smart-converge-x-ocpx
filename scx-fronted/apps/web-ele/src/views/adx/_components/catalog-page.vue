@@ -5,6 +5,8 @@ import type { Advertiser, AppLink, CatalogKind, Channel } from '#/api/adx';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 
+import { CopyDocument } from '@element-plus/icons-vue';
+import { useClipboard } from '@vueuse/core';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
@@ -13,6 +15,12 @@ import {
   rechargeAdvertiser,
   saveCatalog,
 } from '#/api/adx';
+
+import {
+  appendChannelMacros,
+  CHANNEL_MACRO_OPTIONS,
+  DEFAULT_CHANNEL_MACRO_PARAMS,
+} from './channel-macros';
 
 defineOptions({ name: 'AdxCatalogPage' });
 
@@ -39,9 +47,11 @@ const rechargeAmount = ref<number>();
 const rechargeTarget = ref<Row>();
 const formRef = ref<FormInstance>();
 const form = reactive<Record<string, any>>({});
+const selectedChannelMacroKeys = ref<string[]>([]);
 const channels = ref<Channel[]>([]);
 const advertisers = ref<Advertiser[]>([]);
 const appLinks = ref<AppLink[]>([]);
+const { copy: copyToClipboard } = useClipboard({ legacy: true });
 
 const config = computed(() => {
   const values = {
@@ -206,10 +216,11 @@ async function load() {
 
 function resetForm() {
   Object.keys(form).forEach((key) => delete form[key]);
+  selectedChannelMacroKeys.value = [];
   const defaults: Record<CatalogKind, Record<string, any>> = {
     advertiser: { balance: 0 },
     appLink: { linkPlatform: 1 },
-    channel: {},
+    channel: { macroParams: DEFAULT_CHANNEL_MACRO_PARAMS },
     deduction: { ratio: 1 },
     monitor: { unitPrice: 0 },
   };
@@ -220,6 +231,19 @@ function openEditor(row?: Row) {
   resetForm();
   if (row) Object.assign(form, row);
   dialog.value = true;
+}
+
+function insertSelectedChannelMacros() {
+  form.macroParams = appendChannelMacros(
+    form.macroParams,
+    selectedChannelMacroKeys.value,
+  );
+  selectedChannelMacroKeys.value = [];
+}
+
+function useDefaultChannelMacroParams() {
+  form.macroParams = DEFAULT_CHANNEL_MACRO_PARAMS;
+  selectedChannelMacroKeys.value = [];
 }
 
 async function save() {
@@ -269,10 +293,14 @@ async function recharge() {
   await load();
 }
 
-function copy(value?: string) {
+async function copy(value?: string, label = '链接') {
   if (!value) return;
-  navigator.clipboard.writeText(value);
-  ElMessage.success('链接已复制');
+  try {
+    await copyToClipboard(value);
+    ElMessage.success(`${label}已复制`);
+  } catch {
+    ElMessage.error('复制失败，请手动选择并复制');
+  }
 }
 
 onMounted(async () => {
@@ -331,7 +359,7 @@ onMounted(async () => {
           :min-width="column.minWidth"
           :prop="column.prop"
           :width="column.width"
-          show-overflow-tooltip
+          :show-overflow-tooltip="column.prop !== 'macroParams'"
         >
           <template #default="{ row }">
             <el-tag
@@ -341,6 +369,23 @@ onMounted(async () => {
             >
               {{ display(row, column.prop) }}
             </el-tag>
+            <el-tooltip
+              v-else-if="column.prop === 'macroParams' && row.macroParams"
+              :content="row.macroParams"
+              placement="top"
+            >
+              <button
+                :aria-label="`复制宏参数：${row.macroParams}`"
+                class="copyable-cell"
+                type="button"
+                @click="copy(row.macroParams, '宏参数')"
+              >
+                <span class="copyable-cell__text">{{ row.macroParams }}</span>
+                <el-icon aria-hidden="true" class="copyable-cell__icon">
+                  <CopyDocument />
+                </el-icon>
+              </button>
+            </el-tooltip>
             <span v-else>{{ display(row, column.prop) }}</span>
           </template>
         </el-table-column>
@@ -365,7 +410,7 @@ onMounted(async () => {
             <el-button
               v-if="kind === 'monitor'"
               link
-              @click="copy(row.clickUrl)"
+              @click="copy(row.clickUrl, '链接')"
             >
               复制
             </el-button>
@@ -413,7 +458,47 @@ onMounted(async () => {
             />
           </el-form-item>
           <el-form-item label="宏参数" prop="macroParams">
-            <el-input v-model="form.macroParams" :rows="3" type="textarea" />
+            <div class="macro-editor">
+              <el-input
+                v-model="form.macroParams"
+                maxlength="1000"
+                :rows="4"
+                show-word-limit
+                type="textarea"
+              />
+              <div class="macro-picker">
+                <el-select
+                  v-model="selectedChannelMacroKeys"
+                  collapse-tags
+                  collapse-tags-tooltip
+                  multiple
+                  placeholder="选择需要追加的常用宏参数"
+                >
+                  <el-option
+                    v-for="option in CHANNEL_MACRO_OPTIONS"
+                    :key="option.key"
+                    :label="`${option.label} · ${option.key}=${option.placeholder}`"
+                    :value="option.key"
+                  />
+                </el-select>
+                <div class="macro-picker__actions">
+                  <el-button
+                    :disabled="selectedChannelMacroKeys.length === 0"
+                    type="primary"
+                    plain
+                    @click="insertSelectedChannelMacros"
+                  >
+                    追加所选
+                  </el-button>
+                  <el-button @click="useDefaultChannelMacroParams">
+                    使用完整模板
+                  </el-button>
+                </div>
+              </div>
+              <p class="macro-editor__hint">
+                可手动编辑；追加时按标准顺序写入，已存在的参数不会重复。
+              </p>
+            </div>
           </el-form-item>
         </template>
 
@@ -657,6 +742,66 @@ onMounted(async () => {
   color: #98a2b3;
 }
 
+.copyable-cell {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  color: var(--el-color-primary);
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.copyable-cell:hover {
+  color: var(--el-color-primary-light-3);
+  background: var(--el-color-primary-light-9);
+}
+
+.copyable-cell:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.copyable-cell__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyable-cell__icon {
+  flex: none;
+  margin: 2px 0 0 6px;
+}
+
+.macro-editor {
+  width: 100%;
+}
+
+.macro-picker {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+
+.macro-picker__actions {
+  display: flex;
+  flex: none;
+}
+
+.macro-editor__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--el-text-color-secondary);
+}
+
 @media (max-width: 768px) {
   .adx-page {
     padding: 12px;
@@ -673,6 +818,10 @@ onMounted(async () => {
 
   .toolbar .el-input {
     width: 100%;
+  }
+
+  .macro-picker {
+    flex-direction: column;
   }
 }
 </style>
