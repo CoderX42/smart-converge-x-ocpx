@@ -57,31 +57,26 @@ const config = computed(() => {
   const values = {
     advertiser: {
       add: '新增广告主',
-      description: '维护请求地址、登录账号和账户余额。密钥与密码只写不回显。',
       permission: 'adx:advertiser:write',
       title: '广告主管理',
     },
     appLink: {
       add: '新增应用链接',
-      description: '配置应用下载、落地页、DeepLink 与扩展参数。',
       permission: 'adx:app-link:write',
       title: '应用链接管理',
     },
     channel: {
       add: '新增渠道',
-      description: '维护渠道入口、签名密钥与宏参数，供监测链接自动生成。',
       permission: 'adx:channel:write',
       title: '渠道管理',
     },
     deduction: {
       add: '新增扣量规则',
-      description: '按渠道与应用链接配置数据保留比例，范围为 0 到 1。',
       permission: 'adx:deduction:write',
       title: '扣量管理',
     },
     monitor: {
       add: '新增监测链接',
-      description: '关联渠道、广告主和应用链接，自动生成展示与点击监测地址。',
       permission: 'adx:monitor:write',
       title: '监测链接管理',
     },
@@ -315,11 +310,7 @@ onMounted(async () => {
 <template>
   <div class="adx-page">
     <section class="page-heading">
-      <div>
-        <p class="eyebrow">ADX · MANAGEMENT</p>
-        <h1>{{ config.title }}</h1>
-        <p>{{ config.description }}</p>
-      </div>
+      <h1>{{ config.title }}</h1>
       <el-button
         v-access:code="config.permission"
         type="primary"
@@ -699,22 +690,10 @@ onMounted(async () => {
 }
 
 .page-heading h1 {
-  margin: 2px 0 6px;
+  margin: 0;
   font-size: 24px;
   font-weight: 650;
   color: #172033;
-}
-
-.page-heading p {
-  margin: 0;
-  color: #667085;
-}
-
-.eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  color: #2563eb !important;
-  letter-spacing: 0.14em;
 }
 
 .data-card {
