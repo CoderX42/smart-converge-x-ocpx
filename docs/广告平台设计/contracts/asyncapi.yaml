@@ -3,7 +3,7 @@ info:
   title: SCX OCPX 内部可靠队列
   version: 1.0.0
   description: >-
-    scx-rtb 内部 Redis Streams 与配置失效通知的逻辑契约。MySQL 是最终事实源和投递任务源；
+    scx-ocpx-engine 内部 Redis Streams 与配置失效通知的逻辑契约。MySQL 是最终事实源和投递任务源；
     这些内部地址不是第三方接入 API。
 channels:
   feedbackPartition:

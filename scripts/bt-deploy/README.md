@@ -6,7 +6,7 @@
 
 - 代码目录：`SCX_HOME`，默认脚本所在仓库；服务器常用 `/opt/smart-converge-x`。
 - 构建产物：
-  - 后端：`${SCX_HOME}/build/backend/scx-boot.jar`、`scx-rtb.jar`、`xxl-job-admin.jar`
+  - 后端：`${SCX_HOME}/build/backend/scx-boot.jar`、`scx-ocpx-engine.jar`、`xxl-job-admin.jar`
   - 前端：`${SCX_HOME}/build/frontend/`（管理端静态站根，含 `index.html`；**不再**使用 `web-ele` 子目录）
   - 源码工程仍在 `scx-fronted/apps/web-ele`（UI 库变体目录名，仅构建入口，不是部署产物名）
 - 宝塔网站根：`SCX_WEB_ROOT`，默认 `/www/wwwroot/scx`；兼容旧变量 `SCX_BAOTA_SITE_ROOT`。
@@ -19,9 +19,9 @@
 ```bash
 cd /opt/smart-converge-x
 bash scripts/bt-deploy/03-deploy_all.sh
-# 然后在宝塔「Java 项目管理器」分别重启 scx-boot 与 scx-rtb 项目
+# 然后在宝塔「Java 项目管理器」分别重启 scx-boot 与 scx-ocpx-engine 项目
 bash scripts/bt-deploy/02-manage.sh health
-bash scripts/bt-deploy/02-manage.sh rtb-health
+bash scripts/bt-deploy/02-manage.sh engine-health
 ```
 
 `00-sync_repos.sh` 默认只允许干净工作区的 fast-forward 同步，防止服务器改动被静默覆盖。确认可丢弃已跟踪本地改动后才可使用：
@@ -40,7 +40,7 @@ bash scripts/bt-deploy/00-sync_repos.sh --branch main
 bash scripts/bt-deploy/01-deploy.sh --no-pull backend
 
 # 只构建独立 OCPX 数据面（不会自动启动，也不会授权真实外发）
-bash scripts/bt-deploy/01-deploy.sh --no-pull rtb
+bash scripts/bt-deploy/01-deploy.sh --no-pull engine
 
 # 只构建并同步前端
 bash scripts/bt-deploy/01-deploy.sh --no-pull frontend
@@ -53,13 +53,13 @@ bash scripts/bt-deploy/02-manage.sh nginx-test
 bash scripts/bt-deploy/02-manage.sh nginx-reload
 ```
 
-把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。模板只将公网 `/rtb/open-api/` 转发到本机 `10000`，并原样保留 `/rtb` 路径用于 HMAC 验签；`/rtb/actuator` 不对公网暴露。
+把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。模板只将公网 `/ocpx/open-api/` 转发到本机 `10000`，并原样保留 `/ocpx` 路径用于 HMAC 验签；`/ocpx/actuator` 不对公网暴露。
 
 前端单独发布只需要 Node.js、pnpm 和站点目录写权限，不要求本机安装 Maven/JDK；脚本会优先使用 `rsync`，未安装时回退到 `cp`。如果宝塔站点根不是默认目录，请显式设置 `SCX_WEB_ROOT`，并确保宝塔网站根与该目录一致。
 
 ## 边界
 
 - 脚本会构建、备份构建产物、发布前端静态文件；不会直接启动、停止或重启 Java 进程。
-- `scx-rtb` 必须在宝塔中作为独立 Java 项目运行，JAR 为 `build/backend/scx-rtb.jar`，端口 10000，健康检查 `/rtb/actuator/health`。
+- `scx-ocpx-engine` 必须在宝塔中作为独立 Java 项目运行，JAR 为 `build/backend/scx-ocpx-engine.jar`，端口 10000，健康检查 `/ocpx/actuator/health`。
 - 数据库迁移、备份、真实渠道 UAT、容量和回滚演练必须按发布 Runbook 在授权窗口执行，构建成功不代表生产验收通过。
 - `04-push_to_gitea.sh` 仅用于受控构建机或本地已审查提交的推送，不是服务器发布步骤。

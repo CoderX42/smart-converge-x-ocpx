@@ -1,20 +1,20 @@
 # SCX 通用渠道 OCPX 接入指南（FeedbackReq / CallbackReq v1）
 
-> 更新日期：2026-08-03。当前为 V70 源码联调契约；目标数据库迁移、真实渠道 UAT、故障演练和 20,000 accepted feedback QPS 尚未验收。
+> 更新日期：2026-08-07。当前为 V74 源码联调契约；目标数据库迁移、真实渠道 UAT、故障演练和 20,000 accepted feedback QPS 尚未验收。
 
 本文是平台运营/研发联调速查。可直接交付给下游研发的完整材料见 [OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md)；新增 Coco 类广告主适配器见 [OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md)。
 
 ## 1. 数据方向
 
-- `feedback`：下游媒体/渠道 `→ scx-rtb →` 上游广告主。首个上游适配器是 Coco，只转发 CLICK。
-- `callback`：上游广告主 `→ scx-rtb →` 下游媒体/渠道。首个下游格式是标准 `CallbackReqV1`。
+- `feedback`：下游媒体/渠道 `→ scx-ocpx-engine →` 上游广告主。首个上游适配器是 Coco，只转发 CLICK。
+- `callback`：上游广告主 `→ scx-ocpx-engine →` 下游媒体/渠道。首个下游格式是标准 `CallbackReqV1`。
 
 历史 `/boot/open-api/events/v1/*`、回执和 RTA 端点已退出当前运行契约。以 [OpenAPI](contracts/openapi.yaml)、[FeedbackReq Schema](contracts/feedback-req-v1.schema.json) 和 [CallbackReq Schema](contracts/callback-req-v1.schema.json) 为准。
 
 ## 2. 下游 feedback 接口
 
 ```http
-POST /rtb/open-api/ocpx/v1/channels/{channelCode}/feedback
+POST /ocpx/open-api/ocpx/v1/channels/{channelCode}/feedback
 Content-Type: application/json
 X-Client-Id: {channelCode}
 X-Key-Version: 1
@@ -56,7 +56,7 @@ UPPERCASE_METHOD + "\n"
 + lowercase_hex_sha256(RAW_REQUEST_BODY)
 ```
 
-使用当前渠道版本密钥计算 HMAC-SHA256。`RAW_PATH` 包含 `/rtb`，不包含 scheme、host 和 query。服务端接受 Unix 秒或毫秒时间戳，默认允许窗口为 5 分钟；nonce 在窗口内不可重复。
+使用当前渠道版本密钥计算 HMAC-SHA256。`RAW_PATH` 包含 `/ocpx`，不包含 scheme、host 和 query。服务端接受 Unix 秒或毫秒时间戳，默认允许窗口为 5 分钟；nonce 在窗口内不可重复。
 
 事件 ID 规则：优先 `event_id`；CLICK 可回退 `clickid`；否则由渠道、路由、事件类型与规范化 JSON 指纹生成。相同 ID 与相同规范化载荷是幂等重复；相同 ID 与不同载荷是冲突。JSON 属性顺序或空白差异不会改变幂等结果，但入口 HMAC 仍绑定实际原始请求体。
 
@@ -111,17 +111,18 @@ UPPERCASE_METHOD + "\n"
 | `reactivation` | `REACTIVATION` |
 | `new` | `CUSTOMER_ACQUISITION` |
 | `firstreactivation` | `FIRST_REACTIVATION` |
+| `firstorder` / `first_order` / `first_purchase` | `FIRST_ORDER` |
 | `completeorder` | `COMPLETE_ORDER` |
 
-`currency_amount` 同时保留原始值和可解析数值；Coco 金额单位确认前，currency 为空且不修改广告主余额。`ext` 是 SCX 生成的签名关联引用，有效期 7 天；`s` 仅作诊断，不参与信任判断。Coco 未提供唯一业务回调 ID 时，平台使用 `ext + 除 ext/s 外的全部回调参数` 生成事件 ID；多次同类付费若参数完全相同会被视为重复，正式启用前必须确认 Coco 是否提供订单/回调唯一键。
+`FIRST_ORDER` 使用独立报表指标，不并入普通下单或付费。`currency_amount` 同时保留原始值和可解析数值，但不参与 CPC 点击扣费。`ext` 是 SCX 生成的签名关联引用，有效期 7 天；`s` 仅作诊断，不参与信任判断。事件 ID 优先采用 `conversion_id/event_id/order_id`；均未提供时，使用 `ext + 除 ext/s 外的排序业务参数` 生成稳定事件 ID。
 
 ## 7. 联调清单
 
-1. 管理端创建渠道、Coco 广告主、应用链接和监测链接；配置双方精确域名白名单、至少 32 位渠道密钥和 Coco `__CALLBACK__` 宏。
+1. 管理端创建渠道、Coco 广告主、应用链接和监测链接；配置双方精确域名白名单、至少 32 位渠道密钥和 Coco `__CALLBACK__` 宏。监测链接可覆盖广告主默认 Coco URL。
 2. 保存后的路由是 `DRAFT`；发布校验通过后才可接收流量。
-3. `scx-rtb` 默认关闭上下游外发；只在对应沙箱阶段把 `upstream-delivery-enabled` 或 `downstream-delivery-enabled` 字面量改为 `true`，重新打包并重启。
-4. 使用 Postman 集合验证 202、200 重复、409 冲突、错误签名、过期时间、nonce 重放、429 和 Redis 503。
-5. 使用可控 Coco Mock 验证所有宏、URL 编码、2xx/4xx/超时、1/2/5/10 分钟重试与死亡任务。
+3. `scx-ocpx-engine` 默认关闭上下游外发；只在对应沙箱阶段把 `upstream-delivery-enabled` 或 `downstream-delivery-enabled` 字面量改为 `true`，重新打包并重启。
+4. 使用可导入 Apifox/Postman 的集合验证 202、200 重复、409 冲突、错误签名、过期时间、nonce 重放、429 和 Redis 503。
+5. 使用可控 Coco Mock 验证所有宏、单次 URL 编码、空 Body 200、`code=0`、HTTP 200 + `code=402`、非 2xx、超时、重试与死亡任务。
 6. 验证 Coco callback 新增/重复/无效 ext/异常金额，以及 callback 先持久化再返回。
 7. 下游 Mock 验证签名、幂等、超时重试、死亡任务和授权后的人工重放。
 8. 核对原始转化、成功回传、扣除转化、待投递/死亡任务和投递失败之间的关系。

@@ -13,7 +13,7 @@
 read -s OCPX_CHANNEL_SECRET
 export OCPX_CHANNEL_SECRET
 k6 run \
-  -e OCPX_TARGET=https://load.example/rtb/open-api/ocpx/v1/channels/demo/feedback \
+  -e OCPX_TARGET=https://load.example/ocpx/open-api/ocpx/v1/channels/demo/feedback \
   -e OCPX_CHANNEL_CODE=demo \
   -e OCPX_MONITOR_ID=published-monitor-id \
   -e OCPX_CHANNEL_SECRET \
@@ -24,5 +24,5 @@ unset OCPX_CHANNEL_SECRET
 压测后还必须独立完成：
 
 1. 对账 `202 accepted = MySQL 事实 + 已处理任务 + DLQ`；
-2. 压测中终止一台 `scx-rtb`，验证另一台继续接入并最终接管 Pending；
+2. 压测中终止一台 `scx-ocpx-engine`，验证另一台继续接入并最终接管 Pending；
 3. 保存 k6、Redis、MySQL 和应用监控证据，不得以模拟 Coco 的容量结果代替真实 Coco UAT。

@@ -19,7 +19,7 @@
 | `openapi.yaml` | 下游调用的 feedback API、Coco callback 参考及 SCX 主动投递的下游 webhook |
 | `feedback-req-v1.schema.json` | 下游上报请求体 JSON Schema |
 | `callback-req-v1.schema.json` | SCX 向下游投递请求体 JSON Schema |
-| `scx-ocpx-v1.postman_collection.json` | feedback HMAC 自动签名和 Coco callback 沙箱示例 |
+| `scx-ocpx-v1.postman_collection.json` | 可导入 Apifox/Postman；feedback HMAC 自动签名、Coco callback 与业务 code Mock 示例 |
 | `../uat/sign_request.py` / `verify_request.py` | 生成 feedback 签名、验证捕获的 callback 签名 |
 | `asyncapi.yaml` | SCX 内部 Redis Stream 契约，一般不需要交付下游 |
 | `historical-contracts.md` | 已退出接口说明，不属于当前接入能力 |

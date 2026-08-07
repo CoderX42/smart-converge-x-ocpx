@@ -10,11 +10,11 @@ bt_init_paths
 
 usage() {
   cat <<'EOF'
-用法：bash scripts/bt-deploy/02-manage.sh <status|health|rtb-health|nginx-test|nginx-reload|logs>
+用法：bash scripts/bt-deploy/02-manage.sh <status|health|engine-health|nginx-test|nginx-reload|logs>
 
   status        显示构建产物、当前提交和本机健康检查
   health        请求 http://127.0.0.1:9999/boot/actuator/health
-  rtb-health    请求 http://127.0.0.1:10000/rtb/actuator/health
+  engine-health 请求 http://127.0.0.1:10000/ocpx/actuator/health
   nginx-test    校验 Nginx 配置
   nginx-reload  先校验再重载 Nginx（需要服务器相应权限）
   logs          输出宝塔日志目录位置，不读取或打印敏感配置
@@ -31,13 +31,13 @@ health() {
   fi
 }
 
-rtb_health() {
+engine_health() {
   bt_require_command curl
   local response
-  if response="$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:10000/rtb/actuator/health)"; then
+  if response="$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:10000/ocpx/actuator/health)"; then
     bt_ok "OCPX 数据面健康检查通过：${response}"
   else
-    bt_die 'OCPX 数据面健康检查失败；请在宝塔 Java 项目管理器确认 scx-rtb 状态和日志。'
+    bt_die 'OCPX 数据面健康检查失败；请在宝塔 Java 项目管理器确认 scx-ocpx-engine 状态和日志。'
   fi
 }
 
@@ -65,9 +65,9 @@ case "${1:-status}" in
     [[ -f "${SCX_BUILD_DIR}/backend/scx-boot.jar" ]] \
       && bt_ok "后端产物：${SCX_BUILD_DIR}/backend/scx-boot.jar" \
       || bt_warn '未找到后端构建产物。'
-    [[ -f "${SCX_BUILD_DIR}/backend/scx-rtb.jar" ]] \
-      && bt_ok "数据面产物：${SCX_BUILD_DIR}/backend/scx-rtb.jar" \
-      || bt_warn '未找到 scx-rtb 数据面构建产物。'
+    [[ -f "${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar" ]] \
+      && bt_ok "数据面产物：${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar" \
+      || bt_warn '未找到 scx-ocpx-engine 数据面构建产物。'
     [[ -f "${SCX_WEB_ROOT}/index.html" ]] \
       && bt_ok "前端站点：${SCX_WEB_ROOT}" \
       || bt_warn '宝塔站点根未找到 index.html。'
@@ -76,14 +76,14 @@ case "${1:-status}" in
     else
       bt_warn '后端健康检查未通过；请在宝塔 Java 项目管理器检查重启状态。'
     fi
-    if curl --silent --fail --max-time 5 http://127.0.0.1:10000/rtb/actuator/health >/dev/null; then
+    if curl --silent --fail --max-time 5 http://127.0.0.1:10000/ocpx/actuator/health >/dev/null; then
       bt_ok 'OCPX 数据面健康检查：UP'
     else
       bt_warn 'OCPX 数据面健康检查未通过；未部署或未启动时属预期。'
     fi
     ;;
   health) health ;;
-  rtb-health) rtb_health ;;
+  engine-health) engine_health ;;
   nginx-test) nginx_test ;;
   nginx-reload)
     nginx_test

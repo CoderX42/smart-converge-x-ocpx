@@ -21,6 +21,10 @@ public class OcpxRetentionWorker {
 	public void purgeExpiredProtocolData() {
 		purge("DELETE FROM scx_ocpx_callback_ref WHERE expires_at<NOW(3) LIMIT " + BATCH_SIZE);
 		purge("DELETE FROM scx_ocpx_protocol_snapshot WHERE expires_at<NOW(3) LIMIT " + BATCH_SIZE);
+		purge("DELETE FROM scx_ocpx_delivery_attempt WHERE create_time<DATE_SUB(NOW(3),INTERVAL 30 DAY) LIMIT "
+				+ BATCH_SIZE);
+		purge("DELETE FROM scx_ocpx_ingress_audit WHERE create_time<DATE_SUB(NOW(3),INTERVAL 30 DAY) LIMIT "
+				+ BATCH_SIZE);
 	}
 
 	private void purge(String sql) {

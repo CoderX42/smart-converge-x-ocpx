@@ -34,9 +34,13 @@ with (root / "openapi.yaml").open(encoding="utf-8") as handle:
     openapi = yaml.safe_load(handle)
 assert openapi.get("openapi") == "3.1.0", "OpenAPI must be 3.1.0"
 paths = openapi.get("paths", {})
+server_urls = {server.get("url") for server in openapi.get("servers", [])}
+assert "https://{domain}/ocpx" in server_urls
+assert "http://localhost:10000/ocpx" in server_urls
+assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
 assert "/open-api/ocpx/v1/channels/{channelCode}/feedback" in paths
-assert "/open-api/ocpx/v1/upstreams/coco/callback" in paths
 assert "/open-api/ocpx/v1/upstreams/{upstreamCode}/callback" in paths
+assert "/open-api/ocpx/v1/upstreams/coco/callback" not in paths, "Coco must use the generic callback path"
 assert all(not path.startswith("/open-api/events/v1") for path in paths), "historical event API must not be active"
 webhooks = openapi.get("webhooks", {})
 assert "downstreamCallback" in webhooks, "standard downstream callback webhook must be documented"
@@ -55,7 +59,11 @@ for name in ("feedback-req-v1.schema.json", "callback-req-v1.schema.json"):
 
 with (root / "scx-ocpx-v1.postman_collection.json").open(encoding="utf-8") as handle:
     postman = json.load(handle)
-assert len(postman.get("item", [])) == 3, "Postman collection must cover feedback, Coco, and template callback"
+postman_variables = {item.get("key"): item.get("value") for item in postman.get("variable", [])}
+assert postman_variables.get("baseUrl") == "http://localhost:10000/ocpx"
+assert "/rtb" not in json.dumps(postman, ensure_ascii=False), "retired /rtb path must not return"
+item_names = {item.get("name") for item in postman.get("item", [])}
+assert {"下游 FeedbackReqV1", "Coco Callback 场景", "通用模板 Callback", "Coco 上游响应 Mock"} <= item_names
 
 print("OCPX contracts validated")
 PY

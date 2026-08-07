@@ -24,6 +24,9 @@ class OcpxEventTypeTest {
 		assertEquals(OcpxEventType.VISIT, OcpxEventType.fromExternal("visits"));
 		assertEquals(OcpxEventType.AUTHENTICATION, OcpxEventType.fromExternal("authentication"));
 		assertEquals(OcpxEventType.ORDER, OcpxEventType.fromExternal("order"));
+		assertEquals(OcpxEventType.FIRST_ORDER, OcpxEventType.fromExternal("firstorder"));
+		assertEquals(OcpxEventType.FIRST_ORDER, OcpxEventType.fromExternal("first_order"));
+		assertEquals(OcpxEventType.FIRST_ORDER, OcpxEventType.fromExternal("first_purchase"));
 		assertEquals(OcpxEventType.FIRST_REACTIVATION, OcpxEventType.fromExternal("firstreactivation"));
 		assertEquals(OcpxEventType.COMPLETE_ORDER, OcpxEventType.fromExternal("completeorder"));
 	}

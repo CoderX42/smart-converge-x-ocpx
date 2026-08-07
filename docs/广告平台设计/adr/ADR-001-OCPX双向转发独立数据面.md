@@ -16,7 +16,7 @@
 
 - `scx-ocpx-contract`：版本化 DTO 与上下游适配器、RTA、Billing SPI。
 - `scx-ocpx-runtime`：标准化、签名、Redis Streams、批量落库、投递任务、重试、扣量和 Coco/标准下游适配器。
-- `scx-rtb`：独立 WebFlux/Netty 进程，端口 `10000`，context path `/rtb`。
+- `scx-ocpx-engine`：独立 WebFlux/Netty 进程，端口 `10000`，context path `/ocpx`。
 
 管理面与数据面共享 MySQL/Redis。MySQL 保存最终事实、版本配置、投递任务与审计；Redis 保存接入队列、短期幂等、防重放、扣量计数和配置失效通知。本地路由索引以不可变快照替换，只有 `PUBLISHED` 配置可接入流量。
 

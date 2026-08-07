@@ -61,6 +61,9 @@ public class FeedbackReqV1 {
 	@JsonProperty("creative_id")
 	private String creativeId;
 
+	@JsonProperty("advertiser_id")
+	private String advertiserId;
+
 	private String idfa;
 
 	@JsonProperty("idfa_md5")
@@ -244,6 +247,14 @@ public class FeedbackReqV1 {
 
 	public void setCreativeId(String creativeId) {
 		this.creativeId = creativeId;
+	}
+
+	public String getAdvertiserId() {
+		return advertiserId;
+	}
+
+	public void setAdvertiserId(String advertiserId) {
+		this.advertiserId = advertiserId;
 	}
 
 	public String getIdfa() {

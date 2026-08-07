@@ -57,6 +57,8 @@ public class ReportRow {
 
 	private Long orderCount;
 
+	private Long firstOrderCount;
+
 	private Long finishOrderCount;
 
 	private Long rawConversionCount;

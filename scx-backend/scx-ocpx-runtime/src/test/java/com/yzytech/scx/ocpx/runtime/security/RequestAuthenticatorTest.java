@@ -42,7 +42,7 @@ class RequestAuthenticatorTest {
 	@Test
 	void acceptsValidSignatureAndRejectsNonceReplay() {
 		String body = "{\"event\":\"click\"}";
-		String path = "/rtb/open-api/ocpx/v1/channels/demo/feedback";
+		String path = "/ocpx/open-api/ocpx/v1/channels/demo/feedback";
 		String timestamp = Long.toString(System.currentTimeMillis());
 		String nonce = "7858c055c6754ee688873e11b9c17088";
 		HttpHeaders headers = signedHeaders(body, path, timestamp, nonce);
@@ -59,7 +59,7 @@ class RequestAuthenticatorTest {
 
 	@Test
 	void rejectsTamperedBodyBeforeConsumingNonce() {
-		String path = "/rtb/open-api/ocpx/v1/channels/demo/feedback";
+		String path = "/ocpx/open-api/ocpx/v1/channels/demo/feedback";
 		String timestamp = Long.toString(System.currentTimeMillis());
 		HttpHeaders headers = signedHeaders("{\"event\":\"click\"}", path, timestamp,
 				"7858c055c6754ee688873e11b9c17088");
@@ -73,7 +73,7 @@ class RequestAuthenticatorTest {
 	@Test
 	void failsClosedWhenReplayProtectionIsUnavailable() {
 		String body = "{\"event\":\"click\"}";
-		String path = "/rtb/open-api/ocpx/v1/channels/demo/feedback";
+		String path = "/ocpx/open-api/ocpx/v1/channels/demo/feedback";
 		String timestamp = Long.toString(System.currentTimeMillis());
 		HttpHeaders headers = signedHeaders(body, path, timestamp, "7858c055c6754ee688873e11b9c17088");
 		doThrow(new IllegalStateException("redis unavailable")).when(redisTemplate)
@@ -88,7 +88,7 @@ class RequestAuthenticatorTest {
 	@Test
 	void returnsTooManyRequestsWhenAtomicChannelLimitIsExceeded() {
 		String body = "{\"event\":\"click\"}";
-		String path = "/rtb/open-api/ocpx/v1/channels/demo/feedback";
+		String path = "/ocpx/open-api/ocpx/v1/channels/demo/feedback";
 		String timestamp = Long.toString(System.currentTimeMillis());
 		HttpHeaders headers = signedHeaders(body, path, timestamp, "7858c055c6754ee688873e11b9c17088");
 		doReturn("RATE_LIMIT").when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));

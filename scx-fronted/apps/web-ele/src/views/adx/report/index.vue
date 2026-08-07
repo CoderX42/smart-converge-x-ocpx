@@ -68,6 +68,7 @@ const metrics: Array<{
   { label: '访问', minWidth: 90, prop: 'visitCount' },
   { label: '认证', minWidth: 90, prop: 'authenticationCount' },
   { label: '下单', minWidth: 90, prop: 'orderCount' },
+  { label: '首单', minWidth: 90, prop: 'firstOrderCount' },
   { label: '完单', minWidth: 90, prop: 'finishOrderCount' },
 ];
 

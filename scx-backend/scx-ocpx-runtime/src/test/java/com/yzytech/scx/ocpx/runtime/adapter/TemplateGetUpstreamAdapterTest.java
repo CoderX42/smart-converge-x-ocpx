@@ -28,7 +28,7 @@ class TemplateGetUpstreamAdapterTest {
 
 		var request = adapter.buildFeedback(route(
 				"https://upstream.example/feedback?event=__EVENT__&event_id=__EVENT_ID__&biz_id=__BIZ_ID__&mts=__MTS__&oaid=__OAID__&cb=__CALLBACK__",
-				"__EVENT_ID__,__CALLBACK__"), feedback, "https://scx.example/rtb/callback?ext=token value");
+				"__EVENT_ID__,__CALLBACK__"), feedback, "https://scx.example/ocpx/callback?ext=token value");
 
 		assertThat(request.method()).isEqualTo("GET");
 		assertThat(request.uri().toString()).contains("event=click", "event_id=event-1", "biz_id=biz-1",
@@ -59,6 +59,20 @@ class TemplateGetUpstreamAdapterTest {
 		assertThat(first.eventId()).isEqualTo(retry.eventId());
 		assertThat(first.actionTime().toInstant()).isEqualTo(Instant.ofEpochSecond(1_785_744_000L));
 		assertThat(first.amount()).isEqualByComparingTo("12.34");
+	}
+
+	@Test
+	void ownsTemplateCallbackTokenAndResponseContract() {
+		Map<String, String> parameters = Map.of("ext", "template-token", "event", "activate");
+
+		var success = adapter.callbackSuccess(parameters, "event-1", "DUPLICATE");
+		var failure = adapter.callbackFailure(parameters, 422, "invalid event");
+
+		assertThat(adapter.callbackToken(parameters)).isEqualTo("template-token");
+		assertThat(success.statusCode()).isEqualTo(200);
+		assertThat(success.body()).isEqualTo(Map.of("code", 0, "event_id", "event-1", "status", "DUPLICATE"));
+		assertThat(failure.statusCode()).isEqualTo(422);
+		assertThat(failure.body()).isEqualTo(Map.of("code", 1, "message", "invalid event"));
 	}
 
 	private RouteSnapshot route(String bidUrl, String requiredMacros) {

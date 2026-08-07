@@ -32,6 +32,8 @@ public enum OcpxEventType {
 
 	ORDER,
 
+	FIRST_ORDER,
+
 	FIRST_REACTIVATION,
 
 	COMPLETE_ORDER;
@@ -55,6 +57,7 @@ public enum OcpxEventType {
 			case "visit", "visits" -> VISIT;
 			case "authentication", "authenticate" -> AUTHENTICATION;
 			case "order", "place_order" -> ORDER;
+			case "firstorder", "first_order", "first_purchase" -> FIRST_ORDER;
 			case "firstreactivation", "first_reactivation", "evoke_first" -> FIRST_REACTIVATION;
 			case "completeorder", "complete_order", "finish_order" -> COMPLETE_ORDER;
 			default -> throw new IllegalArgumentException("unsupported event: " + value);

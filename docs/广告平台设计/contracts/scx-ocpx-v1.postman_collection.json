@@ -1,17 +1,19 @@
 {
   "info": {
     "_postman_id": "ad9e2740-e0eb-45d2-9f48-82ddcbb499fe",
-    "name": "SCX OCPX 双向转发 v1",
+    "name": "SCX OCPX 双向转发 v1.1（Apifox/Postman）",
+    "description": "所有域名和密钥均为占位值。Coco 响应示例用于 Apifox Mock，不代表真实渠道验收结果。",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:10000/rtb" },
+    { "key": "baseUrl", "value": "http://localhost:10000/ocpx" },
     { "key": "channelCode", "value": "sandbox_channel" },
     { "key": "keyVersion", "value": "1" },
-    { "key": "channelSecret", "value": "replace-with-sandbox-secret" },
+    { "key": "channelSecret", "value": "replace-with-sandbox-secret-at-least-32-characters" },
     { "key": "monitorId", "value": "replace-with-published-monitor-id" },
-    { "key": "cocoExt", "value": "replace-with-ext-from-coco-click-url" },
-    { "key": "templateExt", "value": "replace-with-ext-from-template-get-url" }
+    { "key": "cocoExt", "value": "replace-with-ext-captured-from-coco-click-request" },
+    { "key": "templateExt", "value": "replace-with-ext-from-template-get-url" },
+    { "key": "cocoMockUrl", "value": "https://coco-mock.example.invalid/click" }
   ],
   "item": [
     {
@@ -24,7 +26,7 @@
             "exec": [
               "const timestamp = Date.now().toString();",
               "const nonce = pm.variables.replaceIn('{{$guid}}').replaceAll('-', '');",
-              "const path = '/rtb/open-api/ocpx/v1/channels/' + pm.collectionVariables.get('channelCode') + '/feedback';",
+              "const path = '/ocpx/open-api/ocpx/v1/channels/' + pm.collectionVariables.get('channelCode') + '/feedback';",
               "const body = pm.variables.replaceIn(pm.request.body.raw);",
               "pm.request.body.update(body);",
               "const digest = CryptoJS.SHA256(body).toString(CryptoJS.enc.Hex);",
@@ -49,18 +51,31 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"schema_version\": \"1.0\",\n  \"event_id\": \"{{$guid}}\",\n  \"event\": \"click\",\n  \"monitor_id\": \"{{monitorId}}\",\n  \"clickid\": \"click-demo-001\",\n  \"oaid\": \"sandbox-device-only\",\n  \"ip\": \"203.0.113.10\",\n  \"ua\": \"SCX-UAT/1.0\",\n  \"os\": \"android\",\n  \"model\": \"sandbox\"\n}"
+          "raw": "{\n  \"schema_version\": \"1.0\",\n  \"event_id\": \"{{$guid}}\",\n  \"event\": \"click\",\n  \"monitor_id\": \"{{monitorId}}\",\n  \"clickid\": \"click-demo-001\",\n  \"campaign_id\": \"campaign-demo\",\n  \"adgroup_id\": \"adgroup-demo\",\n  \"creative_id\": \"creative-demo\",\n  \"advertiser_id\": \"advertiser-demo\",\n  \"oaid_md5\": \"00000000000000000000000000000000\",\n  \"ip\": \"203.0.113.10\",\n  \"ua\": \"SCX-UAT/1.1\",\n  \"os\": \"android\",\n  \"model\": \"sandbox\"\n}"
         },
         "url": "{{baseUrl}}/open-api/ocpx/v1/channels/{{channelCode}}/feedback"
       }
     },
     {
-      "name": "Coco Callback",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=activate&currency_amount=1.00"
-      }
+      "name": "Coco Callback 场景",
+      "item": [
+        {
+          "name": "activate",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=activate&conversion_id=conversion-demo-001" }
+        },
+        {
+          "name": "firstorder 独立指标",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=firstorder&order_id=first-order-demo-001" }
+        },
+        {
+          "name": "purchase 金额事实",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=purchase&order_id=order-demo-001&currency_amount=12.34" }
+        },
+        {
+          "name": "重复 callback（连续执行两次）",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=register&event_id=repeat-demo-001" }
+        }
+      ]
     },
     {
       "name": "通用模板 Callback",
@@ -69,6 +84,21 @@
         "header": [],
         "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/template_get/callback?ext={{templateExt}}&event=authentication&event_id=conversion-demo-001&event_time={{$timestamp}}&amount=1.00"
       }
+    },
+    {
+      "name": "Coco 上游响应 Mock",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "description": "在 Apifox 中分别启用下列示例作为 Mock 返回。超时场景通过 Mock 延迟超过 3000ms。",
+        "url": "{{cocoMockUrl}}?callback=encoded-callback&oaid_md5=00000000000000000000000000000000"
+      },
+      "response": [
+        { "name": "HTTP 200 空 Body（成功）", "originalRequest": { "method": "GET", "header": [], "url": "{{cocoMockUrl}}" }, "status": "OK", "code": 200, "header": [], "cookie": [], "body": "" },
+        { "name": "HTTP 200 code=0（成功）", "originalRequest": { "method": "GET", "header": [], "url": "{{cocoMockUrl}}" }, "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "cookie": [], "body": "{\"code\":0}" },
+        { "name": "HTTP 200 code=402（业务失败）", "originalRequest": { "method": "GET", "header": [], "url": "{{cocoMockUrl}}" }, "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "cookie": [], "body": "{\"code\":402,\"message\":\"sandbox quota reached\"}" },
+        { "name": "HTTP 500（失败）", "originalRequest": { "method": "GET", "header": [], "url": "{{cocoMockUrl}}" }, "status": "Internal Server Error", "code": 500, "header": [], "cookie": [], "body": "sandbox failure" }
+      ]
     }
   ]
 }

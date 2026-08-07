@@ -11,7 +11,7 @@
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
 | `scx-adx` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、充值/点击账务和时段报表 |
 | `scx-ocpx-contract` / `scx-ocpx-runtime` | 双向协议、适配器 SPI、可靠投递和 CPC 点击计费 |
-| `scx-rtb` | 独立 OCPX 数据面应用，端口 10000、上下文 `/rtb` |
+| `scx-ocpx-engine` | 独立 OCPX 引擎端，端口 10000、上下文 `/ocpx` |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |

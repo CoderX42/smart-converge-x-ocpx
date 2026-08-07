@@ -20,7 +20,7 @@ spring:
 
 scx:
   ocpx:
-    public-base-url: https://ocpx.example.com/rtb
+    public-base-url: https://ocpx.example.com/ocpx
     replica-acks-required: 1
     allow-http: false
     allow-private-addresses: false

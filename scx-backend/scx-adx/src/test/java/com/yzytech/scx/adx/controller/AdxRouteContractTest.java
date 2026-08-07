@@ -42,6 +42,10 @@ class AdxRouteContractTest {
 		assertRoot(AdxRuntimeController.class, "/adx/runtime");
 		assertRoute(AdxRuntimeController.class, "overview", GetMapping.class, "/overview");
 		assertRoute(AdxRuntimeController.class, "deliveries", GetMapping.class, "/deliveries");
+		assertRoute(AdxRuntimeController.class, "events", GetMapping.class, "/events");
+		assertRoute(AdxRuntimeController.class, "timeline", GetMapping.class, "/events/{id}/timeline");
+		assertRoute(AdxRuntimeController.class, "attempts", GetMapping.class, "/deliveries/{id}/attempts");
+		assertRoute(AdxRuntimeController.class, "ingressAudits", GetMapping.class, "/ingress-audits");
 		assertRoute(AdxRuntimeController.class, "replay", PostMapping.class, "/deliveries/{id}/replay");
 		assertRoute(AdxRuntimeController.class, "ingressDlq", GetMapping.class, "/ingress-dlq");
 		assertRoute(AdxRuntimeController.class, "replayIngressDlq", PostMapping.class, "/ingress-dlq/{id}/replay");

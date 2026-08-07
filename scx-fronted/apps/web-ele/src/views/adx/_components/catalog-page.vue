@@ -137,7 +137,7 @@ const columns = computed<Column[]>(() => {
       { label: '下游适配器', minWidth: 120, prop: 'adapterCode' },
       { label: '鉴权', minWidth: 100, prop: 'authType' },
       { label: '状态', minWidth: 100, prop: 'status' },
-      { label: 'SCX RTB地址', minWidth: 300, prop: 'uri' },
+      { label: 'SCX OCPX引擎地址', minWidth: 300, prop: 'uri' },
       { label: '密钥', minWidth: 90, prop: 'secretConfigured' },
       { label: '宏参数', minWidth: 240, prop: 'macroParams' },
       {
@@ -166,6 +166,16 @@ const columns = computed<Column[]>(() => {
       { label: '单价', minWidth: 110, prop: 'unitPrice' },
       { label: '发布状态', minWidth: 110, prop: 'routeStatus' },
       { label: '版本', minWidth: 90, prop: 'configVersion' },
+      {
+        label: '上游点击地址（配置/已发布）',
+        minWidth: 300,
+        prop: 'effectiveUpstreamFeedbackUrl',
+      },
+      {
+        label: '上游地址来源',
+        minWidth: 140,
+        prop: 'upstreamFeedbackSource',
+      },
       { label: '下游回调', minWidth: 260, prop: 'downstreamCallbackUrl' },
       { label: '展示上报接口', minWidth: 300, prop: 'showUrl' },
       { label: '点击上报接口', minWidth: 300, prop: 'clickUrl' },
@@ -232,6 +242,14 @@ function display(row: Row, prop: string) {
     ];
   }
   if (prop === 'ratio') return `${(Number(value || 0) * 100).toFixed(2)}%`;
+  if (prop === 'upstreamFeedbackSource') {
+    return {
+      ADVERTISER_DEFAULT: '已发布 · 广告主默认',
+      DRAFT_ADVERTISER_DEFAULT: '草稿 · 广告主默认',
+      DRAFT_MONITOR_OVERRIDE: '草稿 · 监测链接覆盖',
+      MONITOR_OVERRIDE: '已发布 · 监测链接覆盖',
+    }[value as string];
+  }
   if (prop === 'balance' || prop === 'unitPrice') {
     return `¥${Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`;
   }
@@ -587,10 +605,10 @@ onMounted(async () => {
           <el-form-item label="密钥版本" prop="keyVersion">
             <el-input-number v-model="form.keyVersion" :min="1" />
           </el-form-item>
-          <el-form-item label="SCX RTB地址" prop="uri">
+          <el-form-item label="SCX OCPX引擎地址" prop="uri">
             <el-input
               v-model="form.uri"
-              placeholder="https://ocpx.example.com/rtb"
+              placeholder="https://ocpx.example.com/ocpx"
             />
             <span class="field-hint">
               系统据此生成 V70 HMAC POST 上报接口；不是媒体旧式 GET 监测模板。
@@ -801,6 +819,15 @@ onMounted(async () => {
           </el-form-item>
           <el-form-item label="备注">
             <el-input v-model="form.remark" :rows="3" type="textarea" />
+          </el-form-item>
+          <el-form-item label="上游点击地址覆盖">
+            <el-input
+              v-model="form.upstreamFeedbackUrl"
+              placeholder="留空时使用广告主默认 URL"
+            />
+            <span class="field-hint">
+              仅覆盖当前监测链接；保存后路由回到草稿，重新发布才生效。
+            </span>
           </el-form-item>
           <el-form-item label="下游回调地址">
             <el-input

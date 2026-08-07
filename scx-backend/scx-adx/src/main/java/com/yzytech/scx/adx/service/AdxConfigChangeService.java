@@ -44,7 +44,8 @@ public class AdxConfigChangeService {
 				"SELECT id,config_version FROM scx_adx_monitor_link WHERE deleted=0 AND " + predicate,
 				(rs, rowNum) -> new RouteVersion(rs.getString(1), rs.getLong(2)), args);
 		jdbcTemplate.update("UPDATE scx_adx_monitor_link SET route_status='DRAFT',published_at=NULL,"
-				+ "config_version=config_version+1 WHERE deleted=0 AND " + predicate, args);
+				+ "published_upstream_feedback_url=NULL," + "config_version=config_version+1 WHERE deleted=0 AND "
+				+ predicate, args);
 		for (RouteVersion route : routes) {
 			enqueueMonitor(route.id(), route.version() + 1, "ROUTE_DRAFTED");
 		}

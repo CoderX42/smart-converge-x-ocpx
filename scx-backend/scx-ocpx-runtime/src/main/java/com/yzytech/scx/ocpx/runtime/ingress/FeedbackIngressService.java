@@ -119,7 +119,9 @@ public class FeedbackIngressService {
 		feedback.setEventId(eventId);
 		FeedbackEnvelope envelope;
 		try {
-			boolean forward = adapterRegistry.requireUpstream(route.upstreamAdapterCode()).supports(eventType);
+			var upstreamAdapter = adapterRegistry.requireUpstream(route.upstreamAdapterCode());
+			upstreamAdapter.validateFeedback(route, feedback);
+			boolean forward = upstreamAdapter.supports(eventType);
 			String callbackRef = forward ? UUID.randomUUID().toString().replace("-", "") : null;
 			NormalizedFeedbackEvent normalized = new NormalizedFeedbackEvent(eventId, payloadHash, eventType,
 					channelCode, route.routeId(), route.routeVersion(), occurredAt, OffsetDateTime.now(),
@@ -130,7 +132,10 @@ public class FeedbackIngressService {
 					protocolCrypto.encrypt(canonicalWriter.writeValueAsString(feedback)),
 					protocolCrypto.encrypt(objectMapper.writeValueAsString(route)), forward);
 		}
-		catch (JsonProcessingException | IllegalArgumentException e) {
+		catch (IllegalArgumentException e) {
+			throw new OcpxException(HttpStatus.BAD_REQUEST, e.getMessage());
+		}
+		catch (JsonProcessingException e) {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "feedback cannot be normalized");
 		}
 		return feedbackIngress.enqueue(envelope);

@@ -56,7 +56,7 @@ FeedbackReqV1
 - callback 地址固定为：
 
 ```text
-https://{SCX_RTB_DOMAIN}/rtb/open-api/ocpx/v1/upstreams/{lowercase-adapter-code}/callback
+https://{SCX_OCPX_ENGINE_DOMAIN}/ocpx/open-api/ocpx/v1/upstreams/{lowercase-adapter-code}/callback
 ```
 
 - 广告主记录配置该 `adapter_code`、上报 URL/模板、密钥、必填宏和精确域名白名单。
@@ -72,7 +72,7 @@ V71 注册 `TEMPLATE_GET`，用于承接 `sgyz-ocpx` 一类“SHOW/CLICK GET 宏
 - 设备：IDFA、IMEI、OAID、CAID、Android ID、AAID、GAID、IDFV、IP、UA、OS、MODEL 及常见 MD5 别名。
 - 回调：`__CALLBACK__`、`__CALLBACK_URL__`。
 
-通用 callback 接受 `action_type` 或 `event`，优先使用 `conversion_id/event_id/order_id` 生成稳定幂等 ID，并读取 `event_time/action_time` 与 `currency_amount/amount`。支持激活、唤起、登录、注册、付费、获客、次留、访问、认证、下单、完单、留存和再激活等规范事件。
+通用 callback 路径本身不规定参数和响应，只按 `upstreamCode` 选择适配器。当前 `TEMPLATE_GET` 适配器接受 `action_type` 或 `event`，优先使用 `conversion_id/event_id/order_id` 生成稳定幂等 ID，并读取 `event_time/action_time` 与 `currency_amount/amount`。支持激活、唤起、登录、注册、付费、获客、次留、访问、认证、下单、完单、留存和再激活等规范事件。
 
 `TEMPLATE_GET` 只把已明确的公共字段做模板替换，并以 HTTP 2xx 作为成功；如果合作方要求签名、加密、POST body、特殊业务成功码或自定义 callback 验签，必须新增专用适配器，不能直接选用它上线。
 
@@ -135,16 +135,36 @@ public class ExampleUpstreamAdapter implements UpstreamAdapter {
     }
 
     @Override
+    public String callbackToken(Map<String, String> parameters) {
+        // token 参数名属于上游协议；不能假定所有上游都使用 ext。
+        return parameters.get("vendor_token");
+    }
+
+    @Override
     public NormalizedCallbackEvent parseCallback(
             String callbackRef,
             Map<String, String> parameters) {
         // 校验必填参数、映射事件、生成稳定事件 ID、解释时间和金额。
         throw new UnsupportedOperationException("implement callback mapping");
     }
+
+    @Override
+    public UpstreamCallbackResponse callbackSuccess(
+            Map<String, String> parameters, String eventId, String status) {
+        // HTTP 状态、headers 和 Body 都严格按当前上游文档返回。
+        return new UpstreamCallbackResponse(200, Map.of(), Map.of("vendor_code", 0));
+    }
+
+    @Override
+    public UpstreamCallbackResponse callbackFailure(
+            Map<String, String> parameters, int httpStatus, String message) {
+        return new UpstreamCallbackResponse(
+            httpStatus, Map.of(), Map.of("vendor_code", 1, "vendor_message", message));
+    }
 }
 ```
 
-Spring 会收集所有 Bean，由 `AdapterRegistry` 按 `code()` 建立不可变 Map。核心流水线不需要增加 `if/else` 或广告主 ID 枚举。
+Spring 会收集所有 Bean，由 `AdapterRegistry` 按 `code()` 建立不可变 Map。通用 Controller 只负责选择 adapter 并原样输出 `UpstreamCallbackResponse`，不会解释媒体参数或响应字段；核心流水线不需要增加 `if/else` 或广告主 ID 枚举。
 
 ### 4.1 buildFeedback 规则
 
@@ -206,7 +226,7 @@ ON DUPLICATE KEY UPDATE
 2. 填写沙箱 URL、密钥、必填宏和精确 host 白名单。
 3. 创建监测链接，保持 `DRAFT`。
 4. 发布校验通过后生成新 `config_version` 和配置 Outbox。
-5. `scx-rtb` 收到通知后原子替换本地路由索引；60 秒轮询兜底。
+5. `scx-ocpx-engine` 收到通知后原子替换本地路由索引；60 秒轮询兜底。
 
 代码 Bean 与数据库记录必须同时存在。只有数据库记录会在运行时找不到 Bean；只有 Bean 会在管理端发布校验失败。
 

@@ -85,6 +85,7 @@ export type MonitorLink = CatalogRecord & {
   clickUrl?: string;
   configVersion: number;
   downstreamCallbackUrl?: string;
+  effectiveUpstreamFeedbackUrl?: string;
   monitorName: string;
   publishedAt?: string;
   remark?: string;
@@ -92,6 +93,8 @@ export type MonitorLink = CatalogRecord & {
   rtaMode: string;
   showUrl?: string;
   unitPrice: number;
+  upstreamFeedbackSource?: string;
+  upstreamFeedbackUrl?: string;
 };
 
 export type DeductionRule = CatalogRecord & {
@@ -121,6 +124,7 @@ export type ReportRow = {
   deliveryFailureCount: number;
   evokeCount: number;
   finishOrderCount: number;
+  firstOrderCount: number;
   forwardedConversionCount: number;
   impressions: number;
   loginCount: number;
@@ -169,6 +173,66 @@ export type RuntimeIngressDlq = {
   replayedAt?: string;
   status: string;
   streamRecordId: string;
+};
+
+export type RuntimeEvent = {
+  advertiserId: string;
+  advertiserName?: string;
+  amount?: number;
+  amountRaw?: string;
+  channelId: string;
+  channelName?: string;
+  direction: string;
+  eventId: string;
+  eventType: string;
+  id: string;
+  monitorId: string;
+  monitorName?: string;
+  occurredAt: string;
+  parentEventId?: string;
+  receivedAt: string;
+  status: string;
+};
+
+export type RuntimeTimelineItem = {
+  detail?: string;
+  occurredAt: string;
+  referenceId: string;
+  stage: string;
+  status: string;
+};
+
+export type RuntimeDeliveryAttempt = {
+  attemptNo: number;
+  createTime: string;
+  durationMs?: number;
+  errorMessage?: string;
+  httpStatus?: number;
+  id: string;
+  jobId: string;
+  requestMethod?: string;
+  requestSummary?: string;
+  responseExcerpt?: string;
+  status: string;
+  targetHost?: string;
+  targetPath?: string;
+};
+
+export type RuntimeIngressAudit = {
+  channelCode?: string;
+  clientId?: string;
+  createTime: string;
+  durationMs?: number;
+  eventId?: string;
+  httpStatus: number;
+  id: string;
+  keyVersion?: string;
+  payloadHash?: string;
+  reason?: string;
+  remoteIpMasked?: string;
+  requestId?: string;
+  resultStatus: string;
+  routeReference?: string;
 };
 
 export type DashboardSummary = {
@@ -265,6 +329,31 @@ export function getRuntimeOverview() {
 export function getRuntimeDeliveries(params: Query) {
   return requestClient.get<PageResult<RuntimeDelivery>>(
     '/adx/runtime/deliveries',
+    { params },
+  );
+}
+
+export function getRuntimeEvents(params: Query) {
+  return requestClient.get<PageResult<RuntimeEvent>>('/adx/runtime/events', {
+    params,
+  });
+}
+
+export function getRuntimeEventTimeline(id: string) {
+  return requestClient.get<RuntimeTimelineItem[]>(
+    `/adx/runtime/events/${id}/timeline`,
+  );
+}
+
+export function getRuntimeDeliveryAttempts(id: string) {
+  return requestClient.get<RuntimeDeliveryAttempt[]>(
+    `/adx/runtime/deliveries/${id}/attempts`,
+  );
+}
+
+export function getRuntimeIngressAudits(params: Query) {
+  return requestClient.get<PageResult<RuntimeIngressAudit>>(
+    '/adx/runtime/ingress-audits',
     { params },
   );
 }

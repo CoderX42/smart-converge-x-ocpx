@@ -72,10 +72,26 @@ if [[ "$admin_system_permission_count" -ne 8 ]]; then
 fi
 
 ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name='upstream_host_allowlist') OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
 
-if [[ "$ocpx_column_count" -ne 17 ]]; then
+if [[ "$ocpx_column_count" -ne 27 ]]; then
   echo "Database verification failed: OCPX routing/report/accounting columns are incomplete." >&2
+  exit 1
+fi
+
+bid_url_length="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT character_maximum_length FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_adx_advertiser' AND column_name='bid_url';")"
+
+if [[ "$bid_url_length" -ne 5000 ]]; then
+  echo "Database verification failed: advertiser bid_url is not VARCHAR(5000)." >&2
+  exit 1
+fi
+
+ocpx_audit_index_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MYSQL_DATABASE}' AND index_name IN ('idx_scx_ocpx_attempt_job','idx_scx_ocpx_attempt_time','idx_scx_ocpx_ingress_audit_time','idx_scx_ocpx_ingress_audit_event','idx_scx_ocpx_ingress_audit_route');")"
+
+if [[ "$ocpx_audit_index_count" -ne 5 ]]; then
+  echo "Database verification failed: OCPX attempt/ingress audit indexes are incomplete." >&2
   exit 1
 fi
 

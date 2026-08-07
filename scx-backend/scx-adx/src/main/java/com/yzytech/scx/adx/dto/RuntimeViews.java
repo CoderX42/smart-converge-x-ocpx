@@ -1,6 +1,7 @@
 package com.yzytech.scx.adx.dto;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.Map;
 
 public final class RuntimeViews {
@@ -19,6 +20,26 @@ public final class RuntimeViews {
 
 	public record IngressDlq(String id, Integer partitionNo, String streamRecordId, String eventId, String reason,
 			String status, LocalDateTime createTime, LocalDateTime replayedAt) {
+	}
+
+	public record Event(String id, String eventId, String parentEventId, String direction, String eventType,
+			String channelId, String channelName, String advertiserId, String advertiserName, String monitorId,
+			String monitorName, String status, BigDecimal amount, String amountRaw, LocalDateTime occurredAt,
+			LocalDateTime receivedAt) {
+	}
+
+	public record TimelineItem(String stage, String status, String referenceId, String detail,
+			LocalDateTime occurredAt) {
+	}
+
+	public record DeliveryAttempt(String id, String jobId, Integer attemptNo, String status, Integer httpStatus,
+			String errorMessage, String requestMethod, String targetHost, String targetPath, String requestSummary,
+			String responseExcerpt, Long durationMs, LocalDateTime createTime) {
+	}
+
+	public record IngressAudit(String id, String requestId, String channelCode, String eventId, String routeReference,
+			String resultStatus, Integer httpStatus, String reason, String payloadHash, String clientId,
+			String keyVersion, String remoteIpMasked, Long durationMs, LocalDateTime createTime) {
 	}
 
 }

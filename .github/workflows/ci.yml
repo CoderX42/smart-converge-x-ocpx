@@ -19,7 +19,7 @@ jobs:
           java-version: '17'
           cache: maven
       - name: Compile and test backend
-        run: cd scx-backend && mvn -pl scx-boot -am test
+        run: cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am test
 
   frontend:
     runs-on: ubuntu-latest

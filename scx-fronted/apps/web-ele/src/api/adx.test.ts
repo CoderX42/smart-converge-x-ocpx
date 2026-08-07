@@ -6,6 +6,10 @@ import {
   getCatalog,
   getReport,
   getReportOptions,
+  getRuntimeDeliveryAttempts,
+  getRuntimeEvents,
+  getRuntimeEventTimeline,
+  getRuntimeIngressAudits,
   rechargeAdvertiser,
   saveCatalog,
 } from './adx';
@@ -69,6 +73,27 @@ describe('aDX API contract', () => {
         responseReturn: 'body',
         responseType: 'blob',
       },
+    );
+  });
+
+  it('connects event, timeline, attempt and ingress audit runtime views', () => {
+    getRuntimeEvents({ current: 1, eventType: 'CLICK', size: 20 });
+    getRuntimeEventTimeline('event-row-1');
+    getRuntimeDeliveryAttempts('delivery-1');
+    getRuntimeIngressAudits({ resultStatus: 'AUTH_REJECTED' });
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/runtime/events', {
+      params: { current: 1, eventType: 'CLICK', size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/runtime/events/event-row-1/timeline',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/runtime/deliveries/delivery-1/attempts',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/runtime/ingress-audits',
+      { params: { resultStatus: 'AUTH_REJECTED' } },
     );
   });
 });

@@ -57,7 +57,7 @@ class FeedbackIngressServiceTest {
 		FeedbackIngressService service = new FeedbackIngressService(objectMapper, routeCache, authenticator,
 				protocolCrypto, redisIngress, adapterRegistry, properties);
 
-		service.accept("channel", "POST", "/rtb/open-api/ocpx/v1/channels/channel/feedback", "{}", HttpHeaders.EMPTY);
+		service.accept("channel", "POST", "/ocpx/open-api/ocpx/v1/channels/channel/feedback", "{}", HttpHeaders.EMPTY);
 
 		ArgumentCaptor<FeedbackEnvelope> envelope = ArgumentCaptor.forClass(FeedbackEnvelope.class);
 		verify(redisIngress).enqueue(envelope.capture());

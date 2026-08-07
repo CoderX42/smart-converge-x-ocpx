@@ -35,7 +35,9 @@ public class OcpxRuntimeConfiguration {
 		ExchangeStrategies strategies = ExchangeStrategies.builder()
 			.codecs(codecs -> codecs.defaultCodecs().maxInMemorySize(4096))
 			.build();
-		return builder.clientConnector(new ReactorClientHttpConnector(httpClient)).exchangeStrategies(strategies).build();
+		return builder.clientConnector(new ReactorClientHttpConnector(httpClient))
+			.exchangeStrategies(strategies)
+			.build();
 	}
 
 	@Bean("ocpxDeliveryExecutor")
@@ -46,6 +48,18 @@ public class OcpxRuntimeConfiguration {
 		executor.setMaxPoolSize(Math.max(32, properties.getAdapterConcurrency() * 2));
 		executor.setQueueCapacity(1024);
 		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+		executor.initialize();
+		return executor;
+	}
+
+	@Bean("ocpxAuditExecutor")
+	TaskExecutor ocpxAuditExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setThreadNamePrefix("ocpx-audit-");
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(4);
+		executor.setQueueCapacity(2048);
+		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
 		executor.initialize();
 		return executor;
 	}

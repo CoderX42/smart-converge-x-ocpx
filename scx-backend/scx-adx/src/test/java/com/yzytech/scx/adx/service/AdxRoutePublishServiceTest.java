@@ -81,6 +81,22 @@ class AdxRoutePublishServiceTest {
 	}
 
 	@Test
+	void monitorOverrideWinsAndIsFrozenWhenPublished() {
+		Fixture fixture = fixture();
+		fixture.advertiser().setBidUrl("https://127.0.0.1/default?callback=__CALLBACK__");
+		fixture.monitor().setUpstreamFeedbackUrl("https://8.8.4.4/override?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.4.4");
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		stub(fixture);
+
+		service.publish("monitor-1");
+
+		assertThat(fixture.monitor().getPublishedUpstreamFeedbackUrl())
+			.isEqualTo("https://8.8.4.4/override?callback=__CALLBACK__");
+	}
+
+	@Test
 	void publishesTemplateGetRouteWithSgyzStyleMacros() {
 		Fixture fixture = fixture();
 		fixture.advertiser().setAdapterCode("TEMPLATE_GET");

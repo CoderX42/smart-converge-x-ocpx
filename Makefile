@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev rtb-build rtb-test rtb-run-dev frontend-build frontend-check contract-check db-verify
+.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev ocpx-engine-build ocpx-engine-test ocpx-engine-run-dev frontend-build frontend-check contract-check db-verify
 
 # The application uses externally managed MySQL, Redis and RocketMQ services.
 # Export the SCX_* and MYSQL_* variables from the deployment environment first.
@@ -13,22 +13,22 @@ db-migrate:
 mvp-db-migrate: db-migrate
 
 backend-build:
-	cd scx-backend && mvn -pl scx-boot,scx-rtb -am -DskipTests package
+	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am -DskipTests package
 
 backend-test:
-	cd scx-backend && mvn -pl scx-boot,scx-rtb -am test
+	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am test
 
 backend-run-dev:
 	cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profiles=dev
 
-rtb-build:
-	cd scx-backend && mvn -pl scx-rtb -am -DskipTests package
+ocpx-engine-build:
+	cd scx-backend && mvn -pl scx-ocpx-engine -am -DskipTests package
 
-rtb-test:
-	cd scx-backend && mvn -pl scx-rtb -am test
+ocpx-engine-test:
+	cd scx-backend && mvn -pl scx-ocpx-engine -am test
 
-rtb-run-dev:
-	cd scx-backend && mvn -pl scx-rtb -am spring-boot:run -Dspring-boot.run.profiles=dev
+ocpx-engine-run-dev:
+	cd scx-backend && mvn -pl scx-ocpx-engine -am spring-boot:run -Dspring-boot.run.profiles=dev
 
 frontend-build:
 	cd scx-fronted && pnpm build:ele

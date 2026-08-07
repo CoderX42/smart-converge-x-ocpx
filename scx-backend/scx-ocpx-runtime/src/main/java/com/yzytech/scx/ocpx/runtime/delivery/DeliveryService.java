@@ -8,6 +8,7 @@ import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
 import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
 import com.yzytech.scx.ocpx.runtime.model.DeliveryContext;
+import com.yzytech.scx.ocpx.runtime.model.DeliveryAttemptAudit;
 import com.yzytech.scx.ocpx.runtime.model.DeliveryJob;
 import com.yzytech.scx.ocpx.runtime.persistence.OcpxPersistenceRepository;
 import com.yzytech.scx.ocpx.runtime.security.CallbackTokenService;
@@ -33,17 +34,21 @@ public class DeliveryService {
 
 	private final OcpxRuntimeProperties properties;
 
+	private final DeliveryAuditSanitizer auditSanitizer;
+
 	private final ConcurrentHashMap<String, Semaphore> bulkheads = new ConcurrentHashMap<>();
 
 	private final ConcurrentHashMap<String, CircuitState> circuits = new ConcurrentHashMap<>();
 
 	public DeliveryService(OcpxPersistenceRepository repository, AdapterRegistry adapterRegistry,
-			CallbackTokenService tokenService, DeliveryHttpClient httpClient, OcpxRuntimeProperties properties) {
+			CallbackTokenService tokenService, DeliveryHttpClient httpClient, OcpxRuntimeProperties properties,
+			DeliveryAuditSanitizer auditSanitizer) {
 		this.repository = repository;
 		this.adapterRegistry = adapterRegistry;
 		this.tokenService = tokenService;
 		this.httpClient = httpClient;
 		this.properties = properties;
+		this.auditSanitizer = auditSanitizer;
 	}
 
 	public void deliver(DeliveryJob job) {
@@ -97,14 +102,23 @@ public class DeliveryService {
 			.build(true)
 			.toUriString();
 		AdapterHttpRequest request = adapter.buildFeedback(context.route(), context.feedback(), callbackUrl);
-		AdapterHttpResponse response = httpClient.exchange(request);
-		if (response != null && adapter.isSuccess(response)) {
-			repository.markDeliverySuccess(context.job(), response.statusCode());
-			return true;
+		long started = System.nanoTime();
+		try {
+			AdapterHttpResponse response = httpClient.exchange(request);
+			DeliveryAttemptAudit audit = auditSanitizer.summarize(request, response, elapsedMs(started));
+			if (response != null && adapter.isSuccess(response)) {
+				repository.markDeliverySuccess(context.job(), response.statusCode(), audit);
+				return true;
+			}
+			repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
+					adapter.failureReason(response), audit);
+			return false;
 		}
-		repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
-				"UPSTREAM_REJECTED");
-		return false;
+		catch (Exception error) {
+			repository.markDeliveryFailure(context.job(), null, safeError(error),
+					auditSanitizer.summarize(request, null, elapsedMs(started)));
+			return false;
+		}
 	}
 
 	private boolean deliverDownstream(DeliveryContext context) {
@@ -115,18 +129,31 @@ public class DeliveryService {
 				context.feedback().getClickid(), context.route().routeId(), context.route().channelId(),
 				Map.of("callback_ref", context.job().callbackRef()));
 		AdapterHttpRequest request = adapter.buildCallback(context.route(), callback);
-		AdapterHttpResponse response = httpClient.exchange(request);
-		if (response != null && adapter.isSuccess(response)) {
-			repository.markDeliverySuccess(context.job(), response.statusCode());
-			return true;
+		long started = System.nanoTime();
+		try {
+			AdapterHttpResponse response = httpClient.exchange(request);
+			DeliveryAttemptAudit audit = auditSanitizer.summarize(request, response, elapsedMs(started));
+			if (response != null && adapter.isSuccess(response)) {
+				repository.markDeliverySuccess(context.job(), response.statusCode(), audit);
+				return true;
+			}
+			repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
+					"DOWNSTREAM_REJECTED", audit);
+			return false;
 		}
-		repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
-				"DOWNSTREAM_REJECTED");
-		return false;
+		catch (Exception error) {
+			repository.markDeliveryFailure(context.job(), null, safeError(error),
+					auditSanitizer.summarize(request, null, elapsedMs(started)));
+			return false;
+		}
 	}
 
 	private String safeError(Exception error) {
 		return error.getClass().getSimpleName();
+	}
+
+	private long elapsedMs(long startedNanos) {
+		return Math.max(0, (System.nanoTime() - startedNanos) / 1_000_000);
 	}
 
 	private static final class CircuitState {

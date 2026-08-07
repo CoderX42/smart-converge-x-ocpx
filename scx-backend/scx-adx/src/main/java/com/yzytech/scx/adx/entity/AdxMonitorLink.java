@@ -31,6 +31,10 @@ public class AdxMonitorLink {
 
 	private String clickUrl;
 
+	private String upstreamFeedbackUrl;
+
+	private String publishedUpstreamFeedbackUrl;
+
 	private String downstreamCallbackUrl;
 
 	private String routeStatus;

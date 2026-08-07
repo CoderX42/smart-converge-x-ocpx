@@ -1,4 +1,4 @@
-# SCX OCPX 双向转发引擎实现说明（V70-V73 / 双向适配与 CPC 账务）
+# SCX OCPX 双向转发引擎实现说明（V70-V74 / Coco v1.1、双向适配与 CPC 账务）
 
 ## 1. 当前结论
 
@@ -17,22 +17,22 @@
   -> 标准 HMAC JSON POST 或通用 GET 宏模板异步投递下游
 ```
 
-这代表代码闭环已实现，不代表生产闭环已验收。V70-V73 尚未在目标数据库执行；真实 Coco 成功响应、鉴权、沙箱地址和重试约定尚需官方文档/UAT；充值/CPC 尚未以目标库和真实流量对账；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
+这代表代码闭环已实现，不代表生产闭环已验收。V70-V74 尚未在目标数据库执行；真实 Coco 域名、限流响应、宏长度和 callback 重试仍需 UAT；充值/CPC 尚未以目标库和真实流量对账；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
 
 ## 2. 模块与职责
 
 | 模块 | 职责 | 关键入口 |
 |---|---|---|
 | `scx-ocpx-contract` | `FeedbackReqV1`、`CallbackReqV1`、规范事件、路由快照、上下游适配器 SPI、RTA/Billing Port | 不依赖 Web/数据库 |
-| `scx-ocpx-runtime` | 接入、标准化、加密、队列、批量落库、回调、投递、重试、扣量、审计 | 被 `scx-rtb` 引用 |
-| `scx-rtb` | 独立 WebFlux/Netty 应用、数据面健康检查 | `10000/rtb` |
+| `scx-ocpx-runtime` | 接入、标准化、加密、队列、批量落库、回调、投递、重试、扣量、审计 | 被 `scx-ocpx-engine` 引用 |
+| `scx-ocpx-engine` | 独立 WebFlux/Netty 应用、数据面健康检查 | `10000/ocpx` |
 | `scx-adx` | 草稿配置、发布校验、Outbox、运行概览、死亡任务重放 | `/boot/adx/*` |
 
 ## 3. 协议和方向
 
 ### 3.1 下游 feedback
 
-`POST /rtb/open-api/ocpx/v1/channels/{channelCode}/feedback`
+`POST /ocpx/open-api/ocpx/v1/channels/{channelCode}/feedback`
 
 - 请求体兼容 snake_case `FeedbackReq`，以 `monitor_id` 或 `task_id` 定位已发布路由。
 - 签名原文：`METHOD + "\n" + 原始PATH + "\n" + X-Timestamp + "\n" + X-Nonce + "\n" + sha256(原始请求体)`。
@@ -47,7 +47,7 @@
 
 ### 3.3 上游 callback 与下游 callback
 
-`GET /rtb/open-api/ocpx/v1/upstreams/{upstreamCode}/callback`。Coco 支持其既有事件；`TEMPLATE_GET` 另覆盖唤起、登录、访问、认证、下单等 `sgyz-ocpx` 基础事件词汇，并优先采用上游事件/转化/订单 ID 保证重试幂等。有效 callback 在响应 `code=0` 前，已经写入原始事实、唯一扣量决策和可选下游任务。重复 callback 也返回 `code=0`。
+`GET /ocpx/open-api/ocpx/v1/upstreams/{upstreamCode}/callback` 只是通用路由入口。callback token 名称、参数解析、事件映射以及成功/失败 HTTP 响应全部由对应 `UpstreamAdapter` 实现，Controller 不固定 Coco 字段。Coco 支持其既有事件，并在事实、扣量决策和可选下游任务写入后返回 HTTP 200、`code=0`；重复 callback 同样返回 `code=0`。`TEMPLATE_GET` 另覆盖唤起、登录、访问、认证、下单等 `sgyz-ocpx` 基础事件词汇，并优先采用上游事件/转化/订单 ID 保证重试幂等。
 
 `STANDARD` 下游适配器投递 `POST CallbackReqV1`，带 `Idempotency-Key` 与同一套 HMAC 头。V73 的 `TEMPLATE_GET_DOWNSTREAM` 仍用标准 JSON/HMAC 接收渠道 feedback，但向渠道回传转化时把 `event/event_id/source_event_id/clickid/monitor_id/channel_id/amount/amount_raw/ts` 写入 HTTPS GET 宏模板。两个通用适配器都只把 HTTP 2xx 视为成功；私有签名、表单、加密或业务响应码仍须专用 `DownstreamAdapter`。
 
@@ -82,7 +82,7 @@ V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并�
 
 ## 8. 上线顺序与门禁
 
-1. 经授权备份并应用 V70-V73；V72 会删除汽车线索表，若需归档必须先导出。部署外发关闭的 `scx-rtb`，验证接入、Redis、批量落库和账务表。
+1. 经授权备份并应用 V70-V74；V72 会删除汽车线索表，若需归档必须先导出。部署外发关闭的 `scx-ocpx-engine`，验证接入、Redis、批量落库、运行审计和账务表。
 2. 沙箱开启 Coco feedback，确认响应体/鉴权/金额单位/重试；再开启 callback 接收但不向下游外发。
 3. 下游 callback 影子核对后，单一路由灰度真实回传。
 4. 先用 AUDIT_ONLY 对账点击量与预估成本，再核对广告主初始余额并单路由启用 CPC；覆盖重复点击、余额不足、事务回滚和小时成本对账。随后完成 Redis/MySQL 故障恢复演练。

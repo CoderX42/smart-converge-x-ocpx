@@ -8,6 +8,7 @@ import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
+import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
@@ -159,6 +160,11 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
+	public String callbackToken(Map<String, String> parameters) {
+		return parameters.get("ext");
+	}
+
+	@Override
 	public NormalizedCallbackEvent parseCallback(String callbackRef, Map<String, String> parameters) {
 		String eventValue = firstNonBlank(parameters.get("action_type"), parameters.get("event"));
 		OcpxEventType eventType = OcpxEventType.fromExternal(eventValue);
@@ -185,6 +191,23 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 		}
 		return new NormalizedCallbackEvent(OcpxHashing.sha256(identity), null, callbackRef, eventType, actionTime,
 				amount, amountRaw);
+	}
+
+	@Override
+	public UpstreamCallbackResponse callbackSuccess(Map<String, String> parameters, String eventId, String status) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("code", 0);
+		body.put("event_id", eventId);
+		body.put("status", status);
+		return new UpstreamCallbackResponse(200, Map.of(), body);
+	}
+
+	@Override
+	public UpstreamCallbackResponse callbackFailure(Map<String, String> parameters, int httpStatus, String message) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("code", 1);
+		body.put("message", message);
+		return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
 	}
 
 	public static Set<String> supportedMacros() {

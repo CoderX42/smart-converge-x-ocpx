@@ -39,6 +39,7 @@
       SUM(r.visit_count) AS visit_count,
       SUM(r.authentication_count) AS authentication_count,
       SUM(r.order_count) AS order_count,
+      SUM(r.first_order_count) AS first_order_count,
       SUM(r.finish_order_count) AS finish_order_count,
       SUM(r.raw_conversion_count) AS raw_conversion_count,
       SUM(r.forwarded_conversion_count) AS forwarded_conversion_count,

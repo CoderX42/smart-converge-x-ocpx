@@ -22,7 +22,7 @@ SCX 提供：
 
 | 项目 | 示例/说明 |
 |---|---|
-| 沙箱 base URL | `https://{sandbox-domain}/rtb` |
+| 沙箱 base URL | `https://{sandbox-domain}/ocpx` |
 | 生产 base URL | UAT 通过后单独提供 |
 | `channelCode` | 路径和 `X-Client-Id` 使用的渠道编码 |
 | `monitor_id` | 已发布路由标识；不能使用 DRAFT 路由 |
@@ -159,7 +159,7 @@ X-Sign = lowercase_hex_hmac_sha256(channelSecret, canonicalString)
 
 `RAW_PATH`：
 
-- 包含 `/rtb`，例如 `/rtb/open-api/ocpx/v1/channels/demo/feedback`。
+- 包含 `/ocpx`，例如 `/ocpx/open-api/ocpx/v1/channels/demo/feedback`。
 - 不包含 scheme、host、端口和 query。
 - 必须使用反向代理转发前客户端实际请求的原始 path。
 
@@ -171,7 +171,7 @@ X-Sign = lowercase_hex_hmac_sha256(channelSecret, canonicalString)
 SCX_CHANNEL_SECRET='沙箱密钥' \
 python3 sign_request.py \
   POST \
-  /rtb/open-api/ocpx/v1/channels/demo/feedback \
+  /ocpx/open-api/ocpx/v1/channels/demo/feedback \
   feedback.json
 ```
 
@@ -180,7 +180,7 @@ python3 sign_request.py \
 ### 4.3 常见签名错误
 
 - 用解析后再序列化的 JSON 计算摘要，而不是实际发送的 Body。
-- path 漏掉 `/rtb`，或者错误地加入域名/query。
+- path 漏掉 `/ocpx`，或者错误地加入域名/query。
 - 使用大写 HEX、Base64 或 SHA-1。
 - 签名后 HTTP SDK 又改变 JSON 空白、换行或字符编码。
 - 秒/毫秒与服务器时间偏差超过窗口。

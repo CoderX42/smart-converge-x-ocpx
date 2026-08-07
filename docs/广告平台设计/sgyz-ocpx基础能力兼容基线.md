@@ -39,9 +39,9 @@
 
 | 方向 | SCX 契约 |
 |---|---|
-| 下游媒体 -> SCX | `POST /rtb/open-api/ocpx/v1/channels/{channelCode}/feedback` |
+| 下游媒体 -> SCX | `POST /ocpx/open-api/ocpx/v1/channels/{channelCode}/feedback` |
 | SCX -> 通用/Coco 广告主 | 已发布路由的 `bid_url`，由对应 `UpstreamAdapter` 构造 |
-| 广告主 -> SCX | `GET /rtb/open-api/ocpx/v1/upstreams/{upstreamCode}/callback` |
+| 广告主 -> SCX | `GET /ocpx/open-api/ocpx/v1/upstreams/{upstreamCode}/callback` |
 | SCX -> 下游媒体 | 路由的 `downstream_callback_url`，由对应 `DownstreamAdapter` 构造 |
 
 后台监测记录的“展示上报接口”和“点击上报接口”均指向同一个 V70 POST endpoint，事件由 JSON body 的 `event` 区分；它们不再生成旧式 `?monitorId=...&event=...` GET 地址。
@@ -52,7 +52,7 @@
 2. 任何私有签名、AES/RSA、POST body、特殊业务 code、来源验签或事件枚举都必须新增专用 `UpstreamAdapter`。
 3. 媒体只能接收通用 HTTPS GET 宏回传时可使用 `TEMPLATE_GET_DOWNSTREAM`；私有签名、表单或业务成功码必须新增专用 `DownstreamAdapter`。
 4. 专用适配器必须提供协议文档、固定签名向量、单元测试、WireMock 集成测试和双方 UAT。
-5. 仓库已提供仅暴露 `/rtb/open-api/` 的宝塔和容器 Nginx 模板；未在目标环境应用模板、未迁移 V70-V73、外发开关关闭或未完成外部 UAT时，只能称为源码能力，不能称为已上线兼容。
+5. 仓库已提供仅暴露 `/ocpx/open-api/` 的宝塔和容器 Nginx 模板；未在目标环境应用模板、未迁移 V70-V73、外发开关关闭或未完成外部 UAT时，只能称为源码能力，不能称为已上线兼容。
 
 ## 5. 放行结论
 
@@ -60,4 +60,4 @@
 - 旧系统所有媒体/DSP 协议逐一兼容：未完成，需要按正式协议逐适配器实施。
 - RTA：仍为 Disabled；汽车线索不再是交付范围。
 - 真实计费：源码已实现，生产未放行；须完成 V72、余额/账务核对、灰度和对账。
-- 生产切换：No-Go，必须先完成目标库 V70-V73、应用边缘 `/rtb/open-api/` 模板、真实上下游 UAT、计费与故障恢复演练和容量验收。
+- 生产切换：No-Go，必须先完成目标库 V70-V73、应用边缘 `/ocpx/open-api/` 模板、真实上下游 UAT、计费与故障恢复演练和容量验收。

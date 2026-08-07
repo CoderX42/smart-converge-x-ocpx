@@ -53,6 +53,8 @@ public class AdxHourlyReport {
 
 	private Long orderCount;
 
+	private Long firstOrderCount;
+
 	private Long finishOrderCount;
 
 	private Long rawConversionCount;

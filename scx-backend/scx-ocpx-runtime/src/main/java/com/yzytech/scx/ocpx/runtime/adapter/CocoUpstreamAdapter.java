@@ -1,5 +1,7 @@
 package com.yzytech.scx.ocpx.runtime.adapter;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
@@ -8,6 +10,7 @@ import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
+import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
@@ -28,6 +31,10 @@ import java.util.stream.Collectors;
 @Component
 public class CocoUpstreamAdapter implements UpstreamAdapter {
 
+	private static final ObjectMapper JSON = new ObjectMapper();
+
+	private static final Set<String> SUCCESS_CODES = Set.of("0", "200");
+
 	@Override
 	public String code() {
 		return "COCO";
@@ -38,8 +45,9 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 		return new AdapterCapabilities("UPSTREAM", Set.of(OcpxEventType.CLICK), Set.of("GET"), Set.of("NONE"),
 				Duration.ofSeconds(3),
 				Set.of("__IDFA__", "__IDFA_MD5__", "__IMEI__", "__IMEI_MD5__", "__OAID__", "__OAID_MD5__", "__IP__",
-						"__CAID_LIST__", "__ANDROID_ID__", "__ANDROID_ID_MD5__", "__AAID__", "__UA__", "__OS__",
-						"__MODEL__", "__CALLBACK__", "__CLICKID__", "__CREATIVEID__"),
+						"__CAID__", "__CAID_LIST__", "__ANDROIDID__", "__ANDROID_ID__", "__ANDROIDID_MD5__",
+						"__ANDROID_ID_MD5__", "__AAID__", "__UA__", "__OS__", "__MODEL__", "__CALLBACK__",
+						"__CLICKID__", "__CAMPAIGNID__", "__ADGROUPID__", "__CREATIVEID__", "__ADVERTISERID__"),
 				true);
 	}
 
@@ -49,7 +57,34 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
+	public void validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
+		OcpxEventType eventType = OcpxEventType.fromExternal(feedback.getEvent());
+		if (eventType != OcpxEventType.CLICK) {
+			throw new IllegalArgumentException("Coco only accepts CLICK feedback");
+		}
+		if (route.bidUrl() == null || !route.bidUrl().contains("__CALLBACK__")) {
+			throw new IllegalArgumentException("Coco URL must contain __CALLBACK__");
+		}
+		if (!isExplicitIos(feedback) && firstNonBlank(feedback.getImei(), feedback.getImeiMd5(), feedback.getOaid(),
+				feedback.getOaidMd5()) == null) {
+			throw new IllegalArgumentException("Android feedback requires IMEI/OAID raw or MD5 value");
+		}
+		validateLength("ua", feedback.getUa(), 1000);
+		validateLength("caid", feedback.getCaid(), 5000);
+		validateLength("imei", feedback.getImei(), 512);
+		validateLength("imei_md5", feedback.getImeiMd5(), 512);
+		validateLength("oaid", feedback.getOaid(), 512);
+		validateLength("oaid_md5", feedback.getOaidMd5(), 512);
+		for (String required : requiredMacros(route)) {
+			if (!hasMacroValue(required, feedback)) {
+				throw new IllegalArgumentException("Coco required macro has no value: " + required);
+			}
+		}
+	}
+
+	@Override
 	public AdapterHttpRequest buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
+		validateLength("callback", callbackUrl, 5000);
 		Map<String, String> macros = new LinkedHashMap<>();
 		macros.put("__IDFA__", feedback.getIdfa());
 		macros.put("__IDFA_MD5__", feedback.getIdfaMd5());
@@ -58,8 +93,11 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 		macros.put("__OAID__", feedback.getOaid());
 		macros.put("__OAID_MD5__", feedback.getOaidMd5());
 		macros.put("__IP__", feedback.getIp());
+		macros.put("__CAID__", feedback.getCaid());
 		macros.put("__CAID_LIST__", feedback.getCaid());
+		macros.put("__ANDROIDID__", feedback.getAndroidId());
 		macros.put("__ANDROID_ID__", feedback.getAndroidId());
+		macros.put("__ANDROIDID_MD5__", feedback.getAndroidIdMd5());
 		macros.put("__ANDROID_ID_MD5__", feedback.getAndroidIdMd5());
 		macros.put("__AAID__", feedback.getAaid());
 		macros.put("__UA__", feedback.getUa());
@@ -67,11 +105,11 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 		macros.put("__MODEL__", feedback.getModel());
 		macros.put("__CALLBACK__", callbackUrl);
 		macros.put("__CLICKID__", feedback.getClickid());
+		macros.put("__CAMPAIGNID__", feedback.getCampaignId());
+		macros.put("__ADGROUPID__", feedback.getAdgroupId());
 		macros.put("__CREATIVEID__", feedback.getCreativeId());
-		Set<String> required = route.upstreamRequiredMacros() == null ? Set.of()
-				: Arrays.stream(route.upstreamRequiredMacros().split("[,\\s]+"))
-					.filter(value -> !value.isBlank())
-					.collect(Collectors.toSet());
+		macros.put("__ADVERTISERID__", feedback.getAdvertiserId());
+		Set<String> required = requiredMacros(route);
 		String url = route.bidUrl();
 		for (Map.Entry<String, String> entry : macros.entrySet()) {
 			String replacement = entry.getValue() == null || entry.getValue().isBlank()
@@ -81,18 +119,43 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 		if (url.matches(".*__[A-Z0-9_]+__.*")) {
 			throw new IllegalArgumentException("Coco URL contains unresolved required macros");
 		}
+		if (url.length() > 16_384) {
+			throw new IllegalArgumentException("Coco URL exceeds safe length limit");
+		}
 		return new AdapterHttpRequest("GET", URI.create(url), Map.of(), null);
 	}
 
 	@Override
 	public boolean isSuccess(AdapterHttpResponse response) {
-		return response.statusCode() >= 200 && response.statusCode() < 300;
+		if (response == null || response.statusCode() < 200 || response.statusCode() >= 300) {
+			return false;
+		}
+		String code = businessCode(response.body());
+		return code == null || SUCCESS_CODES.contains(code);
+	}
+
+	@Override
+	public String failureReason(AdapterHttpResponse response) {
+		if (response == null) {
+			return "COCO_NO_RESPONSE";
+		}
+		String code = businessCode(response.body());
+		if (code == null) {
+			return "COCO_HTTP_" + response.statusCode();
+		}
+		String message = businessMessage(response.body());
+		return truncate("COCO_CODE_" + code + (message == null ? "" : ":" + message), 1000);
+	}
+
+	@Override
+	public String callbackToken(Map<String, String> parameters) {
+		return parameters.get("ext");
 	}
 
 	@Override
 	public NormalizedCallbackEvent parseCallback(String callbackRef, Map<String, String> parameters) {
 		OcpxEventType eventType = OcpxEventType.fromExternal(parameters.get("action_type"));
-		String amountRaw = parameters.get("currency_amount");
+		String amountRaw = eventType == OcpxEventType.PAYMENT ? parameters.get("currency_amount") : null;
 		BigDecimal amount = null;
 		if (amountRaw != null && !amountRaw.isBlank()) {
 			if (amountRaw.length() > 64) {
@@ -112,9 +175,29 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 		Map<String, String> identityParameters = new TreeMap<>(parameters);
 		identityParameters.remove("ext");
 		identityParameters.remove("s");
-		String eventId = OcpxHashing.sha256(callbackRef + "|" + identityParameters);
+		String externalEventId = firstNonBlank(parameters.get("conversion_id"), parameters.get("event_id"),
+				parameters.get("order_id"));
+		String eventId = externalEventId == null ? OcpxHashing.sha256(callbackRef + "|" + identityParameters)
+				: OcpxHashing.sha256(callbackRef + "|external|" + externalEventId);
 		return new NormalizedCallbackEvent(eventId, null, callbackRef, eventType, OffsetDateTime.now(), amount,
 				amountRaw);
+	}
+
+	@Override
+	public UpstreamCallbackResponse callbackSuccess(Map<String, String> parameters, String eventId, String status) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("code", 0);
+		body.put("event_id", eventId);
+		body.put("status", status);
+		return new UpstreamCallbackResponse(200, Map.of(), body);
+	}
+
+	@Override
+	public UpstreamCallbackResponse callbackFailure(Map<String, String> parameters, int httpStatus, String message) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("code", 1);
+		body.put("message", message);
+		return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
 	}
 
 	private String convertOs(String os) {
@@ -130,6 +213,89 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 
 	private String encode(String value) {
 		return value == null ? "" : UriUtils.encodeQueryParam(value, StandardCharsets.UTF_8);
+	}
+
+	private Set<String> requiredMacros(RouteSnapshot route) {
+		return route.upstreamRequiredMacros() == null ? Set.of()
+				: Arrays.stream(route.upstreamRequiredMacros().split("[,\\s]+"))
+					.filter(value -> !value.isBlank())
+					.collect(Collectors.toSet());
+	}
+
+	private boolean hasMacroValue(String macro, FeedbackReqV1 feedback) {
+		return switch (macro) {
+			case "__CALLBACK__" -> true;
+			case "__IDFA__" -> hasText(feedback.getIdfa());
+			case "__IDFA_MD5__" -> hasText(feedback.getIdfaMd5());
+			case "__IMEI__" -> hasText(feedback.getImei());
+			case "__IMEI_MD5__" -> hasText(feedback.getImeiMd5());
+			case "__OAID__" -> hasText(feedback.getOaid());
+			case "__OAID_MD5__" -> hasText(feedback.getOaidMd5());
+			case "__CAID__", "__CAID_LIST__" -> hasText(feedback.getCaid());
+			case "__ANDROIDID__", "__ANDROID_ID__" -> hasText(feedback.getAndroidId());
+			case "__ANDROIDID_MD5__", "__ANDROID_ID_MD5__" -> hasText(feedback.getAndroidIdMd5());
+			case "__AAID__" -> hasText(feedback.getAaid());
+			case "__IP__" -> hasText(feedback.getIp());
+			case "__UA__" -> hasText(feedback.getUa());
+			case "__OS__" -> hasText(feedback.getOs());
+			case "__MODEL__" -> hasText(feedback.getModel());
+			case "__CLICKID__" -> hasText(feedback.getClickid());
+			case "__CAMPAIGNID__" -> hasText(feedback.getCampaignId());
+			case "__ADGROUPID__" -> hasText(feedback.getAdgroupId());
+			case "__CREATIVEID__" -> hasText(feedback.getCreativeId());
+			case "__ADVERTISERID__" -> hasText(feedback.getAdvertiserId());
+			default -> false;
+		};
+	}
+
+	private boolean isExplicitIos(FeedbackReqV1 feedback) {
+		return "ios".equalsIgnoreCase(feedback.getOs()) || "1".equals(feedback.getOs());
+	}
+
+	private String businessCode(String body) {
+		JsonNode json = parseJson(body);
+		JsonNode code = json == null ? null : json.get("code");
+		return code == null || code.isNull() ? null : code.asText();
+	}
+
+	private String businessMessage(String body) {
+		JsonNode json = parseJson(body);
+		if (json == null) {
+			return null;
+		}
+		JsonNode message = json.has("message") ? json.get("message") : json.get("msg");
+		return message == null || message.isNull() ? null : message.asText().replaceAll("[\\r\\n\\t]", " ");
+	}
+
+	private JsonNode parseJson(String body) {
+		if (!hasText(body)) {
+			return null;
+		}
+		try {
+			JsonNode json = JSON.readTree(body);
+			return json != null && json.isObject() ? json : null;
+		}
+		catch (Exception ignored) {
+			return null;
+		}
+	}
+
+	private String firstNonBlank(String... values) {
+		return Arrays.stream(values).filter(this::hasText).findFirst().orElse(null);
+	}
+
+	private boolean hasText(String value) {
+		return value != null && !value.isBlank();
+	}
+
+	private String truncate(String value, int length) {
+		return value.length() <= length ? value : value.substring(0, length);
+	}
+
+	private void validateLength(String name, String value, int maxLength) {
+		if (value != null && value.length() > maxLength) {
+			throw new IllegalArgumentException(name + " is too long");
+		}
 	}
 
 }

@@ -13,7 +13,8 @@ public class RouteConfigurationRepository {
 
 	private static final String ROUTE_SELECT = """
 			SELECT m.id, m.biz_id, m.config_version, c.id, c.channel_code, c.adapter_code, c.auth_type,
-			      c.key_version, c.secret_key, a.id, m.app_link_id, a.adapter_code, a.secret_key, a.bid_url,
+			      c.key_version, c.secret_key, a.id, m.app_link_id, a.adapter_code, a.secret_key,
+			      m.published_upstream_feedback_url,
 			      a.macro_params, m.downstream_callback_url, m.unit_price, COALESCE(d.ratio, 1.0000), m.rta_mode,
 			      m.billing_mode
 			FROM scx_adx_monitor_link m

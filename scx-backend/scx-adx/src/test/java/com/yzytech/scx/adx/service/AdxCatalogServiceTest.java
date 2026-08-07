@@ -108,7 +108,7 @@ class AdxCatalogServiceTest {
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(advertiser);
 		when(appLinkMapper.selectById("link-1")).thenReturn(link);
 		CatalogRequests.SaveMonitor request = new CatalogRequests.SaveMonitor("channel-1", "advertiser-1", "link-1",
-				"监测链接", null, BigDecimal.ONE, null, null, "OFF", "OFF");
+				"监测链接", null, BigDecimal.ONE, null, null, null, "OFF", "OFF");
 
 		assertThatThrownBy(() -> service.saveMonitor(null, request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("应用链接不属于所选广告主");
@@ -119,7 +119,7 @@ class AdxCatalogServiceTest {
 		AdxChannel channel = new AdxChannel();
 		channel.setId("channel-1");
 		channel.setChannelCode("media_main");
-		channel.setUri("https://ocpx.example/rtb/");
+		channel.setUri("https://ocpx.example/ocpx/");
 		AdxAdvertiser advertiser = new AdxAdvertiser();
 		advertiser.setId("advertiser-1");
 		AdxAppLink link = new AdxAppLink();
@@ -133,7 +133,7 @@ class AdxCatalogServiceTest {
 			return 1;
 		});
 		CatalogRequests.SaveMonitor request = new CatalogRequests.SaveMonitor("channel-1", "advertiser-1", "link-1",
-				"监测链接", null, BigDecimal.ONE, null, null, "OFF", "OFF");
+				"监测链接", null, BigDecimal.ONE, null, null, null, "OFF", "OFF");
 
 		service.saveMonitor(null, request);
 
@@ -141,14 +141,14 @@ class AdxCatalogServiceTest {
 			.forClass(com.yzytech.scx.adx.entity.AdxMonitorLink.class);
 		verify(monitorMapper).updateById(monitor.capture());
 		assertThat(monitor.getValue().getShowUrl())
-			.isEqualTo("https://ocpx.example/rtb/open-api/ocpx/v1/channels/media_main/feedback");
+			.isEqualTo("https://ocpx.example/ocpx/open-api/ocpx/v1/channels/media_main/feedback");
 		assertThat(monitor.getValue().getClickUrl()).isEqualTo(monitor.getValue().getShowUrl());
 	}
 
 	@Test
-	void channelRejectsRtbBaseAddressWithQueryParameters() {
+	void channelRejectsOcpxEngineBaseAddressWithQueryParameters() {
 		CatalogRequests.SaveChannel request = new CatalogRequests.SaveChannel("media_main", "主渠道", "STANDARD", "HMAC",
-				1, "https://ocpx.example/rtb?token=browser-secret", "channel-secret", "event,callback", "ocpx.example",
+				1, "https://ocpx.example/ocpx?token=browser-secret", "channel-secret", "event,callback", "ocpx.example",
 				"ACTIVE");
 
 		assertThatThrownBy(() -> service.saveChannel(null, request)).isInstanceOf(IllegalArgumentException.class)

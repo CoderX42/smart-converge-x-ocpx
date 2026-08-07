@@ -15,7 +15,7 @@
 
 ```bash
 export SCX_CHANNEL_SECRET='从受控渠道临时注入'
-python3 sign_request.py POST /rtb/open-api/ocpx/v1/channels/sandbox_channel/feedback request.json
+python3 sign_request.py POST /ocpx/open-api/ocpx/v1/channels/sandbox_channel/feedback request.json
 
 export SCX_CALLBACK_CLIENT_ID='测试 clientId'
 export SCX_CALLBACK_KEY_VERSION='v1'
@@ -23,5 +23,5 @@ export SCX_CALLBACK_SECRET='从受控渠道临时注入'
 python3 hmac_callback_mock.py
 ```
 
-签名脚本对原始请求体计算 SHA-256，路径必须与实际发送路径完全一致并包含 `/rtb`。模拟器默认监听 `127.0.0.1:18080`，只接受 `/postback`。它不会打印密钥或完整请求正文，重复
+签名脚本对原始请求体计算 SHA-256，路径必须与实际发送路径完全一致并包含 `/ocpx`。模拟器默认监听 `127.0.0.1:18080`，只接受 `/postback`。它不会打印密钥或完整请求正文，重复
 `Idempotency-Key` 返回相同成功响应，并在签名不一致时返回 `401`。

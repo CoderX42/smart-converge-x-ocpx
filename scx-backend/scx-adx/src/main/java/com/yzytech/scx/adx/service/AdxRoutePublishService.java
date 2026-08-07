@@ -26,8 +26,9 @@ public class AdxRoutePublishService {
 	private static final Pattern TEMPLATE_MACRO = Pattern.compile("__[A-Z0-9_]+__");
 
 	private static final Set<String> COCO_MACROS = Set.of("__IDFA__", "__IDFA_MD5__", "__IMEI__", "__IMEI_MD5__",
-			"__OAID__", "__OAID_MD5__", "__IP__", "__CAID_LIST__", "__ANDROID_ID__", "__ANDROID_ID_MD5__", "__AAID__",
-			"__UA__", "__OS__", "__MODEL__", "__CALLBACK__", "__CLICKID__", "__CREATIVEID__");
+			"__OAID__", "__OAID_MD5__", "__IP__", "__CAID__", "__CAID_LIST__", "__ANDROIDID__", "__ANDROID_ID__",
+			"__ANDROIDID_MD5__", "__ANDROID_ID_MD5__", "__AAID__", "__UA__", "__OS__", "__MODEL__", "__CALLBACK__",
+			"__CLICKID__", "__CAMPAIGNID__", "__ADGROUPID__", "__CREATIVEID__", "__ADVERTISERID__");
 
 	private static final Set<String> TEMPLATE_GET_MACROS = Set.of("__EVENT__", "__EVENT_TIME__", "__EVENT_ID__",
 			"__TS__", "__MTS__", "__REQUEST_ID__", "__CHANNEL_ID__", "__DSP_ID__", "__LINK_ID__", "__TASK_ID__",
@@ -71,6 +72,8 @@ public class AdxRoutePublishService {
 		monitor.setRouteStatus("PUBLISHED");
 		monitor.setConfigVersion(nextVersion);
 		monitor.setPublishedAt(LocalDateTime.now());
+		monitor.setPublishedUpstreamFeedbackUrl(StringUtils.hasText(monitor.getUpstreamFeedbackUrl())
+				? monitor.getUpstreamFeedbackUrl() : advertiser.getBidUrl());
 		monitorMapper.updateById(monitor);
 		configChangeService.enqueueMonitor(monitorId, nextVersion, "ROUTE_PUBLISHED");
 		Map<String, Object> result = new LinkedHashMap<>();
@@ -93,19 +96,20 @@ public class AdxRoutePublishService {
 		if (!StringUtils.hasText(channel.getSecretKey()) || channel.getSecretKey().length() < 32) {
 			throw new IllegalArgumentException("HMAC 渠道必须配置至少 32 位密钥");
 		}
-		validateHttps(advertiser.getBidUrl(), advertiser.getUpstreamHostAllowlist(), "上游请求地址");
+		String effectiveUpstreamUrl = StringUtils.hasText(monitor.getUpstreamFeedbackUrl())
+				? monitor.getUpstreamFeedbackUrl() : advertiser.getBidUrl();
+		validateHttps(effectiveUpstreamUrl, advertiser.getUpstreamHostAllowlist(), "上游请求地址");
 		if ("COCO".equals(advertiser.getAdapterCode())) {
-			if (!advertiser.getBidUrl().contains("__CALLBACK__")) {
+			if (!effectiveUpstreamUrl.contains("__CALLBACK__")) {
 				throw new IllegalArgumentException("Coco 请求地址必须包含 __CALLBACK__ 宏");
 			}
-			validateMacros(advertiser, COCO_MACROS, "Coco");
+			validateMacros(effectiveUpstreamUrl, advertiser.getMacroParams(), COCO_MACROS, "Coco");
 		}
 		if ("TEMPLATE_GET".equals(advertiser.getAdapterCode())) {
-			if (!(advertiser.getBidUrl().contains("__CALLBACK__")
-					|| advertiser.getBidUrl().contains("__CALLBACK_URL__"))) {
+			if (!(effectiveUpstreamUrl.contains("__CALLBACK__") || effectiveUpstreamUrl.contains("__CALLBACK_URL__"))) {
 				throw new IllegalArgumentException("模板 GET 请求地址必须包含回调宏");
 			}
-			validateMacros(advertiser, TEMPLATE_GET_MACROS, "模板 GET");
+			validateMacros(effectiveUpstreamUrl, advertiser.getMacroParams(), TEMPLATE_GET_MACROS, "模板 GET");
 		}
 		if (!StringUtils.hasText(monitor.getDownstreamCallbackUrl())) {
 			throw new IllegalArgumentException("发布路由必须配置下游回调地址");
@@ -140,21 +144,21 @@ public class AdxRoutePublishService {
 		}
 	}
 
-	private void validateMacros(AdxAdvertiser advertiser, Set<String> supportedMacros, String adapterName) {
-		Matcher matcher = TEMPLATE_MACRO.matcher(advertiser.getBidUrl());
+	private void validateMacros(String url, String requiredMacros, Set<String> supportedMacros, String adapterName) {
+		Matcher matcher = TEMPLATE_MACRO.matcher(url);
 		while (matcher.find()) {
 			if (!supportedMacros.contains(matcher.group())) {
 				throw new IllegalArgumentException(adapterName + " 请求地址包含不支持的宏：" + matcher.group());
 			}
 		}
-		if (!StringUtils.hasText(advertiser.getMacroParams())) {
+		if (!StringUtils.hasText(requiredMacros)) {
 			return;
 		}
-		for (String required : advertiser.getMacroParams().split("[,\\s]+")) {
+		for (String required : requiredMacros.split("[,\\s]+")) {
 			if (!supportedMacros.contains(required)) {
 				throw new IllegalArgumentException(adapterName + " 必填宏配置无效：" + required);
 			}
-			if (!advertiser.getBidUrl().contains(required)) {
+			if (!url.contains(required)) {
 				throw new IllegalArgumentException(adapterName + " 请求地址缺少已声明的必填宏：" + required);
 			}
 		}

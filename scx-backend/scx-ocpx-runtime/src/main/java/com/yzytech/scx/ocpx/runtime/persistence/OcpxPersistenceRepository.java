@@ -10,6 +10,7 @@ import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
 import com.yzytech.scx.ocpx.runtime.model.CallbackContext;
 import com.yzytech.scx.ocpx.runtime.model.DeliveryContext;
+import com.yzytech.scx.ocpx.runtime.model.DeliveryAttemptAudit;
 import com.yzytech.scx.ocpx.runtime.model.DeliveryJob;
 import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
@@ -241,6 +242,11 @@ public class OcpxPersistenceRepository {
 
 	@Transactional
 	public void markDeliverySuccess(DeliveryJob job, int statusCode) {
+		markDeliverySuccess(job, statusCode, DeliveryAttemptAudit.empty());
+	}
+
+	@Transactional
+	public void markDeliverySuccess(DeliveryJob job, int statusCode, DeliveryAttemptAudit audit) {
 		int attempt = job.attemptCount() + 1;
 		int updated = jdbcTemplate.update(
 				"""
@@ -252,7 +258,7 @@ public class OcpxPersistenceRepository {
 		if (updated == 0) {
 			return;
 		}
-		insertAttempt(job, attempt, "SUCCESS", statusCode, null);
+		insertAttempt(job, attempt, "SUCCESS", statusCode, null, audit);
 		if ("CALLBACK_DOWNSTREAM".equals(job.direction())) {
 			incrementDeliveryMetric(job.eventId(), "forwarded_conversion_count");
 		}
@@ -260,6 +266,11 @@ public class OcpxPersistenceRepository {
 
 	@Transactional
 	public void markDeliveryFailure(DeliveryJob job, Integer statusCode, String error) {
+		markDeliveryFailure(job, statusCode, error, DeliveryAttemptAudit.empty());
+	}
+
+	@Transactional
+	public void markDeliveryFailure(DeliveryJob job, Integer statusCode, String error, DeliveryAttemptAudit audit) {
 		int attempt = job.attemptCount() + 1;
 		boolean dead = attempt >= properties.getMaxDeliveryAttempts();
 		long delaySeconds = switch (attempt) {
@@ -277,7 +288,7 @@ public class OcpxPersistenceRepository {
 		if (updated == 0) {
 			return;
 		}
-		insertAttempt(job, attempt, dead ? "DEAD" : "FAILED", statusCode, error);
+		insertAttempt(job, attempt, dead ? "DEAD" : "FAILED", statusCode, error, audit);
 		if (dead) {
 			incrementDeliveryMetric(job.eventId(), "delivery_failure_count");
 		}
@@ -293,12 +304,16 @@ public class OcpxPersistenceRepository {
 				""", id(), partition, streamRecordId, eventId, envelope, truncate(reason, 1000));
 	}
 
-	private void insertAttempt(DeliveryJob job, int attempt, String status, Integer statusCode, String error) {
+	private void insertAttempt(DeliveryJob job, int attempt, String status, Integer statusCode, String error,
+			DeliveryAttemptAudit audit) {
 		jdbcTemplate.update("""
 				INSERT INTO scx_ocpx_delivery_attempt
-				(id,job_id,attempt_no,status,http_status,error_message,create_time)
-				VALUES (?,?,?,?,?,?,NOW(3))
-				""", id(), job.id(), attempt, status, statusCode, truncate(error, 1000));
+				(id,job_id,attempt_no,status,http_status,error_message,request_method,target_host,target_path,
+				 request_summary,response_excerpt,duration_ms,create_time)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
+				""", id(), job.id(), attempt, status, statusCode, truncate(error, 1000), audit.requestMethod(),
+				audit.targetHost(), truncate(audit.targetPath(), 1000), truncate(audit.requestSummary(), 4000),
+				truncate(audit.responseExcerpt(), 2000), audit.durationMs());
 	}
 
 	private void incrementDeliveryMetric(String eventId, String metricColumn) {
@@ -376,6 +391,7 @@ public class OcpxPersistenceRepository {
 			case VISIT -> "visit_count";
 			case AUTHENTICATION -> "authentication_count";
 			case ORDER -> "order_count";
+			case FIRST_ORDER -> "first_order_count";
 			case COMPLETE_ORDER -> "finish_order_count";
 			case SHOW, CLICK -> throw new IllegalArgumentException("feedback event cannot be aggregated as callback");
 		};

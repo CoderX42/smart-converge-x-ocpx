@@ -21,15 +21,14 @@ import java.util.Map;
  *
  * <p>
  * 对外暴露 {@code POST /open-api/ocpx/v1/channels/{channelCode}/feedback}，接收渠道侧上报的
- * 曝光、点击等事件报文。本控制器只负责协议层的接收与响应状态映射，报文大小校验、解析、
- * 路由定位、签名鉴权、幂等落库与投递封装全部委托给 {@link FeedbackIngressService}。
+ * 曝光、点击等事件报文。本控制器只负责协议层的接收与响应状态映射，报文大小校验、解析、 路由定位、签名鉴权、幂等落库与投递封装全部委托给
+ * {@link FeedbackIngressService}。
  * </p>
  *
  * <p>
- * <strong>线程模型：</strong>该应用运行在 WebFlux/响应式栈上，而
- * {@link FeedbackIngressService#accept} 内部包含 JDBC、Redis 等阻塞调用，因此通过
- * {@code Mono.fromCallable} 包装并切换到 {@link Schedulers#boundedElastic()} 执行，
- * 避免阻塞事件循环线程。
+ * <strong>线程模型：</strong>该应用运行在 WebFlux/响应式栈上，而 {@link FeedbackIngressService#accept} 内部包含
+ * JDBC、Redis 等阻塞调用，因此通过 {@code Mono.fromCallable} 包装并切换到
+ * {@link Schedulers#boundedElastic()} 执行， 避免阻塞事件循环线程。
  * </p>
  */
 @RestController
@@ -39,16 +38,18 @@ public class FeedbackIngressController {
 	/** 回传接入业务服务，负责报文校验、鉴权、幂等与投递。 */
 	private final FeedbackIngressService service;
 
-	public FeedbackIngressController(FeedbackIngressService service) {
+	private final IngressAuditRecorder auditRecorder;
+
+	public FeedbackIngressController(FeedbackIngressService service, IngressAuditRecorder auditRecorder) {
 		this.service = service;
+		this.auditRecorder = auditRecorder;
 	}
 
 	/**
 	 * 接收指定渠道的回传报文。
 	 *
 	 * <p>
-	 * 原始报文以字符串整体接收（不做绑定解析），连同请求方法、原始路径和请求头一起交给
-	 * 服务层——这些都是签名校验的必要输入，不能在控制器层改写。
+	 * 原始报文以字符串整体接收（不做绑定解析），连同请求方法、原始路径和请求头一起交给 服务层——这些都是签名校验的必要输入，不能在控制器层改写。
 	 * </p>
 	 *
 	 * <p>
@@ -58,11 +59,10 @@ public class FeedbackIngressController {
 	 * <li>{@link IngressResult.Status#DUPLICATE}（幂等命中，重复上报）→ HTTP 200，
 	 * 告诉渠道"已收到、无需重试"；</li>
 	 * <li>{@link IngressResult.Status#CONFLICT}（与已入库事件冲突）→ HTTP 409；</li>
-	 * <li>{@link OcpxException}（鉴权失败、报文非法等业务错误）→ 异常自带的 HTTP 状态码，
-	 * 响应体统一为 {@code {"code": ..., "message": ...}}。</li>
+	 * <li>{@link OcpxException}（鉴权失败、报文非法等业务错误）→ 异常自带的 HTTP 状态码， 响应体统一为 {@code {"code":
+	 * ..., "message": ...}}。</li>
 	 * </ul>
 	 * </p>
-	 *
 	 * @param channelCode 渠道编码，来自路径变量，用于定位路由与下游适配器
 	 * @param rawBody 请求体原始字符串，鉴权签名与报文解析均基于它，禁止预先反序列化
 	 * @param headers 全部请求头，签名校验需要其中的时间戳、签名等字段
@@ -74,12 +74,22 @@ public class FeedbackIngressController {
 			@RequestHeader org.springframework.http.HttpHeaders headers, ServerWebExchange exchange) {
 		// 取原始路径而非解析后的路径，保证与服务层验签时使用的签名要素一致
 		String path = exchange.getRequest().getURI().getRawPath();
+		long started = System.nanoTime();
+		String remoteIp = exchange.getRequest().getRemoteAddress() == null ? null
+				: exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
 		return Mono.fromCallable(() -> service.accept(channelCode, "POST", path, rawBody, headers))
 			// accept 内部有 JDBC/Redis 阻塞调用，切到弹性线程池执行，不占用事件循环
 			.subscribeOn(Schedulers.boundedElastic())
 			.map(result -> {
+				long durationMs = Math.max(0, (System.nanoTime() - started) / 1_000_000);
 				if (result.status() == IngressResult.Status.CONFLICT) {
+					auditRecorder.record(channelCode, "CONFLICT", HttpStatus.CONFLICT.value(), "event payload conflict",
+							rawBody, headers, remoteIp, durationMs);
 					return ResponseEntity.status(HttpStatus.CONFLICT).body((Object) result);
+				}
+				if (result.status() == IngressResult.Status.DUPLICATE) {
+					auditRecorder.record(channelCode, "DUPLICATE", HttpStatus.OK.value(), "idempotent duplicate",
+							rawBody, headers, remoteIp, durationMs);
 				}
 				// ACCEPTED → 202；DUPLICATE → 200（幂等重放视为成功，避免渠道无谓重试）
 				return ResponseEntity
@@ -87,8 +97,22 @@ public class FeedbackIngressController {
 					.body((Object) result);
 			})
 			// 业务异常统一转换为 {code, message} 结构，状态码取自异常本身
-			.onErrorResume(OcpxException.class, error -> Mono.just(ResponseEntity.status(error.getStatus())
-				.body((Object) Map.of("code", error.getStatus().value(), "message", error.getMessage()))));
+			.onErrorResume(OcpxException.class, error -> {
+				auditRecorder.record(channelCode, auditStatus(error), error.getStatus().value(), error.getMessage(),
+						rawBody, headers, remoteIp, Math.max(0, (System.nanoTime() - started) / 1_000_000));
+				return Mono.just(ResponseEntity.status(error.getStatus())
+					.body((Object) Map.of("code", error.getStatus().value(), "message", error.getMessage())));
+			});
+	}
+
+	private String auditStatus(OcpxException error) {
+		if (error.getStatus() == HttpStatus.TOO_MANY_REQUESTS) {
+			return "RATE_LIMITED";
+		}
+		if (error.getStatus() == HttpStatus.UNAUTHORIZED || error.getStatus() == HttpStatus.FORBIDDEN) {
+			return "AUTH_REJECTED";
+		}
+		return "PROTOCOL_REJECTED";
 	}
 
 }

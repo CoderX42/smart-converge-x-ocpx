@@ -248,11 +248,13 @@ public class AdxCatalogService {
 		entity.setBizId(trimToNull(request.bizId()));
 		entity.setUnitPrice(request.unitPrice());
 		entity.setRemark(trimToNull(request.remark()));
+		entity.setUpstreamFeedbackUrl(trimToNull(request.upstreamFeedbackUrl()));
 		entity.setDownstreamCallbackUrl(trimToNull(request.downstreamCallbackUrl()));
 		entity.setRtaMode(request.rtaMode());
 		entity.setBillingMode(request.billingMode());
 		entity.setRouteStatus("DRAFT");
 		entity.setPublishedAt(null);
+		entity.setPublishedUpstreamFeedbackUrl(null);
 		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (!StringUtils.hasText(id)) {
 			monitorMapper.insert(entity);
@@ -262,7 +264,8 @@ public class AdxCatalogService {
 		entity.setClickUrl(feedbackUrl);
 		monitorMapper.updateById(entity);
 		configChangeService.enqueueMonitor(entity.getId(), entity.getConfigVersion(), "ROUTE_DRAFTED");
-		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName());
+		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName(),
+				advertiser.getBidUrl());
 	}
 
 	@Transactional
@@ -289,6 +292,8 @@ public class AdxCatalogService {
 			.orderByAsc(AdxAdvertiser::getAdvertiserName));
 		Map<String, String> advertiserNames = advertiserRows.stream()
 			.collect(Collectors.toMap(AdxAdvertiser::getId, AdxAdvertiser::getAdvertiserName));
+		Map<String, String> advertiserBidUrls = advertiserRows.stream()
+			.collect(Collectors.toMap(AdxAdvertiser::getId, AdxAdvertiser::getBidUrl));
 		List<AdxAppLink> linkRows = appLinkMapper.selectList(Wrappers.<AdxAppLink>lambdaQuery()
 			.eq(StringUtils.hasText(advertiserScope), AdxAppLink::getAdvertiserId, advertiserScope)
 			.orderByAsc(AdxAppLink::getLinkName));
@@ -311,7 +316,8 @@ public class AdxCatalogService {
 		result.put("monitors",
 				monitorRows.stream()
 					.map(row -> monitorView(row, channelNames.get(row.getChannelId()),
-							advertiserNames.get(row.getAdvertiserId()), linkNames.get(row.getAppLinkId())))
+							advertiserNames.get(row.getAdvertiserId()), linkNames.get(row.getAppLinkId()),
+							advertiserBidUrls.get(row.getAdvertiserId())))
 					.toList());
 		return result;
 	}
@@ -354,10 +360,13 @@ public class AdxCatalogService {
 				source.getRecords().stream().map(AdxMonitorLink::getChannelId).toList());
 		Map<String, String> advertisers = advertiserNames(
 				source.getRecords().stream().map(AdxMonitorLink::getAdvertiserId).toList());
+		Map<String, String> advertiserBidUrls = advertiserBidUrls(
+				source.getRecords().stream().map(AdxMonitorLink::getAdvertiserId).toList());
 		Map<String, String> links = appLinkNames(
 				source.getRecords().stream().map(AdxMonitorLink::getAppLinkId).toList());
 		return source.convert(entity -> monitorView(entity, channels.get(entity.getChannelId()),
-				advertisers.get(entity.getAdvertiserId()), links.get(entity.getAppLinkId())));
+				advertisers.get(entity.getAdvertiserId()), links.get(entity.getAppLinkId()),
+				advertiserBidUrls.get(entity.getAdvertiserId())));
 	}
 
 	private IPage<CatalogViews.Deduction> decorateDeductions(Page<AdxDeductionRule> source) {
@@ -375,6 +384,10 @@ public class AdxCatalogService {
 
 	private Map<String, String> advertiserNames(List<String> ids) {
 		return names(ids, advertiserMapper::selectBatchIds, AdxAdvertiser::getId, AdxAdvertiser::getAdvertiserName);
+	}
+
+	private Map<String, String> advertiserBidUrls(List<String> ids) {
+		return names(ids, advertiserMapper::selectBatchIds, AdxAdvertiser::getId, AdxAdvertiser::getBidUrl);
 	}
 
 	private Map<String, String> appLinkNames(List<String> ids) {
@@ -496,12 +509,12 @@ public class AdxCatalogService {
 			uri = URI.create(normalized);
 		}
 		catch (IllegalArgumentException e) {
-			throw new IllegalArgumentException("SCX RTB地址无效", e);
+			throw new IllegalArgumentException("SCX OCPX引擎地址无效", e);
 		}
 		if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
 				|| !StringUtils.hasText(uri.getHost()) || uri.getRawUserInfo() != null || uri.getRawQuery() != null
 				|| uri.getRawFragment() != null) {
-			throw new IllegalArgumentException("SCX RTB地址必须是无账号、query和fragment的HTTP(S)地址");
+			throw new IllegalArgumentException("SCX OCPX引擎地址必须是无账号、query和fragment的HTTP(S)地址");
 		}
 		return normalized;
 	}
@@ -532,13 +545,20 @@ public class AdxCatalogService {
 	}
 
 	private CatalogViews.Monitor monitorView(AdxMonitorLink entity, String channelName, String advertiserName,
-			String appLinkName) {
+			String appLinkName, String advertiserBidUrl) {
+		String overrideUrl = entity.getUpstreamFeedbackUrl();
+		boolean published = "PUBLISHED".equals(entity.getRouteStatus())
+				&& StringUtils.hasText(entity.getPublishedUpstreamFeedbackUrl());
+		String effectiveUrl = published ? entity.getPublishedUpstreamFeedbackUrl()
+				: StringUtils.hasText(overrideUrl) ? overrideUrl : advertiserBidUrl;
+		String source = (published ? "" : "DRAFT_")
+				+ (StringUtils.hasText(overrideUrl) ? "MONITOR_OVERRIDE" : "ADVERTISER_DEFAULT");
 		return new CatalogViews.Monitor(entity.getId(), entity.getChannelId(), channelName, entity.getAdvertiserId(),
 				advertiserName, entity.getAppLinkId(), appLinkName, entity.getMonitorName(), entity.getBizId(),
 				entity.getUnitPrice(), entity.getRemark(), entity.getShowUrl(), entity.getClickUrl(),
-				entity.getDownstreamCallbackUrl(), entity.getRouteStatus(), entity.getConfigVersion(),
-				entity.getRtaMode(), entity.getBillingMode(), entity.getPublishedAt(), entity.getCreateTime(),
-				entity.getUpdateTime());
+				entity.getUpstreamFeedbackUrl(), effectiveUrl, source, entity.getDownstreamCallbackUrl(),
+				entity.getRouteStatus(), entity.getConfigVersion(), entity.getRtaMode(), entity.getBillingMode(),
+				entity.getPublishedAt(), entity.getCreateTime(), entity.getUpdateTime());
 	}
 
 	private CatalogViews.Deduction deductionView(AdxDeductionRule entity, String channelName, String appLinkName) {

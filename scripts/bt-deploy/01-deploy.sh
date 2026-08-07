@@ -10,7 +10,7 @@ bt_init_paths
 
 usage() {
   cat <<'EOF'
-用法：bash scripts/bt-deploy/01-deploy.sh [选项] [all|backend|rtb|frontend|xxl]
+用法：bash scripts/bt-deploy/01-deploy.sh [选项] [all|backend|engine|frontend|xxl]
 
 选项：
   --no-pull       不同步代码，使用当前工作区构建
@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --no-publish) do_publish=false; shift ;;
     --skip-xxl) include_xxl=false; shift ;;
     --branch) [[ $# -ge 2 ]] || bt_die '--branch 缺少分支名'; SCX_BRANCH="$2"; shift 2 ;;
-    all|backend|rtb|frontend|xxl) target="$1"; shift ;;
+    all|backend|engine|frontend|xxl) target="$1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) bt_die "未知参数：$1" ;;
   esac
@@ -38,7 +38,7 @@ if [[ "$do_pull" == true ]]; then
   SCX_HOME="$SCX_HOME" SCX_BRANCH="$SCX_BRANCH" bash "${SCRIPT_DIR}/00-sync_repos.sh"
 fi
 bt_assert_repository
-if [[ "$target" == all || "$target" == backend || "$target" == rtb || "$target" == xxl ]]; then
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
   bt_require_command mvn
   bt_detect_java
   bt_require_command jar
@@ -54,7 +54,7 @@ mkdir -p "${stage_dir}/backend" "${stage_dir}/frontend"
 
 # Partial backend releases must not remove the artifact that is not being rebuilt
 # (for example, `xxl` must leave the existing scx-boot.jar in place).
-if [[ "$target" == all || "$target" == backend || "$target" == rtb || "$target" == xxl ]]; then
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
   if [[ -d "${SCX_BUILD_DIR}/backend" ]]; then
     cp -a "${SCX_BUILD_DIR}/backend/." "${stage_dir}/backend/"
   fi
@@ -70,14 +70,14 @@ build_boot() {
   (cd "${stage_dir}/backend" && sha256sum scx-boot.jar > scx-boot.jar.sha256)
 }
 
-build_rtb() {
-  bt_log '构建 scx-rtb 数据面（跳过测试；真实外发需单独授权）'
-  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-rtb -am -DskipTests package)
-  local jar_file="${SCX_HOME}/scx-backend/scx-rtb/target/scx-rtb.jar"
+build_engine() {
+  bt_log '构建 scx-ocpx-engine 数据面（跳过测试；真实外发需单独授权）'
+  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-ocpx-engine -am -DskipTests package)
+  local jar_file="${SCX_HOME}/scx-backend/scx-ocpx-engine/target/scx-ocpx-engine.jar"
   [[ -f "$jar_file" ]] || bt_die "未找到数据面产物：${jar_file}"
-  jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/application-prod.yml' || bt_die 'scx-rtb JAR 缺少 application-prod.yml，拒绝发布。'
-  cp -p "$jar_file" "${stage_dir}/backend/scx-rtb.jar"
-  (cd "${stage_dir}/backend" && sha256sum scx-rtb.jar > scx-rtb.jar.sha256)
+  jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/application-prod.yml' || bt_die 'scx-ocpx-engine JAR 缺少 application-prod.yml，拒绝发布。'
+  cp -p "$jar_file" "${stage_dir}/backend/scx-ocpx-engine.jar"
+  (cd "${stage_dir}/backend" && sha256sum scx-ocpx-engine.jar > scx-ocpx-engine.jar.sha256)
 }
 
 build_xxl() {
@@ -144,13 +144,13 @@ publish_frontend() {
 }
 
 case "$target" in
-  all) build_boot; build_rtb; [[ "$include_xxl" == true ]] && build_xxl; build_frontend; activate_component backend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
-  backend) build_boot; build_rtb; [[ "$include_xxl" == true ]] && build_xxl; activate_component backend ;;
-  rtb) build_rtb; activate_component backend ;;
+  all) build_boot; build_engine; [[ "$include_xxl" == true ]] && build_xxl; build_frontend; activate_component backend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
+  backend) build_boot; build_engine; [[ "$include_xxl" == true ]] && build_xxl; activate_component backend ;;
+  engine) build_engine; activate_component backend ;;
   xxl) build_xxl; activate_component backend ;;
   frontend) build_frontend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
 esac
 git -C "${SCX_HOME}" rev-parse HEAD > "${SCX_BACKUP_DIR}/${release_id}/source-commit.txt"
 bt_prune_backups
 bt_ok "打包部署流程完成：备份位于 ${SCX_BACKUP_DIR}/${release_id}"
-if [[ "$target" == all || "$target" == backend || "$target" == rtb || "$target" == xxl ]]; then bt_print_baota_restart_hint; fi
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then bt_print_baota_restart_hint; fi

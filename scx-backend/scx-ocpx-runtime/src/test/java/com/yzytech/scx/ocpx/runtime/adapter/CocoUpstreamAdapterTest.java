@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
+import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
@@ -31,24 +32,24 @@ class CocoUpstreamAdapterTest {
 				"https://coco.example/click?oaid=__OAID__&ua=__UA__&os=__OS__&model=__MODEL__&cb=__CALLBACK__&click=__CLICKID__&creative=__CREATIVEID__");
 
 		AdapterHttpRequest request = adapter.buildFeedback(route, feedback,
-				"https://rtb.example/rtb/open-api/ocpx/v1/upstreams/coco/callback?ext=signed token");
+				"https://ocpx.example/ocpx/open-api/ocpx/v1/upstreams/coco/callback?ext=signed token");
 
 		assertThat(request.method()).isEqualTo("GET");
 		assertThat(request.uri().toString()).contains("oaid=oaid-value", "ua=Mozilla/5.0%20test", "os=android",
 				"model=Pixel%209", "click=click-1", "creative=creative-1");
 		assertThat(request.uri().toString())
-			.contains("cb=https://rtb.example/rtb/open-api/ocpx/v1/upstreams/coco/callback");
+			.contains("cb=https://ocpx.example/ocpx/open-api/ocpx/v1/upstreams/coco/callback");
 		assertThat(request.uri().toString()).doesNotContain("__");
 	}
 
 	@Test
 	void rejectsUnresolvedRequiredMacro() {
 		assertThatThrownBy(() -> adapter.buildFeedback(route("https://coco.example?missing=__UNKNOWN__", null),
-				new FeedbackReqV1(), "https://rtb.example/callback"))
+				new FeedbackReqV1(), "https://ocpx.example/callback"))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("unresolved");
 		assertThatThrownBy(() -> adapter.buildFeedback(route("https://coco.example?oaid=__OAID__", "__OAID__"),
-				new FeedbackReqV1(), "https://rtb.example/callback"))
+				new FeedbackReqV1(), "https://ocpx.example/callback"))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("unresolved");
 	}
@@ -62,7 +63,7 @@ class CocoUpstreamAdapterTest {
 		assertThat(payment.amountRaw()).isEqualTo("12.34");
 
 		NormalizedCallbackEvent malformed = adapter.parseCallback("ref-1",
-				Map.of("action_type", "register", "currency_amount", "unknown"));
+				Map.of("action_type", "purchase", "currency_amount", "unknown"));
 		assertThat(malformed.amount()).isNull();
 		assertThat(malformed.amountRaw()).isEqualTo("unknown");
 		NormalizedCallbackEvent negative = adapter.parseCallback("ref-1",
@@ -73,6 +74,91 @@ class CocoUpstreamAdapterTest {
 		NormalizedCallbackEvent anotherOrder = adapter.parseCallback("ref-1",
 				Map.of("action_type", "purchase", "currency_amount", "12.34", "order_id", "order-2"));
 		assertThat(anotherOrder.eventId()).isNotEqualTo(payment.eventId());
+	}
+
+	@Test
+	void supportsOfficialMacroAliasesAndSingleQueryEncoding() {
+		FeedbackReqV1 feedback = new FeedbackReqV1();
+		feedback.setEvent("click");
+		feedback.setOaidMd5("oaid-md5");
+		feedback.setAndroidId("android id");
+		feedback.setAndroidIdMd5("android-md5");
+		feedback.setCaid("[{\"version\":\"20240716\"}]");
+		feedback.setCampaignId("campaign-1");
+		feedback.setAdgroupId("adgroup-1");
+		feedback.setAdvertiserId("advertiser-1");
+		RouteSnapshot route = route("https://coco.example/click?a=__ANDROIDID__&b=__ANDROID_ID__"
+				+ "&am=__ANDROIDID_MD5__&bm=__ANDROID_ID_MD5__&caid=__CAID__&caids=__CAID_LIST__"
+				+ "&campaign=__CAMPAIGNID__&adgroup=__ADGROUPID__&advertiser=__ADVERTISERID__&cb=__CALLBACK__");
+
+		adapter.validateFeedback(route, feedback);
+		String url = adapter.buildFeedback(route, feedback, "https://ocpx.example/callback?ext=signed token")
+			.uri()
+			.toString();
+
+		assertThat(url).contains("a=android%20id", "b=android%20id", "campaign=campaign-1", "adgroup=adgroup-1",
+				"advertiser=advertiser-1");
+		assertThat(url).doesNotContain("%2520", "__");
+	}
+
+	@Test
+	void validatesClickAndroidIdentifiersAndRequiredMacros() {
+		FeedbackReqV1 feedback = new FeedbackReqV1();
+		feedback.setEvent("activate");
+		assertThatThrownBy(() -> adapter.validateFeedback(route("https://coco.example?cb=__CALLBACK__"), feedback))
+			.hasMessageContaining("CLICK");
+
+		feedback.setEvent("click");
+		feedback.setOs("android");
+		assertThatThrownBy(() -> adapter.validateFeedback(route("https://coco.example?cb=__CALLBACK__"), feedback))
+			.hasMessageContaining("IMEI/OAID");
+
+		feedback.setOaidMd5("oaid-md5");
+		assertThatThrownBy(() -> adapter.validateFeedback(
+				route("https://coco.example?cb=__CALLBACK__&campaign=__CAMPAIGNID__", "__CAMPAIGNID__"), feedback))
+			.hasMessageContaining("__CAMPAIGNID__");
+	}
+
+	@Test
+	void appliesCocoBusinessSuccessCodes() {
+		assertThat(adapter.isSuccess(response(200, ""))).isTrue();
+		assertThat(adapter.isSuccess(response(204, ""))).isTrue();
+		assertThat(adapter.isSuccess(response(200, "{}"))).isTrue();
+		assertThat(adapter.isSuccess(response(200, "{\"code\":0}"))).isTrue();
+		assertThat(adapter.isSuccess(response(200, "{\"code\":200}"))).isTrue();
+		assertThat(adapter.isSuccess(response(200, "{\"code\":402,\"message\":\"quota\"}"))).isFalse();
+		assertThat(adapter.failureReason(response(200, "{\"code\":402,\"message\":\"quota\"}")))
+			.isEqualTo("COCO_CODE_402:quota");
+		assertThat(adapter.isSuccess(response(500, "{\"code\":0}"))).isFalse();
+	}
+
+	@Test
+	void prioritizesExternalCallbackIdsAndMapsFirstOrder() {
+		NormalizedCallbackEvent first = adapter.parseCallback("ref-1",
+				Map.of("action_type", "firstorder", "event_id", "event-1", "order_id", "order-1"));
+		NormalizedCallbackEvent repeated = adapter.parseCallback("ref-1",
+				Map.of("action_type", "firstorder", "event_id", "event-1", "order_id", "changed-order"));
+
+		assertThat(first.eventType()).isEqualTo(OcpxEventType.FIRST_ORDER);
+		assertThat(first.eventId()).isEqualTo(repeated.eventId());
+	}
+
+	@Test
+	void ownsCocoCallbackTokenAndResponseContract() {
+		Map<String, String> parameters = Map.of("ext", "coco-token", "action_type", "activate");
+
+		var success = adapter.callbackSuccess(parameters, "event-1", "ACCEPTED");
+		var failure = adapter.callbackFailure(parameters, 400, "bad callback");
+
+		assertThat(adapter.callbackToken(parameters)).isEqualTo("coco-token");
+		assertThat(success.statusCode()).isEqualTo(200);
+		assertThat(success.body()).isEqualTo(Map.of("code", 0, "event_id", "event-1", "status", "ACCEPTED"));
+		assertThat(failure.statusCode()).isEqualTo(400);
+		assertThat(failure.body()).isEqualTo(Map.of("code", 1, "message", "bad callback"));
+	}
+
+	private AdapterHttpResponse response(int status, String body) {
+		return new AdapterHttpResponse(status, Map.of(), body);
 	}
 
 	private RouteSnapshot route(String bidUrl) {

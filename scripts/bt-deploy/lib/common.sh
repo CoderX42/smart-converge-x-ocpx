@@ -107,7 +107,9 @@ bt_prune_backups() {
 bt_print_baota_restart_hint() {
   cat <<EOF
 后端 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-boot.jar
+引擎 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar
 请在宝塔「Java 项目管理器」中重启对应 SCX 项目；本脚本不会绕过宝塔直接管理 Java 进程。
-重启后执行：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh health
+重启管理端后执行：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh health
+重启引擎端后执行：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh engine-health
 EOF
 }

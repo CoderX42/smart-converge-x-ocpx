@@ -8,9 +8,9 @@
         <artifactId>scx</artifactId>
         <version>2.1.2</version>
     </parent>
-    <artifactId>scx-rtb</artifactId>
+    <artifactId>scx-ocpx-engine</artifactId>
     <packaging>jar</packaging>
-    <description>SCX OCPX independent high-concurrency data plane</description>
+    <description>SCX OCPX independent high-concurrency data plane engine</description>
     <dependencies>
         <dependency>
             <groupId>com.scx</groupId>

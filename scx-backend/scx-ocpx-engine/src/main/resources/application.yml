@@ -3,14 +3,15 @@ server:
 
 spring:
   application:
-    name: scx-rtb
+    name: scx-ocpx-engine
   profiles:
     active: dev
   main:
     web-application-type: reactive
     allow-bean-definition-overriding: false
   webflux:
-    base-path: /rtb
+    # This public context path participates in the HMAC signature input.
+    base-path: /ocpx
 
 management:
   endpoints:
@@ -28,7 +29,7 @@ logging:
 
 scx:
   ocpx:
-    public-base-url: http://127.0.0.1:10000/rtb
+    public-base-url: http://127.0.0.1:10000/ocpx
     partition-count: 64
     batch-size: 500
     poll-delay-ms: 20

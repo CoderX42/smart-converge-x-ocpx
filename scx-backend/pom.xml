@@ -13,7 +13,7 @@
         <module>scx-adx</module>
         <module>scx-ocpx-contract</module>
         <module>scx-ocpx-runtime</module>
-        <module>scx-rtb</module>
+        <module>scx-ocpx-engine</module>
 
         <module>scx-visual</module>
         <module>scx-boot</module>

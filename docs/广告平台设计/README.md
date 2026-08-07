@@ -10,7 +10,7 @@
 2. [ADX 重构实现说明](ADX重构实现说明.md)。
 3. [MVP 开发规划（历史执行基线）](MVP开发规划.md)。
 4. [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md)。
-5. 阅读 [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) 了解 V70-V73 的当前代码事实。
+5. 阅读 [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) 了解 V70-V74 的当前代码事实。
 6. 需要对照旧 `sgyz-ocpx` 时阅读 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md)。
 7. 涉及充值或 CPC 时阅读 [OCPX 点击计费与充值账务说明](OCPX点击计费与充值账务说明.md)。
 8. 需要追溯 V70 前沙箱时再读 [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
@@ -23,7 +23,8 @@
 14. 面向下游渠道交付时使用[OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md)。
 15. 新增 Coco 类上游时阅读[OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md)。
 16. 平台内部联调与故障排查时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
-17. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+17. Coco 联调时阅读 [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md)。
+18. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
 当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
 
@@ -32,7 +33,8 @@
 | 文档 | 用途 | 权威边界 |
 |---|---|---|
 | [ADX 重构实现说明](ADX重构实现说明.md) | 当前目标菜单、前后端契约、表结构与旧域退役门禁 | 当前实现基线；优先于历史 OCPX 扩展规划 |
-| [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) | 独立 scx-rtb、双向通用适配器、可靠队列、CPC 和验收边界 | V70-V73 源码实现；目标环境迁移、真实外发、容量与 UAT 未执行 |
+| [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) | 独立 scx-ocpx-engine、双向通用适配器、可靠队列、CPC 和验收边界 | V70-V74 源码实现；目标环境迁移、真实外发、容量与 UAT 未执行 |
+| [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md) | Coco 宏、成功码、callback、FIRST_ORDER、Mock 与运行中心核验 | V74 源码契约；真实 Coco UAT 前仍为 No-Go |
 | [OCPX 点击计费与充值账务说明](OCPX点击计费与充值账务说明.md) | 充值幂等、CLICK 扣费、余额不足、流水和生产门禁 | 源码契约；目标库迁移、真实余额与流量对账未执行 |
 | [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md) | 旧系统核心流程、SCX 覆盖矩阵、接口映射和专用适配器边界 | 基础流程基线；不表示全部旧媒体/DSP 私有协议已兼容 |
 | [ADR-001 独立数据面](adr/ADR-001-OCPX双向转发独立数据面.md) | 管理面与高并发数据面拆分决策 | Accepted |
@@ -56,7 +58,7 @@
 
 - 文档状态：ADX 重构说明为当前实现基线；原 MVP/OCPX 文档保留为历史决策记录。
 - 产品阶段：精简 ADX 管理闭环已进入源码实现与本地门禁阶段。
-- 已有代码：`scx-adx` 承载管理面与充值账务；`scx-ocpx-contract`、`scx-ocpx-runtime` 与独立 `scx-rtb` 已形成 FeedbackReq → 上游适配 → callback → 下游适配双向代码闭环，并实现 CLICK 审计/CPC。V70-V73 为待授权应用的前向迁移。
+- 已有代码：`scx-adx` 承载管理面与充值账务；`scx-ocpx-contract`、`scx-ocpx-runtime` 与独立 `scx-ocpx-engine` 已形成 FeedbackReq → 上游适配 → callback → 下游适配双向代码闭环，并实现 CLICK 审计/CPC、Coco v1.1 业务成功码和运行请求审计。V70-V74 为待授权应用的前向迁移。
 - 未交付：目标数据库迁移、生产部署、真实 Coco/下游 UAT、生产密钥轮换、Redis AOF/副本验收、故障演练与两实例 20,000 accepted QPS 容量门槛。
 - 契约状态：`contracts/` 已切换为当前双向转发 OpenAPI、Redis Stream AsyncAPI、FeedbackReq/CallbackReq JSON Schema；历史 `/open-api/events/v1` 已明确退出当前契约。
 - 状态更新时间：2026-08-07。
