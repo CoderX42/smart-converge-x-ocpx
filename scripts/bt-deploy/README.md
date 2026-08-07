@@ -53,7 +53,7 @@ bash scripts/bt-deploy/02-manage.sh nginx-test
 bash scripts/bt-deploy/02-manage.sh nginx-reload
 ```
 
-把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。
+把 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf) 粘贴到宝塔站点的“伪静态”配置。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`。模板只将公网 `/rtb/open-api/` 转发到本机 `10000`，并原样保留 `/rtb` 路径用于 HMAC 验签；`/rtb/actuator` 不对公网暴露。
 
 前端单独发布只需要 Node.js、pnpm 和站点目录写权限，不要求本机安装 Maven/JDK；脚本会优先使用 `rsync`，未安装时回退到 `cp`。如果宝塔站点根不是默认目录，请显式设置 `SCX_WEB_ROOT`，并确保宝塔网站根与该目录一致。
 

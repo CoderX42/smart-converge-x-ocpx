@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -72,6 +73,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Channel saveChannel(String id, CatalogRequests.SaveChannel request) {
+		String publicBaseUri = validatePublicBaseUri(request.uri());
 		ensureUniqueChannel(id, request.channelName(), request.channelCode());
 		AdxChannel entity = StringUtils.hasText(id) ? requireChannel(id) : new AdxChannel();
 		entity.setChannelCode(request.channelCode().trim());
@@ -79,7 +81,7 @@ public class AdxCatalogService {
 		entity.setAdapterCode(request.adapterCode().trim().toUpperCase());
 		entity.setAuthType(request.authType());
 		entity.setKeyVersion(request.keyVersion());
-		entity.setUri(request.uri().trim());
+		entity.setUri(publicBaseUri);
 		entity.setMacroParams(request.macroParams().trim());
 		entity.setCallbackHostAllowlist(request.callbackHostAllowlist().trim().toLowerCase());
 		entity.setStatus(request.status());
@@ -156,14 +158,6 @@ public class AdxCatalogService {
 		if (StringUtils.hasText(id)) {
 			configChangeService.advertiserChanged(id);
 		}
-		return advertiserView(entity);
-	}
-
-	@Transactional
-	public CatalogViews.Advertiser recharge(String id, BigDecimal amount) {
-		AdxAdvertiser entity = requireAdvertiser(id);
-		entity.setBalance(entity.getBalance().add(amount));
-		advertiserMapper.updateById(entity);
 		return advertiserView(entity);
 	}
 
@@ -263,8 +257,9 @@ public class AdxCatalogService {
 		if (!StringUtils.hasText(id)) {
 			monitorMapper.insert(entity);
 		}
-		entity.setShowUrl(eventUrl(channel.getUri(), entity.getId(), "show"));
-		entity.setClickUrl(eventUrl(channel.getUri(), entity.getId(), "click"));
+		String feedbackUrl = feedbackUrl(channel.getUri(), channel.getChannelCode());
+		entity.setShowUrl(feedbackUrl);
+		entity.setClickUrl(feedbackUrl);
 		monitorMapper.updateById(entity);
 		configChangeService.enqueueMonitor(entity.getId(), entity.getConfigVersion(), "ROUTE_DRAFTED");
 		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName());
@@ -485,10 +480,30 @@ public class AdxCatalogService {
 		systemUserMapper.deleteById(user.getId());
 	}
 
-	private String eventUrl(String baseUri, String monitorId, String event) {
-		String separator = baseUri.contains("?") ? "&" : "?";
-		return baseUri + separator + "monitorId=" + URLEncoder.encode(monitorId, StandardCharsets.UTF_8) + "&event="
-				+ event;
+	private String feedbackUrl(String publicBaseUri, String channelCode) {
+		String normalized = validatePublicBaseUri(publicBaseUri);
+		if (normalized.endsWith("/feedback")) {
+			return normalized;
+		}
+		return normalized + "/open-api/ocpx/v1/channels/"
+				+ URLEncoder.encode(channelCode, StandardCharsets.UTF_8).replace("+", "%20") + "/feedback";
+	}
+
+	private String validatePublicBaseUri(String value) {
+		String normalized = value.trim().replaceAll("/+$", "");
+		URI uri;
+		try {
+			uri = URI.create(normalized);
+		}
+		catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("SCX RTB地址无效", e);
+		}
+		if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+				|| !StringUtils.hasText(uri.getHost()) || uri.getRawUserInfo() != null || uri.getRawQuery() != null
+				|| uri.getRawFragment() != null) {
+			throw new IllegalArgumentException("SCX RTB地址必须是无账号、query和fragment的HTTP(S)地址");
+		}
+		return normalized;
 	}
 
 	private String trimToNull(String value) {

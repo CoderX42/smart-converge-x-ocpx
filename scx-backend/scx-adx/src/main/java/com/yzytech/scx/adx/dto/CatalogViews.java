@@ -38,4 +38,12 @@ public final class CatalogViews {
 			String capabilitiesJson) {
 	}
 
+	public record AccountMutation(String advertiserId, String ledgerId, BigDecimal balance, boolean duplicate) {
+	}
+
+	public record AccountEntry(String id, String advertiserId, BigDecimal amount, String currency, String mode,
+			String status, String reason, BigDecimal balanceBefore, BigDecimal balanceAfter, String operatorId,
+			String remark, LocalDateTime createTime) {
+	}
+
 }

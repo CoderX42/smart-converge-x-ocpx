@@ -7,7 +7,7 @@
 ## 1. 项目概述
 
 - **项目代号**：`Smart Converge X`，简称 `SCX`。
-- **产品定位**：面向单一企业内部业务线的精简广告服务管理平台，功能面收敛为渠道、广告主、监测链接、扣量、报表中心、线索上报与权限管理。
+- **产品定位**：面向单一企业内部业务线的精简广告服务管理平台，功能面收敛为渠道、广告主、监测链接、扣量、充值/点击账务、报表中心与权限管理；汽车线索域已退出。
 - **当前阶段**：ADX 重构基线；原商业、财务/支付、媒体资源、创意、投放、监测归因、旧报表和运营中心已退出构建。
 - **权威文档入口**：`docs/广告平台设计/README.md`，其中规定了阅读顺序、文档权威级别（L0 基线 / L1 规范 / L2 执行 / L3 模板）以及 Agent 迭代治理规则。
 - **工程组织**：
@@ -183,7 +183,7 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。 |
-| `scx-adx` | 精简广告业务纵向模块：渠道、广告主、应用链接、监测链接、扣量、时段报表与线索。 |
+| `scx-adx` | 精简广告业务纵向模块：渠道、广告主、应用链接、监测链接、扣量、充值账务与时段报表。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
 典型包结构（以 `scx-adx` 为例）：
@@ -191,7 +191,7 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 ```text
 com.yzytech.scx.adx
 ├── controller/      # @RestController + @SaCheckPermission + Swagger
-├── service/         # 渠道目录、报表与线索业务服务
+├── service/         # 渠道目录、账户与报表业务服务
 ├── mapper/          # MyBatis-Plus BaseMapper + 自定义 XML
 ├── entity/          # @Data + @TableName
 └── resources/mapper/*.xml

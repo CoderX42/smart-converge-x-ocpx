@@ -10,7 +10,8 @@
     { "key": "keyVersion", "value": "1" },
     { "key": "channelSecret", "value": "replace-with-sandbox-secret" },
     { "key": "monitorId", "value": "replace-with-published-monitor-id" },
-    { "key": "cocoExt", "value": "replace-with-ext-from-coco-click-url" }
+    { "key": "cocoExt", "value": "replace-with-ext-from-coco-click-url" },
+    { "key": "templateExt", "value": "replace-with-ext-from-template-get-url" }
   ],
   "item": [
     {
@@ -59,6 +60,14 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/coco/callback?ext={{cocoExt}}&action_type=activate&currency_amount=1.00"
+      }
+    },
+    {
+      "name": "通用模板 Callback",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/open-api/ocpx/v1/upstreams/template_get/callback?ext={{templateExt}}&event=authentication&event_id=conversion-demo-001&event_time={{$timestamp}}&amount=1.00"
       }
     }
   ]

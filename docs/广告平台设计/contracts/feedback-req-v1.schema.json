@@ -9,7 +9,7 @@
     "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
     "event": {
       "type": "string",
-      "enum": ["show", "impression", "click", "activate", "register", "day1retention", "next_day_retention", "next_stay", "retention", "recall", "purchase", "payment", "pay", "reactivation", "new", "customer_acquisition", "firstreactivation", "first_reactivation", "completeorder", "complete_order", "finish_order"]
+      "enum": ["show", "impression", "click", "activate", "active", "evoke", "launch", "login", "register", "day1retention", "next_day_retention", "next_stay", "retention", "recall", "purchase", "payment", "pay", "reactivation", "lahuo", "lahui", "huifang", "new", "customer_acquisition", "visit", "visits", "authentication", "authenticate", "order", "place_order", "firstreactivation", "first_reactivation", "evoke_first", "completeorder", "complete_order", "finish_order"]
     },
     "channel_id": { "type": "string" },
     "dsp_id": { "type": "string" },

@@ -15,6 +15,8 @@ import com.yzytech.scx.adx.mapper.AdxChannelMapper;
 import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 class AdxRoutePublishServiceTest {
 
 	private final AdxMonitorLinkMapper monitorMapper = mock(AdxMonitorLinkMapper.class);
@@ -76,6 +78,79 @@ class AdxRoutePublishServiceTest {
 		assertThat(result).containsEntry("routeStatus", "PUBLISHED").containsEntry("configVersion", 5L);
 		verify(monitorMapper).updateById(fixture.monitor());
 		verify(configChangeService).enqueueMonitor("monitor-1", 5L, "ROUTE_PUBLISHED");
+	}
+
+	@Test
+	void publishesTemplateGetRouteWithSgyzStyleMacros() {
+		Fixture fixture = fixture();
+		fixture.advertiser().setAdapterCode("TEMPLATE_GET");
+		fixture.advertiser()
+			.setBidUrl("https://8.8.8.8/feedback?request_id=__REQUEST_ID__&oaid=__OAID__&callback=__CALLBACK_URL__");
+		fixture.advertiser().setMacroParams("__REQUEST_ID__,__CALLBACK_URL__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		stub(fixture);
+
+		var result = service.publish("monitor-1");
+
+		assertThat(result).containsEntry("routeStatus", "PUBLISHED");
+	}
+
+	@Test
+	void rejectsUnknownTemplateGetMacro() {
+		Fixture fixture = fixture();
+		fixture.advertiser().setAdapterCode("TEMPLATE_GET");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/feedback?callback=__CALLBACK__&unknown=__UNKNOWN__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		stub(fixture);
+
+		assertThatThrownBy(() -> service.publish("monitor-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("__UNKNOWN__");
+	}
+
+	@Test
+	void publishesCpcRouteWhenUnitPriceIsPositive() {
+		Fixture fixture = fixture();
+		fixture.monitor().setBillingMode("CPC");
+		fixture.monitor().setUnitPrice(new BigDecimal("0.125000"));
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/click?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		stub(fixture);
+
+		assertThat(service.publish("monitor-1")).containsEntry("routeStatus", "PUBLISHED");
+	}
+
+	@Test
+	void rejectsCpcRouteWithoutPositiveUnitPrice() {
+		Fixture fixture = fixture();
+		fixture.monitor().setBillingMode("CPC");
+		fixture.monitor().setUnitPrice(BigDecimal.ZERO);
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/click?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		stub(fixture);
+
+		assertThatThrownBy(() -> service.publish("monitor-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("单价必须大于 0");
+	}
+
+	@Test
+	void validatesTemplateGetDownstreamCallbackMacros() {
+		Fixture fixture = fixture();
+		fixture.channel().setAdapterCode("TEMPLATE_GET_DOWNSTREAM");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback?event=__EVENT__&event_id=__EVENT_ID__");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/click?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		stub(fixture);
+
+		assertThat(service.publish("monitor-1")).containsEntry("routeStatus", "PUBLISHED");
 	}
 
 	private void stub(Fixture fixture) {

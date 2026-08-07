@@ -2,6 +2,7 @@
 import type { FormInstance, FormRules } from 'element-plus';
 
 import type {
+  AccountEntry,
   AdapterDefinition,
   Advertiser,
   AppLink,
@@ -18,6 +19,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   deleteCatalog,
   getAdapters,
+  getAdvertiserLedger,
   getCatalog,
   publishMonitor,
   rechargeAdvertiser,
@@ -51,8 +53,14 @@ const saving = ref(false);
 const rows = ref<Row[]>([]);
 const dialog = ref(false);
 const rechargeDialog = ref(false);
+const rechargeLoading = ref(false);
 const rechargeAmount = ref<number>();
+const rechargeRequestId = ref('');
 const rechargeTarget = ref<Row>();
+const ledgerDialog = ref(false);
+const ledgerLoading = ref(false);
+const ledgerRows = ref<AccountEntry[]>([]);
+const ledgerTarget = ref<Row>();
 const formRef = ref<FormInstance>();
 const form = reactive<Record<string, any>>({});
 const selectedChannelMacroKeys = ref<string[]>([]);
@@ -129,7 +137,7 @@ const columns = computed<Column[]>(() => {
       { label: '下游适配器', minWidth: 120, prop: 'adapterCode' },
       { label: '鉴权', minWidth: 100, prop: 'authType' },
       { label: '状态', minWidth: 100, prop: 'status' },
-      { label: 'URI', minWidth: 280, prop: 'uri' },
+      { label: 'SCX RTB地址', minWidth: 300, prop: 'uri' },
       { label: '密钥', minWidth: 90, prop: 'secretConfigured' },
       { label: '宏参数', minWidth: 240, prop: 'macroParams' },
       {
@@ -159,8 +167,8 @@ const columns = computed<Column[]>(() => {
       { label: '发布状态', minWidth: 110, prop: 'routeStatus' },
       { label: '版本', minWidth: 90, prop: 'configVersion' },
       { label: '下游回调', minWidth: 260, prop: 'downstreamCallbackUrl' },
-      { label: '展示链接', minWidth: 260, prop: 'showUrl' },
-      { label: '点击链接', minWidth: 260, prop: 'clickUrl' },
+      { label: '展示上报接口', minWidth: 300, prop: 'showUrl' },
+      { label: '点击上报接口', minWidth: 300, prop: 'clickUrl' },
       { label: '修改时间', minWidth: 170, prop: 'updateTime' },
     ],
   };
@@ -341,7 +349,23 @@ async function publish(row: Row) {
 function openRecharge(row: Row) {
   rechargeTarget.value = row;
   rechargeAmount.value = undefined;
+  rechargeRequestId.value = crypto.randomUUID();
   rechargeDialog.value = true;
+}
+
+async function openLedger(row: Row) {
+  ledgerTarget.value = row;
+  ledgerDialog.value = true;
+  ledgerLoading.value = true;
+  try {
+    const result = await getAdvertiserLedger(row.id, {
+      current: 1,
+      size: 100,
+    });
+    ledgerRows.value = result.records;
+  } finally {
+    ledgerLoading.value = false;
+  }
 }
 
 async function recharge() {
@@ -353,10 +377,19 @@ async function recharge() {
     ElMessage.warning('请输入大于 0 的充值金额');
     return;
   }
-  await rechargeAdvertiser(rechargeTarget.value.id, rechargeAmount.value);
-  ElMessage.success('充值成功');
-  rechargeDialog.value = false;
-  await load();
+  rechargeLoading.value = true;
+  try {
+    await rechargeAdvertiser(
+      rechargeTarget.value.id,
+      rechargeAmount.value,
+      rechargeRequestId.value,
+    );
+    ElMessage.success('充值成功，账务流水已生成');
+    rechargeDialog.value = false;
+    await load();
+  } finally {
+    rechargeLoading.value = false;
+  }
 }
 
 async function copy(value?: string, label = '链接') {
@@ -451,7 +484,7 @@ onMounted(async () => {
             <span v-else>{{ display(row, column.prop) }}</span>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" width="260">
+        <el-table-column fixed="right" label="操作" width="320">
           <template #default="{ row }">
             <el-button
               v-access:code="config.permission"
@@ -462,12 +495,20 @@ onMounted(async () => {
             >
             <el-button
               v-if="kind === 'advertiser'"
-              v-access:code="config.permission"
+              v-access:code="'adx:account:recharge'"
               link
               type="success"
               @click="openRecharge(row)"
             >
               充值
+            </el-button>
+            <el-button
+              v-if="kind === 'advertiser'"
+              v-access:code="'adx:account:read'"
+              link
+              @click="openLedger(row)"
+            >
+              账务
             </el-button>
             <el-button
               v-if="kind === 'monitor'"
@@ -546,8 +587,14 @@ onMounted(async () => {
           <el-form-item label="密钥版本" prop="keyVersion">
             <el-input-number v-model="form.keyVersion" :min="1" />
           </el-form-item>
-          <el-form-item label="URI" prop="uri">
-            <el-input v-model="form.uri" placeholder="https://..." />
+          <el-form-item label="SCX RTB地址" prop="uri">
+            <el-input
+              v-model="form.uri"
+              placeholder="https://ocpx.example.com/rtb"
+            />
+            <span class="field-hint">
+              系统据此生成 V70 HMAC POST 上报接口；不是媒体旧式 GET 监测模板。
+            </span>
           </el-form-item>
           <el-form-item label="渠道密钥">
             <el-input
@@ -640,11 +687,11 @@ onMounted(async () => {
               :placeholder="form.id ? '留空表示不修改' : '可选'"
             />
           </el-form-item>
-          <el-form-item label="Coco必填宏">
+          <el-form-item label="上游必填宏">
             <el-input
               v-model="form.macroParams"
               :rows="3"
-              placeholder="例如 __OAID__,__CALLBACK__；留空表示仅要求 CALLBACK"
+              placeholder="例如 __REQUEST_ID__,__CALLBACK_URL__；按所选适配器填写"
               type="textarea"
             />
           </el-form-item>
@@ -758,8 +805,11 @@ onMounted(async () => {
           <el-form-item label="下游回调地址">
             <el-input
               v-model="form.downstreamCallbackUrl"
-              placeholder="https://媒体域名/callback"
+              placeholder="标准 POST 地址，或 GET 宏模板地址"
             />
+            <span class="field-hint">
+              TEMPLATE_GET_DOWNSTREAM 至少包含 __EVENT__、__EVENT_ID__。
+            </span>
           </el-form-item>
           <el-form-item label="RTA模式" prop="rtaMode">
             <el-select v-model="form.rtaMode">
@@ -770,6 +820,7 @@ onMounted(async () => {
             <el-select v-model="form.billingMode">
               <el-option label="关闭" value="OFF" />
               <el-option label="仅审计" value="AUDIT_ONLY" />
+              <el-option label="真实 CPC 点击扣费" value="CPC" />
             </el-select>
           </el-form-item>
         </template>
@@ -831,8 +882,59 @@ onMounted(async () => {
       </el-form>
       <template #footer>
         <el-button @click="rechargeDialog = false">取消</el-button>
-        <el-button type="primary" @click="recharge">确认充值</el-button>
+        <el-button type="primary" :loading="rechargeLoading" @click="recharge">
+          确认充值
+        </el-button>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="ledgerDialog"
+      :title="`${ledgerTarget?.advertiserName || ''} · 账务流水`"
+      width="980px"
+    >
+      <el-alert
+        :closable="false"
+        class="ledger-alert"
+        show-icon
+        title="充值与 CPC 点击扣费均按业务事件幂等入账；REJECTED 表示余额不足且未扣款。"
+        type="info"
+      />
+      <el-table
+        v-loading="ledgerLoading"
+        :data="ledgerRows"
+        border
+        max-height="520"
+      >
+        <el-table-column label="时间" min-width="170" prop="createTime" />
+        <el-table-column label="类型" min-width="110" prop="mode" />
+        <el-table-column label="状态" min-width="100" prop="status" />
+        <el-table-column label="金额" min-width="120">
+          <template #default="{ row }">
+            {{ row.amount == null ? '—' : `¥${Number(row.amount).toFixed(6)}` }}
+          </template>
+        </el-table-column>
+        <el-table-column label="账前余额" min-width="130">
+          <template #default="{ row }">
+            {{
+              row.balanceBefore == null
+                ? '—'
+                : `¥${Number(row.balanceBefore).toFixed(6)}`
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column label="账后余额" min-width="130">
+          <template #default="{ row }">
+            {{
+              row.balanceAfter == null
+                ? '—'
+                : `¥${Number(row.balanceAfter).toFixed(6)}`
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column label="原因" min-width="180" prop="reason" />
+        <el-table-column label="操作人" min-width="120" prop="operatorId" />
+      </el-table>
     </el-dialog>
   </div>
 </template>

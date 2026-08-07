@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.runtime.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yzytech.scx.ocpx.contract.BillingPort;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.LogDataProjection;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
@@ -41,14 +42,17 @@ public class OcpxPersistenceRepository {
 
 	private final OcpxRuntimeProperties properties;
 
+	private final BillingPort billingPort;
+
 	private final String leaseOwner = UUID.randomUUID().toString();
 
 	public OcpxPersistenceRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
-			ProtocolCrypto protocolCrypto, OcpxRuntimeProperties properties) {
+			ProtocolCrypto protocolCrypto, OcpxRuntimeProperties properties, BillingPort billingPort) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.objectMapper = objectMapper;
 		this.protocolCrypto = protocolCrypto;
 		this.properties = properties;
+		this.billingPort = billingPort;
 	}
 
 	@Transactional
@@ -75,7 +79,18 @@ public class OcpxPersistenceRepository {
 			if (inserted == 0) {
 				return;
 			}
-			if (envelope.forwardUpstream()) {
+			BillingPort.BillingResult billing = BillingPort.BillingResult.disabled();
+			if (envelope.eventType() == OcpxEventType.CLICK && !"OFF".equals(route.billingMode())) {
+				billing = billingPort.charge(envelope.eventId(), route.advertiserId(), route.unitPrice(), "CNY",
+						route.billingMode());
+				if (!billing.permitsDelivery()) {
+					jdbcTemplate.update("""
+							UPDATE scx_ocpx_event SET status='BILLING_REJECTED'
+							WHERE event_id=? AND source_direction='DOWNSTREAM_FEEDBACK'
+							""", envelope.eventId());
+				}
+			}
+			if (envelope.forwardUpstream() && billing.permitsDelivery()) {
 				jdbcTemplate.update("""
 						INSERT INTO scx_ocpx_protocol_snapshot
 						(feedback_event_id,feedback_ciphertext,route_ciphertext,expires_at,create_time)
@@ -98,7 +113,7 @@ public class OcpxPersistenceRepository {
 						id(), envelope.eventId(), envelope.eventId(), route.upstreamAdapterCode(),
 						envelope.callbackRef());
 			}
-			upsertFeedbackMetric(envelope, route);
+			upsertFeedbackMetric(envelope, route, billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
 		}
 		catch (Exception e) {
 			throw new IllegalStateException("Cannot persist feedback event", e);
@@ -158,15 +173,6 @@ public class OcpxPersistenceRepository {
 				VALUES (?,?,?,?,?,?,?,?,NOW(3))
 				""", id(), callback.eventId(), route.routeId(), callback.eventType().name(), route.routeVersion(),
 				route.deductionRatio(), forwarded, decisionReason);
-		if ("AUDIT_ONLY".equals(route.billingMode())) {
-			jdbcTemplate.update("""
-					INSERT IGNORE INTO scx_ocpx_billing_entry
-					(id,charge_event_id,advertiser_id,amount,currency,mode,status,reason,create_time)
-					VALUES (?,?,?,?,NULL,'AUDIT_ONLY',?,?,NOW(3))
-					""", id(), callback.eventId(), route.advertiserId(), callback.amount(),
-					callback.amount() == null ? "SKIPPED" : "RECORDED",
-					callback.amount() == null ? "AMOUNT_OR_UNIT_UNCONFIRMED" : "NO_BALANCE_MUTATION");
-		}
 		if (forwarded && route.downstreamCallbackUrl() != null && !route.downstreamCallbackUrl().isBlank()) {
 			jdbcTemplate.update("""
 					UPDATE scx_ocpx_protocol_snapshot
@@ -318,21 +324,23 @@ public class OcpxPersistenceRepository {
 				target.advertiserId(), target.appLinkId(), target.monitorId());
 	}
 
-	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route) {
+	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route, BigDecimal costAmount) {
 		LocalDateTime hour = envelope.occurredAt()
 			.atZoneSameInstant(REPORT_ZONE)
 			.toLocalDateTime()
 			.truncatedTo(ChronoUnit.HOURS);
 		LogDataProjection projection = new LogDataProjection(hour, route.channelId(), route.advertiserId(),
 				route.appLinkId(), route.routeId(), envelope.eventType() == OcpxEventType.SHOW ? 1 : 0,
-				envelope.eventType() == OcpxEventType.CLICK ? 1 : 0, 0, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO);
+				envelope.eventType() == OcpxEventType.CLICK ? 1 : 0, 0, 0, 0, 0, costAmount, BigDecimal.ZERO);
 		jdbcTemplate.update("""
 				INSERT INTO scx_adx_hourly_report
-				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,impressions,clicks)
-				VALUES (?,?,?,?,?,?,?,?)
-				ON DUPLICATE KEY UPDATE impressions=impressions+VALUES(impressions),clicks=clicks+VALUES(clicks)
+				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,impressions,clicks,cost_amount)
+				VALUES (?,?,?,?,?,?,?,?,?)
+				ON DUPLICATE KEY UPDATE impressions=impressions+VALUES(impressions),clicks=clicks+VALUES(clicks),
+				 cost_amount=cost_amount+VALUES(cost_amount)
 				""", id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
-				projection.appLinkId(), projection.monitorId(), projection.impressions(), projection.clicks());
+				projection.appLinkId(), projection.monitorId(), projection.impressions(), projection.clicks(),
+				projection.costAmount());
 	}
 
 	private void upsertCallbackMetric(NormalizedCallbackEvent callback, RouteSnapshot route, boolean forwarded) {
@@ -342,8 +350,7 @@ public class OcpxPersistenceRepository {
 			.truncatedTo(ChronoUnit.HOURS);
 		String eventColumn = metricColumn(callback.eventType());
 		LogDataProjection projection = new LogDataProjection(hour, route.channelId(), route.advertiserId(),
-				route.appLinkId(), route.routeId(), 0, 0, 1, 0, forwarded ? 0 : 1, 0, BigDecimal.ZERO,
-				BigDecimal.ZERO);
+				route.appLinkId(), route.routeId(), 0, 0, 1, 0, forwarded ? 0 : 1, 0, BigDecimal.ZERO, BigDecimal.ZERO);
 		String sql = """
 				INSERT INTO scx_adx_hourly_report
 				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,%s,raw_conversion_count,deducted_conversion_count)
@@ -360,13 +367,17 @@ public class OcpxPersistenceRepository {
 	private String metricColumn(OcpxEventType eventType) {
 		return switch (eventType) {
 			case ACTIVATE -> "activate_count";
+			case EVOKE, RETENTION, REACTIVATION, FIRST_REACTIVATION -> "evoke_count";
+			case LOGIN -> "login_count";
 			case REGISTER -> "register_count";
 			case NEXT_DAY_RETENTION -> "next_stay_count";
-			case RETENTION, REACTIVATION, FIRST_REACTIVATION -> "evoke_count";
 			case PAYMENT -> "payment_count";
 			case CUSTOMER_ACQUISITION -> "acquisition_count";
+			case VISIT -> "visit_count";
+			case AUTHENTICATION -> "authentication_count";
+			case ORDER -> "order_count";
 			case COMPLETE_ORDER -> "finish_order_count";
-			default -> "visit_count";
+			case SHOW, CLICK -> throw new IllegalArgumentException("feedback event cannot be aggregated as callback");
 		};
 	}
 

@@ -7,9 +7,10 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 1. 首页：昨日、近 7 日、近 30 日、累计收入和 30 日趋势。
 2. 报表中心：时段报表，支持小时/日期/月/年、渠道、监测链接、广告主、应用链接、日期范围筛选与 Excel 下载。
 3. 渠道管理：渠道资料和监测链接管理。
-4. 广告主管理：广告主、应用链接和扣量规则管理，含广告主充值。
+4. 广告主管理：广告主、应用链接和扣量规则管理，含幂等充值、账务流水和 CPC 点击扣费。
 5. 系统管理：原样复用 `scx-system` 的 Sa-Token + RBAC，恢复用户、角色、菜单、部门、字典、存储配置、操作日志和登录日志管理。
-6. 线索上报：Excel 导入、手工维护、按勾选或筛选条件批量重置、任务状态和提交入口。
+
+汽车线索上报已退出当前产品边界；前后端接口、菜单、权限和业务表由 V72 前向移除。
 
 原商业、财务/支付、媒体主体/资源、创意、投放、监测归因、旧报表和运营中心不再是运行模块。
 
@@ -20,6 +21,7 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 - 前端页面：`scx-fronted/apps/web-ele/src/views/adx/`。
 - 建表与精简菜单迁移：`V68__create_compact_adx_platform.sql`。
 - 原系统管理恢复迁移：`V69__restore_original_system_management.sql`。
+- 线索退役与账户迁移：`V72__remove_clues_and_enable_accounting.sql`。
 - 旧表物理退役：`scx-backend/db/smart-converge-x/retirement/retire-superseded-ad-domains.sql`。
 
 ## 3. 接口契约
@@ -28,12 +30,12 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 | --- | --- |
 | 首页 | `GET /adx/dashboard/summary` |
 | 渠道 | `GET/POST /adx/channels`，`PUT/DELETE /adx/channels/{id}` |
-| 广告主 | `GET/POST /adx/advertisers`，`PUT/DELETE /adx/advertisers/{id}`，`POST /{id}/recharge` |
+| 广告主 | `GET/POST /adx/advertisers`，`PUT/DELETE /adx/advertisers/{id}` |
+| 账户 | `POST /adx/advertisers/{id}/recharge`，`GET /adx/advertisers/{id}/ledger` |
 | 应用链接 | `GET/POST /adx/app-links`，`PUT/DELETE /adx/app-links/{id}` |
 | 监测链接 | `GET/POST /adx/monitors`，`PUT/DELETE /adx/monitors/{id}` |
 | 扣量规则 | `GET/POST /adx/deduction-rules`，`PUT/DELETE /adx/deduction-rules/{id}` |
 | 时段报表 | `GET /adx/report-options`，`GET /adx/reports/hourly`，`GET /adx/reports/hourly/export` |
-| 线索 | `GET/POST /adx/clues`，`PUT /adx/clues/{id}`，`POST /upload`，`PUT /batch-status`，`POST /submit`，`GET /status` |
 
 所有管理接口使用原系统 Sa-Token + RBAC 权限码。权限数据继续落在 `sys_user`、`sys_role`、`sys_menu`、`sys_role_menu`，不新增平行权限表或第二套授权模型。渠道和广告主密钥、广告主密码均只写不回显；密码使用 BCrypt 保存。新增广告主会同步创建 `sys_user` 登录账号并通过原 RBAC 关系绑定 `ROLE_ADVERTISER`，其首页、筛选选项、报表查询和导出都会强制限制到自身广告主 ID；广告主账号缺少绑定关系时按失败关闭处理。
 
@@ -45,13 +47,13 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 - `scx_adx_monitor_link`
 - `scx_adx_deduction_rule`
 - `scx_adx_hourly_report`
-- `scx_adx_clue`
+- `scx_ocpx_billing_entry`（充值、审计与 CPC 扣费共用的幂等流水）
 
 报表事实粒度为“小时 + 渠道 + 广告主 + 应用链接 + 监测链接”。扣量规则保存 0 到 1 的保留比例。
 
 ## 5. 迁移与退役门禁
 
-常规数据库升级依次执行 V68、V69：V68 创建新表并精简业务菜单，V69 恢复原系统管理菜单与管理员授权。两者都不会自动删除历史业务数据。
+常规数据库升级按版本依次执行。V68/V69 保留历史事实；V72 会物理删除 `scx_adx_clue` 和对应菜单/权限，并扩展账务流水。部署前若旧线索仍需归档，必须先备份该表。源码中的迁移文件不等于已在目标库执行。
 
 物理退役旧表必须单独执行：
 
@@ -61,6 +63,8 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 4. 预览 `retire-superseded-ad-domains.sql` 中的表清单并取得本次生产授权。
 5. 执行退役脚本，再运行 `make db-verify`。
 
-## 6. 已知外部边界
+## 6. 账户语义与运行边界
 
-参考项目的汽车之家线索提交依赖外部任务凭据和子任务信息，仓库中没有可安全复用的凭据。当前实现会完整保存待上报线索并返回 `BLOCKED` 原因，不会伪造成功。取得目标环境的正式任务契约和凭据后，再补真实发送适配器、重试与回执测试。
+充值要求 16–64 位 `requestId`，同一广告主和请求号重复提交只返回首次流水，不会重复入账。CPC 以首次落库的 CLICK `event_id` 为扣费唯一键，使用监测链接 `unit_price`，币种固定 CNY；余额不足写 `REJECTED` 流水、不扣余额且不创建上游投递任务。`AUDIT_ONLY` 只写 `RECORDED` 流水。充值、余额修改和流水在同一 MySQL 事务内完成。
+
+feedback 的 HTTP 202 仅表示已可靠进入 Redis Stream；实际扣费由异步批量持久化完成。生产启用 CPC 前仍须应用 V72、完成初始余额核对、重复事件/余额不足/故障恢复测试以及真实流量对账。

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   exportReport,
+  getAdvertiserLedger,
   getCatalog,
   getReport,
   getReportOptions,
+  rechargeAdvertiser,
   saveCatalog,
-  updateClueStatus,
-  updateClueStatusByFilter,
 } from './adx';
 
 const requestClient = vi.hoisted(() => ({
@@ -41,32 +41,27 @@ describe('aDX API contract', () => {
     });
   });
 
-  it('keeps report filters and clue batches connected to backend contracts', () => {
+  it('keeps report filters and idempotent recharge connected to backend contracts', () => {
     getReport({ granularity: 'DATE', startDate: '2026-08-01' });
     getReportOptions();
     exportReport({ granularity: 'HOUR' });
-    updateClueStatus(['clue-1'], 0);
-    updateClueStatusByFilter({
-      endDate: '2026-08-02',
-      sourceStatus: 2,
-      startDate: '2026-08-01',
-      status: 0,
-    });
+    rechargeAdvertiser('adv-1', 100, 'recharge_20260807_0001');
+    getAdvertiserLedger('adv-1', { current: 1, size: 20 });
     expect(requestClient.get).toHaveBeenCalledWith('/adx/reports/hourly', {
       params: { granularity: 'DATE', startDate: '2026-08-01' },
     });
     expect(requestClient.get).toHaveBeenCalledWith('/adx/report-options');
-    expect(requestClient.put).toHaveBeenCalledWith('/adx/clues/batch-status', {
-      ids: ['clue-1'],
-      status: 0,
-    });
-    expect(requestClient.put).toHaveBeenCalledWith('/adx/clues/batch-status', {
-      endDate: '2026-08-02',
-      mode: 'FILTER',
-      sourceStatus: 2,
-      startDate: '2026-08-01',
-      status: 0,
-    });
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/recharge',
+      {
+        amount: 100,
+        requestId: 'recharge_20260807_0001',
+      },
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/ledger',
+      { params: { current: 1, size: 20 } },
+    );
     expect(requestClient.get).toHaveBeenCalledWith(
       '/adx/reports/hourly/export',
       {

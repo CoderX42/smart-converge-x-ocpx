@@ -80,9 +80,9 @@ class CocoUpstreamAdapterTest {
 	}
 
 	private RouteSnapshot route(String bidUrl, String requiredMacros) {
-		return new RouteSnapshot("route-1", 3, "channel-1", "demo", "STANDARD", "HMAC", 1, "secret", "advertiser-1",
-				"app-1", "COCO", null, bidUrl, requiredMacros, "https://downstream.example/callback", BigDecimal.ONE,
-				"OFF", "OFF");
+		return new RouteSnapshot("route-1", "biz-1", 3, "channel-1", "demo", "STANDARD", "HMAC", 1, "secret",
+				"advertiser-1", "app-1", "COCO", null, bidUrl, requiredMacros, "https://downstream.example/callback",
+				BigDecimal.ONE, BigDecimal.ONE, "OFF", "OFF");
 	}
 
 }

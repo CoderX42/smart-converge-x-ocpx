@@ -3,8 +3,8 @@ info:
   title: SCX OCPX 双向转发 API
   version: 1.0.0
   description: >-
-    scx-rtb 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco callback
-    由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
+    scx-rtb 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco 或通用宏模板
+    upstream callback 由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
     RTA、实时扣费和历史 /open-api/events/v1 接口不属于当前运行契约。
 servers:
   - url: https://{domain}/rtb
@@ -98,6 +98,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CocoResult'
+        '400': { $ref: '#/components/responses/CocoError' }
+        '401': { $ref: '#/components/responses/CocoError' }
+        '410': { $ref: '#/components/responses/CocoError' }
+  /open-api/ocpx/v1/upstreams/{upstreamCode}/callback:
+    get:
+      operationId: acceptGenericUpstreamCallback
+      summary: 接收已注册上游适配器 callback
+      description: >-
+        TEMPLATE_GET 基础协议接受 action_type 或 event、可选 event_id/conversion_id/order_id、
+        event_time/action_time 以及 currency_amount/amount。具体合作方若有签名、加密或业务成功码，
+        必须新增专用适配器，不能直接声明为 TEMPLATE_GET。
+      parameters:
+        - name: upstreamCode
+          in: path
+          required: true
+          schema: { type: string, enum: [coco, template_get] }
+        - name: ext
+          in: query
+          required: true
+          description: SCX 生成的有签名且有有效期的关联引用
+          schema: { type: string, minLength: 1, maxLength: 1024 }
+        - name: action_type
+          in: query
+          required: false
+          schema: { type: string }
+        - name: event
+          in: query
+          required: false
+          schema: { type: string }
+        - name: event_id
+          in: query
+          required: false
+          schema: { type: string, maxLength: 128 }
+        - name: event_time
+          in: query
+          required: false
+          schema:
+            oneOf:
+              - { type: integer }
+              - { type: string, format: date-time }
+        - name: amount
+          in: query
+          required: false
+          schema: { type: string, maxLength: 64 }
+      responses:
+        '200':
+          description: 新回调已持久化，或相同回调已幂等处理
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CocoResult' }
         '400': { $ref: '#/components/responses/CocoError' }
         '401': { $ref: '#/components/responses/CocoError' }
         '410': { $ref: '#/components/responses/CocoError' }

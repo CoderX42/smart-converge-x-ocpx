@@ -11,9 +11,11 @@ import com.yzytech.scx.adx.entity.AdxChannel;
 import com.yzytech.scx.adx.entity.AdxDeductionRule;
 import com.yzytech.scx.adx.entity.AdxMonitorLink;
 import com.yzytech.scx.adx.service.AdxCatalogService;
+import com.yzytech.scx.adx.service.AdxAccountService;
 import com.yzytech.scx.adx.service.AdxAdapterService;
 import com.yzytech.scx.adx.service.AdxRoutePublishService;
 import com.yzytech.scx.common.core.util.Result;
+import com.yzytech.scx.common.security.util.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,6 +38,8 @@ import java.util.Map;
 public class AdxCatalogController {
 
 	private final AdxCatalogService service;
+
+	private final AdxAccountService accountService;
 
 	private final AdxAdapterService adapterService;
 
@@ -102,10 +106,18 @@ public class AdxCatalogController {
 	}
 
 	@PostMapping("/advertisers/{id}/recharge")
-	@SaCheckPermission("adx:advertiser:write")
-	public Result<CatalogViews.Advertiser> recharge(@PathVariable String id,
+	@SaCheckPermission("adx:account:recharge")
+	public Result<CatalogViews.AccountMutation> recharge(@PathVariable String id,
 			@Valid @RequestBody CatalogRequests.Recharge request) {
-		return call(() -> service.recharge(id, request.amount()));
+		return call(
+				() -> accountService.recharge(id, request.requestId(), request.amount(), SecurityUtils.getUserName()));
+	}
+
+	@GetMapping("/advertisers/{id}/ledger")
+	@SaCheckPermission("adx:account:read")
+	public Result<IPage<CatalogViews.AccountEntry>> accountLedger(@PathVariable String id,
+			Page<CatalogViews.AccountEntry> page) {
+		return call(() -> accountService.ledger(page, id));
 	}
 
 	@DeleteMapping("/advertisers/{id}")

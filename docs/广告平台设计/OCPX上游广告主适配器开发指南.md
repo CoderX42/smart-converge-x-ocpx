@@ -1,6 +1,6 @@
 # SCX OCPX 上游广告主适配器开发指南
 
-> 适用版本：V70 / OCPX Contract v1。本文面向 SCX 研发人员，用于接入 Coco 之外的广告主、代理平台或转化归因平台。新增上游不应复制一套接入、队列或重试服务，只实现协议差异并注册为 `UpstreamAdapter`。
+> 适用版本：V70-V73 / OCPX Contract v1。本文面向 SCX 研发人员，用于接入 Coco 之外的广告主、代理平台或转化归因平台。新增上游不应复制一套接入、队列或重试服务，只实现协议差异并注册为 `UpstreamAdapter`。
 
 ## 1. 接入边界
 
@@ -62,6 +62,19 @@ https://{SCX_RTB_DOMAIN}/rtb/open-api/ocpx/v1/upstreams/{lowercase-adapter-code}
 - 广告主记录配置该 `adapter_code`、上报 URL/模板、密钥、必填宏和精确域名白名单。
 - 监测链接绑定渠道与广告主。发布后生成不可变路由版本；历史事件继续使用接收时的路由快照。
 - 密钥只写入后端配置/管理端密钥字段，接口只返回“已配置”，禁止放入前端、日志、URL 诊断参数或 Git 文档。
+
+### 3.1 `TEMPLATE_GET` 基础兼容适配器
+
+V71 注册 `TEMPLATE_GET`，用于承接 `sgyz-ocpx` 一类“SHOW/CLICK GET 宏模板 -> 广告主 callback”的基础流程。它支持标准字段宏和旧系统常见别名，包括：
+
+- 事件与时间：`__EVENT__`、`__EVENT_ID__`、`__EVENT_TIME__`、`__TS__`、`__MTS__`、`__REQUEST_ID__`。
+- 路由：`__CHANNEL_ID__`、`__DSP_ID__`、`__LINK_ID__`、`__TASK_ID__`、`__MONITOR_ID__`、`__BIZ_ID__`。
+- 设备：IDFA、IMEI、OAID、CAID、Android ID、AAID、GAID、IDFV、IP、UA、OS、MODEL 及常见 MD5 别名。
+- 回调：`__CALLBACK__`、`__CALLBACK_URL__`。
+
+通用 callback 接受 `action_type` 或 `event`，优先使用 `conversion_id/event_id/order_id` 生成稳定幂等 ID，并读取 `event_time/action_time` 与 `currency_amount/amount`。支持激活、唤起、登录、注册、付费、获客、次留、访问、认证、下单、完单、留存和再激活等规范事件。
+
+`TEMPLATE_GET` 只把已明确的公共字段做模板替换，并以 HTTP 2xx 作为成功；如果合作方要求签名、加密、POST body、特殊业务成功码或自定义 callback 验签，必须新增专用适配器，不能直接选用它上线。
 
 ## 4. 实现 UpstreamAdapter
 

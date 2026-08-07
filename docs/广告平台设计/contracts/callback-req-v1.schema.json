@@ -9,7 +9,7 @@
     "schema_version": { "const": "1.0" },
     "event_id": { "type": "string" },
     "source_event_id": { "type": "string" },
-    "event": { "type": "string", "enum": ["ACTIVATE", "REGISTER", "NEXT_DAY_RETENTION", "RETENTION", "PAYMENT", "REACTIVATION", "CUSTOMER_ACQUISITION", "FIRST_REACTIVATION", "COMPLETE_ORDER"] },
+    "event": { "type": "string", "enum": ["ACTIVATE", "EVOKE", "LOGIN", "REGISTER", "NEXT_DAY_RETENTION", "RETENTION", "PAYMENT", "REACTIVATION", "CUSTOMER_ACQUISITION", "VISIT", "AUTHENTICATION", "ORDER", "FIRST_REACTIVATION", "COMPLETE_ORDER"] },
     "action_time": { "type": "string", "format": "date-time" },
     "amount": { "type": ["number", "null"] },
     "amount_raw": { "type": ["string", "null"] },

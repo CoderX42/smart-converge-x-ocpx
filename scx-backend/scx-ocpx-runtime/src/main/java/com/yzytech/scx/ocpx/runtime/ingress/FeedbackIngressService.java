@@ -113,9 +113,10 @@ public class FeedbackIngressService {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "event_id or clickid is too long");
 		}
 		if (eventId == null) {
-			eventId = OcpxHashing.sha256(
-					channelCode + "|" + route.routeId() + "|" + eventType.name() + "|" + payloadHash);
+			eventId = OcpxHashing
+				.sha256(channelCode + "|" + route.routeId() + "|" + eventType.name() + "|" + payloadHash);
 		}
+		feedback.setEventId(eventId);
 		FeedbackEnvelope envelope;
 		try {
 			boolean forward = adapterRegistry.requireUpstream(route.upstreamAdapterCode()).supports(eventType);
@@ -126,7 +127,7 @@ public class FeedbackIngressService {
 			envelope = new FeedbackEnvelope(normalized.eventId(), normalized.payloadHash(), normalized.eventType(),
 					normalized.channelCode(), normalized.routeId(), normalized.routeVersion(), normalized.occurredAt(),
 					normalized.receivedAt(), normalized.deviceKeyHash(), callbackRef,
-					protocolCrypto.encrypt(normalizedPayload),
+					protocolCrypto.encrypt(canonicalWriter.writeValueAsString(feedback)),
 					protocolCrypto.encrypt(objectMapper.writeValueAsString(route)), forward);
 		}
 		catch (JsonProcessingException | IllegalArgumentException e) {

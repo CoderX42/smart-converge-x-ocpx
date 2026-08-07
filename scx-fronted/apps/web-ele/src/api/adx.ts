@@ -46,6 +46,21 @@ export type Advertiser = CatalogRecord & {
   upstreamHostAllowlist: string;
 };
 
+export type AccountEntry = {
+  advertiserId: string;
+  amount?: number;
+  balanceAfter?: number;
+  balanceBefore?: number;
+  createTime: string;
+  currency?: string;
+  id: string;
+  mode: string;
+  operatorId?: string;
+  reason?: string;
+  remark?: string;
+  status: string;
+};
+
 export type AppLink = CatalogRecord & {
   advertiserId: string;
   advertiserName?: string;
@@ -156,23 +171,6 @@ export type RuntimeIngressDlq = {
   streamRecordId: string;
 };
 
-export type Clue = CatalogRecord & {
-  carMileage?: number;
-  clueAreaId?: string;
-  clueBrandId?: string;
-  clueCarModelId?: string;
-  clueCarSeriesId?: string;
-  clueCityId?: string;
-  clueIndex?: string;
-  clueName?: string;
-  cluePhone: string;
-  clueStatus: number;
-  firstCarRegistrationTime?: string;
-  remark?: string;
-  sonTaskId?: string;
-  sourceType: number;
-};
-
 export type DashboardSummary = {
   sevenDayIncome: number;
   thirtyDayIncome: number;
@@ -238,8 +236,22 @@ export function deleteCatalog(kind: CatalogKind, id: string) {
   return requestClient.delete<boolean>(`${endpoints[kind]}/${id}`);
 }
 
-export function rechargeAdvertiser(id: string, amount: number) {
-  return requestClient.post(`/adx/advertisers/${id}/recharge`, { amount });
+export function rechargeAdvertiser(
+  id: string,
+  amount: number,
+  requestId: string,
+) {
+  return requestClient.post(`/adx/advertisers/${id}/recharge`, {
+    amount,
+    requestId,
+  });
+}
+
+export function getAdvertiserLedger(id: string, params: Query) {
+  return requestClient.get<PageResult<AccountEntry>>(
+    `/adx/advertisers/${id}/ledger`,
+    { params },
+  );
 }
 
 export function publishMonitor(id: string) {
@@ -292,49 +304,4 @@ export function exportReport(params: Query) {
 
 export function getDashboardSummary() {
   return requestClient.get<DashboardSummary>('/adx/dashboard/summary');
-}
-
-export function getClues(params: Query) {
-  return requestClient.get<PageResult<Clue>>('/adx/clues', { params });
-}
-
-export function saveClue(data: Partial<Clue>) {
-  return data.id
-    ? requestClient.put(`/adx/clues/${data.id}`, data)
-    : requestClient.post('/adx/clues', data);
-}
-
-export function uploadClues(file: File) {
-  const data = new FormData();
-  data.append('file', file);
-  return requestClient.post<number>('/adx/clues/upload', data, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-}
-
-export function updateClueStatus(ids: string[], status: number) {
-  return requestClient.put<number>('/adx/clues/batch-status', { ids, status });
-}
-
-export function updateClueStatusByFilter(data: {
-  cluePhone?: string;
-  endDate: string;
-  keyword?: string;
-  sourceStatus: number;
-  sourceType?: number;
-  startDate: string;
-  status: number;
-}) {
-  return requestClient.put<number>('/adx/clues/batch-status', {
-    ...data,
-    mode: 'FILTER',
-  });
-}
-
-export function submitClues() {
-  return requestClient.post<Record<string, any>>('/adx/clues/submit');
-}
-
-export function getClueTaskStatus() {
-  return requestClient.get<Record<string, any>>('/adx/clues/status');
 }

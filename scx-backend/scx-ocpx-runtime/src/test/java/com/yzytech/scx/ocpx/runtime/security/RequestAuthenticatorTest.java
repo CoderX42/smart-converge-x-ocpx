@@ -50,11 +50,11 @@ class RequestAuthenticatorTest {
 		assertThatCode(() -> authenticator.authenticate(route(), "POST", path, body, headers))
 			.doesNotThrowAnyException();
 
-		doReturn("NONCE_REPLAY").when(redisTemplate)
-			.execute(any(RedisScript.class), anyList(), any(Object[].class));
+		doReturn("NONCE_REPLAY").when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 		assertThatThrownBy(() -> authenticator.authenticate(route(), "POST", path, body, headers))
 			.isInstanceOfSatisfying(OcpxException.class,
-					error -> org.assertj.core.api.Assertions.assertThat(error.getStatus()).isEqualTo(HttpStatus.CONFLICT));
+					error -> org.assertj.core.api.Assertions.assertThat(error.getStatus())
+						.isEqualTo(HttpStatus.CONFLICT));
 	}
 
 	@Test
@@ -64,11 +64,10 @@ class RequestAuthenticatorTest {
 		HttpHeaders headers = signedHeaders("{\"event\":\"click\"}", path, timestamp,
 				"7858c055c6754ee688873e11b9c17088");
 
-		assertThatThrownBy(
-				() -> authenticator.authenticate(route(), "POST", path, "{\"event\":\"show\"}", headers))
+		assertThatThrownBy(() -> authenticator.authenticate(route(), "POST", path, "{\"event\":\"show\"}", headers))
 			.isInstanceOfSatisfying(OcpxException.class,
 					error -> org.assertj.core.api.Assertions.assertThat(error.getStatus())
-					.isEqualTo(HttpStatus.UNAUTHORIZED));
+						.isEqualTo(HttpStatus.UNAUTHORIZED));
 	}
 
 	@Test
@@ -83,7 +82,7 @@ class RequestAuthenticatorTest {
 		assertThatThrownBy(() -> authenticator.authenticate(route(), "POST", path, body, headers))
 			.isInstanceOfSatisfying(OcpxException.class,
 					error -> org.assertj.core.api.Assertions.assertThat(error.getStatus())
-					.isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+						.isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
 	}
 
 	@Test
@@ -92,13 +91,12 @@ class RequestAuthenticatorTest {
 		String path = "/rtb/open-api/ocpx/v1/channels/demo/feedback";
 		String timestamp = Long.toString(System.currentTimeMillis());
 		HttpHeaders headers = signedHeaders(body, path, timestamp, "7858c055c6754ee688873e11b9c17088");
-		doReturn("RATE_LIMIT").when(redisTemplate)
-			.execute(any(RedisScript.class), anyList(), any(Object[].class));
+		doReturn("RATE_LIMIT").when(redisTemplate).execute(any(RedisScript.class), anyList(), any(Object[].class));
 
 		assertThatThrownBy(() -> authenticator.authenticate(route(), "POST", path, body, headers))
 			.isInstanceOfSatisfying(OcpxException.class,
 					error -> org.assertj.core.api.Assertions.assertThat(error.getStatus())
-					.isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+						.isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
 	}
 
 	private HttpHeaders signedHeaders(String body, String path, String timestamp, String nonce) {
@@ -113,10 +111,10 @@ class RequestAuthenticatorTest {
 	}
 
 	private RouteSnapshot route() {
-		return new RouteSnapshot("route-1", 1, "channel-1", "demo", "STANDARD", "HMAC", 1,
+		return new RouteSnapshot("route-1", "biz-1", 1, "channel-1", "demo", "STANDARD", "HMAC", 1,
 				"channel-secret-at-least-32-bytes", "advertiser-1", "app-1", "COCO", null,
 				"https://coco.example/click?callback=__CALLBACK__", null, "https://downstream.example/callback",
-				BigDecimal.ONE, "OFF", "OFF");
+				BigDecimal.ONE, BigDecimal.ONE, "OFF", "OFF");
 	}
 
 }

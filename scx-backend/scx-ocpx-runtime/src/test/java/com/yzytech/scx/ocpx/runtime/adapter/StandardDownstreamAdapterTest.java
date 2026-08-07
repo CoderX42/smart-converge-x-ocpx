@@ -47,9 +47,9 @@ class StandardDownstreamAdapterTest {
 	}
 
 	private RouteSnapshot route() {
-		return new RouteSnapshot("monitor-1", 3, "channel-1", "demo", "STANDARD", "HMAC", 1,
+		return new RouteSnapshot("monitor-1", "biz-1", 3, "channel-1", "demo", "STANDARD", "HMAC", 1,
 				"12345678901234567890123456789012", "advertiser-1", "app-1", "COCO", null, "https://coco.example/click",
-				null, "https://callback.example/postback", BigDecimal.ONE, "OFF", "OFF");
+				null, "https://callback.example/postback", BigDecimal.ONE, BigDecimal.ONE, "OFF", "OFF");
 	}
 
 }

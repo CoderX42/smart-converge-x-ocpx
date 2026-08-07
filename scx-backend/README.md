@@ -9,7 +9,9 @@
 | `scx-auth` | 登录、验证码和令牌认证 |
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
-| `scx-adx` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、时段报表和线索上报 |
+| `scx-adx` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、充值/点击账务和时段报表 |
+| `scx-ocpx-contract` / `scx-ocpx-runtime` | 双向协议、适配器 SPI、可靠投递和 CPC 点击计费 |
+| `scx-rtb` | 独立 OCPX 数据面应用，端口 10000、上下文 `/rtb` |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |
@@ -23,7 +25,7 @@
 
 ## 初始化数据库
 
-数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。V68 会创建系统运行所需的 ADX 表和目标菜单。历史迁移保持不可变；旧广告域和支付表必须在备份、预览和单独授权后执行 `retirement/retire-superseded-ad-domains.sql` 退役。
+数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。V68 会创建初始 ADX 表和菜单；V72 会移除已退出的汽车线索表/权限并启用充值与 CPC 账务。历史迁移保持不可变。应用 V72 前如需留存旧线索数据必须先备份；旧广告域和支付表仍须在预览和单独授权后执行 `retirement/retire-superseded-ad-domains.sql` 退役。
 
 ```bash
 cd db/smart-converge-x

@@ -36,6 +36,7 @@ assert openapi.get("openapi") == "3.1.0", "OpenAPI must be 3.1.0"
 paths = openapi.get("paths", {})
 assert "/open-api/ocpx/v1/channels/{channelCode}/feedback" in paths
 assert "/open-api/ocpx/v1/upstreams/coco/callback" in paths
+assert "/open-api/ocpx/v1/upstreams/{upstreamCode}/callback" in paths
 assert all(not path.startswith("/open-api/events/v1") for path in paths), "historical event API must not be active"
 webhooks = openapi.get("webhooks", {})
 assert "downstreamCallback" in webhooks, "standard downstream callback webhook must be documented"
@@ -54,7 +55,7 @@ for name in ("feedback-req-v1.schema.json", "callback-req-v1.schema.json"):
 
 with (root / "scx-ocpx-v1.postman_collection.json").open(encoding="utf-8") as handle:
     postman = json.load(handle)
-assert len(postman.get("item", [])) == 2, "Postman collection must cover feedback and Coco callback"
+assert len(postman.get("item", [])) == 3, "Postman collection must cover feedback, Coco, and template callback"
 
 print("OCPX contracts validated")
 PY

@@ -31,6 +31,14 @@ if [[ "$actual_count" -ne "${#SCX_REQUIRED_TABLES[@]}" ]]; then
   exit 1
 fi
 
+retired_clue_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_adx_clue';")"
+
+if [[ "$retired_clue_count" -ne 0 ]]; then
+  echo "Database verification failed: retired automotive clue table still exists." >&2
+  exit 1
+fi
+
 admin_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
   --execute="SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='system' AND r.role_code='ROLE_ADMIN' AND u.del_flag='0';")"
 
@@ -64,18 +72,18 @@ if [[ "$admin_system_permission_count" -ne 8 ]]; then
 fi
 
 ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name='upstream_host_allowlist') OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count')));")"
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name='upstream_host_allowlist') OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
 
-if [[ "$ocpx_column_count" -ne 13 ]]; then
-  echo "Database verification failed: V70 OCPX routing/report columns are incomplete." >&2
+if [[ "$ocpx_column_count" -ne 17 ]]; then
+  echo "Database verification failed: OCPX routing/report/accounting columns are incomplete." >&2
   exit 1
 fi
 
 admin_ocpx_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish');")"
+  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish','adx:account:read','adx:account:recharge');")"
 
-if [[ "$admin_ocpx_permission_count" -ne 3 ]]; then
-  echo "Database verification failed: administrator OCPX runtime permissions are incomplete." >&2
+if [[ "$admin_ocpx_permission_count" -ne 5 ]]; then
+  echo "Database verification failed: administrator OCPX runtime/account permissions are incomplete." >&2
   exit 1
 fi
 

@@ -122,17 +122,22 @@ X-Sign: {64位小写十六进制HMAC-SHA256}
 |---|---|
 | `show` / `impression` | 曝光 |
 | `click` | 点击 |
-| `activate` | 激活 |
+| `activate` / `active` | 激活 |
+| `evoke` / `launch` | 唤起 |
+| `login` | 登录 |
 | `register` | 注册 |
 | `day1retention` / `next_day_retention` / `next_stay` | 次日留存 |
 | `retention` / `recall` | 留存/召回 |
 | `purchase` / `payment` / `pay` | 付费 |
-| `reactivation` | 再激活 |
+| `reactivation` / `lahuo` / `lahui` / `huifang` | 再激活/拉活/拉回/回访 |
 | `new` / `customer_acquisition` | 新客 |
-| `firstreactivation` / `first_reactivation` | 首次再激活 |
+| `visit` / `visits` | 访问 |
+| `authentication` / `authenticate` | 认证 |
+| `order` / `place_order` | 下单 |
+| `firstreactivation` / `first_reactivation` / `evoke_first` | 首次再激活/首唤 |
 | `completeorder` / `complete_order` / `finish_order` | 完成订单 |
 
-接口接受这些统一事件，不代表当前绑定的上游会转发全部事件。例如首期 Coco 仅消费 CLICK；不支持的事件仍可作为 SCX 事实保存，但不会创建该上游的 feedback 投递任务。
+接口接受这些统一事件，不代表当前绑定的上游会转发全部事件。例如 Coco 仅消费 CLICK，`TEMPLATE_GET` 消费 SHOW/CLICK；不支持的事件仍可作为 SCX 事实保存，但不会创建该上游的 feedback 投递任务。
 
 ## 4. Feedback 签名
 
@@ -302,7 +307,17 @@ python3 verify_request.py \
 - 每次重试保持 `Idempotency-Key/event_id` 不变，但会生成新的时间戳、nonce 和签名。
 - 下游接口应在完成可靠持久化后尽快返回，不要同步等待后续耗时业务。
 
-如果下游必须使用 GET、表单或特殊成功响应，双方需要在联调前确认专用 `DownstreamAdapter`，不能让下游自行假设标准接口支持这些变体。
+如果下游必须使用表单、私有签名或特殊业务成功响应，双方需要在联调前确认专用 `DownstreamAdapter`，不能让下游自行假设标准接口支持这些变体。只需要普通 HTTPS GET query 回传时可选择 V73 `TEMPLATE_GET_DOWNSTREAM`。
+
+### 6.3 通用 GET 回传模板
+
+选择 `TEMPLATE_GET_DOWNSTREAM` 时，feedback 入口和 HMAC 规则不变；只有 SCX 向渠道回传转化的请求改为 GET。监测链接的 `downstream_callback_url` 必须是固定 HTTPS 域名下的宏模板，并至少包含 `__EVENT__` 和 `__EVENT_ID__`：
+
+```text
+https://callback.partner.example/ocpx?event=__EVENT__&event_id=__EVENT_ID__&clickid=__CLICKID__&ts=__TS__
+```
+
+支持宏：`__EVENT__`、`__EVENT_ID__`、`__SOURCE_EVENT_ID__`、`__CLICKID__`、`__MONITOR_ID__`、`__CHANNEL_ID__`、`__AMOUNT__`、`__AMOUNT_RAW__`、`__TS__`。每个值按 query 参数编码，未知或未解析宏会拒绝发布/投递。HTTP 任意 2xx 视为成功，`event_id` 必须作为渠道端幂等唯一键。该通用适配器不提供渠道私有 query 签名；有此要求时必须开发专用适配器。
 
 ## 7. 密钥轮换
 

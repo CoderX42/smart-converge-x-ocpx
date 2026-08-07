@@ -1,4 +1,4 @@
-# SCX OCPX 双向转发引擎实现说明（V70 / Coco 首接）
+# SCX OCPX 双向转发引擎实现说明（V70-V73 / 双向适配与 CPC 账务）
 
 ## 1. 当前结论
 
@@ -8,14 +8,16 @@
 下游 FeedbackReqV1
   -> HMAC/Nonce/QPS 校验
   -> Redis Stream 64 分区可靠接入
-  -> 批量事务写 MySQL 事实与上游投递任务
-  -> Coco 点击宏适配与异步投递
-  -> Coco callback(ext/action_type/currency_amount)
+  -> 批量事务写 MySQL 事实
+  -> CLICK 按 OFF/AUDIT_ONLY/CPC 做幂等记账或真实扣费
+  -> 余额允许时创建上游投递任务
+  -> Coco CLICK 或 TEMPLATE_GET SHOW/CLICK 宏适配与异步投递
+  -> 上游 callback(ext + 事件/时间/金额)
   -> MySQL 原始 callback 事实与固定扣量决策
-  -> 标准 CallbackReqV1 异步投递下游
+  -> 标准 HMAC JSON POST 或通用 GET 宏模板异步投递下游
 ```
 
-这代表代码闭环已实现，不代表生产闭环已验收。V70 尚未在目标数据库执行；真实 Coco 成功响应、鉴权、金额单位、沙箱地址和重试约定尚需官方文档/UAT；首个真实下游尚未绑定；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
+这代表代码闭环已实现，不代表生产闭环已验收。V70-V73 尚未在目标数据库执行；真实 Coco 成功响应、鉴权、沙箱地址和重试约定尚需官方文档/UAT；充值/CPC 尚未以目标库和真实流量对账；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
 
 ## 2. 模块与职责
 
@@ -37,15 +39,17 @@
 - 有 `event_id` 时直接作为幂等事件 ID；CLICK 可回退到 `clickid`；否则使用渠道、路由、事件与规范化 JSON 指纹生成。
 - 新事件返回 202；同 ID 同载荷返回 200；同 ID 不同载荷或 nonce 重放返回 409；限流为 429；Redis 或副本确认不可用为 503。
 
-### 3.2 Coco 上游 feedback
+### 3.2 上游 feedback
 
-只有 CLICK 创建 `FEEDBACK_UPSTREAM` 投递任务。`CocoUpstreamAdapter` 支持 IDFA、IMEI、OAID、CAID、Android ID、AAID、IP、UA、OS、MODEL、CALLBACK、CLICKID、CREATIVEID 等宏，所有值统一按查询参数编码，仍有未解析宏时拒绝投递。`__CALLBACK__` 中的 `ext` 是服务端生成的 HMAC 签名引用，不包含完整 FeedbackReq；`s` 只用于诊断。
+`CocoUpstreamAdapter` 只为 CLICK 创建 `FEEDBACK_UPSTREAM` 投递任务。`TemplateGetUpstreamAdapter` 为 SHOW/CLICK 提供通用 GET 宏模板，覆盖 `sgyz-ocpx` 常见请求、时间、路由、设备和 callback 宏别名。所有值逐个按查询参数编码；必填值缺失、未知宏或仍有未解析宏时拒绝投递。`__CALLBACK__`/`__CALLBACK_URL__` 中的 `ext` 是服务端生成的 HMAC 签名引用，不包含完整 FeedbackReq。
 
-### 3.3 Coco callback 与下游 callback
+`TEMPLATE_GET` 不包含任何合作方私有签名或业务成功码。出现此类要求时必须新增专用 `UpstreamAdapter`。
 
-`GET /rtb/open-api/ocpx/v1/upstreams/coco/callback` 支持 `activate/register/day1retention/retention/purchase/payment/reactivation/new/firstreactivation/completeorder`。有效 callback 在响应 `code=0` 前，已经写入原始事实、唯一扣量决策和可选下游任务。重复 callback 也返回 `code=0`。
+### 3.3 上游 callback 与下游 callback
 
-标准下游适配器投递 `POST CallbackReqV1`，带 `Idempotency-Key` 与同一套 HMAC 头。媒体需要 GET、表单或特殊成功响应时，应新增 `DownstreamAdapter` Bean，并在渠道配置填写其 `adapter_code`，不修改核心流水线。
+`GET /rtb/open-api/ocpx/v1/upstreams/{upstreamCode}/callback`。Coco 支持其既有事件；`TEMPLATE_GET` 另覆盖唤起、登录、访问、认证、下单等 `sgyz-ocpx` 基础事件词汇，并优先采用上游事件/转化/订单 ID 保证重试幂等。有效 callback 在响应 `code=0` 前，已经写入原始事实、唯一扣量决策和可选下游任务。重复 callback 也返回 `code=0`。
+
+`STANDARD` 下游适配器投递 `POST CallbackReqV1`，带 `Idempotency-Key` 与同一套 HMAC 头。V73 的 `TEMPLATE_GET_DOWNSTREAM` 仍用标准 JSON/HMAC 接收渠道 feedback，但向渠道回传转化时把 `event/event_id/source_event_id/clickid/monitor_id/channel_id/amount/amount_raw/ts` 写入 HTTPS GET 宏模板。两个通用适配器都只把 HTTP 2xx 视为成功；私有签名、表单、加密或业务响应码仍须专用 `DownstreamAdapter`。
 
 ## 4. 可靠性与高并发
 
@@ -58,7 +62,7 @@
 
 ## 5. 数据与隐私
 
-V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并新增：事件事实、AES-GCM 协议快照、callback 引用、投递任务/尝试、扣量决策、接入 DLQ、配置 Outbox、RTA 决策日志、Billing 账本预留。
+V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并新增：事件事实、AES-GCM 协议快照、callback 引用、投递任务/尝试、扣量决策、接入 DLQ、配置 Outbox、RTA 决策日志和 Billing 账本。V72 把账本扩展为余额前后值、操作人和备注，并将广告主余额精度统一为 6 位小数。
 
 原始设备标识只存在于接入边界和 7 天 AES-GCM 协议快照；事实表只保存版本化 HMAC 关联键。callback 引用同样 7 天有效。外呼错误只记录受控错误码/异常类型，响应体最多读取 4 KiB，日志不得输出完整 URL、设备标识、密钥或 callback 参数。生产禁止 HTTP、私网/环回/链路本地/多播解析地址和重定向。
 
@@ -66,20 +70,22 @@ V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并�
 
 扣量比例限定为 0..1。Redis Lua 按 `路由 + 事件类型 + 路由版本 + 自然日` 原子维护原始/回传计数；MySQL 对 callback event 保存唯一决策，重试复用决策。Redis 故障默认放行并记录 `REDIS_UNAVAILABLE_FAIL_OPEN`，原始 callback 事实永不因扣量消失。
 
-`RtaDecisionPort` 当前只有 Disabled 实现，发布服务拒绝任何非 `OFF` 路由。`BillingPort` 当前只允许 `OFF/AUDIT_ONLY`，V70 账本表是预留，不修改 `scx_adx_advertiser.balance`。金额单位、计费事件、冲正和对账规则确认前不得开启真实扣费。
+`RtaDecisionPort` 当前只有 Disabled 实现，发布服务拒绝任何非 `OFF` 路由。Billing 支持：`OFF` 不记账；`AUDIT_ONLY` 在 CLICK 首次落库时写 `RECORDED` 流水但不改余额；`CPC` 使用路由快照的 `unit_price` 和 CNY，在广告主余额行锁内按 CLICK `event_id` 幂等扣款并写 `POSTED` 流水。余额不足写 `REJECTED/INSUFFICIENT_BALANCE`，不扣款且阻止该点击向上游投递。成功 CPC 金额同步聚合到小时报表 `cost_amount`。转化 callback 的 `amount/amount_raw` 只用于转化审计，不触发点击扣费。
+
+后台充值使用 `RECHARGE:{advertiserId}:{requestId}` 作为账务唯一键；余额更新与流水同事务。V72 没有实现退款/冲正接口，生产如需冲正必须先补独立的反向流水规则和审批审计，不得直接改余额。
 
 ## 7. 配置发布和管理端
 
-渠道、广告主、监测链接或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、必填的下游 callback、Coco `__CALLBACK__` 宏、RTA/Billing 模式。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
+渠道、广告主、监测链接或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、必填的下游 callback、上游 callback 宏、下游 GET 必填宏、RTA/Billing 模式，以及 AUDIT_ONLY/CPC 单价大于 0。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
 
 管理端新增适配器/鉴权、Coco 宏 URL、下游 callback、RTA/Billing、路由版本/发布按钮，以及 OCPX 运行中心的积压、成功、重试、死亡任务、DLQ、方向分布和人工重放。V70 默认只向 `ROLE_ADMIN` 授予路由发布和重放，`ROLE_OPERATOR` 仅可查看运行状态。密钥接口仍只回显是否已配置，不回传明文。
 
 ## 8. 上线顺序与门禁
 
-1. 经授权备份并应用 V70；部署外发关闭的 `scx-rtb`，验证接入、Redis、批量落库。
+1. 经授权备份并应用 V70-V73；V72 会删除汽车线索表，若需归档必须先导出。部署外发关闭的 `scx-rtb`，验证接入、Redis、批量落库和账务表。
 2. 沙箱开启 Coco feedback，确认响应体/鉴权/金额单位/重试；再开启 callback 接收但不向下游外发。
 3. 下游 callback 影子核对后，单一路由灰度真实回传。
-4. 原始/回传/扣除/失败报表对账后启用扣量，并完成 Redis/MySQL 故障恢复演练。
+4. 先用 AUDIT_ONLY 对账点击量与预估成本，再核对广告主初始余额并单路由启用 CPC；覆盖重复点击、余额不足、事务回滚和小时成本对账。随后完成 Redis/MySQL 故障恢复演练。
 5. 在独立压测机使用 `tools/performance/ocpx-feedback.k6.js`，两台 8 核 16G 实例持续 30 分钟达到 20,000 accepted QPS，成功率至少 99.9%，入口 p95≤50ms、p99≤100ms，且 accepted 等于事实、已处理任务与 DLQ 总和；终止一实例后 Pending 必须接管且无丢失。
 6. 真实 Coco 与首个下游签字 UAT 后，另行申请生产发布。
 

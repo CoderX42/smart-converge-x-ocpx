@@ -27,6 +27,7 @@ class AdxRouteContractTest {
 		assertRoute(AdxCatalogController.class, "advertisers", GetMapping.class, "/advertisers");
 		assertRoute(AdxCatalogController.class, "createAdvertiser", PostMapping.class, "/advertisers");
 		assertRoute(AdxCatalogController.class, "recharge", PostMapping.class, "/advertisers/{id}/recharge");
+		assertRoute(AdxCatalogController.class, "accountLedger", GetMapping.class, "/advertisers/{id}/ledger");
 		assertRoute(AdxCatalogController.class, "appLinks", GetMapping.class, "/app-links");
 		assertRoute(AdxCatalogController.class, "monitors", GetMapping.class, "/monitors");
 		assertRoute(AdxCatalogController.class, "publishMonitor", PostMapping.class, "/monitors/{id}/publish");
@@ -37,13 +38,6 @@ class AdxRouteContractTest {
 		assertRoute(AdxReportController.class, "dashboard", GetMapping.class, "/dashboard/summary");
 		assertRoute(AdxReportController.class, "summary", GetMapping.class, "/reports/hourly");
 		assertRoute(AdxReportController.class, "export", GetMapping.class, "/reports/hourly/export");
-
-		assertRoot(AdxClueController.class, "/adx/clues");
-		assertRoute(AdxClueController.class, "page", GetMapping.class);
-		assertRoute(AdxClueController.class, "upload", PostMapping.class, "/upload");
-		assertRoute(AdxClueController.class, "batchStatus", PutMapping.class, "/batch-status");
-		assertRoute(AdxClueController.class, "submit", PostMapping.class, "/submit");
-		assertRoute(AdxClueController.class, "status", GetMapping.class, "/status");
 
 		assertRoot(AdxRuntimeController.class, "/adx/runtime");
 		assertRoute(AdxRuntimeController.class, "overview", GetMapping.class, "/overview");
@@ -56,7 +50,7 @@ class AdxRouteContractTest {
 	@Test
 	void protectsEveryPublicAdxEndpointWithAPermissionCode() {
 		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxReportController.class,
-				AdxClueController.class, AdxRuntimeController.class)) {
+				AdxRuntimeController.class)) {
 			for (Method method : controller.getDeclaredMethods()) {
 				if (hasHttpMapping(method)) {
 					SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);

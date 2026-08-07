@@ -14,7 +14,8 @@ public class RouteConfigurationRepository {
 	private static final String ROUTE_SELECT = """
 			SELECT m.id, m.biz_id, m.config_version, c.id, c.channel_code, c.adapter_code, c.auth_type,
 			      c.key_version, c.secret_key, a.id, m.app_link_id, a.adapter_code, a.secret_key, a.bid_url,
-			      a.macro_params, m.downstream_callback_url, COALESCE(d.ratio, 1.0000), m.rta_mode, m.billing_mode
+			      a.macro_params, m.downstream_callback_url, m.unit_price, COALESCE(d.ratio, 1.0000), m.rta_mode,
+			      m.billing_mode
 			FROM scx_adx_monitor_link m
 			JOIN scx_adx_channel c ON c.id=m.channel_id AND c.deleted=0 AND c.status='ACTIVE'
 			JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0 AND a.status='ACTIVE'
@@ -24,11 +25,11 @@ public class RouteConfigurationRepository {
 	private static final String PUBLISHED = " m.deleted=0 AND m.route_status='PUBLISHED' ";
 
 	private static final org.springframework.jdbc.core.RowMapper<PublishedRoute> ROW_MAPPER = (rs,
-			rowNum) -> new PublishedRoute(new RouteSnapshot(rs.getString(1), rs.getLong(3), rs.getString(4),
-					rs.getString(5), rs.getString(6), rs.getString(7), rs.getInt(8), rs.getString(9), rs.getString(10),
-					rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14), rs.getString(15),
-					rs.getString(16), rs.getObject(17, BigDecimal.class), rs.getString(18), rs.getString(19)),
-					rs.getString(2));
+			rowNum) -> new PublishedRoute(new RouteSnapshot(rs.getString(1), rs.getString(2), rs.getLong(3),
+					rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getInt(8), rs.getString(9),
+					rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14),
+					rs.getString(15), rs.getString(16), rs.getObject(17, BigDecimal.class),
+					rs.getObject(18, BigDecimal.class), rs.getString(19), rs.getString(20)), rs.getString(2));
 
 	private final JdbcTemplate jdbcTemplate;
 
