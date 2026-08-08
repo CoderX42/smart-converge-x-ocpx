@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TemplateGetDownstreamAdapterTest {
 
 	private final TemplateGetDownstreamAdapter adapter = new TemplateGetDownstreamAdapter(
-			new ObjectMapper().registerModule(new JavaTimeModule()));
+			new ObjectMapper().registerModule(new JavaTimeModule()), new GetMacroTemplateRenderer());
 
 	@Test
 	void buildsEncodedIdempotentGetCallback() {
@@ -25,12 +25,14 @@ class TemplateGetDownstreamAdapterTest {
 				OffsetDateTime.parse("2026-08-07T09:00:00Z"), new BigDecimal("12.340000"), "12.34 CNY", "click id",
 				"monitor-1", "channel-1", Map.of());
 
-		AdapterHttpRequest request = adapter.buildCallback(
-				route("""
-						https://callback.example/notify?event=__EVENT__&event_id=__EVENT_ID__&clickid=__CLICKID__&amount=__AMOUNT__&ts=__TS__
-						"""
-					.trim()),
-				callback);
+		AdapterHttpRequest request = adapter
+			.buildCallback(
+					route("""
+							https://callback.example/notify?event=__EVENT__&event_id=__EVENT_ID__&clickid=__CLICKID__&amount=__AMOUNT__&ts=__TS__
+							"""
+						.trim()),
+					callback)
+			.block();
 
 		assertThat(request.method()).isEqualTo("GET");
 		assertThat(request.uri().toString()).contains("event=ACTIVATE", "event_id=conversion/1", "clickid=click%20id",
@@ -43,9 +45,10 @@ class TemplateGetDownstreamAdapterTest {
 		CallbackReqV1 callback = new CallbackReqV1("1.0", "conversion-1", "click-1", "ACTIVATE",
 				OffsetDateTime.parse("2026-08-07T09:00:00Z"), null, null, null, "monitor-1", "channel-1", Map.of());
 
-		assertThatThrownBy(() -> adapter.buildCallback(route("https://callback.example?x=__PRIVATE_TOKEN__"), callback))
+		assertThatThrownBy(
+				() -> adapter.buildCallback(route("https://callback.example?x=__PRIVATE_TOKEN__"), callback).block())
 			.isInstanceOf(IllegalArgumentException.class)
-			.hasMessageContaining("unresolved macros");
+			.hasMessageContaining("unsupported macro");
 	}
 
 	private RouteSnapshot route(String callbackUrl) {

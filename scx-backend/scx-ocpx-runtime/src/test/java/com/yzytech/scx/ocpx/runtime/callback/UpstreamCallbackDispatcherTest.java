@@ -9,10 +9,12 @@ import static org.mockito.Mockito.when;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
 import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
+import com.yzytech.scx.ocpx.runtime.adapter.AdapterNotFoundException;
 import com.yzytech.scx.ocpx.runtime.error.OcpxException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -35,10 +37,10 @@ class UpstreamCallbackDispatcherTest {
 		UpstreamCallbackResponse expected = new UpstreamCallbackResponse(200, Collections.emptyMap(), "OK");
 		when(adapterRegistry.requireUpstream("VENDOR")).thenReturn(adapter);
 		when(callbackIngressService.accept(adapter, parameters))
-			.thenReturn(new CallbackIngressService.Result("event-1", "ACCEPTED"));
-		when(adapter.callbackSuccess(parameters, "event-1", "ACCEPTED")).thenReturn(expected);
+			.thenReturn(Mono.just(new CallbackIngressService.Result("event-1", "ACCEPTED")));
+		when(adapter.callbackSuccess(parameters, "event-1", "ACCEPTED")).thenReturn(Mono.just(expected));
 
-		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch(" vendor ", parameters);
+		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch(" vendor ", parameters).block();
 
 		assertThat(result.isUpstreamFound()).isTrue();
 		assertThat(result.getResponse()).isSameAs(expected);
@@ -50,10 +52,10 @@ class UpstreamCallbackDispatcherTest {
 		UpstreamCallbackResponse expected = new UpstreamCallbackResponse(200, Collections.emptyMap(), "VENDOR_ERROR");
 		when(adapterRegistry.requireUpstream("VENDOR")).thenReturn(adapter);
 		when(callbackIngressService.accept(adapter, parameters))
-			.thenThrow(new OcpxException(HttpStatus.BAD_REQUEST, "bad callback"));
-		when(adapter.callbackFailure(parameters, 400, "bad callback")).thenReturn(expected);
+			.thenReturn(Mono.error(new OcpxException(HttpStatus.BAD_REQUEST, "bad callback")));
+		when(adapter.callbackFailure(parameters, 400, "bad callback")).thenReturn(Mono.just(expected));
 
-		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch("vendor", parameters);
+		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch("vendor", parameters).block();
 
 		assertThat(result.isUpstreamFound()).isTrue();
 		assertThat(result.getResponse()).isSameAs(expected);
@@ -61,10 +63,10 @@ class UpstreamCallbackDispatcherTest {
 
 	@Test
 	void returnsNotFoundOnlyWhenAdapterLookupFails() {
-		when(adapterRegistry.requireUpstream("UNKNOWN"))
-			.thenThrow(new IllegalArgumentException("unknown upstream adapter"));
+		when(adapterRegistry.requireUpstream("UNKNOWN")).thenThrow(new AdapterNotFoundException("UPSTREAM", "UNKNOWN"));
 
-		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch("unknown", Collections.emptyMap());
+		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch("unknown", Collections.emptyMap())
+			.block();
 
 		assertThat(result.isUpstreamFound()).isFalse();
 		assertThatThrownBy(result::getResponse).isInstanceOf(IllegalStateException.class);
@@ -78,12 +80,12 @@ class UpstreamCallbackDispatcherTest {
 		when(adapterRegistry.requireUpstream("VENDOR")).thenReturn(adapter);
 		when(callbackIngressService.accept(org.mockito.ArgumentMatchers.eq(adapter),
 				org.mockito.ArgumentMatchers.anyMap()))
-			.thenReturn(new CallbackIngressService.Result("event-1", "ACCEPTED"));
+			.thenReturn(Mono.just(new CallbackIngressService.Result("event-1", "ACCEPTED")));
 		when(adapter.callbackSuccess(org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.eq("event-1"),
 				org.mockito.ArgumentMatchers.eq("ACCEPTED")))
-			.thenReturn(new UpstreamCallbackResponse(200, Collections.emptyMap(), "OK"));
+			.thenReturn(Mono.just(new UpstreamCallbackResponse(200, Collections.emptyMap(), "OK")));
 
-		dispatcher.dispatch("vendor", parameters);
+		dispatcher.dispatch("vendor", parameters).block();
 		parameters.put("vendor_token", "changed-after-dispatch");
 
 		ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);

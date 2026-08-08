@@ -1,6 +1,6 @@
 # SCX 通用渠道 OCPX 接入指南（FeedbackReq / CallbackReq v1）
 
-> 更新日期：2026-08-07。当前为 V74 源码联调契约；目标数据库迁移、真实渠道 UAT、故障演练和 20,000 accepted feedback QPS 尚未验收。
+> 更新日期：2026-08-07。当前为 V75 源码联调契约；目标数据库迁移、真实渠道 UAT、故障演练和 20,000 accepted feedback QPS 尚未验收。
 
 本文是平台运营/研发联调速查。可直接交付给下游研发的完整材料见 [OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md)；新增 Coco 类广告主适配器见 [OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md)。
 
@@ -118,7 +118,7 @@ UPPERCASE_METHOD + "\n"
 
 ## 7. 联调清单
 
-1. 管理端创建渠道、Coco 广告主、应用链接和监测链接；配置双方精确域名白名单、至少 32 位渠道密钥和 Coco `__CALLBACK__` 宏。监测链接可覆盖广告主默认 Coco URL。
+1. 管理端创建渠道、Coco 广告主、应用链接和监测链接；配置双方精确域名白名单、至少 32 位渠道密钥和 Coco `__CALLBACK__` 宏。监测链接可覆盖广告主默认 Coco URL。保存后在监测链接列表点击“接入信息”，复制 Feedback URL、HMAC Headers、签名公式和请求示例；页面不会显示真实密钥。
 2. 保存后的路由是 `DRAFT`；发布校验通过后才可接收流量。
 3. `scx-ocpx-engine` 默认关闭上下游外发；只在对应沙箱阶段把 `upstream-delivery-enabled` 或 `downstream-delivery-enabled` 字面量改为 `true`，重新打包并重启。
 4. 使用可导入 Apifox/Postman 的集合验证 202、200 重复、409 冲突、错误签名、过期时间、nonce 重放、429 和 Redis 503。

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
+import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.CallbackReqV1;
 import com.yzytech.scx.ocpx.contract.DownstreamAdapter;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
@@ -12,6 +13,7 @@ import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.time.Instant;
@@ -42,7 +44,11 @@ public class StandardDownstreamAdapter implements DownstreamAdapter {
 	}
 
 	@Override
-	public FeedbackReqV1 parseFeedback(String rawBody) {
+	public Mono<FeedbackReqV1> parseFeedback(String rawBody) {
+		return Mono.fromCallable(() -> parseFeedbackRequest(rawBody));
+	}
+
+	private FeedbackReqV1 parseFeedbackRequest(String rawBody) {
 		try {
 			FeedbackReqV1 request = objectMapper.readValue(rawBody, FeedbackReqV1.class);
 			if (request.getEvent() == null || request.getEvent().isBlank()) {
@@ -56,7 +62,11 @@ public class StandardDownstreamAdapter implements DownstreamAdapter {
 	}
 
 	@Override
-	public AdapterHttpRequest buildCallback(RouteSnapshot route, CallbackReqV1 callback) {
+	public Mono<AdapterHttpRequest> buildCallback(RouteSnapshot route, CallbackReqV1 callback) {
+		return Mono.fromCallable(() -> buildCallbackRequest(route, callback));
+	}
+
+	private AdapterHttpRequest buildCallbackRequest(RouteSnapshot route, CallbackReqV1 callback) {
 		if (route.downstreamCallbackUrl() == null || route.downstreamCallbackUrl().isBlank()) {
 			throw new IllegalArgumentException("downstream callback URL is not configured");
 		}
@@ -83,8 +93,12 @@ public class StandardDownstreamAdapter implements DownstreamAdapter {
 	}
 
 	@Override
-	public boolean isSuccess(AdapterHttpResponse response) {
-		return response.statusCode() >= 200 && response.statusCode() < 300;
+	public Mono<AdapterDeliveryResult> evaluateCallbackResponse(AdapterHttpResponse response) {
+		return Mono.fromSupplier(() -> response != null && response.statusCode() >= 200 && response.statusCode() < 300
+				? AdapterDeliveryResult.success(null, null)
+				: AdapterDeliveryResult.failure(
+						response == null ? "STANDARD_NO_RESPONSE" : "STANDARD_HTTP_" + response.statusCode(), null,
+						null));
 	}
 
 }

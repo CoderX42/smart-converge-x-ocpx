@@ -13,9 +13,11 @@ import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.model.IngressResult;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import com.yzytech.scx.ocpx.runtime.security.RequestAuthenticator;
+import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -47,17 +49,19 @@ class FeedbackIngressServiceTest {
 
 		when(routeCache.requireDownstreamAdapter("channel")).thenReturn("STANDARD");
 		when(adapterRegistry.requireDownstream("STANDARD")).thenReturn(downstream);
-		when(downstream.parseFeedback("{}")).thenReturn(feedback);
+		when(downstream.parseFeedback("{}")).thenReturn(Mono.just(feedback));
 		when(routeCache.require("channel", "monitor-1")).thenReturn(route);
 		when(adapterRegistry.requireUpstream("TEMPLATE_GET")).thenReturn(upstream);
 		when(upstream.supports(OcpxEventType.SHOW)).thenReturn(true);
+		when(upstream.validateFeedback(route, feedback)).thenReturn(Mono.empty());
 		when(protocolCrypto.encrypt(any())).thenAnswer(invocation -> invocation.getArgument(0));
 		when(redisIngress.enqueue(any()))
 			.thenReturn(new IngressResult("accepted", IngressResult.Status.ACCEPTED, OffsetDateTime.now()));
 		FeedbackIngressService service = new FeedbackIngressService(objectMapper, routeCache, authenticator,
-				protocolCrypto, redisIngress, adapterRegistry, properties);
+				protocolCrypto, redisIngress, adapterRegistry, properties, new ReactiveBlockingExecutor());
 
-		service.accept("channel", "POST", "/ocpx/open-api/ocpx/v1/channels/channel/feedback", "{}", HttpHeaders.EMPTY);
+		service.accept("channel", "POST", "/ocpx/open-api/ocpx/v1/channels/channel/feedback", "{}", HttpHeaders.EMPTY)
+			.block();
 
 		ArgumentCaptor<FeedbackEnvelope> envelope = ArgumentCaptor.forClass(FeedbackEnvelope.class);
 		verify(redisIngress).enqueue(envelope.capture());

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -23,9 +24,9 @@ class UpstreamCallbackControllerTest {
 		Map<String, String> headers = Collections.singletonMap("X-Vendor", "accepted");
 		UpstreamCallbackResponse callbackResponse = new UpstreamCallbackResponse(202, headers, "VENDOR_OK");
 		when(dispatcher.dispatch("vendor", parameters))
-			.thenReturn(UpstreamCallbackDispatcher.DispatchResult.handled(callbackResponse));
+			.thenReturn(Mono.just(UpstreamCallbackDispatcher.DispatchResult.handled(callbackResponse)));
 
-		ResponseEntity<Object> response = controller.callback("vendor", parameters);
+		ResponseEntity<Object> response = controller.callback("vendor", parameters).block();
 
 		assertThat(response).isNotNull();
 		assertThat(response.getStatusCode().value()).isEqualTo(202);
@@ -40,9 +41,9 @@ class UpstreamCallbackControllerTest {
 		body.put("vendor_code", 9001);
 		UpstreamCallbackResponse callbackResponse = new UpstreamCallbackResponse(200, Collections.emptyMap(), body);
 		when(dispatcher.dispatch("vendor", parameters))
-			.thenReturn(UpstreamCallbackDispatcher.DispatchResult.handled(callbackResponse));
+			.thenReturn(Mono.just(UpstreamCallbackDispatcher.DispatchResult.handled(callbackResponse)));
 
-		ResponseEntity<Object> response = controller.callback("vendor", parameters);
+		ResponseEntity<Object> response = controller.callback("vendor", parameters).block();
 
 		assertThat(response).isNotNull();
 		assertThat(response.getStatusCode().value()).isEqualTo(200);
@@ -52,9 +53,9 @@ class UpstreamCallbackControllerTest {
 	@Test
 	void returnsEmptyNotFoundWhenNoUpstreamProtocolIsRegistered() {
 		when(dispatcher.dispatch("unknown", Collections.emptyMap()))
-			.thenReturn(UpstreamCallbackDispatcher.DispatchResult.upstreamNotFound());
+			.thenReturn(Mono.just(UpstreamCallbackDispatcher.DispatchResult.upstreamNotFound()));
 
-		ResponseEntity<Object> response = controller.callback("unknown", Collections.emptyMap());
+		ResponseEntity<Object> response = controller.callback("unknown", Collections.emptyMap()).block();
 
 		assertThat(response).isNotNull();
 		assertThat(response.getStatusCode().value()).isEqualTo(404);

@@ -2,6 +2,7 @@ package com.yzytech.scx.adx.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public final class CatalogViews {
 
@@ -37,6 +38,13 @@ public final class CatalogViews {
 
 	public record Adapter(String adapterCode, String adapterName, String direction, String status,
 			String capabilitiesJson) {
+	}
+
+	/** 不含真实密钥的渠道接入信息，可直接展示和复制到 Apifox。 */
+	public record OcpxIntegration(String monitorId, String monitorName, String routeStatus, String schemaVersion,
+			String feedbackMethod, String feedbackUrl, String authType, Integer keyVersion, boolean secretConfigured,
+			List<String> requiredHeaders, String signatureFormula, String requestExample, String callbackPathPattern,
+			String upstreamAdapterCode, String downstreamAdapterCode, String postmanCollectionPath) {
 	}
 
 	public record AccountMutation(String advertiserId, String ledgerId, BigDecimal balance, boolean duplicate) {

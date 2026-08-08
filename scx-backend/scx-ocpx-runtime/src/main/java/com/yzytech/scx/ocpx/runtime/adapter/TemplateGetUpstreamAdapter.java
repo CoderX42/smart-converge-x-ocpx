@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.runtime.adapter;
 
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
+import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
@@ -11,11 +12,10 @@ import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
 import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriUtils;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -70,6 +70,12 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 			"__AAID__", "__GAID__", "__IDFV__", "__IP__", "__UA__", "__OS__", "__MODEL__", "__CALLBACK__",
 			"__CALLBACK_URL__");
 
+	private final GetMacroTemplateRenderer templateRenderer;
+
+	public TemplateGetUpstreamAdapter(GetMacroTemplateRenderer templateRenderer) {
+		this.templateRenderer = templateRenderer;
+	}
+
 	@Override
 	public String code() {
 		return "TEMPLATE_GET";
@@ -87,7 +93,11 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public AdapterHttpRequest buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
+	public Mono<AdapterHttpRequest> buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
+		return Mono.fromCallable(() -> buildFeedbackRequest(route, feedback, callbackUrl));
+	}
+
+	private AdapterHttpRequest buildFeedbackRequest(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
 		OcpxEventType eventType = OcpxEventType.fromExternal(feedback.getEvent());
 		if (!supports(eventType)) {
 			throw new IllegalArgumentException("TEMPLATE_GET only supports show and click feedback");
@@ -139,33 +149,30 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 
 		// upstreamRequiredMacros 只约束业务上声明“必填”的宏；非必填缺值会替换为空字符串。
 		Set<String> required = requiredMacros(route.upstreamRequiredMacros());
-		String url = route.bidUrl();
-		for (Map.Entry<String, String> entry : values.entrySet()) {
-			String value = entry.getValue();
-			if ((value == null || value.isBlank()) && required.contains(entry.getKey())) {
-				throw new IllegalArgumentException("required upstream macro has no value: " + entry.getKey());
-			}
-			url = url.replace(entry.getKey(), encode(value));
-		}
-		// 二次防线：既阻止未知宏被原样发送，也能发现新增宏忘记加入 values 映射的实现错误。
-		if (url.matches(".*__[A-Z0-9_]+__.*")) {
-			throw new IllegalArgumentException("TEMPLATE_GET URL contains unsupported or unresolved macros");
-		}
+		String url = templateRenderer.render(route.bidUrl(), values, MACROS, required, code());
 		return new AdapterHttpRequest("GET", URI.create(url), Map.of(), null);
 	}
 
 	@Override
-	public boolean isSuccess(AdapterHttpResponse response) {
-		return response.statusCode() >= 200 && response.statusCode() < 300;
+	public Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response) {
+		return Mono.fromSupplier(() -> response != null && response.statusCode() >= 200 && response.statusCode() < 300
+				? AdapterDeliveryResult.success(null, null)
+				: AdapterDeliveryResult.failure(
+						response == null ? "TEMPLATE_GET_NO_RESPONSE" : "TEMPLATE_GET_HTTP_" + response.statusCode(),
+						null, null));
 	}
 
 	@Override
-	public String callbackToken(Map<String, String> parameters) {
-		return parameters.get("ext");
+	public Mono<String> callbackToken(Map<String, String> parameters) {
+		return Mono.justOrEmpty(parameters.get("ext"));
 	}
 
 	@Override
-	public NormalizedCallbackEvent parseCallback(String callbackRef, Map<String, String> parameters) {
+	public Mono<NormalizedCallbackEvent> parseCallback(String callbackRef, Map<String, String> parameters) {
+		return Mono.fromCallable(() -> parseCallbackEvent(callbackRef, parameters));
+	}
+
+	private NormalizedCallbackEvent parseCallbackEvent(String callbackRef, Map<String, String> parameters) {
 		String eventValue = firstNonBlank(parameters.get("action_type"), parameters.get("event"));
 		OcpxEventType eventType = OcpxEventType.fromExternal(eventValue);
 		if (eventType == OcpxEventType.SHOW || eventType == OcpxEventType.CLICK) {
@@ -194,20 +201,26 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public UpstreamCallbackResponse callbackSuccess(Map<String, String> parameters, String eventId, String status) {
-		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("code", 0);
-		body.put("event_id", eventId);
-		body.put("status", status);
-		return new UpstreamCallbackResponse(200, Map.of(), body);
+	public Mono<UpstreamCallbackResponse> callbackSuccess(Map<String, String> parameters, String eventId,
+			String status) {
+		return Mono.fromSupplier(() -> {
+			Map<String, Object> body = new LinkedHashMap<>();
+			body.put("code", 0);
+			body.put("event_id", eventId);
+			body.put("status", status);
+			return new UpstreamCallbackResponse(200, Map.of(), body);
+		});
 	}
 
 	@Override
-	public UpstreamCallbackResponse callbackFailure(Map<String, String> parameters, int httpStatus, String message) {
-		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("code", 1);
-		body.put("message", message);
-		return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
+	public Mono<UpstreamCallbackResponse> callbackFailure(Map<String, String> parameters, int httpStatus,
+			String message) {
+		return Mono.fromSupplier(() -> {
+			Map<String, Object> body = new LinkedHashMap<>();
+			body.put("code", 1);
+			body.put("message", message);
+			return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
+		});
 	}
 
 	public static Set<String> supportedMacros() {
@@ -277,10 +290,6 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 			return null;
 		}
 		return Long.toString(eventTime < 10_000_000_000L ? Math.multiplyExact(eventTime, 1000) : eventTime);
-	}
-
-	private String encode(String value) {
-		return value == null ? "" : UriUtils.encodeQueryParam(value, StandardCharsets.UTF_8);
 	}
 
 }

@@ -1,7 +1,22 @@
 package com.yzytech.scx.ocpx.contract;
 
+import reactor.core.publisher.Mono;
+
 import java.util.Map;
 
+/**
+ * SCX 与一个上游广告主之间的双向协议适配器。
+ *
+ * <p>
+ * 下游事件发往上游时使用 {@link #buildFeedback}；上游把转化回调给 SCX 时使用 {@link #parseCallback}。通用
+ * Controller、可靠队列、重试、账务和审计不属于 Adapter，新增上游不能复制这些公共能力。
+ * </p>
+ *
+ * <p>
+ * 协议处理方法返回 {@link Mono}，因此解析或校验异常必须作为 error 信号返回。Adapter 不允许调用 {@code subscribe()} 或
+ * {@code block()}，订阅由 WebFlux 入口或后台 Worker 统一负责。
+ * </p>
+ */
 public interface UpstreamAdapter {
 
 	String code();
@@ -14,24 +29,22 @@ public interface UpstreamAdapter {
 	 * Validate adapter-specific protocol requirements before a reliable delivery job is
 	 * created. Implementations must not perform network I/O here.
 	 */
-	default void validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
+	default Mono<Void> validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
+		return Mono.empty();
 	}
 
-	AdapterHttpRequest buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl);
+	Mono<AdapterHttpRequest> buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl);
 
-	boolean isSuccess(AdapterHttpResponse response);
-
-	default String failureReason(AdapterHttpResponse response) {
-		return "UPSTREAM_REJECTED";
-	}
+	/** 结合 HTTP 状态和合作方业务响应判断投递结果。 */
+	Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response);
 
 	/**
 	 * 从当前上游的 callback 参数中提取 SCX 回调关联 token。参数名称属于媒体协议的一部分，不能由通用入口固定。
 	 */
-	String callbackToken(Map<String, String> parameters);
+	Mono<String> callbackToken(Map<String, String> parameters);
 
 	/** 将当前上游的私有 callback 参数归一化为 SCX 内部事件。 */
-	NormalizedCallbackEvent parseCallback(String callbackRef, Map<String, String> parameters);
+	Mono<NormalizedCallbackEvent> parseCallback(String callbackRef, Map<String, String> parameters);
 
 	/**
 	 * 构造当前上游协议要求的成功响应。
@@ -39,7 +52,7 @@ public interface UpstreamAdapter {
 	 * @param eventId SCX 归一化事件 ID
 	 * @param status 幂等处理状态，例如 ACCEPTED 或 DUPLICATE
 	 */
-	UpstreamCallbackResponse callbackSuccess(Map<String, String> parameters, String eventId, String status);
+	Mono<UpstreamCallbackResponse> callbackSuccess(Map<String, String> parameters, String eventId, String status);
 
 	/**
 	 * 构造当前上游协议要求的失败响应。
@@ -47,6 +60,6 @@ public interface UpstreamAdapter {
 	 * @param httpStatus SCX 对该错误建议使用的 HTTP 状态
 	 * @param message 已归一化的安全错误说明
 	 */
-	UpstreamCallbackResponse callbackFailure(Map<String, String> parameters, int httpStatus, String message);
+	Mono<UpstreamCallbackResponse> callbackFailure(Map<String, String> parameters, int httpStatus, String message);
 
 }

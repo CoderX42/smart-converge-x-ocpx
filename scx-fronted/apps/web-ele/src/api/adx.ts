@@ -16,6 +16,25 @@ export type AdapterDefinition = {
   status: string;
 };
 
+export type OcpxIntegration = {
+  authType: string;
+  callbackPathPattern: string;
+  downstreamAdapterCode: string;
+  feedbackMethod: string;
+  feedbackUrl: string;
+  keyVersion: number;
+  monitorId: string;
+  monitorName: string;
+  postmanCollectionPath: string;
+  requestExample: string;
+  requiredHeaders: string[];
+  routeStatus: string;
+  schemaVersion: string;
+  secretConfigured: boolean;
+  signatureFormula: string;
+  upstreamAdapterCode: string;
+};
+
 export type Channel = CatalogRecord & {
   adapterCode: string;
   authType: string;
@@ -285,6 +304,10 @@ export function getCatalog<K extends CatalogKind>(kind: K, params: Query) {
 
 export function getAdapters() {
   return requestClient.get<AdapterDefinition[]>('/adx/adapters');
+}
+
+export function getMonitorIntegration(id: string) {
+  return requestClient.get<OcpxIntegration>(`/adx/monitors/${id}/integration`);
 }
 
 export function saveCatalog<K extends CatalogKind>(

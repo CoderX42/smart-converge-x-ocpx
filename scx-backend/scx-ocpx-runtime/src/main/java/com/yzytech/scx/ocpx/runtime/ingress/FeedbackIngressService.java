@@ -8,6 +8,7 @@ import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.NormalizedFeedbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
+import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
 import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
 import com.yzytech.scx.ocpx.runtime.config.RouteConfigurationCache;
@@ -16,10 +17,12 @@ import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.model.IngressResult;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import com.yzytech.scx.ocpx.runtime.security.RequestAuthenticator;
+import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -49,9 +52,12 @@ public class FeedbackIngressService {
 
 	private final OcpxRuntimeProperties properties;
 
+	private final ReactiveBlockingExecutor blockingExecutor;
+
 	public FeedbackIngressService(ObjectMapper objectMapper, RouteConfigurationCache routeCache,
 			RequestAuthenticator authenticator, ProtocolCrypto protocolCrypto, RedisFeedbackIngress feedbackIngress,
-			AdapterRegistry adapterRegistry, OcpxRuntimeProperties properties) {
+			AdapterRegistry adapterRegistry, OcpxRuntimeProperties properties,
+			ReactiveBlockingExecutor blockingExecutor) {
 		this.objectMapper = objectMapper;
 		this.canonicalWriter = objectMapper.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 		this.routeCache = routeCache;
@@ -60,23 +66,34 @@ public class FeedbackIngressService {
 		this.feedbackIngress = feedbackIngress;
 		this.adapterRegistry = adapterRegistry;
 		this.properties = properties;
+		this.blockingExecutor = blockingExecutor;
 	}
 
-	public IngressResult accept(String channelCode, String method, String path, String rawBody, HttpHeaders headers) {
+	/**
+	 * 以 Reactor 串起“选择下游协议、解析、鉴权、上游校验和可靠入队”。
+	 *
+	 * <p>
+	 * Adapter 本身不切线程；涉及同步 Redis/JDBC 的路由、鉴权和入队统一通过 blockingExecutor 隔离。
+	 * </p>
+	 */
+	public Mono<IngressResult> accept(String channelCode, String method, String path, String rawBody,
+			HttpHeaders headers) {
 		if (rawBody.getBytes(StandardCharsets.UTF_8).length > MAX_FEEDBACK_BYTES) {
-			throw new OcpxException(HttpStatus.BAD_REQUEST, "feedback payload is too large");
+			return Mono.error(new OcpxException(HttpStatus.BAD_REQUEST, "feedback payload is too large"));
 		}
-		FeedbackReqV1 feedback;
-		try {
-			String adapterCode = routeCache.requireDownstreamAdapter(channelCode);
-			feedback = adapterRegistry.requireDownstream(adapterCode).parseFeedback(rawBody);
-		}
-		catch (OcpxException e) {
-			throw e;
-		}
-		catch (IllegalArgumentException e) {
-			throw new OcpxException(HttpStatus.BAD_REQUEST, e.getMessage());
-		}
+		return blockingExecutor.call(() -> routeCache.requireDownstreamAdapter(channelCode))
+			.flatMap(adapterCode -> adapterRegistry.requireDownstream(adapterCode).parseFeedback(rawBody))
+			.flatMap(feedback -> blockingExecutor
+				.call(() -> prepare(channelCode, method, path, rawBody, headers, feedback)))
+			.flatMap(prepared -> prepared.upstreamAdapter()
+				.validateFeedback(prepared.route(), prepared.feedback())
+				.then(blockingExecutor.call(() -> feedbackIngress.enqueue(prepared.envelope()))))
+			.onErrorMap(IllegalArgumentException.class,
+					error -> new OcpxException(HttpStatus.BAD_REQUEST, error.getMessage()));
+	}
+
+	private PreparedFeedback prepare(String channelCode, String method, String path, String rawBody,
+			HttpHeaders headers, FeedbackReqV1 feedback) {
 		String routeReference = firstNonBlank(feedback.getMonitorId(), feedback.getTaskId());
 		if (routeReference == null) {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "monitor_id or task_id is required");
@@ -118,9 +135,9 @@ public class FeedbackIngressService {
 		}
 		feedback.setEventId(eventId);
 		FeedbackEnvelope envelope;
+		UpstreamAdapter upstreamAdapter;
 		try {
-			var upstreamAdapter = adapterRegistry.requireUpstream(route.upstreamAdapterCode());
-			upstreamAdapter.validateFeedback(route, feedback);
+			upstreamAdapter = adapterRegistry.requireUpstream(route.upstreamAdapterCode());
 			boolean forward = upstreamAdapter.supports(eventType);
 			String callbackRef = forward ? UUID.randomUUID().toString().replace("-", "") : null;
 			NormalizedFeedbackEvent normalized = new NormalizedFeedbackEvent(eventId, payloadHash, eventType,
@@ -138,7 +155,12 @@ public class FeedbackIngressService {
 		catch (JsonProcessingException e) {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "feedback cannot be normalized");
 		}
-		return feedbackIngress.enqueue(envelope);
+		return new PreparedFeedback(route, feedback, upstreamAdapter, envelope);
+	}
+
+	/** 服务内部的已校验上下文，避免后续阶段重复查询路由或重新解析报文。 */
+	private record PreparedFeedback(RouteSnapshot route, FeedbackReqV1 feedback, UpstreamAdapter upstreamAdapter,
+			FeedbackEnvelope envelope) {
 	}
 
 	private String deviceKeyHash(FeedbackReqV1 feedback) {

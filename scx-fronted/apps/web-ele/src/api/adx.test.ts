@@ -4,6 +4,7 @@ import {
   exportReport,
   getAdvertiserLedger,
   getCatalog,
+  getMonitorIntegration,
   getReport,
   getReportOptions,
   getRuntimeDeliveryAttempts,
@@ -94,6 +95,14 @@ describe('aDX API contract', () => {
     expect(requestClient.get).toHaveBeenCalledWith(
       '/adx/runtime/ingress-audits',
       { params: { resultStatus: 'AUTH_REJECTED' } },
+    );
+  });
+
+  it('loads the safe integration guide for one monitor', () => {
+    getMonitorIntegration('monitor-1');
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/monitors/monitor-1/integration',
     );
   });
 });

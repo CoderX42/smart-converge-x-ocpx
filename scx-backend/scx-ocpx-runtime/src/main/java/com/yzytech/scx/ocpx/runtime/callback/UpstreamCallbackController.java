@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
@@ -37,13 +38,14 @@ public class UpstreamCallbackController {
 	 * </p>
 	 */
 	@GetMapping("/{upstreamCode}/callback")
-	public ResponseEntity<Object> callback(@PathVariable String upstreamCode,
+	public Mono<ResponseEntity<Object>> callback(@PathVariable String upstreamCode,
 			@RequestParam Map<String, String> parameters) {
-		UpstreamCallbackDispatcher.DispatchResult result = dispatcher.dispatch(upstreamCode, parameters);
-		if (!result.isUpstreamFound()) {
-			return ResponseEntity.notFound().build();
-		}
-		return toHttpResponse(result.getResponse());
+		return dispatcher.dispatch(upstreamCode, parameters).map(result -> {
+			if (!result.isUpstreamFound()) {
+				return ResponseEntity.notFound().build();
+			}
+			return toHttpResponse(result.getResponse());
+		});
 	}
 
 	/** 将 adapter 定义的状态、headers 和任意 Body 原样写入 Spring HTTP 响应。 */

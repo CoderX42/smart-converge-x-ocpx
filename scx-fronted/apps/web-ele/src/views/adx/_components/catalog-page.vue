@@ -8,6 +8,7 @@ import type {
   AppLink,
   CatalogKind,
   Channel,
+  OcpxIntegration,
 } from '#/api/adx';
 
 import { computed, onMounted, reactive, ref } from 'vue';
@@ -21,6 +22,7 @@ import {
   getAdapters,
   getAdvertiserLedger,
   getCatalog,
+  getMonitorIntegration,
   publishMonitor,
   rechargeAdvertiser,
   saveCatalog,
@@ -61,6 +63,9 @@ const ledgerDialog = ref(false);
 const ledgerLoading = ref(false);
 const ledgerRows = ref<AccountEntry[]>([]);
 const ledgerTarget = ref<Row>();
+const integrationDrawer = ref(false);
+const integrationLoading = ref(false);
+const integration = ref<OcpxIntegration>();
 const formRef = ref<FormInstance>();
 const form = reactive<Record<string, any>>({});
 const selectedChannelMacroKeys = ref<string[]>([]);
@@ -386,6 +391,17 @@ async function openLedger(row: Row) {
   }
 }
 
+async function openIntegration(row: Row) {
+  integrationDrawer.value = true;
+  integrationLoading.value = true;
+  integration.value = undefined;
+  try {
+    integration.value = await getMonitorIntegration(row.id);
+  } finally {
+    integrationLoading.value = false;
+  }
+}
+
 async function recharge() {
   if (
     !rechargeTarget.value ||
@@ -502,7 +518,7 @@ onMounted(async () => {
             <span v-else>{{ display(row, column.prop) }}</span>
           </template>
         </el-table-column>
-        <el-table-column fixed="right" label="操作" width="320">
+        <el-table-column fixed="right" label="操作" width="380">
           <template #default="{ row }">
             <el-button
               v-access:code="config.permission"
@@ -534,6 +550,15 @@ onMounted(async () => {
               @click="copy(row.clickUrl, '链接')"
             >
               复制
+            </el-button>
+            <el-button
+              v-if="kind === 'monitor'"
+              v-access:code="'adx:monitor:read'"
+              link
+              type="primary"
+              @click="openIntegration(row)"
+            >
+              接入信息
             </el-button>
             <el-button
               v-if="kind === 'monitor'"
@@ -963,6 +988,75 @@ onMounted(async () => {
         <el-table-column label="操作人" min-width="120" prop="operatorId" />
       </el-table>
     </el-dialog>
+
+    <el-drawer
+      v-model="integrationDrawer"
+      :title="`${integration?.monitorName || '监测链接'} · OCPX接入信息`"
+      size="620px"
+    >
+      <div v-loading="integrationLoading" class="integration-panel">
+        <template v-if="integration">
+          <el-alert
+            :closable="false"
+            show-icon
+            title="页面不会展示渠道密钥；X-Sign 需由下游服务端或 Apifox 前置脚本计算。"
+            type="info"
+          />
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="协议版本">
+              {{ integration.schemaVersion }}
+            </el-descriptions-item>
+            <el-descriptions-item label="路由状态">
+              {{ integration.routeStatus }}
+            </el-descriptions-item>
+            <el-descriptions-item label="上下游适配器">
+              {{ integration.downstreamAdapterCode }} →
+              {{ integration.upstreamAdapterCode }}
+            </el-descriptions-item>
+            <el-descriptions-item label="Feedback URL">
+              <div class="integration-copy-row">
+                <code>{{ integration.feedbackMethod }} {{ integration.feedbackUrl }}</code>
+                <el-button
+                  link
+                  type="primary"
+                  @click="copy(integration.feedbackUrl, 'Feedback URL')"
+                >
+                  复制
+                </el-button>
+              </div>
+            </el-descriptions-item>
+            <el-descriptions-item label="鉴权">
+              {{ integration.authType }} · Key Version
+              {{ integration.keyVersion }} ·
+              {{ integration.secretConfigured ? '密钥已配置' : '密钥未配置' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="上游 Callback">
+              <code>{{ integration.callbackPathPattern }}</code>
+            </el-descriptions-item>
+            <el-descriptions-item label="Postman / Apifox">
+              <code>{{ integration.postmanCollectionPath }}</code>
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <h3>请求头</h3>
+          <pre>{{ integration.requiredHeaders.join('\n') }}</pre>
+          <h3>签名公式</h3>
+          <pre>{{ integration.signatureFormula }}</pre>
+          <h3>CLICK 请求示例</h3>
+          <div class="integration-code-heading">
+            <span>JSON Body</span>
+            <el-button
+              link
+              type="primary"
+              @click="copy(integration.requestExample, '请求示例')"
+            >
+              复制
+            </el-button>
+          </div>
+          <pre>{{ integration.requestExample }}</pre>
+        </template>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -1075,6 +1169,43 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 20px;
   color: var(--el-text-color-secondary);
+}
+
+.integration-panel {
+  min-height: 300px;
+}
+
+.integration-panel .el-alert,
+.integration-panel .el-descriptions {
+  margin-bottom: 18px;
+}
+
+.integration-panel h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+.integration-panel pre {
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #d7e1f3;
+  white-space: pre-wrap;
+  background: #172033;
+  border-radius: 6px;
+}
+
+.integration-copy-row,
+.integration-code-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.integration-copy-row code {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 768px) {

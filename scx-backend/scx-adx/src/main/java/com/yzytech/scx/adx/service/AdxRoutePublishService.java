@@ -25,23 +25,6 @@ public class AdxRoutePublishService {
 
 	private static final Pattern TEMPLATE_MACRO = Pattern.compile("__[A-Z0-9_]+__");
 
-	private static final Set<String> COCO_MACROS = Set.of("__IDFA__", "__IDFA_MD5__", "__IMEI__", "__IMEI_MD5__",
-			"__OAID__", "__OAID_MD5__", "__IP__", "__CAID__", "__CAID_LIST__", "__ANDROIDID__", "__ANDROID_ID__",
-			"__ANDROIDID_MD5__", "__ANDROID_ID_MD5__", "__AAID__", "__UA__", "__OS__", "__MODEL__", "__CALLBACK__",
-			"__CLICKID__", "__CAMPAIGNID__", "__ADGROUPID__", "__CREATIVEID__", "__ADVERTISERID__");
-
-	private static final Set<String> TEMPLATE_GET_MACROS = Set.of("__EVENT__", "__EVENT_TIME__", "__EVENT_ID__",
-			"__TS__", "__MTS__", "__REQUEST_ID__", "__CHANNEL_ID__", "__DSP_ID__", "__LINK_ID__", "__TASK_ID__",
-			"__MONITOR_ID__", "__BIZ_ID__", "__CAMPAIGN_ID__", "__ADGROUP_ID__", "__CREATIVE_ID__", "__CREATIVEID__",
-			"__CLICKID__", "__IDFA__", "__IDFA_MD5__", "__IDFA__MD5__", "__IMEI__", "__IMEI_MD5__", "__IMEI__MD5__",
-			"__OAID__", "__OAID_MD5__", "__OAID__MD5__", "__CAID__", "__CAID_LIST__", "__ANDROID_ID__",
-			"__ANDROID_ID_MD5__", "__AAID__", "__GAID__", "__IDFV__", "__IP__", "__UA__", "__OS__", "__MODEL__",
-			"__CALLBACK__", "__CALLBACK_URL__");
-
-	private static final Set<String> TEMPLATE_GET_DOWNSTREAM_MACROS = Set.of("__EVENT__", "__EVENT_ID__",
-			"__SOURCE_EVENT_ID__", "__CLICKID__", "__MONITOR_ID__", "__CHANNEL_ID__", "__AMOUNT__", "__AMOUNT_RAW__",
-			"__TS__");
-
 	private final AdxMonitorLinkMapper monitorMapper;
 
 	private final AdxChannelMapper channelMapper;
@@ -88,8 +71,10 @@ public class AdxRoutePublishService {
 		if (!"ACTIVE".equals(channel.getStatus()) || !"ACTIVE".equals(advertiser.getStatus())) {
 			throw new IllegalArgumentException("渠道和广告主必须处于启用状态");
 		}
-		adapterService.requireEnabled(channel.getAdapterCode(), "DOWNSTREAM");
-		adapterService.requireEnabled(advertiser.getAdapterCode(), "UPSTREAM");
+		AdxAdapterService.PublishedAdapter downstreamAdapter = adapterService.requireEnabled(channel.getAdapterCode(),
+				"DOWNSTREAM");
+		AdxAdapterService.PublishedAdapter upstreamAdapter = adapterService.requireEnabled(advertiser.getAdapterCode(),
+				"UPSTREAM");
 		if (!"HMAC".equals(channel.getAuthType())) {
 			throw new IllegalArgumentException("发布路由必须使用 HMAC 鉴权");
 		}
@@ -99,29 +84,12 @@ public class AdxRoutePublishService {
 		String effectiveUpstreamUrl = StringUtils.hasText(monitor.getUpstreamFeedbackUrl())
 				? monitor.getUpstreamFeedbackUrl() : advertiser.getBidUrl();
 		validateHttps(effectiveUpstreamUrl, advertiser.getUpstreamHostAllowlist(), "上游请求地址");
-		if ("COCO".equals(advertiser.getAdapterCode())) {
-			if (!effectiveUpstreamUrl.contains("__CALLBACK__")) {
-				throw new IllegalArgumentException("Coco 请求地址必须包含 __CALLBACK__ 宏");
-			}
-			validateMacros(effectiveUpstreamUrl, advertiser.getMacroParams(), COCO_MACROS, "Coco");
-		}
-		if ("TEMPLATE_GET".equals(advertiser.getAdapterCode())) {
-			if (!(effectiveUpstreamUrl.contains("__CALLBACK__") || effectiveUpstreamUrl.contains("__CALLBACK_URL__"))) {
-				throw new IllegalArgumentException("模板 GET 请求地址必须包含回调宏");
-			}
-			validateMacros(effectiveUpstreamUrl, advertiser.getMacroParams(), TEMPLATE_GET_MACROS, "模板 GET");
-		}
+		validateAdapterMacros(effectiveUpstreamUrl, advertiser.getMacroParams(), upstreamAdapter, "上游请求地址");
 		if (!StringUtils.hasText(monitor.getDownstreamCallbackUrl())) {
 			throw new IllegalArgumentException("发布路由必须配置下游回调地址");
 		}
 		validateHttps(monitor.getDownstreamCallbackUrl(), channel.getCallbackHostAllowlist(), "下游回调地址");
-		if ("TEMPLATE_GET_DOWNSTREAM".equals(channel.getAdapterCode())) {
-			if (!monitor.getDownstreamCallbackUrl().contains("__EVENT__")
-					|| !monitor.getDownstreamCallbackUrl().contains("__EVENT_ID__")) {
-				throw new IllegalArgumentException("模板 GET 下游回调地址必须包含 __EVENT__ 和 __EVENT_ID__ 宏");
-			}
-			validateCallbackMacros(monitor.getDownstreamCallbackUrl());
-		}
+		validateAdapterMacros(monitor.getDownstreamCallbackUrl(), null, downstreamAdapter, "下游回调地址");
 		if (!"OFF".equals(monitor.getRtaMode())) {
 			throw new IllegalArgumentException("首期 RTA 只能为 OFF");
 		}
@@ -135,31 +103,37 @@ public class AdxRoutePublishService {
 		}
 	}
 
-	private void validateCallbackMacros(String callbackUrl) {
-		Matcher matcher = TEMPLATE_MACRO.matcher(callbackUrl);
-		while (matcher.find()) {
-			if (!TEMPLATE_GET_DOWNSTREAM_MACROS.contains(matcher.group())) {
-				throw new IllegalArgumentException("模板 GET 下游回调地址包含不支持的宏：" + matcher.group());
-			}
-		}
-	}
-
-	private void validateMacros(String url, String requiredMacros, Set<String> supportedMacros, String adapterName) {
+	/**
+	 * 按数据库中发布的 Adapter 能力校验 URL，不在通用发布服务中识别任何具体媒体编码。
+	 */
+	private void validateAdapterMacros(String url, String configuredRequiredMacros,
+			AdxAdapterService.PublishedAdapter adapter, String label) {
+		Set<String> supportedMacros = adapter.supportedMacros();
 		Matcher matcher = TEMPLATE_MACRO.matcher(url);
 		while (matcher.find()) {
 			if (!supportedMacros.contains(matcher.group())) {
-				throw new IllegalArgumentException(adapterName + " 请求地址包含不支持的宏：" + matcher.group());
+				throw new IllegalArgumentException(label + "包含当前适配器不支持的宏：" + matcher.group());
 			}
 		}
-		if (!StringUtils.hasText(requiredMacros)) {
+		for (String required : adapter.requiredUrlMacros()) {
+			if (!url.contains(required)) {
+				throw new IllegalArgumentException(label + "缺少适配器必需宏：" + required);
+			}
+		}
+		for (Set<String> alternatives : adapter.requiredAnyUrlMacros()) {
+			if (alternatives.stream().noneMatch(url::contains)) {
+				throw new IllegalArgumentException(label + "至少需要一个回调宏：" + String.join(" 或 ", alternatives));
+			}
+		}
+		if (!StringUtils.hasText(configuredRequiredMacros)) {
 			return;
 		}
-		for (String required : requiredMacros.split("[,\\s]+")) {
+		for (String required : configuredRequiredMacros.split("[,\\s]+")) {
 			if (!supportedMacros.contains(required)) {
-				throw new IllegalArgumentException(adapterName + " 必填宏配置无效：" + required);
+				throw new IllegalArgumentException(label + "必填宏配置无效：" + required);
 			}
 			if (!url.contains(required)) {
-				throw new IllegalArgumentException(adapterName + " 请求地址缺少已声明的必填宏：" + required);
+				throw new IllegalArgumentException(label + "缺少已声明的必填宏：" + required);
 			}
 		}
 	}

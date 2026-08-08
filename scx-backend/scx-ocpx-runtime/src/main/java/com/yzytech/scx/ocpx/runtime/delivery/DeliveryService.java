@@ -2,6 +2,7 @@ package com.yzytech.scx.ocpx.runtime.delivery;
 
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
+import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.CallbackReqV1;
 import com.yzytech.scx.ocpx.contract.DownstreamAdapter;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
@@ -12,8 +13,10 @@ import com.yzytech.scx.ocpx.runtime.model.DeliveryAttemptAudit;
 import com.yzytech.scx.ocpx.runtime.model.DeliveryJob;
 import com.yzytech.scx.ocpx.runtime.persistence.OcpxPersistenceRepository;
 import com.yzytech.scx.ocpx.runtime.security.CallbackTokenService;
+import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
 
 import java.util.Locale;
 import java.util.Map;
@@ -36,62 +39,69 @@ public class DeliveryService {
 
 	private final DeliveryAuditSanitizer auditSanitizer;
 
+	private final ReactiveBlockingExecutor blockingExecutor;
+
 	private final ConcurrentHashMap<String, Semaphore> bulkheads = new ConcurrentHashMap<>();
 
 	private final ConcurrentHashMap<String, CircuitState> circuits = new ConcurrentHashMap<>();
 
 	public DeliveryService(OcpxPersistenceRepository repository, AdapterRegistry adapterRegistry,
 			CallbackTokenService tokenService, DeliveryHttpClient httpClient, OcpxRuntimeProperties properties,
-			DeliveryAuditSanitizer auditSanitizer) {
+			DeliveryAuditSanitizer auditSanitizer, ReactiveBlockingExecutor blockingExecutor) {
 		this.repository = repository;
 		this.adapterRegistry = adapterRegistry;
 		this.tokenService = tokenService;
 		this.httpClient = httpClient;
 		this.properties = properties;
 		this.auditSanitizer = auditSanitizer;
+		this.blockingExecutor = blockingExecutor;
 	}
 
-	public void deliver(DeliveryJob job) {
-		CircuitState circuit = circuits.computeIfAbsent(job.adapterCode(), ignored -> new CircuitState());
-		if (circuit.isOpen()) {
-			repository.markDeliveryFailure(job, null, "ADAPTER_CIRCUIT_OPEN");
-			return;
-		}
-		Semaphore bulkhead = bulkheads.computeIfAbsent(job.adapterCode(),
-				ignored -> new Semaphore(properties.getAdapterConcurrency()));
-		if (!bulkhead.tryAcquire()) {
-			repository.markDeliveryFailure(job, null, "ADAPTER_BACKPRESSURE");
-			return;
-		}
-		try {
-			DeliveryContext context = repository.loadDeliveryContext(job);
-			boolean success;
-			if ("FEEDBACK_UPSTREAM".equals(job.direction())) {
-				success = deliverUpstream(context);
+	/**
+	 * 执行一个可靠投递任务。只有后台 Worker 订阅该 Mono；Service 自己不调用 subscribe/block。
+	 */
+	public Mono<Void> deliver(DeliveryJob job) {
+		return Mono.defer(() -> {
+			CircuitState circuit = circuits.computeIfAbsent(job.adapterCode(), ignored -> new CircuitState());
+			if (circuit.isOpen()) {
+				return blockingExecutor.run(() -> repository.markDeliveryFailure(job, null, "ADAPTER_CIRCUIT_OPEN"));
 			}
-			else if ("CALLBACK_DOWNSTREAM".equals(job.direction())) {
-				success = deliverDownstream(context);
+			Semaphore bulkhead = bulkheads.computeIfAbsent(job.adapterCode(),
+					ignored -> new Semaphore(properties.getAdapterConcurrency()));
+			if (!bulkhead.tryAcquire()) {
+				return blockingExecutor.run(() -> repository.markDeliveryFailure(job, null, "ADAPTER_BACKPRESSURE"));
 			}
-			else {
-				throw new IllegalArgumentException("unknown delivery direction");
-			}
-			if (success) {
-				circuit.success();
-			}
-			else {
-				circuit.failure(properties);
-			}
-		}
-		catch (Exception e) {
-			circuit.failure(properties);
-			repository.markDeliveryFailure(job, null, safeError(e));
-		}
-		finally {
-			bulkhead.release();
-		}
+			return blockingExecutor.call(() -> repository.loadDeliveryContext(job))
+				.flatMap(this::deliverByDirection)
+				.doOnNext(success -> {
+					if (success) {
+						circuit.success();
+					}
+					else {
+						circuit.failure(properties);
+					}
+				})
+				.onErrorResume(error -> {
+					circuit.failure(properties);
+					return blockingExecutor.run(() -> repository.markDeliveryFailure(job, null, safeError(error)))
+						.thenReturn(false);
+				})
+				.then()
+				.doFinally(ignored -> bulkhead.release());
+		});
 	}
 
-	private boolean deliverUpstream(DeliveryContext context) {
+	private Mono<Boolean> deliverByDirection(DeliveryContext context) {
+		if ("FEEDBACK_UPSTREAM".equals(context.job().direction())) {
+			return deliverUpstream(context);
+		}
+		if ("CALLBACK_DOWNSTREAM".equals(context.job().direction())) {
+			return deliverDownstream(context);
+		}
+		return Mono.error(new IllegalArgumentException("unknown delivery direction"));
+	}
+
+	private Mono<Boolean> deliverUpstream(DeliveryContext context) {
 		UpstreamAdapter adapter = adapterRegistry.requireUpstream(context.job().adapterCode());
 		String callbackUrl = UriComponentsBuilder.fromUriString(properties.getPublicBaseUrl())
 			.path("/open-api/ocpx/v1/upstreams/")
@@ -101,54 +111,56 @@ public class DeliveryService {
 			.queryParam("s", context.route().channelId() + "_" + context.route().routeId())
 			.build(true)
 			.toUriString();
-		AdapterHttpRequest request = adapter.buildFeedback(context.route(), context.feedback(), callbackUrl);
-		long started = System.nanoTime();
-		try {
-			AdapterHttpResponse response = httpClient.exchange(request);
-			DeliveryAttemptAudit audit = auditSanitizer.summarize(request, response, elapsedMs(started));
-			if (response != null && adapter.isSuccess(response)) {
-				repository.markDeliverySuccess(context.job(), response.statusCode(), audit);
-				return true;
-			}
-			repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
-					adapter.failureReason(response), audit);
-			return false;
-		}
-		catch (Exception error) {
-			repository.markDeliveryFailure(context.job(), null, safeError(error),
-					auditSanitizer.summarize(request, null, elapsedMs(started)));
-			return false;
-		}
+		return adapter.buildFeedback(context.route(), context.feedback(), callbackUrl)
+			.flatMap(request -> exchangeUpstream(context, adapter, request));
 	}
 
-	private boolean deliverDownstream(DeliveryContext context) {
+	private Mono<Boolean> exchangeUpstream(DeliveryContext context, UpstreamAdapter adapter,
+			AdapterHttpRequest request) {
+		long started = System.nanoTime();
+		return httpClient.exchange(request)
+			.flatMap(response -> adapter.evaluateFeedbackResponse(response)
+				.flatMap(result -> persistResult(context, request, response, result, started)))
+			.onErrorResume(error -> persistTransportFailure(context, request, error, started));
+	}
+
+	private Mono<Boolean> deliverDownstream(DeliveryContext context) {
 		DownstreamAdapter adapter = adapterRegistry.requireDownstream(context.job().adapterCode());
 		CallbackReqV1 callback = new CallbackReqV1("1.0", context.callback().eventId(),
 				context.callback().sourceEventId(), context.callback().eventType().name(),
 				context.callback().actionTime(), context.callback().amount(), context.callback().amountRaw(),
 				context.feedback().getClickid(), context.route().routeId(), context.route().channelId(),
 				Map.of("callback_ref", context.job().callbackRef()));
-		AdapterHttpRequest request = adapter.buildCallback(context.route(), callback);
-		long started = System.nanoTime();
-		try {
-			AdapterHttpResponse response = httpClient.exchange(request);
-			DeliveryAttemptAudit audit = auditSanitizer.summarize(request, response, elapsedMs(started));
-			if (response != null && adapter.isSuccess(response)) {
-				repository.markDeliverySuccess(context.job(), response.statusCode(), audit);
-				return true;
-			}
-			repository.markDeliveryFailure(context.job(), response == null ? null : response.statusCode(),
-					"DOWNSTREAM_REJECTED", audit);
-			return false;
-		}
-		catch (Exception error) {
-			repository.markDeliveryFailure(context.job(), null, safeError(error),
-					auditSanitizer.summarize(request, null, elapsedMs(started)));
-			return false;
-		}
+		return adapter.buildCallback(context.route(), callback).flatMap(request -> {
+			long started = System.nanoTime();
+			return httpClient.exchange(request)
+				.flatMap(response -> adapter.evaluateCallbackResponse(response)
+					.flatMap(result -> persistResult(context, request, response, result, started)))
+				.onErrorResume(error -> persistTransportFailure(context, request, error, started));
+		});
 	}
 
-	private String safeError(Exception error) {
+	private Mono<Boolean> persistResult(DeliveryContext context, AdapterHttpRequest request,
+			AdapterHttpResponse response, AdapterDeliveryResult result, long started) {
+		DeliveryAttemptAudit audit = auditSanitizer.summarize(request, response, elapsedMs(started));
+		return blockingExecutor.run(() -> {
+			if (result.success()) {
+				repository.markDeliverySuccess(context.job(), response.statusCode(), audit);
+			}
+			else {
+				repository.markDeliveryFailure(context.job(), response.statusCode(), result.reason(), audit);
+			}
+		}).thenReturn(result.success());
+	}
+
+	private Mono<Boolean> persistTransportFailure(DeliveryContext context, AdapterHttpRequest request, Throwable error,
+			long started) {
+		DeliveryAttemptAudit audit = auditSanitizer.summarize(request, null, elapsedMs(started));
+		return blockingExecutor.run(() -> repository.markDeliveryFailure(context.job(), null, safeError(error), audit))
+			.thenReturn(false);
+	}
+
+	private String safeError(Throwable error) {
 		return error.getClass().getSimpleName();
 	}
 

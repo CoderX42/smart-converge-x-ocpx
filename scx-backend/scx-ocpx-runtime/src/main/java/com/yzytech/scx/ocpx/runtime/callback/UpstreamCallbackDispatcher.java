@@ -3,8 +3,10 @@ package com.yzytech.scx.ocpx.runtime.callback;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
 import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
+import com.yzytech.scx.ocpx.runtime.adapter.AdapterNotFoundException;
 import com.yzytech.scx.ocpx.runtime.error.OcpxException;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -37,24 +39,21 @@ public class UpstreamCallbackDispatcher {
 	 * @param parameters 上游提交的 query 参数
 	 * @return 已找到适配器时包含媒体响应，未注册上游时返回 not-found 结果
 	 */
-	public DispatchResult dispatch(String upstreamCode, Map<String, String> parameters) {
-		UpstreamAdapter adapter = findAdapter(upstreamCode);
-		if (adapter == null) {
-			return DispatchResult.upstreamNotFound();
-		}
+	public Mono<DispatchResult> dispatch(String upstreamCode, Map<String, String> parameters) {
+		return Mono.defer(() -> {
+			UpstreamAdapter adapter = findAdapter(upstreamCode);
+			if (adapter == null) {
+				return Mono.just(DispatchResult.upstreamNotFound());
+			}
 
-		Map<String, String> safeParameters = immutableParameters(parameters);
-		try {
-			CallbackIngressService.Result result = callbackIngressService.accept(adapter, safeParameters);
-			UpstreamCallbackResponse response = adapter.callbackSuccess(safeParameters, result.eventId(),
-					result.status());
-			return DispatchResult.handled(response);
-		}
-		catch (OcpxException error) {
-			UpstreamCallbackResponse response = adapter.callbackFailure(safeParameters, error.getStatus().value(),
-					error.getMessage());
-			return DispatchResult.handled(response);
-		}
+			Map<String, String> safeParameters = immutableParameters(parameters);
+			return callbackIngressService.accept(adapter, safeParameters)
+				.flatMap(result -> adapter.callbackSuccess(safeParameters, result.eventId(), result.status()))
+				.map(DispatchResult::handled)
+				.onErrorResume(OcpxException.class,
+						error -> adapter.callbackFailure(safeParameters, error.getStatus().value(), error.getMessage())
+							.map(DispatchResult::handled));
+		});
 	}
 
 	/**
@@ -67,7 +66,7 @@ public class UpstreamCallbackDispatcher {
 		try {
 			return adapterRegistry.requireUpstream(upstreamCode.trim().toUpperCase(Locale.ROOT));
 		}
-		catch (IllegalArgumentException error) {
+		catch (AdapterNotFoundException error) {
 			return null;
 		}
 	}

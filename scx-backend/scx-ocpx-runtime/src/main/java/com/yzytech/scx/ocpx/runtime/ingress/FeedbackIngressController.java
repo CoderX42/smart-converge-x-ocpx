@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
 
@@ -26,9 +25,7 @@ import java.util.Map;
  * </p>
  *
  * <p>
- * <strong>线程模型：</strong>该应用运行在 WebFlux/响应式栈上，而 {@link FeedbackIngressService#accept} 内部包含
- * JDBC、Redis 等阻塞调用，因此通过 {@code Mono.fromCallable} 包装并切换到
- * {@link Schedulers#boundedElastic()} 执行， 避免阻塞事件循环线程。
+ * <strong>线程模型：</strong>Service 返回 {@link Mono}，并在内部统一隔离 JDBC/Redis 阻塞片段。
  * </p>
  */
 @RestController
@@ -77,25 +74,22 @@ public class FeedbackIngressController {
 		long started = System.nanoTime();
 		String remoteIp = exchange.getRequest().getRemoteAddress() == null ? null
 				: exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
-		return Mono.fromCallable(() -> service.accept(channelCode, "POST", path, rawBody, headers))
-			// accept 内部有 JDBC/Redis 阻塞调用，切到弹性线程池执行，不占用事件循环
-			.subscribeOn(Schedulers.boundedElastic())
-			.map(result -> {
-				long durationMs = Math.max(0, (System.nanoTime() - started) / 1_000_000);
-				if (result.status() == IngressResult.Status.CONFLICT) {
-					auditRecorder.record(channelCode, "CONFLICT", HttpStatus.CONFLICT.value(), "event payload conflict",
-							rawBody, headers, remoteIp, durationMs);
-					return ResponseEntity.status(HttpStatus.CONFLICT).body((Object) result);
-				}
-				if (result.status() == IngressResult.Status.DUPLICATE) {
-					auditRecorder.record(channelCode, "DUPLICATE", HttpStatus.OK.value(), "idempotent duplicate",
-							rawBody, headers, remoteIp, durationMs);
-				}
-				// ACCEPTED → 202；DUPLICATE → 200（幂等重放视为成功，避免渠道无谓重试）
-				return ResponseEntity
-					.status(result.status() == IngressResult.Status.ACCEPTED ? HttpStatus.ACCEPTED : HttpStatus.OK)
-					.body((Object) result);
-			})
+		return service.accept(channelCode, "POST", path, rawBody, headers).map(result -> {
+			long durationMs = Math.max(0, (System.nanoTime() - started) / 1_000_000);
+			if (result.status() == IngressResult.Status.CONFLICT) {
+				auditRecorder.record(channelCode, "CONFLICT", HttpStatus.CONFLICT.value(), "event payload conflict",
+						rawBody, headers, remoteIp, durationMs);
+				return ResponseEntity.status(HttpStatus.CONFLICT).body((Object) result);
+			}
+			if (result.status() == IngressResult.Status.DUPLICATE) {
+				auditRecorder.record(channelCode, "DUPLICATE", HttpStatus.OK.value(), "idempotent duplicate", rawBody,
+						headers, remoteIp, durationMs);
+			}
+			// ACCEPTED → 202；DUPLICATE → 200（幂等重放视为成功，避免渠道无谓重试）
+			return ResponseEntity
+				.status(result.status() == IngressResult.Status.ACCEPTED ? HttpStatus.ACCEPTED : HttpStatus.OK)
+				.body((Object) result);
+		})
 			// 业务异常统一转换为 {code, message} 结构，状态码取自异常本身
 			.onErrorResume(OcpxException.class, error -> {
 				auditRecorder.record(channelCode, auditStatus(error), error.getStatus().value(), error.getMessage(),

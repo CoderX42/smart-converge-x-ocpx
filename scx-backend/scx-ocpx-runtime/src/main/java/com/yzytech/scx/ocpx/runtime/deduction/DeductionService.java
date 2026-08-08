@@ -3,9 +3,11 @@ package com.yzytech.scx.ocpx.runtime.deduction;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.runtime.persistence.OcpxPersistenceRepository;
+import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,12 +38,27 @@ public class DeductionService {
 
 	private final OcpxPersistenceRepository repository;
 
-	public DeductionService(StringRedisTemplate redisTemplate, OcpxPersistenceRepository repository) {
+	private final ReactiveBlockingExecutor blockingExecutor;
+
+	public DeductionService(StringRedisTemplate redisTemplate, OcpxPersistenceRepository repository,
+			ReactiveBlockingExecutor blockingExecutor) {
 		this.redisTemplate = redisTemplate;
 		this.repository = repository;
+		this.blockingExecutor = blockingExecutor;
 	}
 
-	public Decision decide(String callbackEventId, RouteSnapshot route, OcpxEventType eventType) {
+	/**
+	 * 读取既有决策或通过 Redis 原子脚本生成扣量决策。
+	 *
+	 * <p>
+	 * JDBC 与 Redis 都是同步客户端，因此整个临界段由公共执行器隔离，调用方不需要关心线程切换。
+	 * </p>
+	 */
+	public Mono<Decision> decide(String callbackEventId, RouteSnapshot route, OcpxEventType eventType) {
+		return blockingExecutor.call(() -> decideBlocking(callbackEventId, route, eventType));
+	}
+
+	private Decision decideBlocking(String callbackEventId, RouteSnapshot route, OcpxEventType eventType) {
 		var existing = repository.findDeductionDecision(callbackEventId);
 		if (existing.isPresent()) {
 			return new Decision(existing.get(), "EXISTING_DECISION");

@@ -30,6 +30,7 @@ class AdxRouteContractTest {
 		assertRoute(AdxCatalogController.class, "accountLedger", GetMapping.class, "/advertisers/{id}/ledger");
 		assertRoute(AdxCatalogController.class, "appLinks", GetMapping.class, "/app-links");
 		assertRoute(AdxCatalogController.class, "monitors", GetMapping.class, "/monitors");
+		assertRoute(AdxCatalogController.class, "monitorIntegration", GetMapping.class, "/monitors/{id}/integration");
 		assertRoute(AdxCatalogController.class, "publishMonitor", PostMapping.class, "/monitors/{id}/publish");
 		assertRoute(AdxCatalogController.class, "deductions", GetMapping.class, "/deduction-rules");
 		assertRoute(AdxCatalogController.class, "reportOptions", GetMapping.class, "/report-options");

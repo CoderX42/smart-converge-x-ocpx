@@ -95,6 +95,14 @@ if [[ "$ocpx_audit_index_count" -ne 5 ]]; then
   exit 1
 fi
 
+ocpx_adapter_contract_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_ocpx_adapter WHERE adapter_code IN ('COCO','TEMPLATE_GET','STANDARD','TEMPLATE_GET_DOWNSTREAM') AND status='ACTIVE' AND JSON_UNQUOTE(JSON_EXTRACT(capabilities_json,'$.contractVersion'))='1.0' AND JSON_CONTAINS_PATH(capabilities_json,'all','$.supportedMacros','$.requiredUrlMacros','$.requiredAnyUrlMacros');")"
+
+if [[ "$ocpx_adapter_contract_count" -ne 4 ]]; then
+  echo "Database verification failed: built-in OCPX adapter capability contracts are incomplete." >&2
+  exit 1
+fi
+
 admin_ocpx_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
   --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish','adx:account:read','adx:account:recharge');")"
 

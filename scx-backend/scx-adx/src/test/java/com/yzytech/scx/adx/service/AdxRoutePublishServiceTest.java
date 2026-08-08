@@ -2,7 +2,6 @@ package com.yzytech.scx.adx.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,6 +15,8 @@ import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Set;
 
 class AdxRoutePublishServiceTest {
 
@@ -170,11 +171,32 @@ class AdxRoutePublishServiceTest {
 	}
 
 	private void stub(Fixture fixture) {
-		doNothing().when(adapterService).requireEnabled(fixture.channel().getAdapterCode(), "DOWNSTREAM");
-		doNothing().when(adapterService).requireEnabled(fixture.advertiser().getAdapterCode(), "UPSTREAM");
+		when(adapterService.requireEnabled(fixture.channel().getAdapterCode(), "DOWNSTREAM"))
+			.thenReturn(downstream(fixture.channel().getAdapterCode()));
+		when(adapterService.requireEnabled(fixture.advertiser().getAdapterCode(), "UPSTREAM"))
+			.thenReturn(upstream(fixture.advertiser().getAdapterCode()));
 		when(monitorMapper.selectById("monitor-1")).thenReturn(fixture.monitor());
 		when(channelMapper.selectById("channel-1")).thenReturn(fixture.channel());
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(fixture.advertiser());
+	}
+
+	private AdxAdapterService.PublishedAdapter upstream(String code) {
+		if ("TEMPLATE_GET".equals(code)) {
+			return new AdxAdapterService.PublishedAdapter(code, "UPSTREAM", "GET", "GET",
+					Set.of("__REQUEST_ID__", "__OAID__", "__CALLBACK__", "__CALLBACK_URL__"), Set.of(),
+					List.of(Set.of("__CALLBACK__", "__CALLBACK_URL__")));
+		}
+		return new AdxAdapterService.PublishedAdapter(code, "UPSTREAM", "GET", "GET", Set.of("__CALLBACK__"),
+				Set.of("__CALLBACK__"), List.of());
+	}
+
+	private AdxAdapterService.PublishedAdapter downstream(String code) {
+		if ("TEMPLATE_GET_DOWNSTREAM".equals(code)) {
+			return new AdxAdapterService.PublishedAdapter(code, "DOWNSTREAM", "POST", "GET",
+					Set.of("__EVENT__", "__EVENT_ID__"), Set.of("__EVENT__", "__EVENT_ID__"), List.of());
+		}
+		return new AdxAdapterService.PublishedAdapter(code, "DOWNSTREAM", "POST", "POST", Set.of(), Set.of(),
+				List.of());
 	}
 
 	private Fixture fixture() {

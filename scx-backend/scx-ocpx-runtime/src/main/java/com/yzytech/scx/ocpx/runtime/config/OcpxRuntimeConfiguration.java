@@ -40,18 +40,6 @@ public class OcpxRuntimeConfiguration {
 			.build();
 	}
 
-	@Bean("ocpxDeliveryExecutor")
-	TaskExecutor ocpxDeliveryExecutor(OcpxRuntimeProperties properties) {
-		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setThreadNamePrefix("ocpx-delivery-");
-		executor.setCorePoolSize(Math.min(32, properties.getAdapterConcurrency()));
-		executor.setMaxPoolSize(Math.max(32, properties.getAdapterConcurrency() * 2));
-		executor.setQueueCapacity(1024);
-		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-		executor.initialize();
-		return executor;
-	}
-
 	@Bean("ocpxAuditExecutor")
 	TaskExecutor ocpxAuditExecutor() {
 		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

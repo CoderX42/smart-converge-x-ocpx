@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
+import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
@@ -14,6 +15,7 @@ import com.yzytech.scx.ocpx.contract.UpstreamCallbackResponse;
 import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -57,7 +59,11 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public void validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
+	public Mono<Void> validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
+		return Mono.fromRunnable(() -> validateFeedbackRequest(route, feedback));
+	}
+
+	private void validateFeedbackRequest(RouteSnapshot route, FeedbackReqV1 feedback) {
 		OcpxEventType eventType = OcpxEventType.fromExternal(feedback.getEvent());
 		if (eventType != OcpxEventType.CLICK) {
 			throw new IllegalArgumentException("Coco only accepts CLICK feedback");
@@ -83,7 +89,11 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public AdapterHttpRequest buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
+	public Mono<AdapterHttpRequest> buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
+		return Mono.fromCallable(() -> buildFeedbackRequest(route, feedback, callbackUrl));
+	}
+
+	private AdapterHttpRequest buildFeedbackRequest(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl) {
 		validateLength("callback", callbackUrl, 5000);
 		Map<String, String> macros = new LinkedHashMap<>();
 		macros.put("__IDFA__", feedback.getIdfa());
@@ -126,34 +136,36 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public boolean isSuccess(AdapterHttpResponse response) {
-		if (response == null || response.statusCode() < 200 || response.statusCode() >= 300) {
-			return false;
-		}
-		String code = businessCode(response.body());
-		return code == null || SUCCESS_CODES.contains(code);
+	public Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response) {
+		return Mono.fromSupplier(() -> {
+			if (response == null) {
+				return AdapterDeliveryResult.failure("COCO_NO_RESPONSE", null, null);
+			}
+			String code = businessCode(response.body());
+			String message = businessMessage(response.body());
+			if (response.statusCode() < 200 || response.statusCode() >= 300) {
+				return AdapterDeliveryResult.failure("COCO_HTTP_" + response.statusCode(), code, message);
+			}
+			// Coco 文档允许成功响应为空；只有明确返回非成功业务 code 时才进入重试。
+			if (code == null || SUCCESS_CODES.contains(code)) {
+				return AdapterDeliveryResult.success(code, message);
+			}
+			return AdapterDeliveryResult
+				.failure(truncate("COCO_CODE_" + code + (message == null ? "" : ":" + message), 1000), code, message);
+		});
 	}
 
 	@Override
-	public String failureReason(AdapterHttpResponse response) {
-		if (response == null) {
-			return "COCO_NO_RESPONSE";
-		}
-		String code = businessCode(response.body());
-		if (code == null) {
-			return "COCO_HTTP_" + response.statusCode();
-		}
-		String message = businessMessage(response.body());
-		return truncate("COCO_CODE_" + code + (message == null ? "" : ":" + message), 1000);
+	public Mono<String> callbackToken(Map<String, String> parameters) {
+		return Mono.justOrEmpty(parameters.get("ext"));
 	}
 
 	@Override
-	public String callbackToken(Map<String, String> parameters) {
-		return parameters.get("ext");
+	public Mono<NormalizedCallbackEvent> parseCallback(String callbackRef, Map<String, String> parameters) {
+		return Mono.fromCallable(() -> parseCallbackEvent(callbackRef, parameters));
 	}
 
-	@Override
-	public NormalizedCallbackEvent parseCallback(String callbackRef, Map<String, String> parameters) {
+	private NormalizedCallbackEvent parseCallbackEvent(String callbackRef, Map<String, String> parameters) {
 		OcpxEventType eventType = OcpxEventType.fromExternal(parameters.get("action_type"));
 		String amountRaw = eventType == OcpxEventType.PAYMENT ? parameters.get("currency_amount") : null;
 		BigDecimal amount = null;
@@ -184,20 +196,26 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	}
 
 	@Override
-	public UpstreamCallbackResponse callbackSuccess(Map<String, String> parameters, String eventId, String status) {
-		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("code", 0);
-		body.put("event_id", eventId);
-		body.put("status", status);
-		return new UpstreamCallbackResponse(200, Map.of(), body);
+	public Mono<UpstreamCallbackResponse> callbackSuccess(Map<String, String> parameters, String eventId,
+			String status) {
+		return Mono.fromSupplier(() -> {
+			Map<String, Object> body = new LinkedHashMap<>();
+			body.put("code", 0);
+			body.put("event_id", eventId);
+			body.put("status", status);
+			return new UpstreamCallbackResponse(200, Map.of(), body);
+		});
 	}
 
 	@Override
-	public UpstreamCallbackResponse callbackFailure(Map<String, String> parameters, int httpStatus, String message) {
-		Map<String, Object> body = new LinkedHashMap<>();
-		body.put("code", 1);
-		body.put("message", message);
-		return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
+	public Mono<UpstreamCallbackResponse> callbackFailure(Map<String, String> parameters, int httpStatus,
+			String message) {
+		return Mono.fromSupplier(() -> {
+			Map<String, Object> body = new LinkedHashMap<>();
+			body.put("code", 1);
+			body.put("message", message);
+			return new UpstreamCallbackResponse(httpStatus, Map.of(), body);
+		});
 	}
 
 	private String convertOs(String os) {

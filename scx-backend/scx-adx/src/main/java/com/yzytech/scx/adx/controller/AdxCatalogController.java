@@ -14,6 +14,7 @@ import com.yzytech.scx.adx.service.AdxCatalogService;
 import com.yzytech.scx.adx.service.AdxAccountService;
 import com.yzytech.scx.adx.service.AdxAdapterService;
 import com.yzytech.scx.adx.service.AdxRoutePublishService;
+import com.yzytech.scx.adx.service.AdxOcpxIntegrationService;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.security.util.SecurityUtils;
 import jakarta.validation.Valid;
@@ -45,10 +46,21 @@ public class AdxCatalogController {
 
 	private final AdxRoutePublishService routePublishService;
 
+	private final AdxOcpxIntegrationService integrationService;
+
 	@GetMapping("/adapters")
 	@SaCheckPermission("adx:monitor:read")
 	public Result<List<CatalogViews.Adapter>> adapters() {
 		return Result.success(adapterService.list());
+	}
+
+	/**
+	 * 获取一个监测链接的对接信息。响应中只有占位符和签名公式，不会返回渠道密钥。
+	 */
+	@GetMapping("/monitors/{id}/integration")
+	@SaCheckPermission("adx:monitor:read")
+	public Result<CatalogViews.OcpxIntegration> monitorIntegration(@PathVariable String id) {
+		return call(() -> integrationService.get(id));
 	}
 
 	@GetMapping("/report-options")

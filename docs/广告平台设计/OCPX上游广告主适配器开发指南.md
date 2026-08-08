@@ -1,6 +1,6 @@
 # SCX OCPX 上游广告主适配器开发指南
 
-> 适用版本：V70-V73 / OCPX Contract v1。本文面向 SCX 研发人员，用于接入 Coco 之外的广告主、代理平台或转化归因平台。新增上游不应复制一套接入、队列或重试服务，只实现协议差异并注册为 `UpstreamAdapter`。
+> 适用版本：V70-V75 / OCPX Contract v1。本文面向 SCX 研发人员，用于接入 Coco 之外的广告主、代理平台或转化归因平台。新增上游不应复制一套接入、队列或重试服务，只实现协议差异并注册为 `UpstreamAdapter`。
 
 ## 1. 接入边界
 
@@ -120,51 +120,55 @@ public class ExampleUpstreamAdapter implements UpstreamAdapter {
     }
 
     @Override
-    public AdapterHttpRequest buildFeedback(
+    public Mono<AdapterHttpRequest> buildFeedback(
             RouteSnapshot route,
             FeedbackReqV1 feedback,
             String callbackUrl) {
         // 只构造协议请求；不要在这里发 HTTP、写库或启动异步任务。
-        throw new UnsupportedOperationException("implement protocol mapping");
+        return Mono.error(new UnsupportedOperationException("implement protocol mapping"));
     }
 
     @Override
-    public boolean isSuccess(AdapterHttpResponse response) {
-        // 同时校验 HTTP 与已确认的业务 code。
-        return response.statusCode() == 200;
+    public Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response) {
+        // 同时校验 HTTP 与已确认的业务 code，并返回稳定失败原因。
+        return Mono.just(response.statusCode() == 200
+            ? AdapterDeliveryResult.success(null, null)
+            : AdapterDeliveryResult.failure("EXAMPLE_HTTP_" + response.statusCode(), null, null));
     }
 
     @Override
-    public String callbackToken(Map<String, String> parameters) {
+    public Mono<String> callbackToken(Map<String, String> parameters) {
         // token 参数名属于上游协议；不能假定所有上游都使用 ext。
-        return parameters.get("vendor_token");
+        return Mono.justOrEmpty(parameters.get("vendor_token"));
     }
 
     @Override
-    public NormalizedCallbackEvent parseCallback(
+    public Mono<NormalizedCallbackEvent> parseCallback(
             String callbackRef,
             Map<String, String> parameters) {
         // 校验必填参数、映射事件、生成稳定事件 ID、解释时间和金额。
-        throw new UnsupportedOperationException("implement callback mapping");
+        return Mono.error(new UnsupportedOperationException("implement callback mapping"));
     }
 
     @Override
-    public UpstreamCallbackResponse callbackSuccess(
+    public Mono<UpstreamCallbackResponse> callbackSuccess(
             Map<String, String> parameters, String eventId, String status) {
         // HTTP 状态、headers 和 Body 都严格按当前上游文档返回。
-        return new UpstreamCallbackResponse(200, Map.of(), Map.of("vendor_code", 0));
+        return Mono.just(new UpstreamCallbackResponse(200, Map.of(), Map.of("vendor_code", 0)));
     }
 
     @Override
-    public UpstreamCallbackResponse callbackFailure(
+    public Mono<UpstreamCallbackResponse> callbackFailure(
             Map<String, String> parameters, int httpStatus, String message) {
-        return new UpstreamCallbackResponse(
-            httpStatus, Map.of(), Map.of("vendor_code", 1, "vendor_message", message));
+        return Mono.just(new UpstreamCallbackResponse(
+            httpStatus, Map.of(), Map.of("vendor_code", 1, "vendor_message", message)));
     }
 }
 ```
 
 Spring 会收集所有 Bean，由 `AdapterRegistry` 按 `code()` 建立不可变 Map。通用 Controller 只负责选择 adapter 并原样输出 `UpstreamCallbackResponse`，不会解释媒体参数或响应字段；核心流水线不需要增加 `if/else` 或广告主 ID 枚举。
+
+所有协议方法都返回 `Mono`。Adapter 只描述转换和响应判定，不得调用 `subscribe()`、`block()`、自行切换 Scheduler 或创建线程池；WebFlux Controller 和后台 Worker 是统一订阅边界。当前同步 JDBC/Redis 由 Runtime 的 `ReactiveBlockingExecutor` 隔离到 `boundedElastic`，Adapter 不感知存储线程模型。
 
 ### 4.1 buildFeedback 规则
 
@@ -176,9 +180,9 @@ Spring 会收集所有 Bean，由 `AdapterRegistry` 按 `code()` 建立不可变
 6. 对 Header/Body 签名时使用广告主当前密钥和版本；不得记录签名原文中的设备标识。
 7. 只返回 `AdapterHttpRequest`；SSRF、超时、连接池、熔断、并发隔离和重试由统一 HTTP 层处理。
 
-### 4.2 isSuccess 规则
+### 4.2 evaluateFeedbackResponse 规则
 
-如果上游采用 `HTTP 200 + {"code":500}` 表示失败，就必须解析响应体并返回 `false`。只有以下内容均明确后才能写成功判断：
+如果上游采用 `HTTP 200 + {"code":500}` 表示失败，就必须返回 `AdapterDeliveryResult.failure(...)`，并提供不含敏感信息的稳定原因。只有以下内容均明确后才能写成功判断：
 
 - 可接受的 HTTP 状态。
 - 业务 code/字段。
@@ -207,11 +211,16 @@ INSERT INTO scx_ocpx_adapter
 VALUES
   ('EXAMPLE', 'Example 广告主', 'UPSTREAM', 'ACTIVE',
    JSON_OBJECT(
+     'contractVersion', '1.0',
+     'protocolKind', 'DEDICATED',
      'feedbackMethod', 'POST',
      'callbackMethod', 'GET',
      'auth', 'HMAC',
      'callback', TRUE,
-     'timeoutMs', 3000
+     'timeoutMs', 3000,
+     'supportedMacros', JSON_ARRAY('__CLICKID__', '__CALLBACK__'),
+     'requiredUrlMacros', JSON_ARRAY('__CALLBACK__'),
+     'requiredAnyUrlMacros', JSON_ARRAY()
    ), NOW(3), NOW(3))
 ON DUPLICATE KEY UPDATE
   adapter_name=VALUES(adapter_name),

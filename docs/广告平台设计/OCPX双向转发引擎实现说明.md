@@ -1,4 +1,4 @@
-# SCX OCPX 双向转发引擎实现说明（V70-V74 / Coco v1.1、双向适配与 CPC 账务）
+# SCX OCPX 双向转发引擎实现说明（V70-V75 / Reactor 双向适配与 CPC 账务）
 
 ## 1. 当前结论
 
@@ -17,7 +17,7 @@
   -> 标准 HMAC JSON POST 或通用 GET 宏模板异步投递下游
 ```
 
-这代表代码闭环已实现，不代表生产闭环已验收。V70-V74 尚未在目标数据库执行；真实 Coco 域名、限流响应、宏长度和 callback 重试仍需 UAT；充值/CPC 尚未以目标库和真实流量对账；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
+这代表代码闭环已实现，不代表生产闭环已验收。V70-V75 尚未在目标数据库执行；真实 Coco 域名、限流响应、宏长度和 callback 重试仍需 UAT；充值/CPC 尚未以目标库和真实流量对账；20,000 QPS 尚未重测。因此当前生产结论仍是 **No-Go**。
 
 ## 2. 模块与职责
 
@@ -56,7 +56,7 @@
 - Redis Stream 默认 64 分区。分区键使用 Redis Cluster hash tag，Lua 在同一槽内完成幂等检查与 XADD；生产默认要求 `WAIT 1` 副本确认。
 - Consumer Group 每批最多 500 条；MySQL 事务提交后才 ACK。Pending 超时后跨实例 claim；达到最大投递次数进入 Redis 与 MySQL 双 DLQ。损坏信封单条隔离，不会拖累同批正常事件。
 - MySQL 投递任务用 `FOR UPDATE SKIP LOCKED` 与 60 秒租约多实例抢占。失败按 1/2/5/10 分钟退避，第 5 次进入 `DEAD`；人工重放保留历史尝试记录。
-- 外呼用 WebClient、3 秒超时、受限线程池、每适配器 Semaphore 隔离、有限队列、基础熔断和背压；不使用固定 500 线程或无限队列。
+- Controller、Dispatcher、Service、Adapter 和 WebClient 使用 Reactor 串联，不在业务层调用 `block()`。同步 JDBC/Redis 片段统一隔离到 `boundedElastic`；后台 Worker 是投递链的订阅边界。外呼保留 3 秒超时、每适配器 Semaphore 隔离、基础熔断和 Reactor 并发背压。
 - `upstream-delivery-enabled` 与 `downstream-delivery-enabled` 是两个独立字面量开关，dev/prod 默认均为 `false`。首次部署可只接入落库；沙箱先开上游，再开下游影子/真实投递。改动配置后必须重新打包并重启。
 - 路由配置启动时全量加载进不可变本地索引，管理面发布同事务写 Outbox，Redis Pub/Sub 触发原子重载，60 秒全量轮询兜底。无 `PUBLISHED` 路由直接拒绝。
 
@@ -76,13 +76,13 @@ V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并�
 
 ## 7. 配置发布和管理端
 
-渠道、广告主、监测链接或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、必填的下游 callback、上游 callback 宏、下游 GET 必填宏、RTA/Billing 模式，以及 AUDIT_ONLY/CPC 单价大于 0。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
+渠道、广告主、监测链接或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、Adapter 能力元数据声明的宏规则、RTA/Billing 模式，以及 AUDIT_ONLY/CPC 单价大于 0。V75 统一内置 Adapter 的 `supportedMacros/requiredUrlMacros/requiredAnyUrlMacros`，发布服务不再写死媒体编码。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
 
-管理端新增适配器/鉴权、Coco 宏 URL、下游 callback、RTA/Billing、路由版本/发布按钮，以及 OCPX 运行中心的积压、成功、重试、死亡任务、DLQ、方向分布和人工重放。V70 默认只向 `ROLE_ADMIN` 授予路由发布和重放，`ROLE_OPERATOR` 仅可查看运行状态。密钥接口仍只回显是否已配置，不回传明文。
+管理端新增适配器/鉴权、Coco 宏 URL、下游 callback、RTA/Billing、路由版本/发布按钮，以及 OCPX 运行中心的积压、成功、重试、死亡任务、DLQ、方向分布和人工重放。监测链接“接入信息”抽屉可复制 Feedback URL、HMAC 头、签名公式、Callback 路径模式与 Apifox/Postman 集合位置，但只回显密钥是否已配置，不回传明文。V70 默认只向 `ROLE_ADMIN` 授予路由发布和重放，`ROLE_OPERATOR` 仅可查看运行状态。
 
 ## 8. 上线顺序与门禁
 
-1. 经授权备份并应用 V70-V74；V72 会删除汽车线索表，若需归档必须先导出。部署外发关闭的 `scx-ocpx-engine`，验证接入、Redis、批量落库、运行审计和账务表。
+1. 经授权备份并应用 V70-V75；V72 会删除汽车线索表，若需归档必须先导出。部署外发关闭的 `scx-ocpx-engine`，验证接入、Redis、批量落库、运行审计和账务表。
 2. 沙箱开启 Coco feedback，确认响应体/鉴权/金额单位/重试；再开启 callback 接收但不向下游外发。
 3. 下游 callback 影子核对后，单一路由灰度真实回传。
 4. 先用 AUDIT_ONLY 对账点击量与预估成本，再核对广告主初始余额并单路由启用 CPC；覆盖重复点击、余额不足、事务回滚和小时成本对账。随后完成 Redis/MySQL 故障恢复演练。

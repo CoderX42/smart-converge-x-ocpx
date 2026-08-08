@@ -24,11 +24,11 @@ class StandardDownstreamAdapterTest {
 	void parsesFeedbackReqAndRejectsMissingEvent() {
 		FeedbackReqV1 parsed = adapter.parseFeedback("""
 				{"event":"click","monitor_id":"monitor-1","oaid":"device"}
-				""");
+				""").block();
 
 		assertThat(parsed.getEvent()).isEqualTo("click");
 		assertThat(parsed.getMonitorId()).isEqualTo("monitor-1");
-		assertThatThrownBy(() -> adapter.parseFeedback("{}")).isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> adapter.parseFeedback("{}").block()).isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("event");
 	}
 
@@ -38,7 +38,7 @@ class StandardDownstreamAdapterTest {
 				OffsetDateTime.parse("2026-08-03T09:00:00Z"), null, null, "click-1", "monitor-1", "channel-1",
 				Map.of());
 
-		AdapterHttpRequest request = adapter.buildCallback(route(), callback);
+		AdapterHttpRequest request = adapter.buildCallback(route(), callback).block();
 
 		assertThat(request.headers()).containsEntry("Idempotency-Key", "callback-1");
 		assertThat(request.headers()).containsKeys("X-Client-Id", "X-Key-Version", "X-Timestamp", "X-Nonce", "X-Sign");
