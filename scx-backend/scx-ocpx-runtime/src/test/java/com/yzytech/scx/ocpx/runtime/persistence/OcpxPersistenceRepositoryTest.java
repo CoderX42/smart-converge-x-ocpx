@@ -2,19 +2,24 @@ package com.yzytech.scx.ocpx.runtime.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.BillingPort;
+import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
+import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
+import com.yzytech.scx.ocpx.runtime.model.CallbackContext;
 import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -63,6 +68,27 @@ class OcpxPersistenceRepositoryTest {
 
 		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 		verify(jdbcTemplate).update(contains("cost_amount=cost_amount+VALUES(cost_amount)"), any(Object[].class));
+	}
+
+	@Test
+	void callbackEventInsertHasOneValueForEverySqlPlaceholder() {
+		OffsetDateTime now = OffsetDateTime.parse("2026-08-08T07:14:20Z");
+		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("callback-1", "click-1", "callback-ref",
+				OcpxEventType.ACTIVATE, now, null, null);
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+
+		repository.persistCallback(callback, context, false, "NO_RULE");
+
+		ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).update(sqlCaptor.capture(), argumentsCaptor.capture());
+		int eventInsert = java.util.stream.IntStream.range(0, sqlCaptor.getAllValues().size())
+			.filter(index -> sqlCaptor.getAllValues().get(index).contains("INSERT IGNORE INTO scx_ocpx_event"))
+			.findFirst()
+			.orElseThrow();
+		long placeholders = sqlCaptor.getAllValues().get(eventInsert).chars().filter(character -> character == '?')
+			.count();
+		assertThat(argumentsCaptor.getAllValues().get(eventInsert)).hasSize((int) placeholders);
 	}
 
 	private FeedbackEnvelope envelope() {

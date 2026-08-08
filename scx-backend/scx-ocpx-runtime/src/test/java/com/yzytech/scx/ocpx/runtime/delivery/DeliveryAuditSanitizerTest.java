@@ -29,4 +29,18 @@ class DeliveryAuditSanitizerTest {
 		assertThat(audit.responseExcerpt()).contains("body_sha256=", "body_bytes=").doesNotContain("response-secret");
 	}
 
+	@Test
+	void redactsCallbackTokenStoredAsLongPathSegment() {
+		String callbackToken = "8e56dae0-1ff3-45e5-8ae9-0159199d8a56";
+		AdapterHttpRequest request = new AdapterHttpRequest("POST",
+				URI.create("https://webhook.example/api/" + callbackToken), Map.of(), "{}");
+
+		var audit = sanitizer.summarize(request, new AdapterHttpResponse(200, Map.of(), ""), 9);
+
+		assertThat(audit.targetPath()).startsWith("/api/{redacted_sha256=")
+			.endsWith(";bytes=36}")
+			.doesNotContain(callbackToken);
+		assertThat(audit.requestSummary()).doesNotContain(callbackToken);
+	}
+
 }

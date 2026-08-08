@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /**
  * Creates request evidence without retaining credentials, callback tokens or device data.
@@ -28,7 +30,24 @@ public class DeliveryAuditSanitizer {
 	}
 
 	private String safePath(URI uri) {
-		return uri.getRawPath() == null || uri.getRawPath().isBlank() ? "/" : uri.getRawPath();
+		String rawPath = uri.getRawPath();
+		if (rawPath == null || rawPath.isBlank()) {
+			return "/";
+		}
+		// Callback URLs frequently put a webhook key or access token directly in a path
+		// segment (for example: /<uuid>). Query-string hashing alone cannot protect that
+		// value. Keep normal endpoint names readable, but replace long token-like segments
+		// with a short hash so attempts remain useful for troubleshooting without retaining
+		// the complete callback credential.
+		return Arrays.stream(rawPath.split("/", -1)).map(this::sanitizePathSegment).collect(Collectors.joining("/"));
+	}
+
+	private String sanitizePathSegment(String segment) {
+		if (segment.length() < 24) {
+			return segment;
+		}
+		return "{redacted_sha256=" + OcpxHashing.sha256(segment).substring(0, 16) + ";bytes="
+				+ segment.getBytes(StandardCharsets.UTF_8).length + "}";
 	}
 
 }

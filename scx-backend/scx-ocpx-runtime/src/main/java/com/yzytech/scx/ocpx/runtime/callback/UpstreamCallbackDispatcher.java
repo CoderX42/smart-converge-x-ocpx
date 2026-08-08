@@ -50,9 +50,9 @@ public class UpstreamCallbackDispatcher {
 			return callbackIngressService.accept(adapter, safeParameters)
 				.flatMap(result -> adapter.callbackSuccess(safeParameters, result.eventId(), result.status()))
 				.map(DispatchResult::handled)
-				.onErrorResume(OcpxException.class,
-						error -> adapter.callbackFailure(safeParameters, error.getStatus().value(), error.getMessage())
-							.map(DispatchResult::handled));
+				.onErrorResume(OcpxException.class, error -> adapter
+					.callbackFailure(safeParameters, error.getStatus().value(), error.getMessage())
+					.map(response -> DispatchResult.rejected(response, error.getStatus().value(), error.getMessage())));
 		});
 	}
 
@@ -88,20 +88,40 @@ public class UpstreamCallbackDispatcher {
 
 		private final UpstreamCallbackResponse response;
 
-		private DispatchResult(boolean upstreamFound, UpstreamCallbackResponse response) {
+		/**
+		 * callback 业务失败时的原始状态码。它与媒体最终响应的 HTTP 状态码可能不同， 所以不能仅根据 {@link #response} 判断本次
+		 * callback 是否被 SCX 接受。
+		 */
+		private final Integer rejectionStatusCode;
+
+		/** 仅在 callback 被协议或鉴权规则拒绝时存在，供入口审计记录脱敏后的原因。 */
+		private final String rejectionReason;
+
+		private DispatchResult(boolean upstreamFound, UpstreamCallbackResponse response, Integer rejectionStatusCode,
+				String rejectionReason) {
 			this.upstreamFound = upstreamFound;
 			this.response = response;
+			this.rejectionStatusCode = rejectionStatusCode;
+			this.rejectionReason = rejectionReason;
 		}
 
 		static DispatchResult upstreamNotFound() {
-			return new DispatchResult(false, null);
+			return new DispatchResult(false, null, null, null);
 		}
 
 		static DispatchResult handled(UpstreamCallbackResponse response) {
 			if (response == null) {
 				throw new IllegalArgumentException("upstream callback response must not be null");
 			}
-			return new DispatchResult(true, response);
+			return new DispatchResult(true, response, null, null);
+		}
+
+		static DispatchResult rejected(UpstreamCallbackResponse response, int rejectionStatusCode,
+				String rejectionReason) {
+			if (response == null) {
+				throw new IllegalArgumentException("upstream callback response must not be null");
+			}
+			return new DispatchResult(true, response, rejectionStatusCode, rejectionReason);
 		}
 
 		public boolean isUpstreamFound() {
@@ -113,6 +133,21 @@ public class UpstreamCallbackDispatcher {
 				throw new IllegalStateException("no callback response for an unregistered upstream");
 			}
 			return response;
+		}
+
+		public boolean isRejected() {
+			return rejectionStatusCode != null;
+		}
+
+		public int getRejectionStatusCode() {
+			if (rejectionStatusCode == null) {
+				throw new IllegalStateException("the callback was not rejected");
+			}
+			return rejectionStatusCode;
+		}
+
+		public String getRejectionReason() {
+			return rejectionReason;
 		}
 
 	}

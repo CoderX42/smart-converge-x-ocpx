@@ -159,7 +159,7 @@ public class OcpxPersistenceRepository {
 				INSERT IGNORE INTO scx_ocpx_event
 				(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
 				 monitor_id,route_version,occurred_at,received_at,payload_hash,status,callback_ref,amount,amount_raw)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				""", id(), callback.eventId(), context.feedbackEventId(), "UPSTREAM_CALLBACK",
 				callback.eventType().name(), route.channelId(), route.advertiserId(), route.appLinkId(),
 				route.routeId(), route.routeVersion(), Timestamp.from(callback.actionTime().toInstant()),

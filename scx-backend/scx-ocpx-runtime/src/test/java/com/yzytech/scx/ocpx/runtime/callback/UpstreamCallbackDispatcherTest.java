@@ -44,6 +44,7 @@ class UpstreamCallbackDispatcherTest {
 
 		assertThat(result.isUpstreamFound()).isTrue();
 		assertThat(result.getResponse()).isSameAs(expected);
+		assertThat(result.isRejected()).isFalse();
 	}
 
 	@Test
@@ -59,6 +60,9 @@ class UpstreamCallbackDispatcherTest {
 
 		assertThat(result.isUpstreamFound()).isTrue();
 		assertThat(result.getResponse()).isSameAs(expected);
+		assertThat(result.isRejected()).isTrue();
+		assertThat(result.getRejectionStatusCode()).isEqualTo(400);
+		assertThat(result.getRejectionReason()).isEqualTo("bad callback");
 	}
 
 	@Test

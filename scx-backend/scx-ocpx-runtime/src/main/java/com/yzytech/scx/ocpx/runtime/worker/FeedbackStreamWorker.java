@@ -70,11 +70,24 @@ public class FeedbackStreamWorker {
 						"MKSTREAM".getBytes(StandardCharsets.UTF_8)));
 			}
 			catch (Exception e) {
-				if (e.getMessage() == null || !e.getMessage().contains("BUSYGROUP")) {
+				// Spring Data 会把 RedisBusyException 包装成“Error in execution”，所以必须检查完整 cause 链。
+				// Consumer Group 已存在是多实例启动和滚动发布时的正常幂等结果，不应阻止应用启动。
+				if (!isBusyGroup(e)) {
 					throw e;
 				}
 			}
 		}
+	}
+
+	static boolean isBusyGroup(Throwable error) {
+		Throwable current = error;
+		while (current != null) {
+			if (current.getMessage() != null && current.getMessage().contains("BUSYGROUP")) {
+				return true;
+			}
+			current = current.getCause();
+		}
+		return false;
 	}
 
 	@Scheduled(fixedDelayString = "${scx.ocpx.poll-delay-ms:20}")
