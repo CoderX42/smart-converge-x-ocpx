@@ -21,7 +21,8 @@ spring:
 
 scx:
   ocpx:
-    public-base-url: https://ocpx.example.com/ocpx
+    public-base-url: http://42.81.102.181/ocpx
+    # public-base-url: https://ocpx.example.com/ocpx
     replica-acks-required: 1
     allow-http: false
     allow-private-addresses: false
