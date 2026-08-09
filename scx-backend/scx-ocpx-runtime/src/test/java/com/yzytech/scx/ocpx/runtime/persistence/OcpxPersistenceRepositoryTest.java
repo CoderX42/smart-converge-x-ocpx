@@ -5,9 +5,11 @@ import com.yzytech.scx.ocpx.contract.BillingPort;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
+import com.yzytech.scx.ocpx.contract.RouteEventSnapshot;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
 import com.yzytech.scx.ocpx.runtime.model.CallbackContext;
+import com.yzytech.scx.ocpx.runtime.model.DeliveryJob;
 import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +50,8 @@ class OcpxPersistenceRepositoryTest {
 		repository = new OcpxPersistenceRepository(jdbcTemplate, objectMapper, protocolCrypto, properties, billingPort);
 		when(protocolCrypto.decrypt("encrypted-route")).thenReturn(objectMapper.writeValueAsString(route()));
 		when(jdbcTemplate.update(any(String.class), any(Object[].class))).thenReturn(1);
+		when(billingPort.charge(any(), any(), any(), eq("CNY"), eq("CPA")))
+			.thenReturn(new BillingPort.BillingResult("POSTED", "FREE_EVENT", BigDecimal.TEN));
 	}
 
 	@Test
@@ -160,13 +164,84 @@ class OcpxPersistenceRepositoryTest {
 	@Test
 	void debugCallbackNeverChangesDashboardFacts() {
 		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
-		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1(),
-				"debug-execution-1");
+		RouteEventSnapshot eventMapping = eventMapping(10);
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
+				new FeedbackReqV1(), "debug-execution-1");
 
 		repository.persistCallback(new NormalizedCallbackEvent("debug-activate", "click-1", "callback-ref",
-				OcpxEventType.ACTIVATE, actionTime, null, null), context, true, "NO_RULE");
+				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping),
+				context, true, "NO_RULE");
 
 		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_adx_hourly_report"), any(Object[].class));
+		verify(jdbcTemplate, never()).update(contains("scx_ocpx_event_daily_quota"), any(Object[].class));
+		verify(billingPort, never()).charge(any(), any(), any(), eq("CNY"), eq("CPA"));
+	}
+
+	@Test
+	void publishedEventSnapshotChargesCpaOccupiesQuotaAndCreatesDeliveryAtomically() {
+		when(jdbcTemplate.queryForObject(contains("SELECT queued_count"), eq(Integer.class), any(Object[].class)))
+			.thenReturn(0);
+		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
+		RouteEventSnapshot eventMapping = eventMapping(10);
+		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("mapped-activate", "click-1", "callback-ref",
+				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
+				new FeedbackReqV1());
+
+		OcpxPersistenceRepository.CallbackPersistenceResult result = repository.persistCallback(callback, context, true,
+				"NO_RULE");
+
+		assertThat(result.status()).isEqualTo("ACCEPTED");
+		verify(billingPort).charge("mapped-activate", "advertiser-1", new BigDecimal("2.500000"), "CNY", "CPA");
+		verify(jdbcTemplate).update(contains("queued_count=queued_count+1"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_delivery_job"), any(Object[].class));
+	}
+
+	@Test
+	void publishedEventSnapshotRejectsAtStrictDailyLimitBeforeBillingOrFacts() {
+		when(jdbcTemplate.queryForObject(contains("SELECT queued_count"), eq(Integer.class), any(Object[].class)))
+			.thenReturn(10);
+		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
+		RouteEventSnapshot eventMapping = eventMapping(10);
+		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("limited-activate", "click-1", "callback-ref",
+				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
+				new FeedbackReqV1());
+
+		OcpxPersistenceRepository.CallbackPersistenceResult result = repository.persistCallback(callback, context, true,
+				"NO_RULE");
+
+		assertThat(result.status()).isEqualTo("LIMIT_EXCEEDED");
+		verify(billingPort, never()).charge(any(), any(), any(), eq("CNY"), eq("CPA"));
+		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_ocpx_delivery_job"), any(Object[].class));
+	}
+
+	@Test
+	void legacyRouteSnapshotKeepsHistoricalCallbackBehaviorWithoutCpaOrQuota() {
+		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+
+		OcpxPersistenceRepository.CallbackPersistenceResult result = repository.persistCallback(
+				new NormalizedCallbackEvent("legacy-activate", "click-1", "callback-ref", OcpxEventType.ACTIVATE,
+						actionTime, null, null),
+				context, true, "NO_RULE");
+
+		assertThat(result.status()).isEqualTo("ACCEPTED");
+		verify(billingPort, never()).charge(any(), any(), any(), eq("CNY"), eq("CPA"));
+		verify(jdbcTemplate, never()).update(contains("scx_ocpx_event_daily_quota"), any(Object[].class));
+	}
+
+	@Test
+	void deadDownstreamDeliveryKeepsPostedCpaLedgerUntouched() {
+		DeliveryJob job = new DeliveryJob("job-1", "callback-1", "click-1", "CALLBACK_DOWNSTREAM", "STANDARD",
+				"callback-ref", 4);
+
+		repository.markDeliveryFailure(job, 500, "downstream unavailable");
+
+		verify(jdbcTemplate).update(contains("SET status=?"), eq("DEAD"), eq(5), eq(600L),
+				eq("downstream unavailable"), eq("job-1"), any());
+		verify(jdbcTemplate, never()).update(contains("scx_ocpx_billing_entry"), any(Object[].class));
+		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
 	}
 
 	private FeedbackEnvelope envelope() {
@@ -179,6 +254,21 @@ class OcpxPersistenceRepositoryTest {
 		return new RouteSnapshot("monitor-1", "biz-1", 1, "channel-1", "channel", "STANDARD", "HMAC", 1,
 				"channel-secret", "advertiser-1", "app-1", "TEMPLATE_GET", null, "https://upstream.example/feedback",
 				null, "https://downstream.example/callback", new BigDecimal("1.250000"), BigDecimal.ONE, "OFF", "CPC");
+	}
+
+	private RouteEventSnapshot eventMapping(int dailyLimit) {
+		return new RouteEventSnapshot("mapping-1", "ACTIVATE", "激活", "ACTIVATE", "激活", "MEDIA_ACTIVATE",
+				"媒体激活", new BigDecimal("2.500000"), dailyLimit);
+	}
+
+	private RouteSnapshot versionedRoute(RouteEventSnapshot eventMapping) {
+		RouteSnapshot route = route();
+		return new RouteSnapshot(route.routeId(), route.bizId(), route.routeVersion(), route.channelId(),
+				route.channelCode(), route.channelAdapterCode(), route.channelAuthType(), route.channelKeyVersion(),
+				route.channelSecret(), route.advertiserId(), route.appLinkId(), route.upstreamAdapterCode(),
+				route.upstreamSecret(), route.bidUrl(), route.upstreamRequiredMacros(), route.downstreamCallbackUrl(),
+				route.unitPrice(), route.deductionRatio(), route.rtaMode(), route.billingMode(),
+				route.clickDedupWindowSeconds(), List.of(eventMapping));
 	}
 
 }

@@ -196,9 +196,10 @@ public class AdxRuntimeService {
 		args.add(size);
 		args.add((current - 1) * size);
 		List<RuntimeViews.Event> rows = jdbcTemplate.query("""
-				SELECT e.id,e.event_id,e.parent_event_id,e.source_direction,e.event_type,e.channel_id,c.channel_name,
+				SELECT e.id,e.event_id,e.parent_event_id,e.source_direction,e.event_type,e.source_event_code,
+				       e.conversion_event_code,e.media_event_code,e.channel_id,c.channel_name,
 				       e.advertiser_id,a.advertiser_name,e.monitor_id,m.monitor_name,e.status,e.amount,e.amount_raw,
-				       e.occurred_at,e.received_at
+				       e.cpa_charge_amount,e.daily_limit_result,e.occurred_at,e.received_at
 				FROM scx_ocpx_event e
 				LEFT JOIN scx_adx_channel c ON c.id=e.channel_id
 				LEFT JOIN scx_adx_advertiser a ON a.id=e.advertiser_id
@@ -206,8 +207,9 @@ public class AdxRuntimeService {
 				""" + where + " ORDER BY e.received_at DESC,e.id DESC LIMIT ? OFFSET ?",
 				(rs, rowNum) -> new RuntimeViews.Event(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
-						rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getBigDecimal(13),
-						rs.getString(14), rs.getTimestamp(15).toLocalDateTime(), rs.getTimestamp(16).toLocalDateTime()),
+						rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13),
+						rs.getString(14), rs.getString(15), rs.getBigDecimal(16), rs.getString(17), rs.getBigDecimal(18),
+						rs.getString(19), rs.getTimestamp(20).toLocalDateTime(), rs.getTimestamp(21).toLocalDateTime()),
 				args.toArray());
 		Page<RuntimeViews.Event> page = new Page<>(current, size, total == null ? 0 : total);
 		page.setRecords(rows);
@@ -245,15 +247,18 @@ public class AdxRuntimeService {
 		List<RuntimeViews.TimelineItem> result = new ArrayList<>();
 		result.addAll(jdbcTemplate.query(
 				"""
-						SELECT source_direction,status,event_id,event_type,received_at FROM scx_ocpx_event
+						SELECT source_direction,status,event_id,
+						 CONCAT(event_type,':',COALESCE(source_event_code,'-'),'→',COALESCE(conversion_event_code,'-'),'→',COALESCE(media_event_code,'-')),
+						 received_at FROM scx_ocpx_event
 						WHERE event_id=? OR parent_event_id=? ORDER BY received_at
 						""", (rs, rowNum) -> new RuntimeViews.TimelineItem(rs.getString(1), rs.getString(2),
 						rs.getString(3), rs.getString(4), rs.getTimestamp(5).toLocalDateTime()),
 				rootEventId, rootEventId));
 		result.addAll(jdbcTemplate.query("""
-				SELECT 'CPC_BILLING',status,id,CONCAT(mode,':',COALESCE(reason,'')),create_time
-				FROM scx_ocpx_billing_entry WHERE charge_event_id=?
-				""", this::timelineRow, rootEventId));
+				SELECT CONCAT(mode,'_BILLING'),status,id,CONCAT(mode,':',COALESCE(reason,'')),create_time
+				FROM scx_ocpx_billing_entry WHERE charge_event_id=? OR charge_event_id IN
+				 (SELECT event_id FROM scx_ocpx_event WHERE parent_event_id=?)
+				""", this::timelineRow, rootEventId, rootEventId));
 		result.addAll(jdbcTemplate.query("""
 				SELECT direction,status,id,CONCAT(adapter_code,':attempts=',attempt_count),create_time
 				FROM scx_ocpx_delivery_job WHERE source_event_id=? OR event_id=?

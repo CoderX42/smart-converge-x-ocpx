@@ -11,6 +11,8 @@ SCX_REQUIRED_TABLES=(
   sys_user sys_user_role
   scx_adx_channel scx_adx_advertiser scx_adx_app_link
   scx_adx_monitor_link scx_adx_deduction_rule scx_adx_hourly_report
+  scx_adx_event_definition scx_adx_channel_event_mapping
+  scx_adx_monitor_event_binding scx_adx_route_event_snapshot
   scx_api_debug_case scx_api_debug_execution scx_api_debug_execution_log
   scx_api_debug_log_access_audit
   scx_ocpx_adapter scx_ocpx_event scx_ocpx_protocol_snapshot scx_ocpx_callback_ref
@@ -18,6 +20,7 @@ SCX_REQUIRED_TABLES=(
   scx_ocpx_ingress_dlq scx_ocpx_config_outbox scx_ocpx_rta_decision_log
   scx_ocpx_billing_entry scx_ocpx_ingress_audit
   scx_ocpx_click_dedup_state scx_ocpx_click_dedup_decision
+  scx_ocpx_event_daily_quota
   scx_schema_migration
 )
 

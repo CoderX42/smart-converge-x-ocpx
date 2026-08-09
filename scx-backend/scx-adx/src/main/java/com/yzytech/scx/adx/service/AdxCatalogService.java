@@ -61,6 +61,8 @@ public class AdxCatalogService {
 
 	private final AdxConfigChangeService configChangeService;
 
+	private final AdxEventService eventService;
+
 	public IPage<CatalogViews.Channel> channels(Page<AdxChannel> page, String keyword) {
 		return channelMapper
 			.selectPage(page,
@@ -94,6 +96,7 @@ public class AdxCatalogService {
 		}
 		else {
 			channelMapper.insert(entity);
+			eventService.initializeChannel(entity.getId());
 		}
 		if (StringUtils.hasText(id)) {
 			configChangeService.channelChanged(id);
@@ -265,14 +268,27 @@ public class AdxCatalogService {
 		entity.setShowUrl(feedbackUrl);
 		entity.setClickUrl(feedbackUrl);
 		monitorMapper.updateById(entity);
+		if (request.eventBindings() != null) {
+			eventService.replaceBindings(entity.getId(), entity.getChannelId(), request.eventBindings());
+		}
 		configChangeService.enqueueMonitor(entity.getId(), entity.getConfigVersion(), "ROUTE_DRAFTED");
 		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName(),
-				advertiser.getBidUrl());
+				advertiser.getBidUrl(), eventService.bindings(entity.getId()), null);
+	}
+
+	public CatalogViews.Monitor monitor(String id) {
+		AdxMonitorLink entity = requireMonitor(id);
+		AdxChannel channel = requireChannel(entity.getChannelId());
+		AdxAdvertiser advertiser = requireAdvertiser(entity.getAdvertiserId());
+		AdxAppLink appLink = requireAppLink(entity.getAppLinkId());
+		return monitorView(entity, channel.getChannelName(), advertiser.getAdvertiserName(), appLink.getLinkName(),
+				advertiser.getBidUrl(), eventService.bindings(id), null);
 	}
 
 	@Transactional
 	public void deleteMonitor(String id) {
 		AdxMonitorLink monitor = requireMonitor(id);
+		eventService.replaceBindings(id, monitor.getChannelId(), List.of());
 		monitorMapper.deleteById(monitor);
 		configChangeService.enqueueMonitor(id, monitor.getConfigVersion() == null ? 1 : monitor.getConfigVersion() + 1,
 				"ROUTE_DELETED");
@@ -310,6 +326,8 @@ public class AdxCatalogService {
 				: channelMapper.selectList(Wrappers.<AdxChannel>lambdaQuery().orderByAsc(AdxChannel::getChannelName));
 		Map<String, String> channelNames = channelRows.stream()
 			.collect(Collectors.toMap(AdxChannel::getId, AdxChannel::getChannelName));
+		Map<String, com.yzytech.scx.adx.dto.EventViews.BindingSummary> monitorSummaries = eventService
+			.bindingSummaries(monitorRows.stream().map(AdxMonitorLink::getId).toList());
 		Map<String, Object> result = new LinkedHashMap<>();
 		result.put("channels", channelRows.stream().map(this::channelView).toList());
 		result.put("advertisers", advertiserRows.stream().map(this::advertiserView).toList());
@@ -319,7 +337,7 @@ public class AdxCatalogService {
 				monitorRows.stream()
 					.map(row -> monitorView(row, channelNames.get(row.getChannelId()),
 							advertiserNames.get(row.getAdvertiserId()), linkNames.get(row.getAppLinkId()),
-							advertiserBidUrls.get(row.getAdvertiserId())))
+							advertiserBidUrls.get(row.getAdvertiserId()), List.of(), monitorSummaries.get(row.getId())))
 					.toList());
 		return result;
 	}
@@ -366,9 +384,11 @@ public class AdxCatalogService {
 				source.getRecords().stream().map(AdxMonitorLink::getAdvertiserId).toList());
 		Map<String, String> links = appLinkNames(
 				source.getRecords().stream().map(AdxMonitorLink::getAppLinkId).toList());
+		Map<String, com.yzytech.scx.adx.dto.EventViews.BindingSummary> summaries = eventService
+			.bindingSummaries(source.getRecords().stream().map(AdxMonitorLink::getId).toList());
 		return source.convert(entity -> monitorView(entity, channels.get(entity.getChannelId()),
 				advertisers.get(entity.getAdvertiserId()), links.get(entity.getAppLinkId()),
-				advertiserBidUrls.get(entity.getAdvertiserId())));
+				advertiserBidUrls.get(entity.getAdvertiserId()), List.of(), summaries.get(entity.getId())));
 	}
 
 	private IPage<CatalogViews.Deduction> decorateDeductions(Page<AdxDeductionRule> source) {
@@ -547,7 +567,8 @@ public class AdxCatalogService {
 	}
 
 	private CatalogViews.Monitor monitorView(AdxMonitorLink entity, String channelName, String advertiserName,
-			String appLinkName, String advertiserBidUrl) {
+			String appLinkName, String advertiserBidUrl, List<com.yzytech.scx.adx.dto.EventViews.Binding> bindings,
+			com.yzytech.scx.adx.dto.EventViews.BindingSummary summary) {
 		String overrideUrl = entity.getUpstreamFeedbackUrl();
 		boolean published = "PUBLISHED".equals(entity.getRouteStatus())
 				&& StringUtils.hasText(entity.getPublishedUpstreamFeedbackUrl());
@@ -561,7 +582,9 @@ public class AdxCatalogService {
 				entity.getUpstreamFeedbackUrl(), effectiveUrl, source, entity.getDownstreamCallbackUrl(),
 				entity.getClickDedupWindowSeconds(), entity.getRouteStatus(), entity.getConfigVersion(),
 				entity.getRtaMode(), entity.getBillingMode(), entity.getPublishedAt(), entity.getCreateTime(),
-				entity.getUpdateTime());
+				entity.getUpdateTime(), bindings == null ? List.of() : bindings,
+				summary == null ? (bindings == null ? 0 : bindings.size()) : summary.bindingCount(),
+				summary == null ? null : summary.summary());
 	}
 
 	private CatalogViews.Deduction deductionView(AdxDeductionRule entity, String channelName, String appLinkName) {

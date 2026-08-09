@@ -23,9 +23,10 @@ public final class RuntimeViews {
 	}
 
 	public record Event(String id, String eventId, String parentEventId, String direction, String eventType,
-			String channelId, String channelName, String advertiserId, String advertiserName, String monitorId,
-			String monitorName, String status, BigDecimal amount, String amountRaw, LocalDateTime occurredAt,
-			LocalDateTime receivedAt) {
+			String sourceEventCode, String conversionEventCode, String mediaEventCode, String channelId,
+			String channelName, String advertiserId, String advertiserName, String monitorId, String monitorName,
+			String status, BigDecimal amount, String amountRaw, BigDecimal cpaChargeAmount, String dailyLimitResult,
+			LocalDateTime occurredAt, LocalDateTime receivedAt) {
 	}
 
 	public record TimelineItem(String stage, String status, String referenceId, String detail,

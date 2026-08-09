@@ -1,5 +1,6 @@
 package com.yzytech.scx.adx.service;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.yzytech.scx.adx.entity.AdxAdvertiser;
 import com.yzytech.scx.adx.entity.AdxChannel;
 import com.yzytech.scx.adx.entity.AdxMonitorLink;
@@ -37,19 +38,24 @@ public class AdxRoutePublishService {
 
 	private final AdxAdapterService adapterService;
 
+	private final AdxEventService eventService;
+
 	public AdxRoutePublishService(AdxMonitorLinkMapper monitorMapper, AdxChannelMapper channelMapper,
 			AdxAdvertiserMapper advertiserMapper, AdxConfigChangeService configChangeService,
-			AdxAdapterService adapterService) {
+			AdxAdapterService adapterService, AdxEventService eventService) {
 		this.monitorMapper = monitorMapper;
 		this.channelMapper = channelMapper;
 		this.advertiserMapper = advertiserMapper;
 		this.configChangeService = configChangeService;
 		this.adapterService = adapterService;
+		this.eventService = eventService;
 	}
 
 	@Transactional
 	public Map<String, Object> publish(String monitorId) {
-		AdxMonitorLink monitor = require(monitorMapper.selectById(monitorId), "监测链接不存在");
+		AdxMonitorLink monitor = require(monitorMapper.selectOne(Wrappers.<AdxMonitorLink>lambdaQuery()
+			.eq(AdxMonitorLink::getId, monitorId)
+			.last("FOR UPDATE")), "监测链接不存在");
 		AdxChannel channel = require(channelMapper.selectById(monitor.getChannelId()), "渠道不存在");
 		AdxAdvertiser advertiser = require(advertiserMapper.selectById(monitor.getAdvertiserId()), "广告主不存在");
 		if (monitor.getClickDedupWindowSeconds() == null) {
@@ -57,9 +63,11 @@ public class AdxRoutePublishService {
 		}
 		validate(channel, advertiser, monitor);
 		long nextVersion = monitor.getConfigVersion() == null ? 1 : monitor.getConfigVersion() + 1;
+		int eventCount = eventService.publishSnapshot(monitorId, monitor.getChannelId(), nextVersion);
 		monitor.setRouteStatus("PUBLISHED");
 		monitor.setConfigVersion(nextVersion);
 		monitor.setPublishedAt(LocalDateTime.now());
+		monitor.setEventSnapshotVersion(1);
 		monitor.setPublishedUpstreamFeedbackUrl(StringUtils.hasText(monitor.getUpstreamFeedbackUrl())
 				? monitor.getUpstreamFeedbackUrl() : advertiser.getBidUrl());
 		monitorMapper.updateById(monitor);
@@ -69,6 +77,7 @@ public class AdxRoutePublishService {
 		result.put("routeStatus", monitor.getRouteStatus());
 		result.put("configVersion", nextVersion);
 		result.put("publishedAt", monitor.getPublishedAt());
+		result.put("eventBindingCount", eventCount);
 		return result;
 	}
 

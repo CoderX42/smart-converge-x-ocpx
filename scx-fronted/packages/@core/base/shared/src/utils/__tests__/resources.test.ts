@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { loadScript } from '../resources';
 
@@ -29,32 +29,37 @@ describe('loadScript', () => {
   it('should not insert duplicate script and resolve immediately if already loaded', async () => {
     // 先手动插入一个相同 src 的 script
     const existing = document.createElement('script');
-    existing.src = 'bar.js';
+    existing.src = testJsPath;
     document.head.append(existing);
 
     // 再次调用
-    const promise = loadScript('bar.js');
+    const promise = loadScript(testJsPath);
 
     // 立即 resolve
     await expect(promise).resolves.toBeUndefined();
 
     // head 中只保留一个
-    const scripts = document.head.querySelectorAll('script[src="bar.js"]');
+    const scripts = document.head.querySelectorAll(
+      `script[src="${testJsPath}"]`,
+    );
     expect(scripts).toHaveLength(1);
   });
 
   it('should reject when the script fails to load', async () => {
-    const promise = loadScript('error.js');
+    const errorJsPath = 'error.js';
+    const appendSpy = vi
+      .spyOn(document.head, 'append')
+      .mockImplementation((...nodes) => {
+        (nodes[0] as HTMLScriptElement).dispatchEvent(new Event('error'));
+      });
 
-    const script = document.querySelector(
-      'script[src="error.js"]',
-    ) as HTMLScriptElement;
-    expect(script).toBeTruthy();
-
-    // 模拟加载失败
-    script.dispatchEvent(new Event('error'));
-
-    await expect(promise).rejects.toThrow('Failed to load script: error.js');
+    try {
+      await expect(loadScript(errorJsPath)).rejects.toThrow(
+        `Failed to load script: ${errorJsPath}`,
+      );
+    } finally {
+      appendSpy.mockRestore();
+    }
   });
 
   it('should handle multiple concurrent calls and only insert one script tag', async () => {

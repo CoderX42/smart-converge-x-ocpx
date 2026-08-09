@@ -11,16 +11,17 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * 基于 MySQL 行锁和唯一事件号的点击计费实现。
+ * 基于 MySQL 行锁和唯一事件号的 CPC / CPA 计费实现。
  *
  * <p>
- * 事件、余额变更和账务流水参加调用方的同一事务。对同一点击事件的重放只返回已有流水；余额不足时 记录 REJECTED 流水但不扣余额，调用方据此禁止继续向上游投递。
+ * 事件、余额变更和账务流水参加调用方的同一事务。同一业务事件的重放只返回已有流水；余额不足时记录
+ * REJECTED 流水但不扣余额，CPA 允许充值后用同一事件再次校验。
  * </p>
  */
 @Component
 public class JdbcBillingPort implements BillingPort {
 
-	private static final Set<String> SUPPORTED_MODES = Set.of("AUDIT_ONLY", "CPC");
+	private static final Set<String> SUPPORTED_MODES = Set.of("AUDIT_ONLY", "CPC", "CPA");
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -45,15 +46,17 @@ public class JdbcBillingPort implements BillingPort {
 		if (!"CNY".equals(currency)) {
 			throw new IllegalArgumentException("only CNY click billing is supported");
 		}
-		if (amount == null || amount.signum() <= 0 || amount.scale() > 6) {
-			throw new IllegalArgumentException("click billing amount must be positive with at most 6 decimals");
+		if (amount == null || amount.signum() < 0 || amount.scale() > 6
+				|| (amount.signum() == 0 && !"CPA".equals(mode))) {
+			throw new IllegalArgumentException("billing amount must be non-negative with at most 6 decimals");
 		}
 		BigDecimal balanceBefore = lockBalance(advertiserId);
 		List<BillingResult> existing = jdbcTemplate.query("""
-				SELECT status,reason,balance_after FROM scx_ocpx_billing_entry WHERE charge_event_id=?
+				SELECT status,reason,balance_after FROM scx_ocpx_billing_entry
+				WHERE charge_event_id=? AND advertiser_id=? AND mode=? AND amount=? AND currency=?
 				""", (rs, rowNum) -> new BillingResult(rs.getString(1), rs.getString(2), rs.getBigDecimal(3)),
-				chargeEventId);
-		if (!existing.isEmpty()) {
+				chargeEventId, advertiserId, mode, amount, currency);
+		if (!existing.isEmpty() && !("CPA".equals(mode) && "REJECTED".equals(existing.get(0).status()))) {
 			return existing.get(0);
 		}
 		if ("AUDIT_ONLY".equals(mode)) {
@@ -61,9 +64,24 @@ public class JdbcBillingPort implements BillingPort {
 					balanceBefore, balanceBefore, debugExecutionId);
 			return new BillingResult("RECORDED", "NO_BALANCE_MUTATION", balanceBefore);
 		}
+		if ("CPA".equals(mode) && amount.signum() == 0) {
+			if (existing.isEmpty()) {
+				insertEntry(chargeEventId, advertiserId, amount, currency, mode, "POSTED", "FREE_EVENT", balanceBefore,
+						balanceBefore, debugExecutionId);
+			}
+			else {
+				updateRejectedEntry(chargeEventId, "POSTED", "FREE_EVENT", balanceBefore, balanceBefore);
+			}
+			return new BillingResult("POSTED", "FREE_EVENT", balanceBefore);
+		}
 		if (balanceBefore.compareTo(amount) < 0) {
-			insertEntry(chargeEventId, advertiserId, amount, currency, mode, "REJECTED", "INSUFFICIENT_BALANCE",
-					balanceBefore, balanceBefore, debugExecutionId);
+			if (existing.isEmpty()) {
+				insertEntry(chargeEventId, advertiserId, amount, currency, mode, "REJECTED", "INSUFFICIENT_BALANCE",
+						balanceBefore, balanceBefore, debugExecutionId);
+			}
+			else {
+				updateRejectedEntry(chargeEventId, "REJECTED", "INSUFFICIENT_BALANCE", balanceBefore, balanceBefore);
+			}
 			return new BillingResult("REJECTED", "INSUFFICIENT_BALANCE", balanceBefore);
 		}
 		BigDecimal balanceAfter = balanceBefore.subtract(amount);
@@ -73,9 +91,15 @@ public class JdbcBillingPort implements BillingPort {
 		if (updated != 1) {
 			throw new IllegalStateException("advertiser balance update failed");
 		}
-		insertEntry(chargeEventId, advertiserId, amount, currency, mode, "POSTED", "CLICK_CHARGED", balanceBefore,
-				balanceAfter, debugExecutionId);
-		return new BillingResult("POSTED", "CLICK_CHARGED", balanceAfter);
+		String reason = "CPA".equals(mode) ? "CONVERSION_CHARGED" : "CLICK_CHARGED";
+		if (existing.isEmpty()) {
+			insertEntry(chargeEventId, advertiserId, amount, currency, mode, "POSTED", reason, balanceBefore,
+					balanceAfter, debugExecutionId);
+		}
+		else {
+			updateRejectedEntry(chargeEventId, "POSTED", reason, balanceBefore, balanceAfter);
+		}
+		return new BillingResult("POSTED", reason, balanceAfter);
 	}
 
 	private BigDecimal lockBalance(String advertiserId) {
@@ -95,10 +119,20 @@ public class JdbcBillingPort implements BillingPort {
 						INSERT INTO scx_ocpx_billing_entry
 						(id,charge_event_id,debug_execution_id,source,advertiser_id,amount,currency,mode,status,reason,balance_before,balance_after,
 						 operator_id,remark,create_time)
-						VALUES (?,?,?, ?,?,?,?,?,?,?,?,?,'SYSTEM','OCPX CLICK',NOW(3))
+						VALUES (?,?,?, ?,?,?,?,?,?,?,?,?,'SYSTEM',?,NOW(3))
 						""",
 				id(), chargeEventId, debugExecutionId, debugExecutionId == null ? "BUSINESS" : "DEBUG", advertiserId,
-				amount, currency, mode, status, reason, balanceBefore, balanceAfter);
+				amount, currency, mode, status, reason, balanceBefore, balanceAfter,
+				"CPA".equals(mode) ? "OCPX CPA" : "OCPX CLICK");
+	}
+
+	private void updateRejectedEntry(String chargeEventId, String status, String reason, BigDecimal balanceBefore,
+			BigDecimal balanceAfter) {
+		jdbcTemplate.update("""
+				UPDATE scx_ocpx_billing_entry
+				SET status=?,reason=?,balance_before=?,balance_after=?,remark='OCPX CPA',create_time=NOW(3)
+				WHERE charge_event_id=? AND mode='CPA' AND status='REJECTED'
+				""", status, reason, balanceBefore, balanceAfter, chargeEventId);
 	}
 
 	private String id() {

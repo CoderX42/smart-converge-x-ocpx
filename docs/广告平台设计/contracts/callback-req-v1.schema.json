@@ -9,7 +9,7 @@
     "schema_version": { "const": "1.0" },
     "event_id": { "type": "string" },
     "source_event_id": { "type": "string" },
-    "event": { "type": "string", "enum": ["ACTIVATE", "FIRST_ACTIVATION", "EVOKE", "LOGIN", "REGISTER", "NEXT_DAY_RETENTION", "RETENTION_D3", "RETENTION_D4", "RETENTION_D5", "RETENTION_D6", "RETENTION_D7", "RETENTION", "PAYMENT", "REACTIVATION", "CUSTOMER_ACQUISITION", "VISIT", "AUTHENTICATION", "ORDER", "FIRST_ORDER", "FIRST_REACTIVATION", "COMPLETE_ORDER"] },
+    "event": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$", "description": "Published channel media event code; not a Java enum name." },
     "action_time": { "type": "string", "format": "date-time" },
     "amount": { "type": ["number", "null"] },
     "amount_raw": { "type": ["string", "null"] },

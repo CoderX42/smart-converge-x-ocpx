@@ -8,6 +8,8 @@ import type {
   AppLink,
   CatalogKind,
   Channel,
+  EventOption,
+  MonitorEventBinding,
   OcpxIntegration,
 } from '#/api/adx';
 
@@ -22,6 +24,8 @@ import {
   getAdapters,
   getAdvertiserLedger,
   getCatalog,
+  getChannelEventOptions,
+  getMonitor,
   getMonitorIntegration,
   publishMonitor,
   rechargeAdvertiser,
@@ -73,6 +77,11 @@ const channels = ref<Channel[]>([]);
 const advertisers = ref<Advertiser[]>([]);
 const appLinks = ref<AppLink[]>([]);
 const adapters = ref<AdapterDefinition[]>([]);
+const eventOptions = ref<EventOption[]>([]);
+const eventOptionsLoading = ref(false);
+const eventBindingErrors = ref<Record<number, string>>({});
+const editorSnapshot = ref('');
+const lastChannelId = ref('');
 const { copy: copyToClipboard } = useClipboard({ legacy: true });
 
 const config = computed(() => {
@@ -168,7 +177,8 @@ const columns = computed<Column[]>(() => {
       { label: '广告主', minWidth: 140, prop: 'advertiserName' },
       { label: '应用链接', minWidth: 160, prop: 'appLinkName' },
       { label: '业务ID', minWidth: 130, prop: 'bizId' },
-      { label: '单价', minWidth: 110, prop: 'unitPrice' },
+      { label: '点击单价（CPC）', minWidth: 140, prop: 'unitPrice' },
+      { label: '事件绑定', minWidth: 260, prop: 'bindingSummary' },
       { label: '发布状态', minWidth: 110, prop: 'routeStatus' },
       { label: '版本', minWidth: 90, prop: 'configVersion' },
       { label: '点击验重窗口', minWidth: 130, prop: 'clickDedupWindowSeconds' },
@@ -241,6 +251,11 @@ const filteredAppLinks = computed(() => {
 
 function display(row: Row, prop: string) {
   const value = row[prop];
+  if (prop === 'bindingSummary') {
+    return row.bindingCount
+      ? `${row.bindingCount} 个 · ${row.bindingSummary || ''}`
+      : '0 个';
+  }
   if (prop === 'secretConfigured') return value ? '已配置' : '未配置';
   if (prop === 'linkPlatform') {
     return { 1: 'Android', 2: 'iOS', 3: 'Android + iOS', 4: '快应用' }[
@@ -300,6 +315,7 @@ async function load() {
 
 function resetForm() {
   Object.keys(form).forEach((key) => delete form[key]);
+  eventBindingErrors.value = {};
   selectedChannelMacroKeys.value = [];
   const defaults: Record<CatalogKind, Record<string, any>> = {
     advertiser: { adapterCode: 'COCO', balance: 0, status: 'ACTIVE' },
@@ -315,6 +331,7 @@ function resetForm() {
     monitor: {
       billingMode: 'OFF',
       clickDedupWindowSeconds: 3600,
+      eventBindings: [],
       rtaMode: 'OFF',
       unitPrice: 0,
     },
@@ -322,10 +339,123 @@ function resetForm() {
   Object.assign(form, defaults[props.kind]);
 }
 
-function openEditor(row?: Row) {
+async function openEditor(row?: Row) {
   resetForm();
-  if (row) Object.assign(form, row);
+  if (row && props.kind === 'monitor') {
+    Object.assign(form, await getMonitor(row.id));
+  } else if (row) {
+    Object.assign(form, row);
+  }
+  lastChannelId.value = form.channelId || '';
+  if (props.kind === 'monitor' && form.channelId) {
+    await loadEventOptions(form.channelId);
+  }
+  editorSnapshot.value = JSON.stringify(form);
   dialog.value = true;
+}
+
+async function loadEventOptions(channelId: string) {
+  if (!channelId) {
+    eventOptions.value = [];
+    return;
+  }
+  eventOptionsLoading.value = true;
+  try {
+    eventOptions.value = await getChannelEventOptions(channelId);
+  } finally {
+    eventOptionsLoading.value = false;
+  }
+}
+
+async function changeMonitorChannel(nextChannelId: string) {
+  if (form.eventBindings?.length) {
+    try {
+      await ElMessageBox.confirm(
+        '切换渠道会清空当前事件绑定，确认继续？',
+        '切换渠道',
+        { type: 'warning' },
+      );
+      form.eventBindings = [];
+    } catch {
+      form.channelId = lastChannelId.value;
+      return;
+    }
+  }
+  lastChannelId.value = nextChannelId;
+  await loadEventOptions(nextChannelId);
+}
+
+function addEventBinding() {
+  form.eventBindings ||= [];
+  form.eventBindings.push({
+    assessmentUnitPrice: 0,
+    dailyLimit: 0,
+    eventMappingId: '',
+  });
+}
+
+function removeEventBinding(index: number) {
+  form.eventBindings.splice(index, 1);
+  eventBindingErrors.value = {};
+}
+
+function clearEventBindingError(index: number) {
+  const next = { ...eventBindingErrors.value };
+  delete next[index];
+  eventBindingErrors.value = next;
+}
+
+function validateEventBindings() {
+  const errors: Record<number, string> = {};
+  const selected = new Set<string>();
+  (form.eventBindings || []).forEach(
+    (binding: MonitorEventBinding, index: number) => {
+      if (!binding.eventMappingId) {
+        errors[index] = '请选择上游事件';
+      } else if (selected.has(binding.eventMappingId)) {
+        errors[index] = '同一上游事件不能重复绑定';
+      } else if (
+        !Number.isFinite(Number(binding.assessmentUnitPrice)) ||
+        Number(binding.assessmentUnitPrice) < 0
+      ) {
+        errors[index] = '考核单价不能小于 0';
+      } else if (
+        !Number.isInteger(Number(binding.dailyLimit)) ||
+        Number(binding.dailyLimit) < 0
+      ) {
+        errors[index] = '日限量须为不小于 0 的整数';
+      }
+      if (binding.eventMappingId) selected.add(binding.eventMappingId);
+    },
+  );
+  eventBindingErrors.value = errors;
+  return Object.keys(errors).length === 0;
+}
+
+function eventOption(mappingId?: string) {
+  return eventOptions.value.find((item) => item.eventMappingId === mappingId);
+}
+
+function eventOptionDisabled(mappingId: string, rowIndex: number) {
+  return form.eventBindings?.some(
+    (item: MonitorEventBinding, index: number) =>
+      index !== rowIndex && item.eventMappingId === mappingId,
+  );
+}
+
+async function beforeEditorClose(done: () => void) {
+  if (JSON.stringify(form) === editorSnapshot.value) {
+    done();
+    return;
+  }
+  try {
+    await ElMessageBox.confirm('尚有未保存修改，确定关闭？', '未保存修改', {
+      type: 'warning',
+    });
+    done();
+  } catch {
+    // Keep the editor open.
+  }
 }
 
 function insertSelectedChannelMacros() {
@@ -349,8 +479,20 @@ async function save() {
   }
   saving.value = true;
   try {
-    await saveCatalog(props.kind, { ...form } as never);
+    const payload = { ...form };
+    if (props.kind === 'monitor') {
+      payload.eventBindings = (form.eventBindings || []).map(
+        (binding: MonitorEventBinding) => ({
+          assessmentUnitPrice: binding.assessmentUnitPrice,
+          dailyLimit: binding.dailyLimit,
+          eventMappingId: binding.eventMappingId,
+        }),
+      );
+      if (!validateEventBindings()) return;
+    }
+    await saveCatalog(props.kind, payload as never);
     ElMessage.success('保存成功');
+    editorSnapshot.value = JSON.stringify(form);
     dialog.value = false;
     await Promise.all([load(), loadDependencies()]);
   } finally {
@@ -602,9 +744,10 @@ onMounted(async () => {
 
     <el-dialog
       v-model="dialog"
+      :before-close="beforeEditorClose"
       :close-on-click-modal="false"
       :title="form.id ? `编辑${config.title}` : config.add"
-      width="640px"
+      :width="kind === 'monitor' ? '1080px' : '640px'"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="118px">
         <template v-if="kind === 'channel'">
@@ -813,7 +956,11 @@ onMounted(async () => {
 
         <template v-else-if="kind === 'monitor'">
           <el-form-item label="所属渠道" prop="channelId">
-            <el-select v-model="form.channelId" filterable>
+            <el-select
+              v-model="form.channelId"
+              filterable
+              @change="changeMonitorChannel"
+            >
               <el-option
                 v-for="item in channels"
                 :key="item.id"
@@ -848,8 +995,109 @@ onMounted(async () => {
           <el-form-item label="业务ID">
             <el-input v-model="form.bizId" />
           </el-form-item>
-          <el-form-item label="单价" prop="unitPrice">
+          <el-form-item label="点击单价（CPC）" prop="unitPrice">
             <el-input-number v-model="form.unitPrice" :min="0" :precision="6" />
+            <span class="field-hint"
+              >仅用于现有点击计费；转化事件按下方 CPA 考核单价扣费。</span
+            >
+          </el-form-item>
+          <el-form-item label="事件绑定">
+            <div v-loading="eventOptionsLoading" class="event-bindings">
+              <div class="event-bindings__header" aria-hidden="true">
+                <span>上游事件</span>
+                <span>系统转化事件</span>
+                <span>媒体/渠道事件</span>
+                <span>考核单价（CPA）</span>
+                <span>日限量</span>
+                <span>操作</span>
+              </div>
+              <div
+                v-for="(binding, index) in form.eventBindings"
+                :key="binding.id || index"
+                class="event-bindings__row"
+              >
+                <div class="event-bindings__select">
+                  <el-select
+                    v-model="binding.eventMappingId"
+                    :aria-label="`第 ${index + 1} 行上游事件`"
+                    filterable
+                    placeholder="选择上游事件"
+                    @change="clearEventBindingError(index)"
+                  >
+                    <el-option
+                      v-for="option in eventOptions"
+                      :key="option.eventMappingId"
+                      :disabled="
+                        eventOptionDisabled(option.eventMappingId, index)
+                      "
+                      :label="option.bindingDisplayName"
+                      :value="option.eventMappingId"
+                    />
+                  </el-select>
+                  <span
+                    v-if="eventBindingErrors[index]"
+                    class="event-bindings__error"
+                    role="alert"
+                  >
+                    {{ eventBindingErrors[index] }}
+                  </span>
+                </div>
+                <el-input
+                  :model-value="
+                    eventOption(binding.eventMappingId)?.conversionEventName ||
+                    '—'
+                  "
+                  aria-label="自动匹配的系统转化事件"
+                  readonly
+                />
+                <el-input
+                  :model-value="
+                    eventOption(binding.eventMappingId)?.mediaEventName || '—'
+                  "
+                  aria-label="自动匹配的媒体渠道事件"
+                  readonly
+                />
+                <el-input-number
+                  v-model="binding.assessmentUnitPrice"
+                  :aria-label="`第 ${index + 1} 行考核单价`"
+                  :min="0"
+                  :precision="6"
+                  controls-position="right"
+                />
+                <el-input-number
+                  v-model="binding.dailyLimit"
+                  :aria-label="`第 ${index + 1} 行日限量`"
+                  :min="0"
+                  :precision="0"
+                  controls-position="right"
+                />
+                <el-button
+                  :aria-label="`删除第 ${index + 1} 条事件绑定`"
+                  link
+                  type="danger"
+                  @click="removeEventBinding(index)"
+                >
+                  删除
+                </el-button>
+              </div>
+              <el-empty
+                v-if="!form.eventBindings?.length"
+                :image-size="48"
+                description="暂未绑定事件；新链接默认不添加事件"
+              />
+              <el-button
+                :disabled="!form.channelId"
+                plain
+                type="primary"
+                @click="addEventBinding"
+              >
+                + 增加事件映射
+              </el-button>
+              <p class="field-hint">
+                0 元表示免费事件；0
+                次表示不限量。保存后进入草稿，重新发布才影响新流量。
+              </p>
+            </div>
           </el-form-item>
           <el-form-item label="备注">
             <el-input v-model="form.remark" :rows="3" type="textarea" />
@@ -880,7 +1128,8 @@ onMounted(async () => {
               :step="60"
             />
             <span class="field-hint">
-              按监测路由和设备指纹验重，单位秒；0 仅关闭设备窗口，事件 ID 幂等始终生效。
+              按监测路由和设备指纹验重，单位秒；0 仅关闭设备窗口，事件 ID
+              幂等始终生效。
             </span>
           </el-form-item>
           <el-form-item label="RTA模式" prop="rtaMode">
@@ -931,7 +1180,9 @@ onMounted(async () => {
         </template>
       </el-form>
       <template #footer>
-        <el-button @click="dialog = false">取消</el-button>
+        <el-button @click="beforeEditorClose(() => (dialog = false))"
+          >取消</el-button
+        >
         <el-button type="primary" :loading="saving" @click="save">
           确认
         </el-button>
@@ -963,13 +1214,13 @@ onMounted(async () => {
     <el-dialog
       v-model="ledgerDialog"
       :title="`${ledgerTarget?.advertiserName || ''} · 账务流水`"
-      width="980px"
+      width="1280px"
     >
       <el-alert
         :closable="false"
         class="ledger-alert"
         show-icon
-        title="充值与 CPC 点击扣费均按业务事件幂等入账；REJECTED 表示余额不足且未扣款。"
+        title="充值、CPC 点击和 CPA 转化均按业务事件幂等入账；REJECTED 表示余额不足且未扣款。"
         type="info"
       />
       <el-table
@@ -981,6 +1232,24 @@ onMounted(async () => {
         <el-table-column label="时间" min-width="170" prop="createTime" />
         <el-table-column label="类型" min-width="110" prop="mode" />
         <el-table-column label="状态" min-width="100" prop="status" />
+        <el-table-column
+          label="源事件码"
+          min-width="150"
+          prop="sourceEventCode"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          label="系统事件码"
+          min-width="150"
+          prop="conversionEventCode"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          label="媒体事件码"
+          min-width="150"
+          prop="mediaEventCode"
+          show-overflow-tooltip
+        />
         <el-table-column label="金额" min-width="120">
           <template #default="{ row }">
             {{ row.amount == null ? '—' : `¥${Number(row.amount).toFixed(6)}` }}
@@ -1035,7 +1304,10 @@ onMounted(async () => {
             </el-descriptions-item>
             <el-descriptions-item label="Feedback URL">
               <div class="integration-copy-row">
-                <code>{{ integration.feedbackMethod }} {{ integration.feedbackUrl }}</code>
+                <code
+                  >{{ integration.feedbackMethod }}
+                  {{ integration.feedbackUrl }}</code
+                >
                 <el-button
                   link
                   type="primary"
@@ -1228,6 +1500,48 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
+.event-bindings {
+  width: 100%;
+}
+
+.event-bindings__header,
+.event-bindings__row {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(130px, 1fr)
+    150px 130px 56px;
+  gap: 10px;
+  align-items: center;
+}
+
+.event-bindings__header {
+  padding: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.event-bindings__row {
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.event-bindings__select {
+  min-width: 0;
+}
+
+.event-bindings__error {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--el-color-danger);
+}
+
+.event-bindings :deep(.el-input-number),
+.event-bindings :deep(.el-select) {
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .adx-page {
     padding: 12px;
@@ -1248,6 +1562,16 @@ onMounted(async () => {
 
   .macro-picker {
     flex-direction: column;
+  }
+
+  .event-bindings__header {
+    display: none;
+  }
+
+  .event-bindings__row {
+    grid-template-columns: 1fr;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
   }
 }
 </style>

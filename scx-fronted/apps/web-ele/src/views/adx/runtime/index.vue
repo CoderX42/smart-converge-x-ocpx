@@ -287,6 +287,35 @@ onMounted(load);
         />
         <el-table-column prop="direction" label="方向" min-width="190" />
         <el-table-column prop="eventType" label="类型" width="130" />
+        <el-table-column
+          prop="sourceEventCode"
+          label="源事件码"
+          min-width="140"
+        />
+        <el-table-column
+          prop="conversionEventCode"
+          label="系统事件码"
+          min-width="140"
+        />
+        <el-table-column
+          prop="mediaEventCode"
+          label="媒体事件码"
+          min-width="140"
+        />
+        <el-table-column label="CPA 扣费" min-width="120">
+          <template #default="{ row }">
+            {{
+              row.cpaChargeAmount == null
+                ? '—'
+                : `¥${Number(row.cpaChargeAmount).toFixed(6)}`
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="dailyLimitResult"
+          label="限量结果"
+          min-width="130"
+        />
         <el-table-column prop="channelName" label="渠道" min-width="130" />
         <el-table-column prop="advertiserName" label="广告主" min-width="130" />
         <el-table-column prop="monitorName" label="监测链接" min-width="150" />

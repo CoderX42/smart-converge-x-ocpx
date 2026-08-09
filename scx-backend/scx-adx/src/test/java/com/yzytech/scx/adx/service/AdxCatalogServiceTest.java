@@ -46,12 +46,14 @@ class AdxCatalogServiceTest {
 
 	private final AdxConfigChangeService configChangeService = mock(AdxConfigChangeService.class);
 
+	private final AdxEventService eventService = mock(AdxEventService.class);
+
 	private AdxCatalogService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new AdxCatalogService(channelMapper, advertiserMapper, appLinkMapper, monitorMapper, deductionMapper,
-				systemUserMapper, systemUserRoleMapper, accessScope, configChangeService);
+				systemUserMapper, systemUserRoleMapper, accessScope, configChangeService, eventService);
 	}
 
 	@Test

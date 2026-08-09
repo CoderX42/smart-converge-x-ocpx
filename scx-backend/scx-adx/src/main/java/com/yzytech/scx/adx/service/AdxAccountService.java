@@ -68,13 +68,16 @@ public class AdxAccountService {
 				Long.class, scopedAdvertiserId);
 		List<CatalogViews.AccountEntry> records = jdbcTemplate.query(
 				"""
-						SELECT id,advertiser_id,amount,currency,mode,status,reason,balance_before,balance_after,operator_id,remark,
-						       create_time
+						SELECT id,advertiser_id,charge_event_id,channel_id,app_link_id,monitor_id,source_event_code,
+						       conversion_event_code,media_event_code,amount,currency,mode,status,reason,balance_before,
+						       balance_after,operator_id,remark,create_time
 						FROM scx_ocpx_billing_entry WHERE advertiser_id=? ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?
 						""",
-				(rs, rowNum) -> new CatalogViews.AccountEntry(rs.getString(1), rs.getString(2), rs.getBigDecimal(3),
-						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getBigDecimal(8),
-						rs.getBigDecimal(9), rs.getString(10), rs.getString(11), timestamp(rs.getTimestamp(12))),
+				(rs, rowNum) -> new CatalogViews.AccountEntry(rs.getString(1), rs.getString(2), rs.getString(3),
+						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
+						rs.getString(9), rs.getBigDecimal(10), rs.getString(11), rs.getString(12), rs.getString(13),
+						rs.getString(14), rs.getBigDecimal(15), rs.getBigDecimal(16), rs.getString(17), rs.getString(18),
+						timestamp(rs.getTimestamp(19))),
 				scopedAdvertiserId, size, (current - 1) * size);
 		Page<CatalogViews.AccountEntry> result = new Page<>(current, size, total == null ? 0 : total);
 		result.setRecords(records);

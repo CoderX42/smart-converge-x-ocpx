@@ -68,15 +68,22 @@ export type Advertiser = CatalogRecord & {
 export type AccountEntry = {
   advertiserId: string;
   amount?: number;
+  appLinkId?: string;
   balanceAfter?: number;
   balanceBefore?: number;
+  channelId?: string;
+  chargeEventId: string;
+  conversionEventCode?: string;
   createTime: string;
   currency?: string;
   id: string;
+  mediaEventCode?: string;
   mode: string;
+  monitorId?: string;
   operatorId?: string;
   reason?: string;
   remark?: string;
+  sourceEventCode?: string;
   status: string;
 };
 
@@ -98,6 +105,8 @@ export type MonitorLink = CatalogRecord & {
   appLinkId: string;
   appLinkName?: string;
   billingMode: string;
+  bindingCount: number;
+  bindingSummary?: string;
   bizId?: string;
   channelId: string;
   channelName?: string;
@@ -106,6 +115,7 @@ export type MonitorLink = CatalogRecord & {
   configVersion: number;
   downstreamCallbackUrl?: string;
   effectiveUpstreamFeedbackUrl?: string;
+  eventBindings: MonitorEventBinding[];
   monitorName: string;
   publishedAt?: string;
   remark?: string;
@@ -115,6 +125,56 @@ export type MonitorLink = CatalogRecord & {
   unitPrice: number;
   upstreamFeedbackSource?: string;
   upstreamFeedbackUrl?: string;
+};
+
+export type EventDefinition = CatalogRecord & {
+  builtIn: boolean;
+  category: 'CONVERSION' | 'MEDIA' | 'UPSTREAM';
+  channelId?: string;
+  channelName?: string;
+  draftReferences: number;
+  eventCode: string;
+  eventName: string;
+  publishedReferences: number;
+  referenced: boolean;
+  remark?: string;
+  sortOrder: number;
+  status: 'ACTIVE' | 'DISABLED';
+};
+
+export type EventMapping = CatalogRecord & {
+  channelId: string;
+  channelName: string;
+  conversionEventCode: string;
+  conversionEventId: string;
+  conversionEventName: string;
+  draftReferences: number;
+  mediaEventCode: string;
+  mediaEventId: string;
+  mediaEventName: string;
+  publishedReferences: number;
+  remark?: string;
+  status: 'ACTIVE' | 'DISABLED';
+  upstreamEventCode: string;
+  upstreamEventId: string;
+  upstreamEventName: string;
+};
+
+export type EventOption = {
+  bindingDisplayName: string;
+  conversionEventCode: string;
+  conversionEventName: string;
+  eventMappingId: string;
+  mediaEventCode: string;
+  mediaEventName: string;
+  upstreamEventCode: string;
+  upstreamEventName: string;
+};
+
+export type MonitorEventBinding = EventOption & {
+  assessmentUnitPrice: number;
+  dailyLimit: number;
+  id?: string;
 };
 
 export type DeductionRule = CatalogRecord & {
@@ -216,15 +276,20 @@ export type RuntimeEvent = {
   amountRaw?: string;
   channelId: string;
   channelName?: string;
+  conversionEventCode?: string;
+  cpaChargeAmount?: number;
+  dailyLimitResult?: string;
   direction: string;
   eventId: string;
   eventType: string;
   id: string;
+  mediaEventCode?: string;
   monitorId: string;
   monitorName?: string;
   occurredAt: string;
   parentEventId?: string;
   receivedAt: string;
+  sourceEventCode?: string;
   status: string;
 };
 
@@ -350,6 +415,8 @@ export type DashboardSummary = {
 };
 
 export type DashboardAccountSummary = {
+  cpaRejectedCharges: number;
+  cpaSpend: number;
   cpcSpend: number;
   currency: string;
   generatedAt: string;
@@ -510,6 +577,50 @@ export function getAdapters() {
 
 export function getMonitorIntegration(id: string) {
   return requestClient.get<OcpxIntegration>(`/adx/monitors/${id}/integration`);
+}
+
+export function getMonitor(id: string) {
+  return requestClient.get<MonitorLink>(`/adx/monitors/${id}`);
+}
+
+export function getEventDefinitions(params: Query) {
+  return requestClient.get<PageResult<EventDefinition>>('/adx/events', {
+    params,
+  });
+}
+
+export function saveEventDefinition(data: Partial<EventDefinition>) {
+  const { id, ...payload } = data;
+  return id
+    ? requestClient.put(`/adx/events/${id}`, payload)
+    : requestClient.post('/adx/events', payload);
+}
+
+export function disableEventDefinition(id: string) {
+  return requestClient.delete<boolean>(`/adx/events/${id}`);
+}
+
+export function getEventMappings(params: Query) {
+  return requestClient.get<PageResult<EventMapping>>('/adx/event-mappings', {
+    params,
+  });
+}
+
+export function saveEventMapping(data: Partial<EventMapping>) {
+  const { id, ...payload } = data;
+  return id
+    ? requestClient.put(`/adx/event-mappings/${id}`, payload)
+    : requestClient.post('/adx/event-mappings', payload);
+}
+
+export function disableEventMapping(id: string) {
+  return requestClient.delete<boolean>(`/adx/event-mappings/${id}`);
+}
+
+export function getChannelEventOptions(channelId: string) {
+  return requestClient.get<EventOption[]>(
+    `/adx/channels/${channelId}/event-options`,
+  );
 }
 
 export function saveCatalog<K extends CatalogKind>(

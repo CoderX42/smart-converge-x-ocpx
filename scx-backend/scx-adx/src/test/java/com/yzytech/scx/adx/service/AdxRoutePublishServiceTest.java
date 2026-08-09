@@ -2,6 +2,7 @@ package com.yzytech.scx.adx.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,8 +31,10 @@ class AdxRoutePublishServiceTest {
 
 	private final AdxAdapterService adapterService = mock(AdxAdapterService.class);
 
+	private final AdxEventService eventService = mock(AdxEventService.class);
+
 	private final AdxRoutePublishService service = new AdxRoutePublishService(monitorMapper, channelMapper,
-			advertiserMapper, configChangeService, adapterService);
+			advertiserMapper, configChangeService, adapterService, eventService);
 
 	@Test
 	void rejectsRoutesWithoutHmac() {
@@ -176,7 +179,7 @@ class AdxRoutePublishServiceTest {
 			.thenReturn(downstream(fixture.channel().getAdapterCode()));
 		when(adapterService.requireEnabled(fixture.advertiser().getAdapterCode(), "UPSTREAM"))
 			.thenReturn(upstream(fixture.advertiser().getAdapterCode()));
-		when(monitorMapper.selectById("monitor-1")).thenReturn(fixture.monitor());
+		when(monitorMapper.selectOne(any())).thenReturn(fixture.monitor());
 		when(channelMapper.selectById("channel-1")).thenReturn(fixture.channel());
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(fixture.advertiser());
 	}

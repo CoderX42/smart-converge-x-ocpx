@@ -53,7 +53,8 @@ public final class DashboardViews {
 	}
 
 	public record AccountSummary(String currency, BigDecimal totalBalance, BigDecimal rechargeAmount,
-			BigDecimal cpcSpend, long rejectedCharges, LocalDateTime generatedAt) {
+			BigDecimal cpcSpend, BigDecimal cpaSpend, long rejectedCharges, long cpaRejectedCharges,
+			LocalDateTime generatedAt) {
 	}
 
 }

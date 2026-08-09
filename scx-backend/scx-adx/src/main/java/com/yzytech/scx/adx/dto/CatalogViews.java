@@ -29,8 +29,8 @@ public final class CatalogViews {
 			String showUrl, String clickUrl, String upstreamFeedbackUrl, String effectiveUpstreamFeedbackUrl,
 			String upstreamFeedbackSource, String downstreamCallbackUrl, Integer clickDedupWindowSeconds,
 			String routeStatus, Long configVersion, String rtaMode, String billingMode, LocalDateTime publishedAt,
-			LocalDateTime createTime,
-			LocalDateTime updateTime) {
+			LocalDateTime createTime, LocalDateTime updateTime, List<EventViews.Binding> eventBindings, long bindingCount,
+			String bindingSummary) {
 	}
 
 	public record Deduction(String id, String channelId, String channelName, String appLinkId, String appLinkName,
@@ -51,9 +51,10 @@ public final class CatalogViews {
 	public record AccountMutation(String advertiserId, String ledgerId, BigDecimal balance, boolean duplicate) {
 	}
 
-	public record AccountEntry(String id, String advertiserId, BigDecimal amount, String currency, String mode,
-			String status, String reason, BigDecimal balanceBefore, BigDecimal balanceAfter, String operatorId,
-			String remark, LocalDateTime createTime) {
+	public record AccountEntry(String id, String advertiserId, String chargeEventId, String channelId, String appLinkId,
+			String monitorId, String sourceEventCode, String conversionEventCode, String mediaEventCode, BigDecimal amount,
+			String currency, String mode, String status, String reason, BigDecimal balanceBefore, BigDecimal balanceAfter,
+			String operatorId, String remark, LocalDateTime createTime) {
 	}
 
 }

@@ -9,8 +9,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public final class CatalogRequests {
 
@@ -49,7 +51,15 @@ public final class CatalogRequests {
 			@Size(max = 5000) String upstreamFeedbackUrl, @Size(max = 1500) String downstreamCallbackUrl,
 			@Min(0) @Max(604800) Integer clickDedupWindowSeconds,
 			@NotBlank @Pattern(regexp = "OFF") String rtaMode,
-			@NotBlank @Pattern(regexp = "OFF|AUDIT_ONLY|CPC") String billingMode) {
+			@NotBlank @Pattern(regexp = "OFF|AUDIT_ONLY|CPC") String billingMode,
+			@Valid @Size(max = 100) List<EventRequests.MonitorBinding> eventBindings) {
+
+		public SaveMonitor(String channelId, String advertiserId, String appLinkId, String monitorName, String bizId,
+				BigDecimal unitPrice, String remark, String upstreamFeedbackUrl, String downstreamCallbackUrl,
+				Integer clickDedupWindowSeconds, String rtaMode, String billingMode) {
+			this(channelId, advertiserId, appLinkId, monitorName, bizId, unitPrice, remark, upstreamFeedbackUrl,
+					downstreamCallbackUrl, clickDedupWindowSeconds, rtaMode, billingMode, List.of());
+		}
 	}
 
 	public record SaveDeduction(@NotBlank String channelId, @NotBlank String appLinkId,

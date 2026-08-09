@@ -176,6 +176,12 @@ public class AdxCatalogController {
 		return Result.success(service.monitors(page, channelId, advertiserId, keyword));
 	}
 
+	@GetMapping("/monitors/{id}")
+	@SaCheckPermission("adx:monitor:read")
+	public Result<CatalogViews.Monitor> monitor(@PathVariable String id) {
+		return call(() -> service.monitor(id));
+	}
+
 	@PostMapping("/monitors")
 	@SaCheckPermission("adx:monitor:write")
 	public Result<CatalogViews.Monitor> createMonitor(@Valid @RequestBody CatalogRequests.SaveMonitor request) {

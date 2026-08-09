@@ -140,12 +140,18 @@
       ) AS totalBalance,
       COALESCE(SUM(CASE WHEN b.mode='RECHARGE' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS rechargeAmount,
       COALESCE(SUM(CASE WHEN b.mode='CPC' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS cpcSpend,
-      SUM(b.mode='CPC' AND b.status='REJECTED') AS rejectedCharges
+      COALESCE(SUM(CASE WHEN b.mode='CPA' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS cpaSpend,
+      SUM(b.mode='CPC' AND b.status='REJECTED') AS rejectedCharges,
+      SUM(b.mode='CPA' AND b.status='REJECTED') AS cpaRejectedCharges
     FROM scx_ocpx_billing_entry b
     WHERE b.create_time &gt;= #{start} AND b.create_time &lt; #{end}
     AND b.debug_execution_id IS NULL
     <if test="advertiserId != null and advertiserId != ''">AND b.advertiser_id = #{advertiserId}</if>
-    AND (b.mode='RECHARGE' OR EXISTS (
+    AND (b.mode='RECHARGE' OR (b.mode='CPA' AND b.status='REJECTED'
+      <if test="channelId != null and channelId != ''">AND b.channel_id = #{channelId}</if>
+      <if test="appLinkId != null and appLinkId != ''">AND b.app_link_id = #{appLinkId}</if>
+      <if test="monitorId != null and monitorId != ''">AND b.monitor_id = #{monitorId}</if>
+    ) OR EXISTS (
       SELECT 1 FROM scx_ocpx_event e WHERE e.event_id=b.charge_event_id AND e.is_debug=0
       <if test="channelId != null and channelId != ''">AND e.channel_id = #{channelId}</if>
       <if test="appLinkId != null and appLinkId != ''">AND e.app_link_id = #{appLinkId}</if>

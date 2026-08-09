@@ -8,31 +8,33 @@
 
 1. 仓库根目录 `AGENTS.md`。
 2. [ADX 重构实现说明](ADX重构实现说明.md)。
-3. [MVP 开发规划（历史执行基线）](MVP开发规划.md)。
-4. [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md)。
-5. 阅读 [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) 了解 V70-V74 的当前代码事实。
-6. 需要对照旧 `sgyz-ocpx` 时阅读 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md)。
-7. 涉及充值或 CPC 时阅读 [OCPX 点击计费与充值账务说明](OCPX点击计费与充值账务说明.md)。
-8. 需要追溯 V70 前沙箱时再读 [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
-9. 使用 Claude Code 多 Agent 实施时阅读
+3. 实现对应业务模块前阅读 [OCPX 参考系统到 SCX 的模块化实现规格](ocpx-aerim-模块实现规格/README.md)；该包只使用 2026-08-09 当前浏览器会话证据，并受当前 ADX 基线、Accepted ADR 与正式契约约束。
+4. [MVP 开发规划（历史执行基线）](MVP开发规划.md)。
+5. [OCPX 智能投放技术开发设计](OCPX智能投放技术开发设计.md)。
+6. 阅读 [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) 了解 V70-V74 的当前代码事实。
+7. 需要对照旧 `sgyz-ocpx` 时阅读 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md)。
+8. 涉及充值或 CPC 时阅读 [OCPX 点击计费与充值账务说明](OCPX点击计费与充值账务说明.md)。
+9. 需要追溯 V70 前沙箱时再读 [SCX OCPX 平台使用与功能验收手册](SCX-OCPX平台使用与功能验收手册.md)。
+10. 使用 Claude Code 多 Agent 实施时阅读
    [Claude Code 多 Agent 最小任务实施手册](Claude-Code多Agent最小任务实施手册.md)。
-10. 使用 Codex 实施时阅读 [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md)。
-11. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
-12. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
-13. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
-14. 面向下游渠道交付时使用[OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md)。
-15. 新增 Coco 类上游时阅读[OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md)。
-16. 平台内部联调与故障排查时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
-17. Coco 联调时阅读 [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md)。
-18. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
+11. 使用 Codex 实施时阅读 [Codex OCPX 总 Task 清单](Codex-OCPX-总Task清单.md)。
+12. [2026-07-15 功能审计报告](2026-07-15-ocpx-aerim-功能审计报告.md)。
+13. [OCPX 对标待补齐与目标模式 ToDo](2026-07-20-ocpx对标待补齐与目标模式TODO.md)。
+14. 需要追溯早期观察时再读[竞品调研](竞品调研-ocpx.aerim.cn.md)。
+15. 面向下游渠道交付时使用[OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md)。
+16. 新增 Coco 类上游时阅读[OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md)。
+17. 平台内部联调与故障排查时阅读[通用渠道 OCPX 接入指南](通用渠道OCPX接入指南.md)。
+18. Coco 联调时阅读 [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md)。
+19. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
-当前工作树中不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页、数据字典和已接受 ADR。MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则。
+当前工作树中仍不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页和数据字典；`adr/` 已包含 Accepted ADR-001/002，MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则，也不得绕过 Accepted ADR。
 
 ## 2. 当前有效文档
 
 | 文档 | 用途 | 权威边界 |
 |---|---|---|
 | [ADX 重构实现说明](ADX重构实现说明.md) | 当前目标菜单、前后端契约、表结构与旧域退役门禁 | 当前实现基线；优先于历史 OCPX 扩展规划 |
+| [OCPX 参考系统到 SCX 的模块化实现规格](ocpx-aerim-模块实现规格/README.md) | 总体数据联通、分模块全栈规格、页面证据与实施验收矩阵 | 现场观察 + SCX Draft/Review 实现规格；不证明参考系统后端，不覆盖 ADX 基线、Accepted ADR 或当前契约 |
 | [OCPX 双向转发引擎实现说明](OCPX双向转发引擎实现说明.md) | 独立 scx-ocpx-engine、双向通用适配器、可靠队列、CPC 和验收边界 | V70-V74 源码实现；目标环境迁移、真实外发、容量与 UAT 未执行 |
 | [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md) | Coco 宏、成功码、callback、FIRST_ORDER、Mock 与运行中心核验 | V74 源码契约；真实 Coco UAT 前仍为 No-Go |
 | [OCPX 点击计费与充值账务说明](OCPX点击计费与充值账务说明.md) | 充值幂等、CLICK 扣费、余额不足、流水和生产门禁 | 源码契约；目标库迁移、真实余额与流量对账未执行 |

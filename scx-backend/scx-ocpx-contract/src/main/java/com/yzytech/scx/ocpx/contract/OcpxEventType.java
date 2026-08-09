@@ -20,6 +20,8 @@ public enum OcpxEventType {
 
 	NEXT_DAY_RETENTION,
 
+	RETENTION_D2,
+
 	RETENTION_D3,
 
 	RETENTION_D4,
@@ -48,7 +50,40 @@ public enum OcpxEventType {
 
 	FIRST_REACTIVATION,
 
-	COMPLETE_ORDER;
+	COMPLETE_ORDER,
+
+	VIDEO_COMPLETE_90S,
+
+	KEY_ACTION,
+
+	FORM_SUBMIT,
+
+	KEY_PAGE_VIEW,
+
+	RECALL,
+
+	UNKNOWN;
+
+	public static OcpxEventType fromConversionCode(String value) {
+		if (value == null || value.isBlank()) {
+			return UNKNOWN;
+		}
+		try {
+			return valueOf(value.trim().toUpperCase(Locale.ROOT));
+		}
+		catch (IllegalArgumentException ignored) {
+			return UNKNOWN;
+		}
+	}
+
+	public static OcpxEventType fromExternalOrUnknown(String value) {
+		try {
+			return fromExternal(value);
+		}
+		catch (IllegalArgumentException ignored) {
+			return UNKNOWN;
+		}
+	}
 
 	public static OcpxEventType fromExternal(String value) {
 		if (value == null || value.isBlank()) {

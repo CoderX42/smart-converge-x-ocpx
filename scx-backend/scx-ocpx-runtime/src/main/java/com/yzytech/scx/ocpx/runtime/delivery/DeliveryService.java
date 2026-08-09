@@ -127,7 +127,7 @@ public class DeliveryService {
 	private Mono<Boolean> deliverDownstream(DeliveryContext context) {
 		DownstreamAdapter adapter = adapterRegistry.requireDownstream(context.job().adapterCode());
 		CallbackReqV1 callback = new CallbackReqV1("1.0", context.callback().eventId(),
-				context.callback().sourceEventId(), context.callback().eventType().name(),
+				context.callback().sourceEventId(), context.callback().mediaEventCode(),
 				context.callback().actionTime(), context.callback().amount(), context.callback().amountRaw(),
 				context.feedback().getClickid(), context.route().routeId(), context.route().channelId(),
 				Map.of("callback_ref", context.job().callbackRef()));

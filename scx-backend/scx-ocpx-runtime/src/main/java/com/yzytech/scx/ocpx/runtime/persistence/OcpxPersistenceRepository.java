@@ -26,6 +26,7 @@ import org.slf4j.MDC;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -282,24 +283,113 @@ public class OcpxPersistenceRepository {
 	}
 
 	@Transactional
-	public boolean persistCallback(NormalizedCallbackEvent callback, CallbackContext context, boolean forwarded,
+	public CallbackPersistenceResult persistCallback(NormalizedCallbackEvent callback, CallbackContext context, boolean forwarded,
 			String decisionReason) {
+		RouteSnapshot route = context.route();
+		if (callbackExists(callback.eventId())) {
+			return new CallbackPersistenceResult("DUPLICATE");
+		}
+		if (forwarded) {
+			if (route.eventSnapshotVersion() == 0 || context.debugExecutionId() != null) {
+				String limitResult = context.debugExecutionId() == null ? "NOT_APPLICABLE" : "DEBUG_BYPASS";
+				if (!insertCallbackEvent(callback, context, "PERSISTED", BigDecimal.ZERO, limitResult)) {
+					return new CallbackPersistenceResult("DUPLICATE");
+				}
+				insertDeductionDecision(callback, context, true, decisionReason);
+				createDownstreamJob(callback, context);
+			}
+			else {
+				LocalDate businessDate = LocalDate.now(REPORT_ZONE);
+				jdbcTemplate.update("""
+					INSERT INTO scx_ocpx_event_daily_quota
+					(monitor_id,upstream_event_code,business_date,queued_count,create_time,update_time)
+					VALUES (?,?,?,0,NOW(3),NOW(3))
+					ON DUPLICATE KEY UPDATE queued_count=queued_count
+					""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+				Integer queued = jdbcTemplate.queryForObject("""
+					SELECT queued_count FROM scx_ocpx_event_daily_quota
+					WHERE monitor_id=? AND upstream_event_code=? AND business_date=? FOR UPDATE
+					""", Integer.class, route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+				if (callbackExists(callback.eventId())) {
+					return new CallbackPersistenceResult("DUPLICATE");
+				}
+				if (callback.dailyLimit() > 0 && queued != null && queued >= callback.dailyLimit()) {
+					return new CallbackPersistenceResult("LIMIT_EXCEEDED");
+				}
+				BillingPort.BillingResult billing = billingPort.charge(callback.eventId(), route.advertiserId(),
+						callback.assessmentUnitPrice(), "CNY", "CPA");
+				annotateCpaBilling(callback, route);
+				if (!billing.permitsDelivery()) {
+					return new CallbackPersistenceResult("INSUFFICIENT_BALANCE");
+				}
+				if (!insertCallbackEvent(callback, context, "PERSISTED", callback.assessmentUnitPrice(), "ACCEPTED")) {
+					return new CallbackPersistenceResult("DUPLICATE");
+				}
+				insertDeductionDecision(callback, context, true, decisionReason);
+				jdbcTemplate.update("""
+					UPDATE scx_ocpx_event_daily_quota SET queued_count=queued_count+1,update_time=NOW(3)
+					WHERE monitor_id=? AND upstream_event_code=? AND business_date=?
+					""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+				if (!createDownstreamJob(callback, context)) {
+					throw new IllegalStateException("published callback route has no downstream delivery target");
+				}
+			}
+		}
+		else {
+			if (!insertCallbackEvent(callback, context, "DEDUCTED", BigDecimal.ZERO, "SKIPPED_DEDUCTION")) {
+				return new CallbackPersistenceResult("DUPLICATE");
+			}
+			insertDeductionDecision(callback, context, false, decisionReason);
+		}
+		if (context.debugExecutionId() == null) {
+			upsertCallbackMetric(callback, route, forwarded);
+		}
+		boolean waitingForDelivery = forwarded && StringUtils.hasText(route.downstreamCallbackUrl());
+		completeDebug(context.debugExecutionId(), waitingForDelivery ? "WAITING_ASYNC" : "SUCCEEDED",
+				"CALLBACK_PERSISTED", forwarded ? "回调事实与媒体任务已创建" : "扣量事实已保存，未计费且未创建媒体任务");
+		return new CallbackPersistenceResult("ACCEPTED");
+	}
+
+	private boolean callbackExists(String eventId) {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM scx_ocpx_event WHERE source_direction='UPSTREAM_CALLBACK' AND event_id=?
+				""", Long.class, eventId);
+		return count != null && count > 0;
+	}
+
+	private boolean insertCallbackEvent(NormalizedCallbackEvent callback, CallbackContext context, String status,
+			BigDecimal cpaCharge, String dailyLimitResult) {
 		RouteSnapshot route = context.route();
 		int inserted = jdbcTemplate.update("""
 				INSERT IGNORE INTO scx_ocpx_event
-				(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
+				(id,event_id,parent_event_id,source_direction,event_type,source_event_code,conversion_event_code,media_event_code,
+				 channel_id,advertiser_id,app_link_id,
 				 monitor_id,route_version,occurred_at,received_at,payload_hash,status,callback_ref,amount,amount_raw,
-				 debug_execution_id,is_debug)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				 cpa_charge_amount,daily_limit_result,debug_execution_id,is_debug)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				""", id(), callback.eventId(), context.feedbackEventId(), "UPSTREAM_CALLBACK",
-				callback.eventType().name(), route.channelId(), route.advertiserId(), route.appLinkId(),
+				callback.eventType().name(), callback.sourceEventCode(), callback.conversionEventCode(),
+				callback.mediaEventCode(), route.channelId(), route.advertiserId(), route.appLinkId(),
 				route.routeId(), route.routeVersion(), Timestamp.from(callback.actionTime().toInstant()),
-				Timestamp.from(OffsetDateTime.now().toInstant()), callback.eventId(), "PERSISTED",
-				context.callbackRef(), callback.amount(), callback.amountRaw(), context.debugExecutionId(),
+				Timestamp.from(OffsetDateTime.now().toInstant()), callback.eventId(), status,
+				context.callbackRef(), callback.amount(), callback.amountRaw(), cpaCharge, dailyLimitResult,
+				context.debugExecutionId(),
 				context.debugExecutionId() == null ? 0 : 1);
-		if (inserted == 0) {
-			return false;
-		}
+		return inserted == 1;
+	}
+
+	private void annotateCpaBilling(NormalizedCallbackEvent callback, RouteSnapshot route) {
+		jdbcTemplate.update("""
+				UPDATE scx_ocpx_billing_entry
+				SET channel_id=?,app_link_id=?,monitor_id=?,source_event_code=?,conversion_event_code=?,media_event_code=?
+				WHERE charge_event_id=? AND advertiser_id=? AND mode='CPA'
+				""", route.channelId(), route.appLinkId(), route.routeId(), callback.sourceEventCode(),
+				callback.conversionEventCode(), callback.mediaEventCode(), callback.eventId(), route.advertiserId());
+	}
+
+	private void insertDeductionDecision(NormalizedCallbackEvent callback, CallbackContext context, boolean forwarded,
+			String decisionReason) {
+		RouteSnapshot route = context.route();
 		jdbcTemplate.update(
 				"""
 						INSERT IGNORE INTO scx_ocpx_deduction_decision
@@ -308,29 +398,31 @@ public class OcpxPersistenceRepository {
 						""",
 				id(), callback.eventId(), context.debugExecutionId(), route.routeId(), callback.eventType().name(),
 				route.routeVersion(), route.deductionRatio(), forwarded, decisionReason);
-		if (forwarded && route.downstreamCallbackUrl() != null && !route.downstreamCallbackUrl().isBlank()) {
-			jdbcTemplate.update("""
+	}
+
+	private boolean createDownstreamJob(NormalizedCallbackEvent callback, CallbackContext context) {
+		RouteSnapshot route = context.route();
+		if (route.downstreamCallbackUrl() == null || route.downstreamCallbackUrl().isBlank()) {
+			return false;
+		}
+		jdbcTemplate.update("""
 					UPDATE scx_ocpx_protocol_snapshot
 					SET expires_at=GREATEST(expires_at,DATE_ADD(NOW(3),INTERVAL 1 DAY))
 					WHERE feedback_event_id=?
 					""", context.feedbackEventId());
-			jdbcTemplate.update(
+		int inserted = jdbcTemplate.update(
 					"""
-							INSERT IGNORE INTO scx_ocpx_delivery_job
+							INSERT INTO scx_ocpx_delivery_job
 							(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,debug_execution_id,
 							 create_time,update_time)
 							VALUES (?,?,?,'CALLBACK_DOWNSTREAM',?,'PENDING',0,NOW(3),?,?,NOW(3),NOW(3))
 							""",
 					id(), callback.eventId(), context.feedbackEventId(), route.channelAdapterCode(),
 					context.callbackRef(), context.debugExecutionId());
-		}
-		if (context.debugExecutionId() == null) {
-			upsertCallbackMetric(callback, route, forwarded);
-		}
-		completeDebug(context.debugExecutionId(),
-				forwarded && StringUtils.hasText(route.downstreamCallbackUrl()) ? "WAITING_ASYNC" : "SUCCEEDED",
-				"CALLBACK_PERSISTED", "回调事实与扣量决策已完成");
-		return true;
+		return inserted == 1;
+	}
+
+	public record CallbackPersistenceResult(String status) {
 	}
 
 	@Transactional
@@ -359,7 +451,8 @@ public class OcpxPersistenceRepository {
 	public DeliveryContext loadDeliveryContext(DeliveryJob job) {
 		try {
 			return jdbcTemplate.queryForObject("""
-					SELECT s.feedback_ciphertext,s.route_ciphertext,e.event_type,e.occurred_at,e.amount,e.amount_raw
+					SELECT s.feedback_ciphertext,s.route_ciphertext,e.event_type,e.occurred_at,e.amount,e.amount_raw,
+					 e.source_event_code,e.conversion_event_code,e.media_event_code,e.cpa_charge_amount
 					FROM scx_ocpx_protocol_snapshot s
 					LEFT JOIN scx_ocpx_event e ON e.event_id=?
 					WHERE s.feedback_event_id=?
@@ -371,7 +464,8 @@ public class OcpxPersistenceRepository {
 					callback = new NormalizedCallbackEvent(job.eventId(), job.sourceEventId(), job.callbackRef(),
 							OcpxEventType.valueOf(rs.getString(3)),
 							rs.getTimestamp(4).toInstant().atOffset(java.time.ZoneOffset.UTC), rs.getBigDecimal(5),
-							rs.getString(6));
+							rs.getString(6), rs.getString(7), rs.getString(7), rs.getString(8), rs.getString(9),
+							rs.getBigDecimal(10), 0);
 				}
 				return new DeliveryContext(job, route, feedback, callback);
 			}, job.eventId(), job.sourceEventId());
@@ -549,6 +643,18 @@ public class OcpxPersistenceRepository {
 		String eventColumn = metricColumn(callback.eventType());
 		LogDataProjection projection = new LogDataProjection(hour, route.channelId(), route.advertiserId(),
 				route.appLinkId(), route.routeId(), 0, 0, 1, 0, forwarded ? 0 : 1, 0, BigDecimal.ZERO, BigDecimal.ZERO);
+		if (eventColumn == null) {
+			jdbcTemplate.update("""
+					INSERT INTO scx_adx_hourly_report
+					(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,raw_conversion_count,deducted_conversion_count)
+					VALUES (?,?,?,?,?,?,?,?)
+					ON DUPLICATE KEY UPDATE raw_conversion_count=raw_conversion_count+VALUES(raw_conversion_count),
+					 deducted_conversion_count=deducted_conversion_count+VALUES(deducted_conversion_count)
+					""", id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
+					projection.appLinkId(), projection.monitorId(), projection.rawConversions(),
+					projection.deductedConversions());
+			return;
+		}
 		String sql = """
 				INSERT INTO scx_adx_hourly_report
 				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,%s,raw_conversion_count,deducted_conversion_count)
@@ -583,6 +689,7 @@ public class OcpxPersistenceRepository {
 			case ORDER -> "order_count";
 			case FIRST_ORDER -> "first_order_count";
 			case COMPLETE_ORDER -> "finish_order_count";
+			case RETENTION_D2, VIDEO_COMPLETE_90S, KEY_ACTION, FORM_SUBMIT, KEY_PAGE_VIEW, RECALL, UNKNOWN -> null;
 			case SHOW, CLICK -> throw new IllegalArgumentException("feedback event cannot be aggregated as callback");
 		};
 	}

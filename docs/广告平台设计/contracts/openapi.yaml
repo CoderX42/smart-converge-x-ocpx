@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX 双向转发 API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     scx-ocpx-engine 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco 或通用宏模板
     upstream callback 由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
-    RTA、实时扣费和历史 /open-api/events/v1 接口不属于当前运行契约。
+    回调事件按点击时冻结的路由事件快照归一化，并在媒体任务创建时执行 CPA 扣费和严格日限量。
+    RTA 和历史 /open-api/events/v1 接口不属于当前运行契约。
 servers:
   - url: https://{domain}/ocpx
     description: 下游联调或生产环境；真实域名由 SCX 单独提供
@@ -119,7 +120,7 @@ paths:
         - name: currency_amount
           in: query
           required: false
-          description: Coco purchase 金额事实；不参与 CPC 点击扣费
+          description: Coco purchase 金额事实；不直接决定 CPC 或 CPA 扣费，CPA 使用发布快照中的考核单价
           schema: { type: string, maxLength: 64 }
       responses:
         '200':
@@ -135,6 +136,12 @@ paths:
           description: 适配器定义的参数或协议错误响应
         '401':
           description: 适配器定义的鉴权错误响应
+        '402':
+          description: 广告主余额不足；未写转化事实、未占限量，充值后可使用相同事件重试
+        '422':
+          description: 点击路由版本中没有该上游事件的有效映射
+        '429':
+          description: Asia/Shanghai 自然日限量已满；响应提示次日重试
         '404':
           description: upstreamCode 未注册；因不存在对应媒体协议，返回空 Body
         '410':

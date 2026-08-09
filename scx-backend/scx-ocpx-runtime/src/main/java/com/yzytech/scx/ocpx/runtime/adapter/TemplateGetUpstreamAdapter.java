@@ -200,7 +200,10 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter, AdapterDebug
 
 	private NormalizedCallbackEvent parseCallbackEvent(String callbackRef, Map<String, String> parameters) {
 		String eventValue = firstNonBlank(parameters.get("action_type"), parameters.get("event"));
-		OcpxEventType eventType = OcpxEventType.fromExternal(eventValue);
+		if (eventValue == null) {
+			throw new IllegalArgumentException("event is required");
+		}
+		OcpxEventType eventType = OcpxEventType.fromExternalOrUnknown(eventValue);
 		if (eventType == OcpxEventType.SHOW || eventType == OcpxEventType.CLICK) {
 			throw new IllegalArgumentException("upstream callback must be a conversion event");
 		}
@@ -223,7 +226,7 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter, AdapterDebug
 			identity = callbackRef + "|" + identityParameters;
 		}
 		return new NormalizedCallbackEvent(OcpxHashing.sha256(identity), null, callbackRef, eventType, actionTime,
-				amount, amountRaw);
+				amount, amountRaw).withSourceEventCode(eventValue.trim());
 	}
 
 	@Override

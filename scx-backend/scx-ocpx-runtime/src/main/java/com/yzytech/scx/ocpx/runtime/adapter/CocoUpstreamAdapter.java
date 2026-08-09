@@ -192,7 +192,11 @@ public class CocoUpstreamAdapter implements UpstreamAdapter, AdapterDebugSupport
 	}
 
 	private NormalizedCallbackEvent parseCallbackEvent(String callbackRef, Map<String, String> parameters) {
-		OcpxEventType eventType = OcpxEventType.fromExternal(parameters.get("action_type"));
+		String sourceEventCode = parameters.get("action_type");
+		if (sourceEventCode == null || sourceEventCode.isBlank()) {
+			throw new IllegalArgumentException("action_type is required");
+		}
+		OcpxEventType eventType = OcpxEventType.fromExternalOrUnknown(sourceEventCode);
 		String amountRaw = eventType == OcpxEventType.PAYMENT ? parameters.get("currency_amount") : null;
 		BigDecimal amount = null;
 		if (amountRaw != null && !amountRaw.isBlank()) {
@@ -207,7 +211,7 @@ public class CocoUpstreamAdapter implements UpstreamAdapter, AdapterDebugSupport
 				}
 			}
 			catch (NumberFormatException ignored) {
-				// Keep the raw value for audit; billing is disabled in the first release.
+				// Keep the raw conversion amount for audit; CPA uses the published binding price.
 			}
 		}
 		Map<String, String> identityParameters = new TreeMap<>(parameters);
@@ -218,7 +222,7 @@ public class CocoUpstreamAdapter implements UpstreamAdapter, AdapterDebugSupport
 		String eventId = externalEventId == null ? OcpxHashing.sha256(callbackRef + "|" + identityParameters)
 				: OcpxHashing.sha256(callbackRef + "|external|" + externalEventId);
 		return new NormalizedCallbackEvent(eventId, null, callbackRef, eventType, OffsetDateTime.now(), amount,
-				amountRaw);
+				amountRaw).withSourceEventCode(sourceEventCode.trim());
 	}
 
 	@Override

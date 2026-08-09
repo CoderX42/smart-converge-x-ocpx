@@ -30,10 +30,17 @@ class AdxRouteContractTest {
 		assertRoute(AdxCatalogController.class, "accountLedger", GetMapping.class, "/advertisers/{id}/ledger");
 		assertRoute(AdxCatalogController.class, "appLinks", GetMapping.class, "/app-links");
 		assertRoute(AdxCatalogController.class, "monitors", GetMapping.class, "/monitors");
+		assertRoute(AdxCatalogController.class, "monitor", GetMapping.class, "/monitors/{id}");
 		assertRoute(AdxCatalogController.class, "monitorIntegration", GetMapping.class, "/monitors/{id}/integration");
 		assertRoute(AdxCatalogController.class, "publishMonitor", PostMapping.class, "/monitors/{id}/publish");
 		assertRoute(AdxCatalogController.class, "deductions", GetMapping.class, "/deduction-rules");
 		assertRoute(AdxCatalogController.class, "reportOptions", GetMapping.class, "/report-options");
+
+		assertRoot(AdxEventController.class, "/adx");
+		assertRoute(AdxEventController.class, "events", GetMapping.class, "/events");
+		assertRoute(AdxEventController.class, "mappings", GetMapping.class, "/event-mappings");
+		assertRoute(AdxEventController.class, "options", GetMapping.class, "/channels/{channelId}/event-options");
+		assertPermission(AdxEventController.class, "options", "adx:monitor:read");
 
 		assertRoot(AdxReportController.class, "/adx");
 		assertRoute(AdxReportController.class, "dashboard", GetMapping.class, "/dashboard/summary");
@@ -68,7 +75,7 @@ class AdxRouteContractTest {
 
 	@Test
 	void protectsEveryPublicAdxEndpointWithAPermissionCode() {
-		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxReportController.class,
+		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxEventController.class, AdxReportController.class,
 				AdxRuntimeController.class, ApiDebugController.class)) {
 			for (Method method : controller.getDeclaredMethods()) {
 				if (hasHttpMapping(method)) {

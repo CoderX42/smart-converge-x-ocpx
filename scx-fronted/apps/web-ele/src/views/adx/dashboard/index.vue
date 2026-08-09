@@ -1082,9 +1082,19 @@ onBeforeUnmount(() => {
                     ><strong>{{ money(account.cpcSpend) }}</strong>
                   </div>
                   <div>
-                    <span>拒绝扣费</span
+                    <span>CPA 消耗</span
+                    ><strong>{{ money(account.cpaSpend) }}</strong>
+                  </div>
+                  <div>
+                    <span>CPC 拒绝</span
                     ><strong>{{
                       formatInteger(account.rejectedCharges)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>CPA 拒绝</span
+                    ><strong>{{
+                      formatInteger(account.cpaRejectedCharges)
                     }}</strong>
                   </div>
                 </div>

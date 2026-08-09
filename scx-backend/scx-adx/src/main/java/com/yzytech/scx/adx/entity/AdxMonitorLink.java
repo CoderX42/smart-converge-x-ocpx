@@ -47,6 +47,8 @@ public class AdxMonitorLink {
 
 	private Integer clickDedupWindowSeconds;
 
+	private Integer eventSnapshotVersion;
+
 	private LocalDateTime publishedAt;
 
 	@TableLogic

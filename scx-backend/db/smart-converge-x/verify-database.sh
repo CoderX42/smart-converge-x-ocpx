@@ -44,7 +44,7 @@ if [[ "$xxl_actual_count" -ne "${#SCX_XXL_JOB_TABLES[@]}" ]]; then
 fi
 
 unexpected_tables="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT GROUP_CONCAT(table_name ORDER BY table_name SEPARATOR ',') FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_type='BASE TABLE' AND table_name NOT IN (${allowed_table_list});")"
+  --execute="SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name SEPARATOR ','),'') FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_type='BASE TABLE' AND table_name NOT IN (${allowed_table_list});")"
 
 if [[ -n "$unexpected_tables" ]]; then
   echo "Database verification failed: unexpected tables: $unexpected_tables" >&2
@@ -60,33 +60,33 @@ if [[ "$admin_count" -ne 1 ]]; then
 fi
 
 system_menu_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' AND ((id='menu_ocpx_system' AND name='系统管理') OR (parent_id='menu_ocpx_system' AND id IN ('menu_system_user','menu_role','menu_menu','menu_dept','menu_dict','menu_storage','menu_log','menu_login_log')));")"
+  --execute="SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' AND ((id='menu_ocpx_system' AND name='系统管理') OR (parent_id='menu_ocpx_system' AND id IN ('menu_system_user','menu_role','menu_menu','menu_dept','menu_dict','menu_storage','menu_log','menu_login_log','menu_adx_event')));")"
 
-if [[ "$system_menu_count" -ne 9 ]]; then
+if [[ "$system_menu_count" -ne 10 ]]; then
   echo "Database verification failed: original system-management menu tree is incomplete." >&2
   exit 1
 fi
 
 admin_system_menu_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(DISTINCT m.id) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.id IN ('menu_ocpx_system','menu_system_user','menu_role','menu_menu','menu_dept','menu_dict','menu_storage','menu_log','menu_login_log');")"
+  --execute="SELECT COUNT(DISTINCT m.id) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.id IN ('menu_ocpx_system','menu_system_user','menu_role','menu_menu','menu_dept','menu_dict','menu_storage','menu_log','menu_login_log','menu_adx_event');")"
 
-if [[ "$admin_system_menu_count" -ne 9 ]]; then
+if [[ "$admin_system_menu_count" -ne 10 ]]; then
   echo "Database verification failed: administrator system-management menu grants are incomplete." >&2
   exit 1
 fi
 
 admin_system_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('system:sysuser:page','system:sysrole:page','system:sysmenu:page','system:sysdept:page','system:sysdict:page','system:storageconfig:page','system:syslog:page','system:sysloginlog:page');")"
+  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('system:sysuser:page','system:sysrole:page','system:sysmenu:page','system:sysdept:page','system:sysdict:page','system:storageconfig:page','system:syslog:page','system:sysloginlog:page','adx:event:read');")"
 
-if [[ "$admin_system_permission_count" -ne 8 ]]; then
+if [[ "$admin_system_permission_count" -ne 9 ]]; then
   echo "Database verification failed: administrator system-management RBAC permissions are incomplete." >&2
   exit 1
 fi
 
 ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url','click_dedup_window_seconds')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count','eligible_click_count','deduplicated_click_count','skipped_click_count','classified_click_count','first_activate_count','reactivation_count','retention_3d_count','retention_4d_count','retention_5d_count','retention_6d_count','retention_7d_count','create_time','update_time')) OR (table_name='scx_ocpx_event' AND column_name IN ('device_platform','device_id_type','device_key_version')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url','click_dedup_window_seconds','event_snapshot_version')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count','eligible_click_count','deduplicated_click_count','skipped_click_count','classified_click_count','first_activate_count','reactivation_count','retention_3d_count','retention_4d_count','retention_5d_count','retention_6d_count','retention_7d_count','create_time','update_time')) OR (table_name='scx_ocpx_event' AND column_name IN ('device_platform','device_id_type','device_key_version','source_event_code','conversion_event_code','media_event_code','cpa_charge_amount','daily_limit_result')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark','channel_id','app_link_id','monitor_id','source_event_code','conversion_event_code','media_event_code')));")"
 
-if [[ "$ocpx_column_count" -ne 44 ]]; then
+if [[ "$ocpx_column_count" -ne 56 ]]; then
   echo "Database verification failed: OCPX routing/report/accounting columns are incomplete." >&2
   exit 1
 fi
@@ -116,10 +116,27 @@ if [[ "$ocpx_adapter_contract_count" -ne 4 ]]; then
 fi
 
 admin_ocpx_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
-  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish','adx:account:read','adx:account:recharge');")"
+  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:runtime:read','adx:runtime:replay','adx:monitor:publish','adx:account:read','adx:account:recharge','adx:event:write');")"
 
-if [[ "$admin_ocpx_permission_count" -ne 5 ]]; then
+if [[ "$admin_ocpx_permission_count" -ne 6 ]]; then
   echo "Database verification failed: administrator OCPX runtime/account permissions are incomplete." >&2
+  exit 1
+fi
+
+event_seed_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_adx_event_definition WHERE deleted=0 AND built_in=1;")"
+channel_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_adx_channel WHERE deleted=0;")"
+expected_event_seed_count="$((22 + channel_count * 44))"
+if [[ "$event_seed_count" -lt "$expected_event_seed_count" ]]; then
+  echo "Database verification failed: default event dictionaries are incomplete." >&2
+  exit 1
+fi
+
+default_mapping_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_adx_channel_event_mapping WHERE deleted=0 AND status='ACTIVE';")"
+if [[ "$default_mapping_count" -lt "$((channel_count * 4))" ]]; then
+  echo "Database verification failed: four default channel event mappings are incomplete." >&2
   exit 1
 fi
 

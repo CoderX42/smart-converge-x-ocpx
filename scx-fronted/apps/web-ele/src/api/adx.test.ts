@@ -9,8 +9,12 @@ import {
   getApiDebugRecentLogs,
   getApiDebugTargets,
   getCatalog,
+  getChannelEventOptions,
   getDashboardAccountSummary,
   getDashboardSummary,
+  getEventDefinitions,
+  getEventMappings,
+  getMonitor,
   getMonitorIntegration,
   getReport,
   getReportOptions,
@@ -21,6 +25,8 @@ import {
   preflightApiDebug,
   rechargeAdvertiser,
   saveCatalog,
+  saveEventDefinition,
+  saveEventMapping,
 } from './adx';
 
 const requestClient = vi.hoisted(() => ({
@@ -128,6 +134,38 @@ describe('aDX API contract', () => {
 
     expect(requestClient.get).toHaveBeenCalledWith(
       '/adx/monitors/monitor-1/integration',
+    );
+  });
+
+  it('connects event management, channel options and monitor detail contracts', () => {
+    getEventDefinitions({ category: 'UPSTREAM', channelId: 'channel-1' });
+    getEventMappings({ channelId: 'channel-1' });
+    getChannelEventOptions('channel-1');
+    getMonitor('monitor-1');
+    saveEventDefinition({
+      category: 'CONVERSION',
+      eventCode: 'LEAD',
+      eventName: '线索',
+    });
+    saveEventMapping({ channelId: 'channel-1', upstreamEventId: 'upstream-1' });
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/events', {
+      params: { category: 'UPSTREAM', channelId: 'channel-1' },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/event-mappings', {
+      params: { channelId: 'channel-1' },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/channels/channel-1/event-options',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/monitors/monitor-1');
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/events',
+      expect.objectContaining({ eventCode: 'LEAD' }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/event-mappings',
+      expect.objectContaining({ channelId: 'channel-1' }),
     );
   });
 

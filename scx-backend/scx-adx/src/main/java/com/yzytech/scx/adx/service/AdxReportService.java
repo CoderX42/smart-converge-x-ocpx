@@ -106,8 +106,8 @@ public class AdxReportService {
 		Map<String, Object> values = reportMapper.accountSummary(start.atStartOfDay(), end.plusDays(1).atStartOfDay(),
 				channelId, scopedAdvertiserId, appLinkId, monitorId);
 		return new DashboardViews.AccountSummary("CNY", decimal(values, "totalBalance"),
-				decimal(values, "rechargeAmount"), decimal(values, "cpcSpend"), number(values, "rejectedCharges"),
-				LocalDateTime.now(REPORT_ZONE));
+				decimal(values, "rechargeAmount"), decimal(values, "cpcSpend"), decimal(values, "cpaSpend"),
+				number(values, "rejectedCharges"), number(values, "cpaRejectedCharges"), LocalDateTime.now(REPORT_ZONE));
 	}
 
 	public byte[] export(String granularity, String channelId, String monitorId, String advertiserId, String appLinkId,
