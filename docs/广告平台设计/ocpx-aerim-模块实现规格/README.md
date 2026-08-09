@@ -61,9 +61,9 @@
 | 产品 | 产品列表、抽屉、事件限量 | 无独立产品聚合 | Product 表、归属、版本、事件策略 | 优先实施 |
 | 链接 | 链接列表与条件表单 | `AdxAppLink` | `productId`、下载/跳转/归档结构化 | 产品后实施 |
 | 媒体 | 媒体渠道、渠道用户邮箱/密码、账户数量 | `AdxChannel`、Adapter、`sys_user` | `MediaAccount`、外部 `MediaCredential`、内部负责人/对象范围分层 | 产品并行实施 |
-| 任务/路由 | 任务、条件字段、联调/报表入口 | `AdxMonitorLink`、发布服务、Outbox | `Task` 运营聚合、冻结依赖版本 | 链接/媒体后实施 |
+| 任务/路由 | 两行筛选、点击/曝光/去重、事件比例/限额/超量、监测地址、联调/点击/转化、三类报表入口 | `AdxMonitorLink`、发布服务、Outbox | `Task` 运营聚合、宏契约、冻结依赖版本、保存与发布分离 | 链接/媒体后实施 |
 | 事件 | 产品/链接事件映射 | 当前工作树存在事件定义/映射/快照在研代码 | 主线评审、契约稳定、迁移确认 | 先收口现有在研工作 |
-| RTA | RTA 配置、日报/时报 | `RtaDecisionPort` 接口边界 | Accepted ADR 当前要求 OFF | Blocked |
+| RTA | 列表、全局配置、新增/编辑、日报/时报六列统计 | `RtaDecisionPort` 接口边界 | Accepted ADR 当前要求 OFF；参考新增默认开启与密钥回显均不得照搬 | Blocked |
 | 报表 | 数据/产品/链接/任务/媒体汇总 | 小时事实、报表接口 | 新维度、统一分组、口径字典 | 路由链路后实施 |
 | 用户权限 | 用户、重置、禁用、个人中心 | `scx-system` / Sa-Token | ADX 对象范围关联 | 可与主数据并行 |
 | DP | 淘宝/京东页签 | 无正式产品边界 | 协议、所有权、隐私、SSRF、幂等 RFC | Blocked |
@@ -121,6 +121,21 @@ DP：供应商协议与安全 RFC 接受后独立实施
 | [SHOT-MEDIA-03](assets/2026-08-09/SHOT-MEDIA-03-add-drawer-sanitized.png) | 新增媒体渠道抽屉脱敏裁切；证明媒体文档/名称必填和 Channel 未标星 |
 | [SHOT-MEDIA-04](assets/2026-08-09/SHOT-MEDIA-04-edit-drawer-sanitized.png) | 编辑媒体渠道抽屉脱敏裁切；三个业务值均替换为“已脱敏” |
 | [SHOT-MEDIA-05](assets/2026-08-09/SHOT-MEDIA-05-channel-user-add-sanitized.png) | 新增渠道用户抽屉脱敏裁切；父媒体名已替换，证明邮箱/密码必填与描述字段 |
+| [SHOT-TASK-01](assets/2026-08-09/SHOT-TASK-01-list-sanitized.png) | 任务列表 AI 辅助脱敏；保留两行筛选、表头、监测地址复制区和七个行动作 |
+| [SHOT-TASK-02](assets/2026-08-09/SHOT-TASK-02-add-drawer-upper-sanitized.png) | 新增任务上半段脱敏裁切；证明任务名/运营、后置 RTA、点击链接、曝光、媒体与去重字段 |
+| [SHOT-TASK-03](assets/2026-08-09/SHOT-TASK-03-exposure-event-mapping-sanitized.png) | 曝光与大点击条件区、媒体选择和事件映射行脱敏证据 |
+| [SHOT-TASK-04](assets/2026-08-09/SHOT-TASK-04-event-status-lower-sanitized.png) | 事件比例/限量/超量、描述、归档、状态、确定/取消的下半段证据 |
+| [SHOT-TASK-05](assets/2026-08-09/SHOT-TASK-05-hourly-summary-sanitized.png) | 小时汇总抽屉脱敏证据；保留日期、双导出、列设置和小时指标表结构 |
+| [SHOT-TASK-06](assets/2026-08-09/SHOT-TASK-06-daily-summary-sanitized.png) | 日汇总抽屉脱敏证据；保留默认仅看有点击、双导出、指标表和分页 |
+| [SHOT-TASK-07](assets/2026-08-09/SHOT-TASK-07-link-summary-sanitized.png) | 链接汇总抽屉脱敏证据；保留链接/日期/dataView、双导出和分页 |
+| [SHOT-TASK-08](assets/2026-08-09/SHOT-TASK-08-integration-detail-sanitized.png) | 媒体联调详情脱敏证据；产品/包名/下载地址均已替换，保留复制图标和空态 |
+| [SHOT-TASK-09](assets/2026-08-09/SHOT-TASK-09-click-detail-sanitized.png) | 点击详情抽屉脱敏证据；第三方浮层已移除，保留筛选、表头、空态和分页 |
+| [SHOT-TASK-10](assets/2026-08-09/SHOT-TASK-10-conversion-detail-sanitized.png) | 转化详情抽屉脱敏证据；数据行已遮盖，保留筛选、导出、表头和分页 |
+| [SHOT-RTA-01](assets/2026-08-09/SHOT-RTA-01-list-sanitized.png) | RTA 列表脱敏证据；保留筛选、今日概况、RTA 标识区、配置图标、行操作和分页 |
+| [SHOT-RTA-02](assets/2026-08-09/SHOT-RTA-02-add-drawer-sanitized.png) | 新增 RTA 抽屉脱敏证据；保留服务地址/密钥/名称/文档/API/媒体/状态结构，业务值均已替换 |
+| [SHOT-RTA-03](assets/2026-08-09/SHOT-RTA-03-edit-drawer-sanitized.png) | 编辑 RTA 抽屉脱敏证据；证明参考页会回填密钥与关闭状态，原值已完全遮盖 |
+| [SHOT-RTA-04](assets/2026-08-09/SHOT-RTA-04-config-drawer-sanitized.png) | 全局 RTA 配置抽屉脱敏证据；保留必填域名、加密密钥与确定/取消 |
+| [SHOT-RTA-05](assets/2026-08-09/SHOT-RTA-05-stats-sanitized.png) | RTA 数据统计抽屉脱敏证据；保留日期范围、搜索、六列表头和分页，样例值均遮盖 |
 | [SHOT-REPORT-01](assets/2026-08-09/SHOT-REPORT-01-task-summary-filter-table.png) | 任务汇总筛选与双导出按钮 |
 | [SHOT-USER-01](assets/2026-08-09/SHOT-USER-01-nav-selected.png) | 用户管理菜单选中态 |
 | [SHOT-SETTING-01](assets/2026-08-09/SHOT-SETTING-01-page-header.png) | 用户中心页面标题区域 |

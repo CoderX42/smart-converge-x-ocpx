@@ -29,13 +29,13 @@ Accepted 需求/决策
 | `S2` | Product 主数据 | S0/S1 | Product 表/API/UI/事件默认策略 | CRUD、唯一、归档引用、范围、Logo | Ready for implementation after review |
 | `S3` | MediaAccount / MediaCredential | S0 | Channel 分层、业务账户、外部凭据 revision、内部负责人 | 账户 CRUD、Secret 只写、owner 分权、连接检查边界 | Ready for implementation after review |
 | `S4` | AppLink 结构化 | S1/S2 | productId、类型、redirect/download、归档 | URL 安全、级联、存量回填、路由待重发 | Depends S2 |
-| `S5` | Task 运营聚合 | S2/S3/S4 | Task 表/API/UI、运营/策略、Monitor 关联 | CRUD/级联/状态/范围、旧 Monitor 映射 | Depends S2–S4 |
-| `S6` | Event 模型收口 | S5 + 当前本地在研评审 | 定义/映射/绑定/快照契约化 | 迁移/契约/发布/Callback 集成 | In progress locally, not stable |
-| `S7` | Monitor 发布与运行维度 | S5/S6 | 新维度、快照、Outbox、实例分发 | 发布幂等、故障恢复、DRAFT 不承流、版本追踪 | Depends S5/S6 |
-| `S8` | 统一小时事实与五报表 | S7 | 事实扩维、groupBy API、导出 | 跨页/Dashboard 对账、回补、权限/性能 | Depends S7 |
+| `S5` | Task 运营聚合 | S2/S3/S4 | Task 表/API/UI、运营、点击/曝光 AppLink、MediaAccount、去重、状态与 Monitor 关联 | CRUD/级联/条件显隐/保存不发布/RTA OFF/旧 Monitor 映射 | Depends S2–S4 |
+| `S6` | Event 模型收口 | S5 + 当前本地在研评审 | 定义/映射/绑定；比例、限额、超量；快照契约化 | 迁移/契约/确定性采样/发布/Callback 集成 | In progress locally, not stable |
+| `S7` | Monitor 发布与运行维度 | S5/S6 | 宏字典、HTTPS 监测入口、新维度、快照、Outbox、实例分发 | URL 宏验证、发布幂等、故障恢复、DRAFT 不承流、版本追踪 | Depends S5/S6 |
+| `S8` | 统一小时事实与报表 | S7 | 事实扩维、groupBy API、五页 + Task 时/日/链接抽屉、双导出 | 跨视图/Dashboard 对账、回补、字段差异、权限/性能 | Depends S7 |
 | `S9` | Dashboard | S8 | 指标卡/趋势/asOf | 与报表一致、局部失败、缓存范围 | Depends S8 |
-| `S10` | 运行中心补偿体验 | S7 | 事实图、DLQ、预览/重放/停流 | 不变事实、命令幂等、二次授权、演练 | Can overlap S8 |
-| `S11` | RTA 主动决策 | 替代 ADR + S7 | Profile/事实/决策/统计 | shadow、容量、故障模式、供应商 UAT | **Blocked** |
+| `S10` | 运行中心补偿体验 | S7 | Task 联调/点击/转化抽屉、事实图、DLQ、预览/重放/停流 | 明细血缘/脱敏/不变事实、命令幂等、二次授权、演练 | Can overlap S8 |
+| `S11` | RTA 主动决策 | 替代 ADR + S7 | Profile/全局设置/credential revision/事实/决策/六列 DAY/HOUR 统计；区分服务地址、api 与全局域名 | 新增默认强制关、Secret 全链路不回显、四层 OFF 门禁、shadow/容量/故障模式/供应商 UAT | **Blocked** |
 | `S12` | DP 转换 | 供应商 RFC/ADR | Adapter/SSRF/幂等/UI | 安全测试、正式协议、隐私/TTL/UAT | **Blocked** |
 
 S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须先由 S0/S1 固定。S8 前必须先保证运行事实具备完整维度，否则报表页面只会掩盖数据缺口。
@@ -49,6 +49,7 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 | 机器契约 | `scx-ocpx-contract` | 无直接 UI | 浏览器持有签名 Secret |
 | 高并发接入/投递 | `scx-ocpx-runtime/engine` | 运行中心只查管理 API | 放回 `scx-boot` 管理线程池 |
 | Dashboard/Reports | `scx-adx` 统一查询服务 | `views/adx/dashboard/report` | 五页各写一套口径 |
+| RTA 管理/统计 | 管理元数据归 `scx-adx`，未来机器决策归 `scx-ocpx-runtime/engine` | `views/adx/rta` | 在 `scx-boot` 外呼、浏览器持有/回读 Secret、把参考默认开启照搬为目标默认 |
 | 调试/补偿 | ADR-002 工作台 + runtime | `views/adx/runtime` | 任意代理/复制投放路径 |
 
 ## 4. 切片级交付矩阵
@@ -60,12 +61,13 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 | S2 | product/policy | `/adx/products` | Product 表/抽屉 | advertiser scope | Logo 临时清理 | CRUD/唯一/归档/事件行 |
 | S3 | media_account/credential/owner | `/adx/media-accounts` + credentials/owners | 媒体账户、渠道用户凭据、内部负责人 | Channel/Account scope + credential 独立权 | Secret revision/连接检查 worker | 凭据不回显、owner 分权、Adapter、状态 |
 | S4 | app_link 新列/回填 | 扩展 `/adx/app-links` | 条件链接表单 | product/advertiser scope | URL validation | redirect 矩阵、SSRF、归档 |
-| S5 | task + monitor FK/索引 | `/adx/tasks` | Task/条件字段 | 多对象交集 | 保存不发布 | 级联、版本、状态、RTA OFF |
-| S6 | event 四层表/快照 | events/mappings/bindings | 字典/映射/嵌入编辑器 | Channel/Task scope | 限额/隔离/重放 | callback/映射/快照/防重 |
-| S7 | route version/outbox 新维度 | monitor publish/distribution | 发布检查/版本状态 | publish 独立权限 | Outbox/热更/紧急停流 | 幂等、崩溃、版本分裂 |
-| S8 | hourly fact 新粒度/索引 | unified hourly/export | 五视图共享组件 | 查询/导出/敏感列 | 聚合回补/导出 job | 口径/性能/晚到/权限 |
+| S5 | task + monitor FK/索引 | `/adx/tasks` | Task 两行筛选、条件抽屉 | 多对象交集 | 保存不发布 | 级联、曝光/大点击、去重、版本、状态、RTA OFF |
+| S6 | event 四层表/快照 | events/mappings/bindings | 字典/上游↔渠道事件/比例/限额/超量 | Channel/Task scope | 确定性采样/限额/隔离/重放 | callback/映射/快照/防重 |
+| S7 | route version/outbox 新维度 | monitor publish/distribution + macro contract | 发布检查/地址复制/版本状态 | publish/copy/status 分离 | Outbox/热更/地址轮换/紧急停流 | 宏白名单、幂等、崩溃、版本分裂 |
+| S8 | hourly fact 新粒度/索引 | unified hourly/export | 五视图 + Task 时/日/链接共享组件 | 查询/普通导出/审减导出/敏感列 | 聚合回补/导出 job | 字段清单/口径/性能/晚到/权限 |
 | S9 | 无新事实 | summary + hourly | 卡/趋势/asOf | dashboard + scope | cache invalidation | 报表一致/局部失败 |
-| S10 | replay command/关联维度 | facts/DLQ/replay/stop | 时间线/预览/命令 | 高风险独立授权 | DLQ/重放/停流 | 不变事实/二次认证/演练 |
+| S10 | replay command/关联维度 | integration/click/conversion/facts/DLQ/replay/stop | 三个 Task 明细抽屉 + 时间线/预览/命令 | 正文/复制/导出/高风险操作独立授权 | DLQ/重放/停流 | 明细血缘/不变事实/二次认证/演练 |
+| S11 | rta_profile/global_setting/credential_revision/decision_fact/hourly_stat；默认 DISABLED | profile/settings/credential rotate/stats；ACTIVE 固定 409 | 列表、新增/编辑、全局配置、DAY/HOUR 共用六列统计；状态锁定 OFF | view/edit/config/credential/report/debug 分权 + MediaAccount scope | 发布冻结 revision；非 OFF 快照拒绝；未来决策事实聚合 | 原密钥永不回显、SSRF、幂等/并发、四层 OFF、六列与 0 分母、供应商合同/UAT |
 
 ## 5. 数据联通验收
 
@@ -78,6 +80,10 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 | `IT-CONFIG-003` | AppLink 改 redirect | 新发布版本才生效，旧在途请求仍用旧版本 |
 | `IT-CONFIG-004` | Media credential 轮换 | 新 revision 可发布；旧版本按重叠策略运行/过期 |
 | `IT-CONFIG-005` | 归档被活动 Task 引用对象 | 409 + 引用摘要，不发生半归档 |
+| `IT-CONFIG-006` | Task 开启曝光监测/大点击、切换 MediaAccount | 条件字段出现并逐项校验；切换账户清空不兼容事件映射；保存只形成草稿 |
+| `IT-CONFIG-007` | Task 配置上游事件、渠道事件、比例、限额、超量回传 | 绑定唯一、比例/限额语义明确；发布冻结完全值 |
+| `IT-CONFIG-008` | 打开 RTA 新增/编辑/全局配置 | 新增参考态虽为开启，SCX 状态固定 DISABLED；详情/配置只返回 configured/revision，浏览器永不收到原密钥 |
+| `IT-CONFIG-009` | 配置 RTA 服务地址、api、全局域名 | 三者独立建模和校验；协议语义未决前不得相互代填或触发外呼 |
 
 ### 5.2 发布链
 
@@ -88,6 +94,9 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 | `IT-PUBLISH-003` | Redis 通知失败 | 管理面保留 PUBLISHED/DISTRIBUTING，Outbox 重试 |
 | `IT-PUBLISH-004` | 部分实例加载失败 | 显示 DEGRADED/实例版本，不错误显示全量生效 |
 | `IT-PUBLISH-005` | DRAFT route 收到请求 | 数据面拒绝，不回读主表拼配置 |
+| `IT-PUBLISH-006` | 生成/轮换任务监测地址 | 仅 HTTPS 和宏白名单；routeCode 不可枚举；旧地址按重叠策略停用 |
+| `IT-PUBLISH-007` | 地址有未知/重复/缺失宏 | 发布校验逐项 FAIL，不生成承流版本 |
+| `IT-PUBLISH-008` | UI 篡改、直接 API 或历史重放尝试发布非 OFF RTA | 管理 API、发布器和数据面全部拒绝；PUBLISHED 快照有效模式仍为 OFF 并告警 |
 
 ### 5.3 运行与报表链
 
@@ -97,10 +106,16 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 | `IT-RUNTIME-002` | Callback 重复 | 不重复限额、扣量、下游投递 |
 | `IT-RUNTIME-003` | Worker 崩溃 | Pending 可认领，幂等保持 |
 | `IT-RUNTIME-004` | 投递到上限 | DLQ 可查；预览后授权重放生成新事实 |
+| `IT-RUNTIME-005` | 打开 Task 联调/点击/转化抽屉 | 打开本身无外发；taskId 不可跨 scope；设备/URL/clickId 默认脱敏 |
+| `IT-RUNTIME-006` | Callback 命中比例、任务限额、链接限额和审减 | 原始事件不变；采样/两层超量/审减/媒体响应各有独立事实并可追踪 |
+| `IT-RUNTIME-007` | Blocked 期间异常注入非 OFF RTA 快照 | 数据面拒绝加载或安全旁路，不向真实 endpoint 发请求，阻断指标递增 |
 | `IT-REPORT-001` | 同范围同时间五页分组 | 合计与 TIME 总表一致 |
 | `IT-REPORT-002` | Dashboard 指标 | 与 hourly 同口径、asOf 和 scope 一致 |
 | `IT-REPORT-003` | 晚到 Callback 回补 | 原小时更新且不重复；freshness/finality 变化 |
 | `IT-REPORT-004` | 审减 | 原始事实不变；净值与 adjustment 可对账 |
+| `IT-REPORT-005` | 同一 Task 的时报、日报、链接日报 | 字段清单、grain 和 groupBy 正确；共同指标与报表中心完全一致；日报独有注册付费率不被其他视图擅自补列 |
+| `IT-REPORT-006` | 普通导出与审减导出 | 独立权限、同 scope/筛选/指标版本；异步任务可审计且过期不可下载 |
+| `IT-REPORT-007` | RTA 日报/时报查询 | DAY/HOUR 均固定“日期、名称、rtaId、请求量、成功量、成功率”六列；响应携带 grain/bucket/timezone，0 分母返回 null/-- |
 
 ## 6. 权限验收矩阵
 
@@ -144,7 +159,7 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 
 | 模块 | 缺失决策/证据 | 解除人/产物 | 未解除前强制行为 |
 |---|---|---|---|
-| RTA | 协议、失败模式、容量、隐私、费用、UAT、替代 ADR | 架构/产品/安全 Accepted ADR | UI 锁定、API 拒绝 ACTIVE、发布/数据面强制 OFF |
+| RTA | 服务地址/api/全局域名语义、成功口径、协议、失败模式、容量、隐私、费用、密钥生命周期、UAT、替代 ADR | 架构/产品/安全 Accepted ADR | 参考新增默认开启不得照搬；Secret 只写不回显；UI 锁定、API 拒绝 ACTIVE、发布/数据面强制 OFF、连通检查不外呼 |
 | DP | 淘宝/京东正式协议、授权、SSRF、保留、幂等、对账 | 产品/安全 RFC 或 ADR | 无生产菜单、无外呼、convert 返回 Blocked |
 | Event 本地在研 | 迁移/接口/快照评审、稳定主线状态 | 当前工作负责人 + 合并证据 | 只标本地在研，后续模块不可假定稳定 |
 
