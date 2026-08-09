@@ -23,10 +23,13 @@
 
 | 模块 | 职责 | 关键入口 |
 |---|---|---|
+| `scx-common-log-buffer` | 管理面与数据面共用的进程内有界脱敏日志缓冲；不包含系统日志落库自动配置 | `BoundedSanitizedLogAppender` |
 | `scx-ocpx-contract` | `FeedbackReqV1`、`CallbackReqV1`、规范事件、路由快照、上下游适配器 SPI、RTA/Billing Port | 不依赖 Web/数据库 |
 | `scx-ocpx-runtime` | 接入、标准化、加密、队列、批量落库、回调、投递、重试、扣量、审计 | 被 `scx-ocpx-engine` 引用 |
 | `scx-ocpx-engine` | 独立 WebFlux/Netty 应用、数据面健康检查 | `10000/ocpx` |
 | `scx-adx` | 草稿配置、发布校验、Outbox、运行概览、死亡任务重放 | `/boot/adx/*` |
+
+`scx-ocpx-runtime` 只依赖 `scx-common-log-buffer`，不得传递引入包含 `BootSysLogConfig`、`RemoteSysLogService` 与管理端持久层依赖的 `scx-common-log`，以保持 ADR-001 定义的数据面故障域隔离。
 
 ## 3. 协议和方向
 

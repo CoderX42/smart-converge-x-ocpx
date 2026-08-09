@@ -18,6 +18,7 @@
         <module>scx-common-core</module>
         <module>scx-common-storage</module>
         <module>scx-common-mybatis</module>
+        <module>scx-common-log-buffer</module>
         <module>scx-common-log</module>
         <module>scx-common-security</module>
         <module>scx-common-job</module>

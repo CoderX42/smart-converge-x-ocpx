@@ -24,4 +24,15 @@ class ScxOcpxEngineConfigurationTest {
 		assertThat(source.getProperty("scx.ocpx.public-base-url")).isEqualTo("http://127.0.0.1:10000/ocpx");
 	}
 
+	@Test
+	void keepsManagementLogConfigurationOutsideTheEngineClasspath() {
+		ClassLoader classLoader = getClass().getClassLoader();
+
+		assertThat(classLoader.getResource(
+				"com/yzytech/scx/common/log/appender/BoundedSanitizedLogAppender.class"))
+			.isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/common/log/config/BootSysLogConfig.class")).isNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/system/api/remote/RemoteSysLogService.class")).isNull();
+	}
+
 }

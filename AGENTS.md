@@ -182,7 +182,7 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-boot` | 单体应用启动入口，`ScxApplication` 位于 `com.yzytech.scx`。 |
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
-| `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。 |
+| `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log-buffer`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。`log-buffer` 仅提供进程内有界脱敏日志缓冲，不包含系统日志落库自动配置。 |
 | `scx-adx` | 精简广告业务纵向模块：渠道、广告主、应用链接、监测链接、扣量、充值账务与时段报表。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 

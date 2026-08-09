@@ -176,6 +176,11 @@
             <!--            日志模块-->
             <dependency>
                 <groupId>com.scx</groupId>
+                <artifactId>scx-common-log-buffer</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.scx</groupId>
                 <artifactId>scx-common-log</artifactId>
                 <version>${project.version}</version>
             </dependency>

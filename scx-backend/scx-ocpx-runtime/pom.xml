@@ -17,7 +17,7 @@
         </dependency>
         <dependency>
             <groupId>com.scx</groupId>
-            <artifactId>scx-common-log</artifactId>
+            <artifactId>scx-common-log-buffer</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

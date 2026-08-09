@@ -16,6 +16,10 @@
     <artifactId>scx-common-log</artifactId>
     <description>日志模块</description>
     <dependencies>
+        <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-log-buffer</artifactId>
+        </dependency>
         <!--common-->
         <dependency>
             <groupId>com.scx</groupId>
