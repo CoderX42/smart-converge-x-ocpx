@@ -25,7 +25,7 @@
 
 ## 初始化数据库
 
-数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。V68 会创建初始 ADX 表和菜单；V72 会移除已退出的汽车线索表/权限并启用充值与 CPC 账务。历史迁移保持不可变。应用 V72 前如需留存旧线索数据必须先备份；旧广告域和支付表仍须在预览和单独授权后执行 `retirement/retire-superseded-ad-domains.sql` 退役。
+数据库脚本位于 `db/smart-converge-x`，默认数据库名为 `smart_converge_x`。空库只执行统一当前态脚本；初始化器不会扫描 `db/migration`，并会拒绝对已有表的数据库运行。未来已有库变更必须新增前向增量 SQL，并同步当前态初始化脚本、表清单和校验。
 
 ```bash
 cd db/smart-converge-x

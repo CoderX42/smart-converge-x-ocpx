@@ -70,6 +70,8 @@ class OcpxPersistenceRepositoryTest {
 
 		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 		verify(jdbcTemplate).update(contains("cost_amount=cost_amount+VALUES(cost_amount)"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("eligible_click_count=eligible_click_count+VALUES(eligible_click_count)"),
+				any(Object[].class));
 	}
 
 	@Test
@@ -78,7 +80,8 @@ class OcpxPersistenceRepositoryTest {
 			.thenReturn(0);
 		ResultSet resultSet = mock(ResultSet.class);
 		when(resultSet.getString(1)).thenReturn("canonical-click");
-		when(resultSet.getTimestamp(2)).thenReturn(Timestamp.from(OffsetDateTime.parse("2026-08-07T08:59:30Z").toInstant()));
+		when(resultSet.getTimestamp(2))
+			.thenReturn(Timestamp.from(OffsetDateTime.parse("2026-08-07T08:59:30Z").toInstant()));
 		when(jdbcTemplate.queryForObject(contains("FROM scx_ocpx_click_dedup_state"),
 				any(org.springframework.jdbc.core.RowMapper.class), any(Object[].class)))
 			.thenAnswer(invocation -> {
@@ -91,6 +94,13 @@ class OcpxPersistenceRepositoryTest {
 		verify(jdbcTemplate).update(contains("status='DEDUPLICATED'"), eq("click-1"));
 		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
 		verify(jdbcTemplate, never()).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
+		ArgumentCaptor<Object[]> metricArguments = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(contains("classified_click_count=classified_click_count+VALUES"),
+				metricArguments.capture());
+		assertThat(metricArguments.getValue()[8]).isEqualTo(0L);
+		assertThat(metricArguments.getValue()[9]).isEqualTo(1L);
+		assertThat(metricArguments.getValue()[10]).isEqualTo(0L);
+		assertThat(metricArguments.getValue()[11]).isEqualTo(1L);
 	}
 
 	@Test
@@ -109,9 +119,54 @@ class OcpxPersistenceRepositoryTest {
 			.filter(index -> sqlCaptor.getAllValues().get(index).contains("INSERT IGNORE INTO scx_ocpx_event"))
 			.findFirst()
 			.orElseThrow();
-		long placeholders = sqlCaptor.getAllValues().get(eventInsert).chars().filter(character -> character == '?')
+		long placeholders = sqlCaptor.getAllValues()
+			.get(eventInsert)
+			.chars()
+			.filter(character -> character == '?')
 			.count();
 		assertThat(argumentsCaptor.getAllValues().get(eventInsert)).hasSize((int) placeholders);
+	}
+
+	@Test
+	void callbackMetricsKeepFirstActivationReactivationAndRetentionDaysIndependent() {
+		OffsetDateTime now = OffsetDateTime.parse("2026-08-08T07:14:20Z");
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+
+		repository.persistCallback(new NormalizedCallbackEvent("first-activate-1", "click-1", "callback-ref",
+				OcpxEventType.FIRST_ACTIVATION, now, null, null), context, true, "NO_RULE");
+		repository.persistCallback(new NormalizedCallbackEvent("reactivation-1", "click-1", "callback-ref",
+				OcpxEventType.REACTIVATION, now, null, null), context, true, "NO_RULE");
+		repository.persistCallback(new NormalizedCallbackEvent("retention-d7-1", "click-1", "callback-ref",
+				OcpxEventType.RETENTION_D7, now, null, null), context, true, "NO_RULE");
+
+		verify(jdbcTemplate).update(contains("first_activate_count"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("reactivation_count"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("retention_7d_count"), any(Object[].class));
+	}
+
+	@Test
+	void callbackAggregationUsesShanghaiNaturalHour() {
+		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+
+		repository.persistCallback(new NormalizedCallbackEvent("activate-boundary", "click-1", "callback-ref",
+				OcpxEventType.ACTIVATE, actionTime, null, null), context, true, "NO_RULE");
+
+		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(contains("activate_count"), arguments.capture());
+		assertThat(arguments.getValue()[1]).isEqualTo(java.time.LocalDateTime.parse("2026-08-09T01:00:00"));
+	}
+
+	@Test
+	void debugCallbackNeverChangesDashboardFacts() {
+		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1(),
+				"debug-execution-1");
+
+		repository.persistCallback(new NormalizedCallbackEvent("debug-activate", "click-1", "callback-ref",
+				OcpxEventType.ACTIVATE, actionTime, null, null), context, true, "NO_RULE");
+
+		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_adx_hourly_report"), any(Object[].class));
 	}
 
 	private FeedbackEnvelope envelope() {

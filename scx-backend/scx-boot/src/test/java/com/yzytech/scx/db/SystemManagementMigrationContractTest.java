@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class SystemManagementMigrationContractTest {
 
-	private static final String MIGRATION = "db/migration/V69__restore_original_system_management.sql";
+	private static final String MIGRATION = "db/schema/scx_current_schema.sql";
 
 	@Test
 	void packagesTheOriginalSystemManagementTreeAndRbacRecovery() throws IOException {

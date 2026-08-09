@@ -37,8 +37,11 @@ class AdxRouteContractTest {
 
 		assertRoot(AdxReportController.class, "/adx");
 		assertRoute(AdxReportController.class, "dashboard", GetMapping.class, "/dashboard/summary");
+		assertRoute(AdxReportController.class, "accountSummary", GetMapping.class, "/dashboard/account-summary");
 		assertRoute(AdxReportController.class, "summary", GetMapping.class, "/reports/hourly");
 		assertRoute(AdxReportController.class, "export", GetMapping.class, "/reports/hourly/export");
+		assertPermission(AdxReportController.class, "dashboard", "adx:dashboard:read");
+		assertPermission(AdxReportController.class, "accountSummary", "adx:account:read");
 
 		assertRoot(AdxRuntimeController.class, "/adx/runtime");
 		assertRoute(AdxRuntimeController.class, "overview", GetMapping.class, "/overview");
@@ -82,6 +85,14 @@ class AdxRouteContractTest {
 		RequestMapping mapping = controller.getAnnotation(RequestMapping.class);
 		assertThat(mapping).isNotNull();
 		assertThat(mapping.value()).containsExactly(route);
+	}
+
+	private void assertPermission(Class<?> controller, String methodName, String permissionCode) {
+		Method method = Arrays.stream(controller.getDeclaredMethods())
+			.filter(candidate -> candidate.getName().equals(methodName))
+			.findFirst()
+			.orElseThrow();
+		assertThat(method.getAnnotation(SaCheckPermission.class).value()).containsExactly(permissionCode);
 	}
 
 	private void assertRoute(Class<?> controller, String methodName, Class<? extends Annotation> annotation,

@@ -88,9 +88,9 @@ public class OcpxPersistenceRepository {
 					""", id(), envelope.eventId(), null, "DOWNSTREAM_FEEDBACK", envelope.eventType().name(),
 					route.channelId(), route.advertiserId(), route.appLinkId(), route.routeId(), route.routeVersion(),
 					Timestamp.from(envelope.occurredAt().toInstant()),
-					Timestamp.from(envelope.receivedAt().toInstant()), envelope.devicePlatform(), envelope.deviceIdType(),
-					envelope.deviceKeyVersion(), envelope.deviceKeyHash(), envelope.payloadHash(), "PERSISTED",
-					envelope.callbackRef(), envelope.debugExecutionId(),
+					Timestamp.from(envelope.receivedAt().toInstant()), envelope.devicePlatform(),
+					envelope.deviceIdType(), envelope.deviceKeyVersion(), envelope.deviceKeyHash(),
+					envelope.payloadHash(), "PERSISTED", envelope.callbackRef(), envelope.debugExecutionId(),
 					envelope.debugExecutionId() == null ? 0 : 1);
 			if (inserted == 0) {
 				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "DUPLICATE", "幂等事件已存在，未重复写入");
@@ -103,7 +103,7 @@ public class OcpxPersistenceRepository {
 						WHERE event_id=? AND source_direction='DOWNSTREAM_FEEDBACK'
 						""", envelope.eventId());
 				if (envelope.debugExecutionId() == null) {
-					upsertFeedbackMetric(envelope, route, BigDecimal.ZERO);
+					upsertFeedbackMetric(envelope, route, clickDedup, BigDecimal.ZERO);
 				}
 				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "CLICK_DEDUPLICATED",
 						"点击事实已保存，设备窗口内不计费且不向上游投递");
@@ -148,7 +148,8 @@ public class OcpxPersistenceRepository {
 						envelope.callbackRef(), envelope.debugExecutionId());
 			}
 			if (envelope.debugExecutionId() == null) {
-				upsertFeedbackMetric(envelope, route, billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
+				upsertFeedbackMetric(envelope, route, clickDedup,
+						billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
 			}
 			String status = envelope.forwardUpstream() && billing.permitsDelivery() ? "WAITING_ASYNC"
 					: billing.permitsDelivery() ? "SUCCEEDED" : "PARTIAL";
@@ -165,8 +166,8 @@ public class OcpxPersistenceRepository {
 		}
 		int windowSeconds = Math.max(0, route.clickDedupWindowSeconds());
 		if (envelope.debugExecutionId() != null) {
-			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "DEBUG_EVENT",
-					envelope.eventId(), false);
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "DEBUG_EVENT", envelope.eventId(),
+					false);
 		}
 		if (!StringUtils.hasText(envelope.deviceKeyHash())) {
 			return recordClickDecision(envelope, route, windowSeconds, "SKIPPED_NO_DEVICE", "NO_DEVICE_ID",
@@ -190,9 +191,10 @@ public class OcpxPersistenceRepository {
 				SELECT canonical_event_id,canonical_received_at
 				FROM scx_ocpx_click_dedup_state
 				WHERE monitor_id=? AND device_key_hash=? FOR UPDATE
-				""", (rs, rowNum) -> new ClickDedupState(rs.getString(1),
-				rs.getTimestamp(2).toInstant().atOffset(java.time.ZoneOffset.UTC)), route.routeId(),
-				envelope.deviceKeyHash());
+				""",
+				(rs, rowNum) -> new ClickDedupState(rs.getString(1),
+						rs.getTimestamp(2).toInstant().atOffset(java.time.ZoneOffset.UTC)),
+				route.routeId(), envelope.deviceKeyHash());
 		if (state == null) {
 			throw new IllegalStateException("click dedup state disappeared during transaction");
 		}
@@ -203,31 +205,49 @@ public class OcpxPersistenceRepository {
 					WHERE monitor_id=? AND device_key_hash=?
 					""", envelope.eventId(), Timestamp.from(envelope.receivedAt().toInstant()), route.routeId(),
 					envelope.deviceKeyHash());
-			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "WINDOW_EXPIRED",
-					envelope.eventId(), false);
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "WINDOW_EXPIRED", envelope.eventId(),
+					false);
 		}
-		return recordClickDecision(envelope, route, windowSeconds, "DEDUPLICATED", "WITHIN_WINDOW",
-				state.eventId(), true);
+		return recordClickDecision(envelope, route, windowSeconds, "DEDUPLICATED", "WITHIN_WINDOW", state.eventId(),
+				true);
 	}
 
 	private ClickDedupDecision recordClickDecision(FeedbackEnvelope envelope, RouteSnapshot route, int windowSeconds,
 			String status, String reason, String canonicalEventId, boolean duplicate) {
-		jdbcTemplate.update("""
-				INSERT INTO scx_ocpx_click_dedup_decision
-				(event_id,monitor_id,device_key_hash,window_seconds,status,reason,canonical_event_id,received_at,create_time)
-				VALUES (?,?,?,?,?,?,?,?,NOW(3))
-				""", envelope.eventId(), route.routeId(), envelope.deviceKeyHash(), windowSeconds, status, reason,
+		jdbcTemplate.update(
+				"""
+						INSERT INTO scx_ocpx_click_dedup_decision
+						(event_id,monitor_id,device_key_hash,window_seconds,status,reason,canonical_event_id,received_at,create_time)
+						VALUES (?,?,?,?,?,?,?,?,NOW(3))
+						""",
+				envelope.eventId(), route.routeId(), envelope.deviceKeyHash(), windowSeconds, status, reason,
 				canonicalEventId, Timestamp.from(envelope.receivedAt().toInstant()));
-		return new ClickDedupDecision(duplicate);
+		return new ClickDedupDecision(duplicate, status);
 	}
 
 	private record ClickDedupState(String eventId, OffsetDateTime receivedAt) {
 	}
 
-	private record ClickDedupDecision(boolean duplicate) {
+	private record ClickDedupDecision(boolean duplicate, String status) {
 
 		private static ClickDedupDecision notApplicable() {
-			return new ClickDedupDecision(false);
+			return new ClickDedupDecision(false, "NOT_APPLICABLE");
+		}
+
+		private long eligible() {
+			return "ELIGIBLE".equals(status) ? 1 : 0;
+		}
+
+		private long deduplicated() {
+			return "DEDUPLICATED".equals(status) ? 1 : 0;
+		}
+
+		private long skipped() {
+			return "SKIPPED_NO_DEVICE".equals(status) ? 1 : 0;
+		}
+
+		private long classified() {
+			return "NOT_APPLICABLE".equals(status) ? 0 : 1;
 		}
 	}
 
@@ -495,7 +515,8 @@ public class OcpxPersistenceRepository {
 		return MDC.putCloseable("debugExecutionId", StringUtils.hasText(executionId) ? executionId : "-");
 	}
 
-	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route, BigDecimal costAmount) {
+	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route, ClickDedupDecision decision,
+			BigDecimal costAmount) {
 		LocalDateTime hour = envelope.occurredAt()
 			.atZoneSameInstant(REPORT_ZONE)
 			.toLocalDateTime()
@@ -505,12 +526,18 @@ public class OcpxPersistenceRepository {
 				envelope.eventType() == OcpxEventType.CLICK ? 1 : 0, 0, 0, 0, 0, costAmount, BigDecimal.ZERO);
 		jdbcTemplate.update("""
 				INSERT INTO scx_adx_hourly_report
-				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,impressions,clicks,cost_amount)
-				VALUES (?,?,?,?,?,?,?,?,?)
+				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,impressions,clicks,
+				 eligible_click_count,deduplicated_click_count,skipped_click_count,classified_click_count,cost_amount)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
 				ON DUPLICATE KEY UPDATE impressions=impressions+VALUES(impressions),clicks=clicks+VALUES(clicks),
+				 eligible_click_count=eligible_click_count+VALUES(eligible_click_count),
+				 deduplicated_click_count=deduplicated_click_count+VALUES(deduplicated_click_count),
+				 skipped_click_count=skipped_click_count+VALUES(skipped_click_count),
+				 classified_click_count=classified_click_count+VALUES(classified_click_count),
 				 cost_amount=cost_amount+VALUES(cost_amount)
 				""", id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
 				projection.appLinkId(), projection.monitorId(), projection.impressions(), projection.clicks(),
+				decision.eligible(), decision.deduplicated(), decision.skipped(), decision.classified(),
 				projection.costAmount());
 	}
 
@@ -538,10 +565,17 @@ public class OcpxPersistenceRepository {
 	private String metricColumn(OcpxEventType eventType) {
 		return switch (eventType) {
 			case ACTIVATE -> "activate_count";
-			case EVOKE, RETENTION, REACTIVATION, FIRST_REACTIVATION -> "evoke_count";
+			case FIRST_ACTIVATION -> "first_activate_count";
+			case EVOKE, RETENTION, FIRST_REACTIVATION -> "evoke_count";
+			case REACTIVATION -> "reactivation_count";
 			case LOGIN -> "login_count";
 			case REGISTER -> "register_count";
 			case NEXT_DAY_RETENTION -> "next_stay_count";
+			case RETENTION_D3 -> "retention_3d_count";
+			case RETENTION_D4 -> "retention_4d_count";
+			case RETENTION_D5 -> "retention_5d_count";
+			case RETENTION_D6 -> "retention_6d_count";
+			case RETENTION_D7 -> "retention_7d_count";
 			case PAYMENT -> "payment_count";
 			case CUSTOMER_ACQUISITION -> "acquisition_count";
 			case VISIT -> "visit_count";

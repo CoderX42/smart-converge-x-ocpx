@@ -4,8 +4,8 @@
 
 SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 
-1. 首页：昨日、近 7 日、近 30 日、累计收入和 30 日趋势。
-2. 报表中心：时段报表，支持小时/日期/月/年、渠道、监测链接、广告主、应用链接、日期范围筛选与 Excel 下载。
+1. 首页：真实效果仪表盘，提供今日点击/激活/首活/付费、昨日次留、7/30/90 天与自定义趋势、漏斗、D2–D7 留存、回传质量、配置覆盖及按权限展示的运行/账务面板。
+2. 报表中心：时段报表，支持小时/日期/月/年、渠道、监测链接、广告主、应用链接、日期范围筛选与 Excel 下载，并与仪表盘共用点击质量、首活、拉活和 D2–D7 口径。
 3. 渠道管理：渠道资料和监测链接管理。
 4. 广告主管理：广告主、应用链接和扣量规则管理，含幂等充值、账务流水和 CPC 点击扣费。
 5. 系统管理：原样复用 `scx-system` 的 Sa-Token + RBAC，恢复用户、角色、菜单、部门、字典、存储配置、操作日志和登录日志管理。
@@ -19,16 +19,17 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 - 后端：`scx-backend/scx-adx`，包根 `com.yzytech.scx.adx`。
 - 前端 API：`scx-fronted/apps/web-ele/src/api/adx.ts`。
 - 前端页面：`scx-fronted/apps/web-ele/src/views/adx/`。
-- 建表与精简菜单迁移：`V68__create_compact_adx_platform.sql`。
-- 原系统管理恢复迁移：`V69__restore_original_system_management.sql`。
-- 线索退役与账户迁移：`V72__remove_clues_and_enable_accounting.sql`。
+- 空库当前态结构、菜单、账户、OCPX 与效果大屏事实统一由 `db/schema/scx_current_schema.sql` 初始化。
+- V1-V78 历史脚本已完成基线整合，不再由初始化器扫描或重放。
+- 未来已有库结构变化使用独立前向增量 SQL，并同步当前态初始化脚本。
 - 旧表物理退役：`scx-backend/db/smart-converge-x/retirement/retire-superseded-ad-domains.sql`。
 
 ## 3. 接口契约
 
 | 功能 | 接口 |
 | --- | --- |
-| 首页 | `GET /adx/dashboard/summary` |
+| 首页 | `GET /adx/dashboard/summary?startDate&endDate&channelId&advertiserId&appLinkId&monitorId` |
+| 首页账务概览 | `GET /adx/dashboard/account-summary`（`adx:account:read`） |
 | 渠道 | `GET/POST /adx/channels`，`PUT/DELETE /adx/channels/{id}` |
 | 广告主 | `GET/POST /adx/advertisers`，`PUT/DELETE /adx/advertisers/{id}` |
 | 账户 | `POST /adx/advertisers/{id}/recharge`，`GET /adx/advertisers/{id}/ledger` |
@@ -50,6 +51,17 @@ SCX 已收敛为与参考广告服务平台一致的后台管理功能面：
 - `scx_ocpx_billing_entry`（充值、审计与 CPC 扣费共用的幂等流水）
 
 报表事实粒度为“小时 + 渠道 + 广告主 + 应用链接 + 监测链接”。扣量规则保存 0 到 1 的保留比例。
+
+V78 在小时事实中增加有效/重复/跳过/已分类点击、首活、拉活、D3–D7 和事实更新时间，并已并入空库当前态结构。已有库若曾在缺少 V77 去重表时部分执行 V78，使用 V79 前向校正：补齐去重基础设施及大屏字段后，再从不可变去重决策做证据回填；缺少决策的历史行不推断。`revenue_amount` 没有稳定写入链路，不再作为首页或报表正式指标。
+
+## 4.1 效果指标口径
+
+- 点击：唯一 `event_id` 的全部 CLICK 事实；重复设备窗点击仍保留事实，但不计费、不投递。
+- 激活率、首活率、拉活率：对应事件次数 ÷ 设备窗有效点击。所选区间 `classified_click_count != clicks` 或有效点击为 0 时返回 `null`。
+- 首活：`FIRST_ACTIVATION`；拉活：`REACTIVATION`；`FIRST_REACTIVATION` 仍是首次唤起并进入唤起列。
+- 二留至七留：`NEXT_DAY_RETENTION`、`RETENTION_D3`…`RETENTION_D7`，按上游 `actionTime` 明确回传统计，不由 SCX 推算 cohort。
+- 付费只展示 `PAYMENT` 事件次数；回调金额因币种口径未统一，不进入大屏。
+- 自然日和顶部今日/昨日比较均使用 `Asia/Shanghai`；趋势缺行补 0，未知点击口径使用 `null`，二者不混用。
 
 ## 5. 迁移与退役门禁
 

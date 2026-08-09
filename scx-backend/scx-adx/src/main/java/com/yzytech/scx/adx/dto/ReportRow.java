@@ -31,6 +31,14 @@ public class ReportRow {
 
 	private Long clicks;
 
+	private Long eligibleClickCount;
+
+	private Long deduplicatedClickCount;
+
+	private Long skippedClickCount;
+
+	private Long classifiedClickCount;
+
 	private BigDecimal clickRate;
 
 	private BigDecimal costAmount;
@@ -38,6 +46,16 @@ public class ReportRow {
 	private BigDecimal revenueAmount;
 
 	private Long activateCount;
+
+	private BigDecimal activateRate;
+
+	private Long firstActivateCount;
+
+	private BigDecimal firstActivateRate;
+
+	private Long reactivationCount;
+
+	private BigDecimal reactivationRate;
 
 	private Long evokeCount;
 
@@ -50,6 +68,16 @@ public class ReportRow {
 	private Long acquisitionCount;
 
 	private Long nextStayCount;
+
+	private Long retention3dCount;
+
+	private Long retention4dCount;
+
+	private Long retention5dCount;
+
+	private Long retention6dCount;
+
+	private Long retention7dCount;
 
 	private Long visitCount;
 

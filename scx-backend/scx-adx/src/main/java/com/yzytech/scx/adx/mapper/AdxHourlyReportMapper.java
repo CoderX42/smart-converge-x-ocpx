@@ -3,6 +3,8 @@ package com.yzytech.scx.adx.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.adx.dto.ReportRow;
+import com.yzytech.scx.adx.dto.DashboardCoverageRow;
+import com.yzytech.scx.adx.dto.DashboardDailyRow;
 import com.yzytech.scx.adx.entity.AdxHourlyReport;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -19,11 +21,16 @@ public interface AdxHourlyReportMapper extends BaseMapper<AdxHourlyReport> {
 			@Param("advertiserId") String advertiserId, @Param("appLinkId") String appLinkId,
 			@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-	Map<String, Object> dashboardTotals(@Param("yesterday") LocalDateTime yesterday,
-			@Param("sevenDays") LocalDateTime sevenDays, @Param("thirtyDays") LocalDateTime thirtyDays,
-			@Param("today") LocalDateTime today, @Param("advertiserId") String advertiserId);
+	List<DashboardDailyRow> dashboardDaily(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+			@Param("channelId") String channelId, @Param("advertiserId") String advertiserId,
+			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId);
 
-	List<Map<String, Object>> dashboardTrend(@Param("start") LocalDateTime start,
-			@Param("advertiserId") String advertiserId);
+	DashboardCoverageRow dashboardCoverage(@Param("channelId") String channelId,
+			@Param("advertiserId") String advertiserId, @Param("appLinkId") String appLinkId,
+			@Param("monitorId") String monitorId);
+
+	Map<String, Object> accountSummary(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
+			@Param("channelId") String channelId, @Param("advertiserId") String advertiserId,
+			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId);
 
 }

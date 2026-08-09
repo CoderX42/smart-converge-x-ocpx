@@ -10,6 +10,8 @@ public enum OcpxEventType {
 
 	ACTIVATE,
 
+	FIRST_ACTIVATION,
+
 	EVOKE,
 
 	LOGIN,
@@ -17,6 +19,16 @@ public enum OcpxEventType {
 	REGISTER,
 
 	NEXT_DAY_RETENTION,
+
+	RETENTION_D3,
+
+	RETENTION_D4,
+
+	RETENTION_D5,
+
+	RETENTION_D6,
+
+	RETENTION_D7,
 
 	RETENTION,
 
@@ -46,10 +58,16 @@ public enum OcpxEventType {
 			case "show", "impression" -> SHOW;
 			case "click" -> CLICK;
 			case "activate", "active" -> ACTIVATE;
+			case "firstactivation", "first_activation", "first_activate" -> FIRST_ACTIVATION;
 			case "evoke", "launch", "evoke_c", "evoke_valid" -> EVOKE;
 			case "login" -> LOGIN;
 			case "register" -> REGISTER;
 			case "day1retention", "next_day_retention", "next_stay" -> NEXT_DAY_RETENTION;
+			case "retention_d3", "day3retention", "retention3" -> RETENTION_D3;
+			case "retention_d4", "day4retention", "retention4" -> RETENTION_D4;
+			case "retention_d5", "day5retention", "retention5" -> RETENTION_D5;
+			case "retention_d6", "day6retention", "retention6" -> RETENTION_D6;
+			case "retention_d7", "day7retention", "retention7" -> RETENTION_D7;
 			case "retention", "recall" -> RETENTION;
 			case "purchase", "payment", "pay" -> PAYMENT;
 			case "reactivation", "lahuo", "lahui", "huifang" -> REACTIVATION;

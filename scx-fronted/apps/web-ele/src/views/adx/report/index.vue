@@ -51,20 +51,33 @@ const metrics: Array<{
   { label: '扣量比例', minWidth: 110, prop: 'deductionRatio' },
   { label: '展示数', minWidth: 110, prop: 'impressions' },
   { label: '点击数', minWidth: 110, prop: 'clicks' },
+  { label: '有效点击', minWidth: 110, prop: 'eligibleClickCount' },
+  { label: '重复点击', minWidth: 110, prop: 'deduplicatedClickCount' },
+  { label: '跳过去重', minWidth: 110, prop: 'skippedClickCount' },
+  { label: '已分类点击', minWidth: 120, prop: 'classifiedClickCount' },
   { label: '点击率', minWidth: 100, prop: 'clickRate' },
   { label: '消耗', minWidth: 120, prop: 'costAmount' },
-  { label: '收入', minWidth: 120, prop: 'revenueAmount' },
   { label: '原始转化', minWidth: 110, prop: 'rawConversionCount' },
   { label: '实际回传', minWidth: 110, prop: 'forwardedConversionCount' },
   { label: '扣除转化', minWidth: 110, prop: 'deductedConversionCount' },
   { label: '投递失败', minWidth: 110, prop: 'deliveryFailureCount' },
   { label: '激活', minWidth: 90, prop: 'activateCount' },
+  { label: '激活率', minWidth: 100, prop: 'activateRate' },
+  { label: '首活', minWidth: 90, prop: 'firstActivateCount' },
+  { label: '首活率', minWidth: 100, prop: 'firstActivateRate' },
+  { label: '拉活', minWidth: 90, prop: 'reactivationCount' },
+  { label: '拉活率', minWidth: 100, prop: 'reactivationRate' },
   { label: '唤起', minWidth: 90, prop: 'evokeCount' },
   { label: '登录', minWidth: 90, prop: 'loginCount' },
   { label: '注册', minWidth: 90, prop: 'registerCount' },
   { label: '付费', minWidth: 90, prop: 'paymentCount' },
   { label: '获客', minWidth: 90, prop: 'acquisitionCount' },
   { label: '次留', minWidth: 90, prop: 'nextStayCount' },
+  { label: '三留', minWidth: 90, prop: 'retention3dCount' },
+  { label: '四留', minWidth: 90, prop: 'retention4dCount' },
+  { label: '五留', minWidth: 90, prop: 'retention5dCount' },
+  { label: '六留', minWidth: 90, prop: 'retention6dCount' },
+  { label: '七留', minWidth: 90, prop: 'retention7dCount' },
   { label: '访问', minWidth: 90, prop: 'visitCount' },
   { label: '认证', minWidth: 90, prop: 'authenticationCount' },
   { label: '下单', minWidth: 90, prop: 'orderCount' },
@@ -123,10 +136,18 @@ function reset() {
 
 function display(row: ReportRow, prop: keyof ReportRow) {
   const value = row[prop] as any;
-  if (prop === 'clickRate') return `${Number(value || 0).toFixed(2)}%`;
+  if (
+    prop === 'clickRate' ||
+    prop === 'activateRate' ||
+    prop === 'firstActivateRate' ||
+    prop === 'reactivationRate'
+  )
+    return value === null || value === undefined
+      ? '暂无有效点击口径'
+      : `${Number(value).toFixed(2)}%`;
   if (prop === 'deductionRatio')
     return `${(Number(value || 0) * 100).toFixed(2)}%`;
-  if (prop === 'costAmount' || prop === 'revenueAmount') {
+  if (prop === 'costAmount') {
     return Number(value || 0).toLocaleString('zh-CN', {
       minimumFractionDigits: 2,
       style: 'currency',

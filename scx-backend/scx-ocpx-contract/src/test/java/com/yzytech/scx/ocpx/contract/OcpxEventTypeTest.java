@@ -12,10 +12,16 @@ class OcpxEventTypeTest {
 	@Test
 	void mapsAllCocoCallbackActions() {
 		assertEquals(OcpxEventType.ACTIVATE, OcpxEventType.fromExternal("activate"));
+		assertEquals(OcpxEventType.FIRST_ACTIVATION, OcpxEventType.fromExternal("first_activation"));
 		assertEquals(OcpxEventType.EVOKE, OcpxEventType.fromExternal("evoke"));
 		assertEquals(OcpxEventType.LOGIN, OcpxEventType.fromExternal("login"));
 		assertEquals(OcpxEventType.REGISTER, OcpxEventType.fromExternal("register"));
 		assertEquals(OcpxEventType.NEXT_DAY_RETENTION, OcpxEventType.fromExternal("day1retention"));
+		assertEquals(OcpxEventType.RETENTION_D3, OcpxEventType.fromExternal("retention_d3"));
+		assertEquals(OcpxEventType.RETENTION_D4, OcpxEventType.fromExternal("day4retention"));
+		assertEquals(OcpxEventType.RETENTION_D5, OcpxEventType.fromExternal("retention5"));
+		assertEquals(OcpxEventType.RETENTION_D6, OcpxEventType.fromExternal("retention_d6"));
+		assertEquals(OcpxEventType.RETENTION_D7, OcpxEventType.fromExternal("day7retention"));
 		assertEquals(OcpxEventType.RETENTION, OcpxEventType.fromExternal("retention"));
 		assertEquals(OcpxEventType.PAYMENT, OcpxEventType.fromExternal("purchase"));
 		assertEquals(OcpxEventType.PAYMENT, OcpxEventType.fromExternal("payment"));

@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApiDebugMigrationContractTest {
 
-	private static final String MIGRATION = "db/migration/V76__add_api_debug_workbench.sql";
+	private static final String MIGRATION = "db/schema/scx_current_schema.sql";
 
 	@Test
 	void packagesDebuggerStorageCorrelationAndAdminOnlyPermissions() throws Exception {

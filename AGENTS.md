@@ -199,9 +199,10 @@ com.yzytech.scx.adx
 
 数据库脚本约定：
 
-- 基线：`scx-backend/db/smart-converge-x/00schema.sql`、`10smart_converge_x_core.sql`、`20xxl_job_schema.sql`。
-- 业务增量迁移：`scx-backend/scx-boot/src/main/resources/db/migration/V{序号}__*.sql`，当前由 `init-database.sh` 按文件名排序应用。
-- 旧广告域物理删表脚本：`scx-backend/db/smart-converge-x/retirement/retire-superseded-ad-domains.sql`；必须先备份并单独确认，常规迁移不会自动执行。
+- 空库入口：`scx-backend/db/smart-converge-x/smart_converge_x_baseline.sql`，其中统一加载系统、XXL-JOB 与 `db/schema/scx_current_schema.sql` 当前态结构。
+- `init-database.sh` 只允许空库初始化，禁止扫描或自动执行 `db/migration`。
+- 未来已有库变更必须新增一份前向增量 SQL，并在同一变更中同步 `db/schema/scx_current_schema.sql`、`schema-required-tables.sh`、校验脚本和契约测试。
+- 已执行的增量 SQL 不得修改或重放；生产应用前必须备份、预览并取得明确授权。
 
 ### 5.2 前端（`scx-fronted/`）
 
@@ -400,7 +401,8 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 | 配置规范（Agent） | 本文件 **§6.4** |
 | 后端启动/部署 | `scripts/bt-deploy/`、宝塔 Java 项目管理器、`application-*.yml` |
 | 数据库基线脚本 | `scx-backend/db/smart-converge-x/` |
-| 业务增量 SQL | `scx-backend/scx-boot/src/main/resources/db/migration/` |
+| 当前态业务初始化 SQL | `scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql` |
+| 未来前向增量 SQL | `scx-backend/scx-boot/src/main/resources/db/migration/`（不自动执行） |
 | 前端根 package | `scx-fronted/package.json` |
 | 前端 workspace | `scx-fronted/pnpm-workspace.yaml` |
 | 前端 Turborepo | `scx-fronted/turbo.json` |

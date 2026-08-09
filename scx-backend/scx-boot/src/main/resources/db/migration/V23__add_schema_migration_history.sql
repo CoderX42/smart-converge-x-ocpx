@@ -1,7 +1,0 @@
-CREATE TABLE IF NOT EXISTS scx_schema_migration (
-  version VARCHAR(32) NOT NULL,
-  script_name VARCHAR(255) NOT NULL,
-  checksum VARCHAR(128) NOT NULL,
-  applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (version)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SCX 本地数据库迁移历史';

@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OcpxClickDedupMigrationContractTest {
 
-	private static final String MIGRATION = "db/migration/V77__add_ocpx_click_deduplication.sql";
+	private static final String MIGRATION = "db/migration/V79__reconcile_ocpx_click_dedup_and_dashboard.sql";
 
 	@Test
 	void addsForwardOnlyClickDeduplicationStateAndDecisionTables() throws Exception {

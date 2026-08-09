@@ -129,6 +129,7 @@ export type DeductionRule = CatalogRecord & {
 export type ReportRow = {
   acquisitionCount: number;
   activateCount: number;
+  activateRate?: number;
   advertiserId: string;
   advertiserName: string;
   appLinkId: string;
@@ -136,14 +137,19 @@ export type ReportRow = {
   authenticationCount: number;
   channelId: string;
   channelName: string;
+  classifiedClickCount: number;
   clickRate: number;
   clicks: number;
   costAmount: number;
   deductedConversionCount: number;
   deductionRatio: number;
+  deduplicatedClickCount: number;
   deliveryFailureCount: number;
+  eligibleClickCount: number;
   evokeCount: number;
   finishOrderCount: number;
+  firstActivateCount: number;
+  firstActivateRate?: number;
   firstOrderCount: number;
   forwardedConversionCount: number;
   impressions: number;
@@ -154,8 +160,16 @@ export type ReportRow = {
   orderCount: number;
   paymentCount: number;
   rawConversionCount: number;
+  reactivationCount: number;
+  reactivationRate?: number;
   registerCount: number;
+  retention3dCount: number;
+  retention4dCount: number;
+  retention5dCount: number;
+  retention6dCount: number;
+  retention7dCount: number;
   revenueAmount: number;
+  skippedClickCount: number;
   timeBucket: string;
   visitCount: number;
 };
@@ -255,12 +269,93 @@ export type RuntimeIngressAudit = {
   routeReference?: string;
 };
 
+export type DashboardMetricSet = {
+  activationRate?: number;
+  activations: number;
+  classifiedClicks: number;
+  clicks: number;
+  costAmount: number;
+  deductedConversions: number;
+  deduplicatedClicks: number;
+  deliveryFailures: number;
+  eligibleClicks: number;
+  firstActivationRate?: number;
+  firstActivations: number;
+  forwardedConversions: number;
+  impressions: number;
+  payments: number;
+  rawConversions: number;
+  reactivationRate?: number;
+  reactivations: number;
+  registrations: number;
+  retentionD2: number;
+  retentionD3: number;
+  retentionD4: number;
+  retentionD5: number;
+  retentionD6: number;
+  retentionD7: number;
+  skippedClicks: number;
+};
+
+export type DashboardComparisonMetric = {
+  changeRate?: number;
+  comparisonLabel: string;
+  comparisonValue: number;
+  value: number;
+};
+
 export type DashboardSummary = {
-  sevenDayIncome: number;
-  thirtyDayIncome: number;
-  totalIncome: number;
-  trend: Array<{ income: number; reportDate: string }>;
-  yesterdayIncome: number;
+  configuration: {
+    abnormalRoutes: number;
+    activeAdvertisers: number;
+    activeAppLinks: number;
+    activeChannels: number;
+    draftRoutes: number;
+    publishedRoutes: number;
+  };
+  dataCoverage: {
+    classifiedClicks: number;
+    clickQualityComplete: boolean;
+    rateStatus: 'COMPLETE' | 'INCOMPLETE_HISTORY' | 'NO_ELIGIBLE_CLICK';
+    retentionBasis: 'UPSTREAM_REPORTED_EVENT';
+    totalClicks: number;
+  };
+  dataUpdatedAt?: string;
+  filters: {
+    advertiserId?: string;
+    appLinkId?: string;
+    channelId?: string;
+    endDate: string;
+    monitorId?: string;
+    startDate: string;
+  };
+  funnel: Array<{
+    key: string;
+    label: string;
+    previousRate?: number;
+    value: number;
+  }>;
+  generatedAt: string;
+  highlights: {
+    todayActivations: DashboardComparisonMetric;
+    todayClicks: DashboardComparisonMetric;
+    todayFirstActivations: DashboardComparisonMetric;
+    todayPayments: DashboardComparisonMetric;
+    yesterdayRetentionD2: DashboardComparisonMetric;
+  };
+  retention: Array<{ day: string; reportDate: string; value: number }>;
+  timezone: string;
+  totals: DashboardMetricSet;
+  trend: Array<{ metrics: DashboardMetricSet; reportDate: string }>;
+};
+
+export type DashboardAccountSummary = {
+  cpcSpend: number;
+  currency: string;
+  generatedAt: string;
+  rechargeAmount: number;
+  rejectedCharges: number;
+  totalBalance: number;
 };
 
 export type ReportOptions = {
@@ -521,8 +616,17 @@ export function exportReport(params: Query) {
   });
 }
 
-export function getDashboardSummary() {
-  return requestClient.get<DashboardSummary>('/adx/dashboard/summary');
+export function getDashboardSummary(params?: Query) {
+  return requestClient.get<DashboardSummary>('/adx/dashboard/summary', {
+    params,
+  });
+}
+
+export function getDashboardAccountSummary(params?: Query) {
+  return requestClient.get<DashboardAccountSummary>(
+    '/adx/dashboard/account-summary',
+    { params },
+  );
 }
 
 export function getApiDebugTargets(keyword?: string) {

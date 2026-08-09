@@ -8,7 +8,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
+import com.yzytech.scx.adx.dto.DashboardDailyRow;
+import com.yzytech.scx.adx.dto.DashboardViews;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,16 +37,51 @@ class AdxReportServiceTest {
 
 	@Test
 	void dashboardReturnsStableZeroSafeContract() {
-		when(mapper.dashboardTotals(any(), any(), any(), any(), any()))
-			.thenReturn(Map.of("yesterdayIncome", BigDecimal.ONE, "sevenDayIncome", BigDecimal.TEN, "thirtyDayIncome",
-					BigDecimal.TEN, "totalIncome", BigDecimal.valueOf(100)));
-		when(mapper.dashboardTrend(any(), any())).thenReturn(List.of());
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
 
-		Map<String, Object> result = service.dashboard();
+		DashboardViews.Summary result = service.dashboard(null, null, null, null, null, null);
 
-		assertThat(result).containsEntry("yesterdayIncome", BigDecimal.ONE)
-			.containsEntry("totalIncome", BigDecimal.valueOf(100))
-			.containsEntry("trend", List.of());
+		assertThat(result.timezone()).isEqualTo("Asia/Shanghai");
+		assertThat(result.trend()).hasSize(30);
+		assertThat(result.totals().clicks()).isZero();
+		assertThat(result.totals().activationRate()).isNull();
+		assertThat(result.highlights().todayClicks().changeRate()).isNull();
+	}
+
+	@Test
+	void dashboardMarksHistoricalClickCoverageAsUnavailable() {
+		DashboardDailyRow row = new DashboardDailyRow();
+		row.setReportDate(LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")));
+		row.setClicks(10L);
+		row.setClassifiedClicks(8L);
+		row.setEligibleClicks(7L);
+		row.setActivates(3L);
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of(row));
+
+		DashboardViews.Summary result = service.dashboard(null, null, null, null, null, null);
+
+		assertThat(result.dataCoverage().clickQualityComplete()).isFalse();
+		assertThat(result.dataCoverage().rateStatus()).isEqualTo("INCOMPLETE_HISTORY");
+		assertThat(result.totals().activationRate()).isNull();
+	}
+
+	@Test
+	void dashboardRejectsMoreThanNinetyNaturalDays() {
+		LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Shanghai"));
+		assertThatThrownBy(() -> service.dashboard(today.minusDays(90), today, null, null, null, null))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessage("仪表盘单次查询范围不能超过90天");
+	}
+
+	@Test
+	void dashboardForcesAdvertiserScopeAcrossAllDimensions() {
+		when(accessScope.constrainAdvertiser("forged-advertiser")).thenReturn("own-advertiser");
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
+
+		service.dashboard(null, null, "channel-1", "forged-advertiser", "app-1", "monitor-1");
+
+		verify(mapper).dashboardDaily(any(), any(), eq("channel-1"), eq("own-advertiser"), eq("app-1"),
+				eq("monitor-1"));
 	}
 
 	@Test

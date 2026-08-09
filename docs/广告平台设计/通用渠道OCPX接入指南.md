@@ -108,8 +108,10 @@ UPPERCASE_METHOD + "\n"
 | Coco `action_type` | 规范事件 |
 |---|---|
 | `activate` | `ACTIVATE` |
+| `firstactivation` / `first_activation` | `FIRST_ACTIVATION` |
 | `register` | `REGISTER` |
 | `day1retention` | `NEXT_DAY_RETENTION` |
+| `retention_d3` … `retention_d7` | `RETENTION_D3` … `RETENTION_D7` |
 | `retention` | `RETENTION` |
 | `purchase` / `payment` | `PAYMENT` |
 | `reactivation` | `REACTIVATION` |
@@ -118,7 +120,7 @@ UPPERCASE_METHOD + "\n"
 | `firstorder` / `first_order` / `first_purchase` | `FIRST_ORDER` |
 | `completeorder` | `COMPLETE_ORDER` |
 
-`FIRST_ORDER` 使用独立报表指标，不并入普通下单或付费。`currency_amount` 同时保留原始值和可解析数值，但不参与 CPC 点击扣费。`ext` 是 SCX 生成的签名关联引用，有效期 7 天；`s` 仅作诊断，不参与信任判断。事件 ID 优先采用 `conversion_id/event_id/order_id`；均未提供时，使用 `ext + 除 ext/s 外的排序业务参数` 生成稳定事件 ID。
+`FIRST_ACTIVATION`、`REACTIVATION` 和 D2–D7 分别进入首活、拉活和对应留存指标；模糊 `RETENTION` 仍进入唤起，不推断具体留存日。`FIRST_ORDER` 使用独立报表指标，不并入普通下单或付费。`currency_amount` 同时保留原始值和可解析数值，但不参与 CPC 点击扣费。`ext` 是 SCX 生成的签名关联引用，有效期 7 天；`s` 仅作诊断，不参与信任判断。事件 ID 优先采用 `conversion_id/event_id/order_id`；均未提供时，使用 `ext + 除 ext/s 外的排序业务参数` 生成稳定事件 ID。
 
 ## 7. 联调清单
 

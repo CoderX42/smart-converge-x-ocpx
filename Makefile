@@ -1,14 +1,16 @@
 SHELL := /bin/bash
 
-.PHONY: db-migrate mvp-db-migrate backend-build backend-test backend-run-dev ocpx-engine-build ocpx-engine-test ocpx-engine-run-dev frontend-build frontend-check contract-check db-verify
+.PHONY: db-init db-migrate mvp-db-migrate backend-build backend-test backend-run-dev ocpx-engine-build ocpx-engine-test ocpx-engine-run-dev frontend-build frontend-check contract-check db-verify
 
 # The application uses externally managed MySQL, Redis and RocketMQ services.
 # Export the SCX_* and MYSQL_* variables from the deployment environment first.
-db-migrate:
+db-init:
 	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
 	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
 	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
 	cd scx-backend/db/smart-converge-x && ./init-database.sh
+
+db-migrate: db-init
 
 mvp-db-migrate: db-migrate
 

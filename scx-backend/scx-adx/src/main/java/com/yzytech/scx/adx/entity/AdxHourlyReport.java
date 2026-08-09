@@ -29,11 +29,23 @@ public class AdxHourlyReport {
 
 	private Long clicks;
 
+	private Long eligibleClickCount;
+
+	private Long deduplicatedClickCount;
+
+	private Long skippedClickCount;
+
+	private Long classifiedClickCount;
+
 	private BigDecimal costAmount;
 
 	private BigDecimal revenueAmount;
 
 	private Long activateCount;
+
+	private Long firstActivateCount;
+
+	private Long reactivationCount;
 
 	private Long evokeCount;
 
@@ -46,6 +58,16 @@ public class AdxHourlyReport {
 	private Long acquisitionCount;
 
 	private Long nextStayCount;
+
+	private Long retention3dCount;
+
+	private Long retention4dCount;
+
+	private Long retention5dCount;
+
+	private Long retention6dCount;
+
+	private Long retention7dCount;
 
 	private Long visitCount;
 
@@ -64,5 +86,9 @@ public class AdxHourlyReport {
 	private Long deductedConversionCount;
 
 	private Long deliveryFailureCount;
+
+	private LocalDateTime createTime;
+
+	private LocalDateTime updateTime;
 
 }

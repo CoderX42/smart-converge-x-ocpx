@@ -67,10 +67,12 @@ public class AdxRuntimeService {
 	 */
 	public RuntimeViews.Overview overview() {
 		Map<String, Long> statuses = new LinkedHashMap<>();
-		jdbcTemplate.query("SELECT status,COUNT(*) FROM scx_ocpx_delivery_job GROUP BY status",
+		jdbcTemplate.query(
+				"SELECT status,COUNT(*) FROM scx_ocpx_delivery_job WHERE debug_execution_id IS NULL GROUP BY status",
 				(RowCallbackHandler) rs -> statuses.put(rs.getString(1), rs.getLong(2)));
 		Map<String, Long> directions = new LinkedHashMap<>();
-		jdbcTemplate.query("SELECT direction,COUNT(*) FROM scx_ocpx_delivery_job GROUP BY direction",
+		jdbcTemplate.query(
+				"SELECT direction,COUNT(*) FROM scx_ocpx_delivery_job WHERE debug_execution_id IS NULL GROUP BY direction",
 				(RowCallbackHandler) rs -> directions.put(rs.getString(1), rs.getLong(2)));
 		Long dlq = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_dlq WHERE status='PENDING'",
 				Long.class);

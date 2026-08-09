@@ -25,17 +25,34 @@
       COALESCE(MAX(d.ratio), 1.0000) AS deduction_ratio,
       SUM(r.impressions) AS impressions,
       SUM(r.clicks) AS clicks,
+      SUM(r.eligible_click_count) AS eligible_click_count,
+      SUM(r.deduplicated_click_count) AS deduplicated_click_count,
+      SUM(r.skipped_click_count) AS skipped_click_count,
+      SUM(r.classified_click_count) AS classified_click_count,
       CASE WHEN SUM(r.impressions) = 0 THEN 0
            ELSE ROUND(SUM(r.clicks) * 100.0 / SUM(r.impressions), 4) END AS click_rate,
       SUM(r.cost_amount) AS cost_amount,
       SUM(r.revenue_amount) AS revenue_amount,
       SUM(r.activate_count) AS activate_count,
+      CASE WHEN SUM(r.classified_click_count) != SUM(r.clicks) OR SUM(r.eligible_click_count) = 0 THEN NULL
+           ELSE ROUND(SUM(r.activate_count) * 100.0 / SUM(r.eligible_click_count), 4) END AS activate_rate,
+      SUM(r.first_activate_count) AS first_activate_count,
+      CASE WHEN SUM(r.classified_click_count) != SUM(r.clicks) OR SUM(r.eligible_click_count) = 0 THEN NULL
+           ELSE ROUND(SUM(r.first_activate_count) * 100.0 / SUM(r.eligible_click_count), 4) END AS first_activate_rate,
       SUM(r.evoke_count) AS evoke_count,
+      SUM(r.reactivation_count) AS reactivation_count,
+      CASE WHEN SUM(r.classified_click_count) != SUM(r.clicks) OR SUM(r.eligible_click_count) = 0 THEN NULL
+           ELSE ROUND(SUM(r.reactivation_count) * 100.0 / SUM(r.eligible_click_count), 4) END AS reactivation_rate,
       SUM(r.login_count) AS login_count,
       SUM(r.register_count) AS register_count,
       SUM(r.payment_count) AS payment_count,
       SUM(r.acquisition_count) AS acquisition_count,
       SUM(r.next_stay_count) AS next_stay_count,
+      SUM(r.retention_3d_count) AS retention_3d_count,
+      SUM(r.retention_4d_count) AS retention_4d_count,
+      SUM(r.retention_5d_count) AS retention_5d_count,
+      SUM(r.retention_6d_count) AS retention_6d_count,
+      SUM(r.retention_7d_count) AS retention_7d_count,
       SUM(r.visit_count) AS visit_count,
       SUM(r.authentication_count) AS authentication_count,
       SUM(r.order_count) AS order_count,
@@ -61,28 +78,79 @@
     ORDER BY <include refid="timeBucket"/> DESC, MAX(c.channel_name), MAX(a.advertiser_name)
   </select>
 
-  <select id="dashboardTotals" resultType="java.util.HashMap">
+  <select id="dashboardDaily" resultType="com.yzytech.scx.adx.dto.DashboardDailyRow">
     SELECT
-      COALESCE(SUM(CASE WHEN time_hour &gt;= #{yesterday} AND time_hour &lt; #{today}
-        THEN revenue_amount ELSE 0 END), 0) AS yesterdayIncome,
-      COALESCE(SUM(CASE WHEN time_hour &gt;= #{sevenDays}
-        THEN revenue_amount ELSE 0 END), 0) AS sevenDayIncome,
-      COALESCE(SUM(CASE WHEN time_hour &gt;= #{thirtyDays}
-        THEN revenue_amount ELSE 0 END), 0) AS thirtyDayIncome,
-      COALESCE(SUM(revenue_amount), 0) AS totalIncome
-    FROM scx_adx_hourly_report
-    WHERE 1=1
-    <if test="advertiserId != null and advertiserId != ''">AND advertiser_id = #{advertiserId}</if>
+      DATE(r.time_hour) AS report_date,
+      SUM(r.impressions) AS impressions,
+      SUM(r.clicks) AS clicks,
+      SUM(r.eligible_click_count) AS eligible_clicks,
+      SUM(r.deduplicated_click_count) AS deduplicated_clicks,
+      SUM(r.skipped_click_count) AS skipped_clicks,
+      SUM(r.classified_click_count) AS classified_clicks,
+      SUM(r.cost_amount) AS cost_amount,
+      SUM(r.activate_count) AS activates,
+      SUM(r.first_activate_count) AS first_activations,
+      SUM(r.reactivation_count) AS reactivations,
+      SUM(r.register_count) AS registrations,
+      SUM(r.payment_count) AS payments,
+      SUM(r.next_stay_count) AS retention_d2,
+      SUM(r.retention_3d_count) AS retention_d3,
+      SUM(r.retention_4d_count) AS retention_d4,
+      SUM(r.retention_5d_count) AS retention_d5,
+      SUM(r.retention_6d_count) AS retention_d6,
+      SUM(r.retention_7d_count) AS retention_d7,
+      SUM(r.raw_conversion_count) AS raw_conversions,
+      SUM(r.forwarded_conversion_count) AS forwarded_conversions,
+      SUM(r.deducted_conversion_count) AS deducted_conversions,
+      SUM(r.delivery_failure_count) AS delivery_failures,
+      MAX(r.update_time) AS data_updated_at
+    FROM scx_adx_hourly_report r
+    WHERE r.time_hour &gt;= #{start} AND r.time_hour &lt; #{end}
+    <if test="channelId != null and channelId != ''">AND r.channel_id = #{channelId}</if>
+    <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
+    <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
+    <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
+    GROUP BY DATE(r.time_hour)
+    ORDER BY report_date
   </select>
 
-  <select id="dashboardTrend" resultType="java.util.HashMap">
-    SELECT DATE_FORMAT(time_hour, '%Y-%m-%d') AS reportDate,
-           COALESCE(SUM(revenue_amount), 0) AS income
-    FROM scx_adx_hourly_report
-    WHERE time_hour &gt;= #{start}
-    <if test="advertiserId != null and advertiserId != ''">AND advertiser_id = #{advertiserId}</if>
-    GROUP BY DATE_FORMAT(time_hour, '%Y-%m-%d')
-    ORDER BY reportDate
+  <select id="dashboardCoverage" resultType="com.yzytech.scx.adx.dto.DashboardCoverageRow">
+    SELECT COUNT(DISTINCT CASE WHEN c.status='ACTIVE' THEN c.id END) AS active_channels,
+           COUNT(DISTINCT CASE WHEN a.status='ACTIVE' THEN a.id END) AS active_advertisers,
+           COUNT(DISTINCT l.id) AS active_app_links,
+           SUM(m.route_status='PUBLISHED') AS published_routes,
+           SUM(m.route_status='DRAFT') AS draft_routes,
+           SUM(m.route_status NOT IN ('PUBLISHED','DRAFT')) AS abnormal_routes
+    FROM scx_adx_monitor_link m
+    JOIN scx_adx_channel c ON c.id=m.channel_id AND c.deleted=0
+    JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0
+    JOIN scx_adx_app_link l ON l.id=m.app_link_id AND l.deleted=0
+    WHERE m.deleted=0
+    <if test="channelId != null and channelId != ''">AND m.channel_id = #{channelId}</if>
+    <if test="advertiserId != null and advertiserId != ''">AND m.advertiser_id = #{advertiserId}</if>
+    <if test="appLinkId != null and appLinkId != ''">AND m.app_link_id = #{appLinkId}</if>
+    <if test="monitorId != null and monitorId != ''">AND m.id = #{monitorId}</if>
+  </select>
+
+  <select id="accountSummary" resultType="java.util.HashMap">
+    SELECT
+      (SELECT COALESCE(SUM(a.balance),0) FROM scx_adx_advertiser a
+       WHERE a.deleted=0
+       <if test="advertiserId != null and advertiserId != ''">AND a.id = #{advertiserId}</if>
+      ) AS totalBalance,
+      COALESCE(SUM(CASE WHEN b.mode='RECHARGE' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS rechargeAmount,
+      COALESCE(SUM(CASE WHEN b.mode='CPC' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS cpcSpend,
+      SUM(b.mode='CPC' AND b.status='REJECTED') AS rejectedCharges
+    FROM scx_ocpx_billing_entry b
+    WHERE b.create_time &gt;= #{start} AND b.create_time &lt; #{end}
+    AND b.debug_execution_id IS NULL
+    <if test="advertiserId != null and advertiserId != ''">AND b.advertiser_id = #{advertiserId}</if>
+    AND (b.mode='RECHARGE' OR EXISTS (
+      SELECT 1 FROM scx_ocpx_event e WHERE e.event_id=b.charge_event_id AND e.is_debug=0
+      <if test="channelId != null and channelId != ''">AND e.channel_id = #{channelId}</if>
+      <if test="appLinkId != null and appLinkId != ''">AND e.app_link_id = #{appLinkId}</if>
+      <if test="monitorId != null and monitorId != ''">AND e.monitor_id = #{monitorId}</if>
+    ))
   </select>
 
 </mapper>

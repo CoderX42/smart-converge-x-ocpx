@@ -9,6 +9,8 @@ import {
   getApiDebugRecentLogs,
   getApiDebugTargets,
   getCatalog,
+  getDashboardAccountSummary,
+  getDashboardSummary,
   getMonitorIntegration,
   getReport,
   getReportOptions,
@@ -80,6 +82,23 @@ describe('aDX API contract', () => {
         responseReturn: 'body',
         responseType: 'blob',
       },
+    );
+  });
+
+  it('sends the same effect filters to typed dashboard and protected account summaries', () => {
+    const filters = {
+      advertiserId: 'adv-1',
+      endDate: '2026-08-09',
+      startDate: '2026-08-01',
+    };
+    getDashboardSummary(filters);
+    getDashboardAccountSummary(filters);
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/dashboard/summary', {
+      params: filters,
+    });
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/dashboard/account-summary',
+      { params: filters },
     );
   });
 

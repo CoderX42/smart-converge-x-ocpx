@@ -1,5 +1,5 @@
 -- Smart Converge X Core Tables
--- 系统、认证、权限、支付、代码生成及当前保留业务表
+-- 系统、认证、权限、代码生成及当前保留业务表
 -- 所有 DDL 使用 IF NOT EXISTS 保证幂等可重复执行
 
 USE `smart_converge_x`;
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS `sys_log` (
   `id`              VARCHAR(64)  NOT NULL COMMENT '主键',
   `ip_addr`         VARCHAR(50)  DEFAULT NULL COMMENT 'ip地址',
   `title`           VARCHAR(200) DEFAULT NULL COMMENT '请求标题',
-  `request_method`  VARCHAR(10)  DEFAULT NULL COMMENT '请求方式',
+  `request_method`  VARCHAR(255)  DEFAULT NULL COMMENT '请求方式',
   `request_uri`     VARCHAR(255) DEFAULT NULL COMMENT '请求URI',
   `request_params`  TEXT         DEFAULT NULL COMMENT '请求数据',
   `request_time`    BIGINT(20)   DEFAULT NULL COMMENT '请求时长',
@@ -386,113 +386,6 @@ CREATE TABLE IF NOT EXISTS `sys_ad_launch` (
   `del_flag`            CHAR(1)      DEFAULT '0' COMMENT '逻辑删除：0.显示；1.隐藏；',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='启动广告配置';
-
--- ============================================================
--- Payment Module (scx-pay)
--- ============================================================
-
--- 支付配置
-CREATE TABLE IF NOT EXISTS `pay_config` (
-  `id`               VARCHAR(64)  NOT NULL COMMENT '主键',
-  `type`             CHAR(1)      NOT NULL COMMENT '支付类型：1.微信；2.支付宝；',
-  `app_id`           VARCHAR(100) DEFAULT NULL COMMENT '应用ID',
-  `mch_id`           VARCHAR(100) DEFAULT NULL COMMENT '商户号',
-  `mch_key`          VARCHAR(500) DEFAULT NULL COMMENT '微信支付商户密钥',
-  `key_path`         VARCHAR(500) DEFAULT NULL COMMENT 'apiclient_cert.p12文件的绝对路径',
-  `cert_serial_no`   VARCHAR(200) DEFAULT NULL COMMENT '证书序列号',
-  `apiv3_key`        VARCHAR(500) DEFAULT NULL COMMENT 'apiV3秘钥',
-  `private_key_path` VARCHAR(500) DEFAULT NULL COMMENT 'apiv3 商户apiclient_key.pem',
-  `private_cert_path` VARCHAR(500) DEFAULT NULL COMMENT 'apiv3 商户apiclient_cert.pem',
-  `terminal_type`    CHAR(1)      DEFAULT NULL COMMENT '支付端类型：0-小程序，1-App，2-H5，3-PC，4-公众号',
-  `mode`             CHAR(1)      DEFAULT '0' COMMENT '0=普通商户；1=服务商',
-  `sub_mchid`        VARCHAR(100) DEFAULT NULL COMMENT '子商户号',
-  `public_key_path`  VARCHAR(500) DEFAULT NULL COMMENT '微信支付公钥',
-  `public_key_id`    VARCHAR(200) DEFAULT NULL COMMENT '微信支付公钥ID',
-  `create_by`        VARCHAR(64)  DEFAULT NULL COMMENT '创建人',
-  `update_by`        VARCHAR(64)  DEFAULT NULL COMMENT '修改人',
-  `create_time`      DATETIME     DEFAULT NULL COMMENT '创建时间',
-  `update_time`      DATETIME     DEFAULT NULL COMMENT '修改时间',
-  `del_flag`         CHAR(1)      DEFAULT '0' COMMENT '逻辑删除：0.显示；1.隐藏；',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='支付配置';
-
--- 支付订单
-CREATE TABLE IF NOT EXISTS `pay_trade_order` (
-  `id`                    VARCHAR(64)   NOT NULL COMMENT '主键',
-  `channel_mch_id`        VARCHAR(100)  DEFAULT NULL COMMENT '渠道号',
-  `out_trade_no`          VARCHAR(100)  NOT NULL COMMENT '商户订单号',
-  `description`           VARCHAR(255)  DEFAULT NULL COMMENT '订单描述',
-  `trade_type`            VARCHAR(50)   DEFAULT NULL COMMENT '交易类型',
-  `open_id`               VARCHAR(200)  DEFAULT NULL COMMENT '用户id（openid、支付宝buyerId）',
-  `pay_status`            CHAR(1)       DEFAULT '0' COMMENT '支付状态：0.待支付；1.已支付；2.已取消',
-  `channel_order_no`      VARCHAR(200)  DEFAULT NULL COMMENT '渠道订单号',
-  `extra`                 TEXT          DEFAULT NULL COMMENT '额外参数',
-  `err_code`              VARCHAR(100)  DEFAULT NULL COMMENT '渠道支付错误码',
-  `err_msg`               VARCHAR(500)  DEFAULT NULL COMMENT '渠道支付错误描述',
-  `pay_success_time`      DATETIME      DEFAULT NULL COMMENT '支付成功时间',
-  `notify_url`            VARCHAR(500)  DEFAULT NULL COMMENT '通知地址',
-  `amount`                DECIMAL(30,6) DEFAULT NULL COMMENT '金额',
-  `return_url`            VARCHAR(500)  DEFAULT NULL COMMENT '同步跳转地址',
-  `quit_url`              VARCHAR(500)  DEFAULT NULL COMMENT '用户付款中途退出返回商户网站的地址',
-  `terminal_type`         CHAR(1)       DEFAULT NULL COMMENT '支付端类型：0-小程序，1-App，2-H5，3-PC，4-公众号',
-  `user_id`               VARCHAR(64)   DEFAULT NULL COMMENT '用户Id',
-  `pay_mode`              CHAR(1)       DEFAULT '0' COMMENT '支付模式：0=普通商户；1=服务商',
-  `wx_sub_mchid`          VARCHAR(100)  DEFAULT NULL COMMENT '微信子商户号',
-  `alipay_sub_mchid`      VARCHAR(100)  DEFAULT NULL COMMENT '支付宝子商户号',
-  `profit_sharing_status` CHAR(1)       DEFAULT '0' COMMENT '分账状态：0=否，1=是',
-  `wx_sub_appid`          VARCHAR(100)  DEFAULT NULL COMMENT '微信子商户号',
-  `create_by`             VARCHAR(64)   DEFAULT NULL COMMENT '创建人',
-  `update_by`             VARCHAR(64)   DEFAULT NULL COMMENT '修改人',
-  `create_time`           DATETIME      DEFAULT NULL COMMENT '创建时间',
-  `update_time`           DATETIME      DEFAULT NULL COMMENT '修改时间',
-  `del_flag`              CHAR(1)       DEFAULT '0' COMMENT '逻辑删除：0.显示；1.隐藏；',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_out_trade_no` (`out_trade_no`),
-  KEY `idx_channel_order_no` (`channel_order_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='支付订单';
-
--- 退款订单
-CREATE TABLE IF NOT EXISTS `pay_refund_order` (
-  `id`                 VARCHAR(64)   NOT NULL COMMENT '主键',
-  `channel_mch_id`     VARCHAR(100)  DEFAULT NULL COMMENT '渠道号',
-  `channel_refund_no`  VARCHAR(200)  DEFAULT NULL COMMENT '渠道退款单号',
-  `refund_status`      CHAR(1)       DEFAULT '0' COMMENT '退款状态：0.待退款；1.退款中；2.已退款；3.退款失败；4.待确认',
-  `refund_trade_no`    VARCHAR(100)  NOT NULL COMMENT '商户退款单号',
-  `extra`              TEXT          DEFAULT NULL COMMENT '额外参数',
-  `err_code`           VARCHAR(100)  DEFAULT NULL COMMENT '渠道退款错误码',
-  `err_msg`            VARCHAR(500)  DEFAULT NULL COMMENT '渠道退款错误描述',
-  `notify_url`         VARCHAR(500)  DEFAULT NULL COMMENT '通知地址',
-  `pay_amount`         DECIMAL(30,6) DEFAULT NULL COMMENT '支付金额',
-  `refund_amount`      DECIMAL(30,6) DEFAULT NULL COMMENT '退款金额（元）',
-  `out_trade_no`       VARCHAR(100)  DEFAULT NULL COMMENT '商户支付订单号',
-  `refund_success_time` DATETIME     DEFAULT NULL COMMENT '退款成功时间',
-  `user_id`            VARCHAR(64)   DEFAULT NULL COMMENT '用户ID',
-  `sub_mchid`          VARCHAR(100)  DEFAULT NULL COMMENT '子商户号',
-  `terminal_type`      CHAR(1)       DEFAULT NULL COMMENT '支付端类型(冗余)',
-  `create_by`          VARCHAR(64)   DEFAULT NULL COMMENT '创建人',
-  `update_by`          VARCHAR(64)   DEFAULT NULL COMMENT '修改人',
-  `create_time`        DATETIME      DEFAULT NULL COMMENT '创建时间',
-  `update_time`        DATETIME      DEFAULT NULL COMMENT '修改时间',
-  `del_flag`           CHAR(1)       DEFAULT '0' COMMENT '逻辑删除：0.显示；1.隐藏；',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_refund_trade_no` (`refund_trade_no`),
-  KEY `idx_out_trade_no` (`out_trade_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='退款订单';
-
--- 回调通知记录
-CREATE TABLE IF NOT EXISTS `pay_notify_record` (
-  `id`               VARCHAR(64)  NOT NULL COMMENT '主键',
-  `out_trade_no`     VARCHAR(100) DEFAULT NULL COMMENT '商户订单号',
-  `channel_order_no` VARCHAR(200) DEFAULT NULL COMMENT '渠道订单号',
-  `request`          TEXT         DEFAULT NULL COMMENT '请求报文',
-  `response`         TEXT         DEFAULT NULL COMMENT '响应报文',
-  `type`             CHAR(1)      DEFAULT NULL COMMENT '回调类型：1.支付回调；2.退款回调',
-  `create_by`        VARCHAR(64)  DEFAULT NULL COMMENT '创建人',
-  `create_time`      DATETIME     DEFAULT NULL COMMENT '创建时间',
-  `del_flag`         CHAR(1)      DEFAULT '0' COMMENT '逻辑删除：0.显示；1.隐藏；',
-  PRIMARY KEY (`id`),
-  KEY `idx_out_trade_no` (`out_trade_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='回调通知记录';
 
 -- ============================================================
 -- Code Generator Module (scx-generator)

@@ -22,6 +22,10 @@ fi
 
 table_list="$(printf "'%s'," "${SCX_REQUIRED_TABLES[@]}")"
 table_list="${table_list%,}"
+xxl_table_list="$(printf "'%s'," "${SCX_XXL_JOB_TABLES[@]}")"
+xxl_table_list="${xxl_table_list%,}"
+allowed_table_list="$(printf "'%s'," "${SCX_ALLOWED_TABLES[@]}")"
+allowed_table_list="${allowed_table_list%,}"
 
 actual_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
   --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name IN (${table_list});")"
@@ -31,11 +35,19 @@ if [[ "$actual_count" -ne "${#SCX_REQUIRED_TABLES[@]}" ]]; then
   exit 1
 fi
 
-retired_clue_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_adx_clue';")"
+xxl_actual_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name IN (${xxl_table_list});")"
 
-if [[ "$retired_clue_count" -ne 0 ]]; then
-  echo "Database verification failed: retired automotive clue table still exists." >&2
+if [[ "$xxl_actual_count" -ne "${#SCX_XXL_JOB_TABLES[@]}" ]]; then
+  echo "Database verification failed: expected ${#SCX_XXL_JOB_TABLES[@]} XXL-JOB tables, found $xxl_actual_count." >&2
+  exit 1
+fi
+
+unexpected_tables="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT GROUP_CONCAT(table_name ORDER BY table_name SEPARATOR ',') FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_type='BASE TABLE' AND table_name NOT IN (${allowed_table_list});")"
+
+if [[ -n "$unexpected_tables" ]]; then
+  echo "Database verification failed: unexpected tables: $unexpected_tables" >&2
   exit 1
 fi
 
@@ -72,9 +84,9 @@ if [[ "$admin_system_permission_count" -ne 8 ]]; then
 fi
 
 ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
-  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url','click_dedup_window_seconds')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count')) OR (table_name='scx_ocpx_event' AND column_name IN ('device_platform','device_id_type','device_key_version')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url','click_dedup_window_seconds')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count','eligible_click_count','deduplicated_click_count','skipped_click_count','classified_click_count','first_activate_count','reactivation_count','retention_3d_count','retention_4d_count','retention_5d_count','retention_6d_count','retention_7d_count','create_time','update_time')) OR (table_name='scx_ocpx_event' AND column_name IN ('device_platform','device_id_type','device_key_version')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark')));")"
 
-if [[ "$ocpx_column_count" -ne 31 ]]; then
+if [[ "$ocpx_column_count" -ne 44 ]]; then
   echo "Database verification failed: OCPX routing/report/accounting columns are incomplete." >&2
   exit 1
 fi

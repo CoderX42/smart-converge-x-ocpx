@@ -3,6 +3,7 @@ package com.yzytech.scx.adx.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.adx.dto.ReportRow;
+import com.yzytech.scx.adx.dto.DashboardViews;
 import com.yzytech.scx.adx.service.AdxReportService;
 import com.yzytech.scx.common.core.util.Result;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,8 +27,30 @@ public class AdxReportController {
 
 	@GetMapping("/dashboard/summary")
 	@SaCheckPermission("adx:dashboard:read")
-	public Result<Map<String, Object>> dashboard() {
-		return Result.success(service.dashboard());
+	public Result<DashboardViews.Summary> dashboard(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String channelId, String advertiserId,
+			String appLinkId, String monitorId) {
+		try {
+			return Result.success(service.dashboard(startDate, endDate, channelId, advertiserId, appLinkId, monitorId));
+		}
+		catch (IllegalArgumentException | IllegalStateException e) {
+			return Result.fail(e.getMessage());
+		}
+	}
+
+	@GetMapping("/dashboard/account-summary")
+	@SaCheckPermission("adx:account:read")
+	public Result<DashboardViews.AccountSummary> accountSummary(
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String channelId, String advertiserId,
+			String appLinkId, String monitorId) {
+		try {
+			return Result
+				.success(service.accountSummary(startDate, endDate, channelId, advertiserId, appLinkId, monitorId));
+		}
+		catch (IllegalArgumentException | IllegalStateException e) {
+			return Result.fail(e.getMessage());
+		}
 	}
 
 	@GetMapping("/reports/hourly")
