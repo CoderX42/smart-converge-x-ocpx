@@ -18,8 +18,15 @@ import {
 } from 'vue';
 
 import { useAccess } from '@boot/access';
+import { Page } from '@boot/common-ui';
 import { EchartsUI, useEcharts } from '@boot/plugins/echarts';
 
+import {
+  Filter,
+  FullScreen,
+  InfoFilled,
+  Refresh,
+} from '@element-plus/icons-vue';
 import dayjs from 'dayjs';
 import { ElMessage } from 'element-plus';
 
@@ -31,28 +38,67 @@ import {
 } from '#/api/adx';
 
 import {
+  buildDashboardTrendSeries,
   buildRetentionHeatmap,
   cascadeOptions,
+  comparisonTone,
+  DASHBOARD_TREND_DEFINITIONS,
   formatComparison,
+  formatDashboardTrendValue,
   formatInteger,
   formatRate,
+  isDashboardDateRangeValid,
   shouldPauseAutoRefresh,
 } from './model';
 
 defineOptions({ name: 'AdxDashboard' });
 
-const REPORT_TIMEZONE = 'Asia/Shanghai';
+type DateRange = [string, string];
+type DashboardPreset = 7 | 30 | 90 | 'CUSTOM';
+type FilterKey = 'advertiserId' | 'appLinkId' | 'channelId' | 'monitorId';
+type DashboardFilters = {
+  advertiserId: string;
+  appLinkId: string;
+  channelId: string;
+  dates: DateRange;
+  monitorId: string;
+};
+
 const AUTO_REFRESH_MS = 60_000;
 const { hasAccessByCodes } = useAccess();
 const canViewRuntime = computed(() => hasAccessByCodes(['adx:runtime:read']));
 const canViewAccount = computed(() => hasAccessByCodes(['adx:account:read']));
 
+function defaultDateRange(days = 30): DateRange {
+  return [
+    dayjs()
+      .subtract(days - 1, 'day')
+      .format('YYYY-MM-DD'),
+    dayjs().format('YYYY-MM-DD'),
+  ];
+}
+
+function createFilters(): DashboardFilters {
+  return {
+    advertiserId: '',
+    appLinkId: '',
+    channelId: '',
+    dates: defaultDateRange(),
+    monitorId: '',
+  };
+}
+
 const pageRef = ref<HTMLElement>();
 const loading = ref(false);
 const refreshing = ref(false);
+const optionalLoading = ref(false);
 const errorMessage = ref('');
+const runtimeError = ref(false);
+const accountError = ref(false);
 const isFullscreen = ref(false);
 const autoRefreshPaused = ref(false);
+const filterDrawerVisible = ref(false);
+const expandedSections = ref<string[]>([]);
 const summary = ref<DashboardSummary>();
 const account = ref<DashboardAccountSummary>();
 const runtime = ref<RuntimeOverview>();
@@ -62,28 +108,17 @@ const options = ref<ReportOptions>({
   channels: [],
   monitors: [],
 });
-const preset = ref<7 | 30 | 90 | 'CUSTOM'>(30);
-const filters = reactive({
-  advertiserId: '',
-  appLinkId: '',
-  channelId: '',
-  dates: [
-    dayjs().subtract(29, 'day').format('YYYY-MM-DD'),
-    dayjs().format('YYYY-MM-DD'),
-  ] as [string, string],
-  monitorId: '',
-});
+const preset = ref<DashboardPreset>(30);
+const draftPreset = ref<DashboardPreset>(30);
+const filters = reactive<DashboardFilters>(createFilters());
+const draftFilters = reactive<DashboardFilters>(createFilters());
 
-const trafficRef = ref();
-const conversionRef = ref();
-const rateRef = ref();
+const trendRef = ref();
 const funnelRef = ref();
 const retentionRef = ref();
 const qualityRef = ref();
 const configurationRef = ref();
-const trafficChart = useEcharts(trafficRef);
-const conversionChart = useEcharts(conversionRef);
-const rateChart = useEcharts(rateRef);
+const trendChart = useEcharts(trendRef);
 const funnelChart = useEcharts(funnelRef);
 const retentionChart = useEcharts(retentionRef);
 const qualityChart = useEcharts(qualityRef);
@@ -91,7 +126,10 @@ const configurationChart = useEcharts(configurationRef);
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
-const cascaded = computed(() => cascadeOptions(options.value, filters));
+const moreExpanded = computed(() => expandedSections.value.includes('more'));
+const draftCascaded = computed(() =>
+  cascadeOptions(options.value, draftFilters),
+);
 const hasData = computed(() => {
   const totals = summary.value?.totals;
   return Boolean(
@@ -112,65 +150,92 @@ const coverageMessage = computed(() => {
   }
   return '设备窗有效点击口径完整';
 });
-const coverageStatusClass = computed(() => {
-  const status = summary.value?.dataCoverage.rateStatus;
-  return status ? `is-${status.toLowerCase().replaceAll('_', '-')}` : '';
-});
+const coverageTagType = computed(() =>
+  summary.value?.dataCoverage.rateStatus === 'COMPLETE' ? 'success' : 'warning',
+);
 const coreCards = computed(() => {
   const highlights = summary.value?.highlights;
   return [
     {
-      accent: 'cyan',
       key: 'clicks',
       label: '今日点击',
       metric: highlights?.todayClicks,
-      note: '唯一 event_id 点击事实',
+      note: '唯一 event_id 的全部点击事实',
     },
     {
-      accent: 'amber',
       key: 'activate',
       label: '今日激活',
       metric: highlights?.todayActivations,
-      note: '上游 ACTIVATE 事件',
+      note: '上游 ACTIVATE 事件次数',
     },
     {
-      accent: 'blue',
       key: 'retention',
       label: '昨日次留',
       metric: highlights?.yesterdayRetentionD2,
-      note: '上游 D2 回传事件',
+      note: '上游明确回传的 D2 留存事件',
     },
     {
-      accent: 'green',
       key: 'first',
       label: '今日首活',
       metric: highlights?.todayFirstActivations,
-      note: 'FIRST_ACTIVATION',
+      note: 'FIRST_ACTIVATION 首次激活事件',
     },
     {
-      accent: 'red',
       key: 'payment',
       label: '今日付费',
       metric: highlights?.todayPayments,
-      note: '付费事件次数，不含金额',
+      note: '付费事件次数，不表示支付金额',
     },
   ];
 });
 const auxiliaryCards = computed(() => {
   const totals = summary.value?.totals;
   return [
+    { label: '展示量', value: formatInteger(totals?.impressions) },
+    { label: '有效点击', value: formatInteger(totals?.eligibleClicks) },
+    { label: '重复点击', value: formatInteger(totals?.deduplicatedClicks) },
     { label: '注册', value: formatInteger(totals?.registrations) },
     { label: '拉活', value: formatInteger(totals?.reactivations) },
     { label: '激活率', value: formatRate(totals?.activationRate) },
     { label: '首活率', value: formatRate(totals?.firstActivationRate) },
     { label: '拉活率', value: formatRate(totals?.reactivationRate) },
-    { label: '展示量', value: formatInteger(totals?.impressions) },
     { label: 'CPC 消耗', value: money(totals?.costAmount) },
   ];
 });
 const lastUpdated = computed(() => {
   const value = summary.value?.dataUpdatedAt || summary.value?.generatedAt;
   return value ? dayjs(value).format('MM-DD HH:mm:ss') : '尚未更新';
+});
+const dateRangeLabel = computed(
+  () => `${filters.dates[0]} 至 ${filters.dates[1]}`,
+);
+const activeFilterTags = computed(() => {
+  const tags: Array<{ key: FilterKey; label: string }> = [];
+  const channel = options.value.channels.find(
+    (item) => item.id === filters.channelId,
+  );
+  const advertiser = options.value.advertisers.find(
+    (item) => item.id === filters.advertiserId,
+  );
+  const appLink = options.value.appLinks.find(
+    (item) => item.id === filters.appLinkId,
+  );
+  const monitor = options.value.monitors.find(
+    (item) => item.id === filters.monitorId,
+  );
+  if (channel)
+    tags.push({ key: 'channelId', label: `渠道：${channel.channelName}` });
+  if (advertiser) {
+    tags.push({
+      key: 'advertiserId',
+      label: `广告主：${advertiser.advertiserName}`,
+    });
+  }
+  if (appLink)
+    tags.push({ key: 'appLinkId', label: `应用：${appLink.linkName}` });
+  if (monitor)
+    tags.push({ key: 'monitorId', label: `监测：${monitor.monitorName}` });
+  return tags;
 });
 
 function query() {
@@ -196,26 +261,57 @@ function metricValue(metric?: DashboardComparisonMetric) {
   return formatInteger(metric?.value);
 }
 
-function comparisonTone(metric?: DashboardComparisonMetric) {
-  if (metric?.changeRate === undefined || metric.changeRate === null) {
-    return metric && metric.value > 0 && metric.comparisonValue === 0
-      ? 'positive'
-      : 'muted';
-  }
-  if (metric.changeRate > 0) return 'positive';
-  if (metric.changeRate < 0) return 'negative';
-  return 'muted';
+function invalidateOptionalData() {
+  runtime.value = undefined;
+  account.value = undefined;
+  runtimeError.value = false;
+  accountError.value = false;
 }
 
-function setPreset(value: 7 | 30 | 90 | 'CUSTOM') {
+function setPreset(value: 7 | 30 | 90) {
   preset.value = value;
-  if (value === 'CUSTOM') return;
-  filters.dates = [
-    dayjs()
-      .subtract(value - 1, 'day')
-      .format('YYYY-MM-DD'),
-    dayjs().format('YYYY-MM-DD'),
-  ];
+  filters.dates = defaultDateRange(value);
+  invalidateOptionalData();
+  void load();
+}
+
+function openFilterDrawer() {
+  Object.assign(draftFilters, {
+    ...filters,
+    dates: [...filters.dates] as DateRange,
+  });
+  draftPreset.value = preset.value;
+  filterDrawerVisible.value = true;
+}
+
+function setDraftPreset(value: 7 | 30 | 90) {
+  draftPreset.value = value;
+  draftFilters.dates = defaultDateRange(value);
+}
+
+function resetDraftFilters() {
+  Object.assign(draftFilters, createFilters());
+  draftPreset.value = 30;
+}
+
+function applyDraftFilters() {
+  if (!isDashboardDateRangeValid(draftFilters.dates)) {
+    ElMessage.warning('日期范围必须按顺序选择，且最多包含 90 个自然日');
+    return;
+  }
+  Object.assign(filters, {
+    ...draftFilters,
+    dates: [...draftFilters.dates] as DateRange,
+  });
+  preset.value = draftPreset.value;
+  filterDrawerVisible.value = false;
+  invalidateOptionalData();
+  void load();
+}
+
+function clearFilter(key: FilterKey) {
+  filters[key] = '';
+  invalidateOptionalData();
   void load();
 }
 
@@ -231,6 +327,43 @@ async function loadOptions() {
   }
 }
 
+async function loadOptionalData() {
+  if (!moreExpanded.value || optionalLoading.value) return;
+  optionalLoading.value = true;
+  const requests: Promise<void>[] = [];
+  if (canViewRuntime.value) {
+    requests.push(
+      getRuntimeOverview()
+        .then((value) => {
+          runtime.value = value;
+          runtimeError.value = false;
+        })
+        .catch(() => {
+          runtime.value = undefined;
+          runtimeError.value = true;
+        }),
+    );
+  }
+  if (canViewAccount.value) {
+    requests.push(
+      getDashboardAccountSummary(query())
+        .then((value) => {
+          account.value = value;
+          accountError.value = false;
+        })
+        .catch(() => {
+          account.value = undefined;
+          accountError.value = true;
+        }),
+    );
+  }
+  try {
+    await Promise.all(requests);
+  } finally {
+    optionalLoading.value = false;
+  }
+}
+
 async function load(silent = false) {
   if (loading.value || refreshing.value) return;
   if (silent) refreshing.value = true;
@@ -238,32 +371,11 @@ async function load(silent = false) {
   errorMessage.value = '';
   try {
     summary.value = await getDashboardSummary(query());
-    const optionalRequests: Promise<void>[] = [];
-    if (canViewRuntime.value) {
-      optionalRequests.push(
-        getRuntimeOverview()
-          .then((value) => {
-            runtime.value = value;
-          })
-          .catch(() => {
-            runtime.value = undefined;
-          }),
-      );
-    }
-    if (canViewAccount.value) {
-      optionalRequests.push(
-        getDashboardAccountSummary(query())
-          .then((value) => {
-            account.value = value;
-          })
-          .catch(() => {
-            account.value = undefined;
-          }),
-      );
-    }
-    await Promise.all(optionalRequests);
     await nextTick();
-    await renderCharts();
+    await renderOverviewChart();
+    if (moreExpanded.value) {
+      await Promise.all([renderDetailCharts(), loadOptionalData()]);
+    }
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : '仪表盘数据加载失败';
@@ -273,237 +385,194 @@ async function load(silent = false) {
   }
 }
 
-async function renderCharts() {
+function compactAxisNumber(value: unknown) {
+  const number = Number(value || 0);
+  if (Math.abs(number) >= 100_000_000) return `${number / 100_000_000}亿`;
+  if (Math.abs(number) >= 10_000) return `${number / 10_000}万`;
+  return formatInteger(number);
+}
+
+function trendTooltipFormatter(value: unknown) {
+  const params = (Array.isArray(value) ? value : [value]) as Array<{
+    axisValueLabel?: string;
+    marker?: string;
+    seriesName?: string;
+    value?: null | number;
+  }>;
+  const date = params[0]?.axisValueLabel || '—';
+  const rows = DASHBOARD_TREND_DEFINITIONS.map((definition) => {
+    const item = params.find(
+      ({ seriesName }) => seriesName === definition.label,
+    );
+    return `<div style="display:flex;min-width:210px;align-items:center;justify-content:space-between;gap:24px;line-height:24px"><span>${item?.marker || ''}${definition.label}</span><strong>${formatDashboardTrendValue(definition, item?.value)}</strong></div>`;
+  });
+  return `<div style="margin-bottom:6px;font-weight:600">${date}</div>${rows.join('')}`;
+}
+
+async function renderOverviewChart() {
   const data = summary.value;
   if (!data || !hasData.value) return;
-  const dates = data.trend.map((item) => item.reportDate.slice(5));
-  const axis = {
-    axisLabel: { color: '#8b9aaf' },
-    axisLine: { lineStyle: { color: '#324156' } },
-    axisTick: { show: false },
-    splitLine: { lineStyle: { color: 'rgba(130,150,175,.14)' } },
-  };
-  const tooltip = {
-    axisPointer: { type: 'cross' as const },
-    backgroundColor: 'rgba(12,24,39,.94)',
-    borderColor: '#334155',
-    textStyle: { color: '#f8fafc' },
-    trigger: 'axis' as const,
-  };
-  const line = (
-    name: string,
-    values: Array<number | undefined>,
-    color: string,
-  ) => ({
-    data: values.map((value) => value ?? null),
-    emphasis: { focus: 'series' as const },
-    name,
-    showSymbol: false,
-    smooth: 0.28,
-    type: 'line' as const,
-    lineStyle: { color, width: 2 },
-    itemStyle: { color },
+  const series = buildDashboardTrendSeries(data);
+  await trendChart.renderEcharts({
+    animationDuration: 420,
+    color: series.map(({ color }) => color),
+    grid: { bottom: 68, containLabel: true, left: 18, right: 24, top: 38 },
+    legend: {
+      bottom: 4,
+      data: series.map(({ label }) => label),
+      type: 'scroll' as const,
+    },
+    series: series.map((item) => ({
+      connectNulls: false,
+      data: item.data,
+      emphasis: { focus: 'series' as const },
+      itemStyle: { color: item.color },
+      lineStyle: {
+        color: item.color,
+        width: item.key === 'clicks' ? 2.6 : 1.8,
+      },
+      name: item.label,
+      showSymbol: false,
+      smooth: 0.28,
+      symbol: 'circle',
+      symbolSize: 7,
+      type: 'line' as const,
+      yAxisIndex: item.yAxisIndex,
+    })),
+    tooltip: {
+      axisPointer: { type: 'line' as const },
+      confine: true,
+      extraCssText: 'max-height:70vh;overflow-y:auto;',
+      formatter: trendTooltipFormatter,
+      trigger: 'axis' as const,
+    },
+    xAxis: {
+      axisTick: { show: false },
+      boundaryGap: false,
+      data: data.trend.map((item) => item.reportDate),
+      type: 'category' as const,
+    },
+    yAxis: [
+      {
+        axisLabel: { formatter: compactAxisNumber },
+        name: '数量',
+        type: 'value' as const,
+      },
+      {
+        axisLabel: { formatter: '{value}%' },
+        min: 0,
+        name: '比率',
+        splitLine: { show: false },
+        type: 'value' as const,
+      },
+    ],
   });
-  const grid = { bottom: 40, containLabel: true, left: 12, right: 20, top: 42 };
-  const legend = { right: 6, textStyle: { color: '#8b9aaf' }, top: 4 };
+}
 
+async function renderDetailCharts() {
+  const data = summary.value;
+  if (!data || !hasData.value || !moreExpanded.value) return;
   const heatmap = buildRetentionHeatmap(data);
   const heatMax = Math.max(...heatmap.data.map((item) => Number(item[2])), 1);
+  const tooltip = { confine: true, trigger: 'axis' as const };
   await Promise.all([
-    trafficChart.renderEcharts({
-      grid,
-      legend,
-      series: [
-        line(
-          '全部点击',
-          data.trend.map((item) => item.metrics.clicks),
-          '#38bdf8',
-        ),
-        line(
-          '有效点击',
-          data.trend.map((item) => item.metrics.eligibleClicks),
-          '#34d399',
-        ),
-        line(
-          '重复点击',
-          data.trend.map((item) => item.metrics.deduplicatedClicks),
-          '#fb7185',
-        ),
-      ],
-      tooltip,
-      xAxis: { ...axis, boundaryGap: false, data: dates, type: 'category' },
-      yAxis: { ...axis, type: 'value' },
-    }),
-    conversionChart.renderEcharts({
-      grid,
-      legend,
-      series: [
-        line(
-          '激活',
-          data.trend.map((item) => item.metrics.activations),
-          '#f59e0b',
-        ),
-        line(
-          '首活',
-          data.trend.map((item) => item.metrics.firstActivations),
-          '#22c55e',
-        ),
-        line(
-          '拉活',
-          data.trend.map((item) => item.metrics.reactivations),
-          '#06b6d4',
-        ),
-        line(
-          '注册',
-          data.trend.map((item) => item.metrics.registrations),
-          '#60a5fa',
-        ),
-        line(
-          '付费',
-          data.trend.map((item) => item.metrics.payments),
-          '#fb7185',
-        ),
-      ],
-      tooltip,
-      xAxis: { ...axis, boundaryGap: false, data: dates, type: 'category' },
-      yAxis: { ...axis, type: 'value' },
-    }),
-    rateChart.renderEcharts({
-      grid,
-      legend,
-      series: [
-        line(
-          '激活率',
-          data.trend.map((item) => item.metrics.activationRate),
-          '#f59e0b',
-        ),
-        line(
-          '首活率',
-          data.trend.map((item) => item.metrics.firstActivationRate),
-          '#22c55e',
-        ),
-        line(
-          '拉活率',
-          data.trend.map((item) => item.metrics.reactivationRate),
-          '#06b6d4',
-        ),
-      ],
-      tooltip: {
-        ...tooltip,
-        valueFormatter: (value: unknown) => `${value ?? '—'}%`,
-      },
-      xAxis: { ...axis, boundaryGap: false, data: dates, type: 'category' },
-      yAxis: {
-        ...axis,
-        axisLabel: { color: '#8b9aaf', formatter: '{value}%' },
-        type: 'value',
-      },
-    }),
     funnelChart.renderEcharts({
-      grid: { bottom: 20, containLabel: true, left: 16, right: 30, top: 20 },
+      grid: { bottom: 20, containLabel: true, left: 16, right: 34, top: 20 },
       series: [
         {
           barMaxWidth: 32,
           data: [...data.funnel].reverse().map((item, index) => ({
             itemStyle: {
-              color: ['#fb7185', '#60a5fa', '#f59e0b', '#34d399'][index],
+              color: ['#f56c6c', '#409eff', '#e6a23c', '#67c23a'][index],
             },
             value: item.value,
           })),
-          label: {
-            color: '#cbd5e1',
-            formatter: '{c}',
-            position: 'right',
-            show: true,
-          },
+          label: { formatter: '{c}', position: 'right', show: true },
           type: 'bar',
         },
       ],
       tooltip,
-      xAxis: { ...axis, type: 'value' },
+      xAxis: { type: 'value' },
       yAxis: {
-        ...axis,
+        axisTick: { show: false },
         data: [...data.funnel].reverse().map((item) => item.label),
         type: 'category',
       },
     }),
     retentionChart.renderEcharts({
-      grid: { bottom: 55, containLabel: true, left: 20, right: 28, top: 18 },
+      grid: { bottom: 58, containLabel: true, left: 20, right: 28, top: 18 },
       series: [
         {
           data: heatmap.data,
-          emphasis: { itemStyle: { borderColor: '#f8fafc', borderWidth: 1 } },
-          label: { color: '#e2e8f0', formatter: '{@[2]}', show: true },
+          emphasis: { itemStyle: { borderColor: '#ffffff', borderWidth: 1 } },
+          label: { formatter: '{@[2]}', show: true },
           type: 'heatmap',
         },
       ],
       tooltip: {
-        ...tooltip,
+        confine: true,
         formatter: (params: unknown) => {
           const item = params as { value: [number, number, number] };
-          const [dateIndex, dayIndex, value] = item.value;
-          return `${heatmap.dates[dateIndex] || '—'}<br/>${heatmap.days[dayIndex] || '—'}：<strong>${formatInteger(value)}</strong>`;
+          const [dateIndex, dayIndex, pointValue] = item.value;
+          return `${heatmap.dates[dateIndex] || '—'}<br/>${heatmap.days[dayIndex] || '—'}：<strong>${formatInteger(pointValue)}</strong>`;
         },
         trigger: 'item',
       },
       visualMap: {
         calculable: true,
-        inRange: { color: ['#13293d', '#0f766e', '#f59e0b'] },
+        inRange: { color: ['#ecf5ff', '#79bbff', '#337ecc'] },
         max: heatMax,
         min: 0,
         orient: 'horizontal',
-        textStyle: { color: '#8b9aaf' },
         bottom: 0,
         left: 'center',
       },
       xAxis: {
-        ...axis,
         data: heatmap.dates.map((date) => date.slice(5)),
         splitArea: { show: true },
         type: 'category',
       },
       yAxis: {
-        ...axis,
         data: heatmap.days,
         splitArea: { show: true },
         type: 'category',
       },
     }),
     qualityChart.renderEcharts({
-      grid: { bottom: 24, containLabel: true, left: 20, right: 20, top: 40 },
-      legend,
+      grid: { bottom: 24, containLabel: true, left: 20, right: 20, top: 42 },
+      legend: { top: 4 },
       series: [
         {
           data: [data.totals.rawConversions],
-          itemStyle: { color: '#38bdf8' },
+          itemStyle: { color: '#409eff' },
           name: '原始',
           type: 'bar',
         },
         {
           data: [data.totals.forwardedConversions],
-          itemStyle: { color: '#34d399' },
+          itemStyle: { color: '#67c23a' },
           name: '成功回传',
           type: 'bar',
         },
         {
           data: [data.totals.deductedConversions],
-          itemStyle: { color: '#f59e0b' },
+          itemStyle: { color: '#e6a23c' },
           name: '扣除',
           type: 'bar',
         },
         {
           data: [data.totals.deliveryFailures],
-          itemStyle: { color: '#fb7185' },
+          itemStyle: { color: '#f56c6c' },
           name: '死亡失败',
           type: 'bar',
         },
       ],
       tooltip,
-      xAxis: { ...axis, data: ['当前区间'], type: 'category' },
-      yAxis: { ...axis, type: 'value' },
+      xAxis: { data: ['当前区间'], type: 'category' },
+      yAxis: { type: 'value' },
     }),
     configurationChart.renderEcharts({
-      legend: { bottom: 0, textStyle: { color: '#8b9aaf' } },
+      legend: { bottom: 0 },
       series: [
         {
           center: ['50%', '44%'],
@@ -512,13 +581,12 @@ async function renderCharts() {
             { name: '草稿', value: data.configuration.draftRoutes },
             { name: '异常', value: data.configuration.abnormalRoutes },
           ],
-          itemStyle: { borderColor: '#101c2c', borderWidth: 3 },
-          label: { color: '#cbd5e1', formatter: '{b} {c}' },
+          label: { formatter: '{b} {c}' },
           radius: ['46%', '70%'],
           type: 'pie',
         },
       ],
-      tooltip: { ...tooltip, trigger: 'item' },
+      tooltip: { confine: true, trigger: 'item' },
     }),
   ]);
 }
@@ -533,17 +601,19 @@ async function toggleFullscreen() {
   }
 }
 
-function handleFullscreenChange() {
-  isFullscreen.value = document.fullscreenElement === pageRef.value;
-  nextTick(() => {
-    trafficChart.resize();
-    conversionChart.resize();
-    rateChart.resize();
+function resizeCharts() {
+  trendChart.resize();
+  if (moreExpanded.value) {
     funnelChart.resize();
     retentionChart.resize();
     qualityChart.resize();
     configurationChart.resize();
-  });
+  }
+}
+
+function handleFullscreenChange() {
+  isFullscreen.value = document.fullscreenElement === pageRef.value;
+  nextTick(resizeCharts);
 }
 
 function handleVisibilityChange() {
@@ -552,60 +622,76 @@ function handleVisibilityChange() {
 }
 
 watch(
-  () => filters.advertiserId,
+  () => draftFilters.advertiserId,
   () => {
     if (
-      filters.appLinkId &&
-      !cascaded.value.appLinks.some((item) => item.id === filters.appLinkId)
-    ) {
-      filters.appLinkId = '';
-    }
-    if (
-      filters.monitorId &&
-      !cascaded.value.monitors.some((item) => item.id === filters.monitorId)
-    ) {
-      filters.monitorId = '';
-    }
-  },
-);
-
-watch(
-  () => filters.channelId,
-  () => {
-    if (
-      filters.advertiserId &&
-      !cascaded.value.advertisers.some(
-        (item) => item.id === filters.advertiserId,
+      draftFilters.appLinkId &&
+      !draftCascaded.value.appLinks.some(
+        (item) => item.id === draftFilters.appLinkId,
       )
     ) {
-      filters.advertiserId = '';
+      draftFilters.appLinkId = '';
     }
     if (
-      filters.appLinkId &&
-      !cascaded.value.appLinks.some((item) => item.id === filters.appLinkId)
+      draftFilters.monitorId &&
+      !draftCascaded.value.monitors.some(
+        (item) => item.id === draftFilters.monitorId,
+      )
     ) {
-      filters.appLinkId = '';
-    }
-    if (
-      filters.monitorId &&
-      !cascaded.value.monitors.some((item) => item.id === filters.monitorId)
-    ) {
-      filters.monitorId = '';
+      draftFilters.monitorId = '';
     }
   },
 );
 
 watch(
-  () => filters.appLinkId,
+  () => draftFilters.channelId,
   () => {
     if (
-      filters.monitorId &&
-      !cascaded.value.monitors.some((item) => item.id === filters.monitorId)
+      draftFilters.advertiserId &&
+      !draftCascaded.value.advertisers.some(
+        (item) => item.id === draftFilters.advertiserId,
+      )
     ) {
-      filters.monitorId = '';
+      draftFilters.advertiserId = '';
+    }
+    if (
+      draftFilters.appLinkId &&
+      !draftCascaded.value.appLinks.some(
+        (item) => item.id === draftFilters.appLinkId,
+      )
+    ) {
+      draftFilters.appLinkId = '';
+    }
+    if (
+      draftFilters.monitorId &&
+      !draftCascaded.value.monitors.some(
+        (item) => item.id === draftFilters.monitorId,
+      )
+    ) {
+      draftFilters.monitorId = '';
     }
   },
 );
+
+watch(
+  () => draftFilters.appLinkId,
+  () => {
+    if (
+      draftFilters.monitorId &&
+      !draftCascaded.value.monitors.some(
+        (item) => item.id === draftFilters.monitorId,
+      )
+    ) {
+      draftFilters.monitorId = '';
+    }
+  },
+);
+
+watch(expandedSections, async () => {
+  if (!moreExpanded.value) return;
+  await nextTick();
+  await Promise.all([renderDetailCharts(), loadOptionalData()]);
+});
 
 onMounted(async () => {
   document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -624,472 +710,604 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main
-    ref="pageRef"
-    class="dashboard-page"
-    :class="{ fullscreen: isFullscreen }"
-  >
-    <header class="command-bar">
-      <div class="brand-block">
-        <div class="live-mark"><i></i> ADX EFFECT</div>
-        <h1>效果仪表盘</h1>
-        <p>广告流量、转化、留存与投递质量的统一观测面</p>
-      </div>
-      <div class="status-block">
-        <span class="refresh-status" :class="[{ paused: autoRefreshPaused }]">
-          {{ autoRefreshPaused ? '页面隐藏 · 自动刷新暂停' : '60 秒自动刷新' }}
-        </span>
-        <span>数据更新 {{ lastUpdated }}</span>
-        <span>{{ summary?.timezone || REPORT_TIMEZONE }}</span>
-      </div>
-    </header>
-
-    <section class="filter-shell" aria-label="仪表盘筛选">
-      <div class="filter-row">
-        <el-select
-          v-model="filters.channelId"
-          clearable
-          filterable
-          placeholder="全部渠道"
-        >
-          <el-option
-            v-for="item in options.channels"
-            :key="item.id"
-            :label="item.channelName"
-            :value="item.id"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.advertiserId"
-          clearable
-          filterable
-          placeholder="全部广告主"
-        >
-          <el-option
-            v-for="item in cascaded.advertisers"
-            :key="item.id"
-            :label="item.advertiserName"
-            :value="item.id"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.appLinkId"
-          clearable
-          filterable
-          placeholder="全部应用链接"
-        >
-          <el-option
-            v-for="item in cascaded.appLinks"
-            :key="item.id"
-            :label="item.linkName"
-            :value="item.id"
-          />
-        </el-select>
-        <el-select
-          v-model="filters.monitorId"
-          clearable
-          filterable
-          placeholder="全部监测链接"
-        >
-          <el-option
-            v-for="item in cascaded.monitors"
-            :key="item.id"
-            :label="item.monitorName"
-            :value="item.id"
-          />
-        </el-select>
-        <el-radio-group
-          :model-value="preset"
-          size="default"
-          @change="setPreset"
-        >
-          <el-radio-button :value="7">7天</el-radio-button>
-          <el-radio-button :value="30">30天</el-radio-button>
-          <el-radio-button :value="90">90天</el-radio-button>
-          <el-radio-button value="CUSTOM">自定义</el-radio-button>
-        </el-radio-group>
-        <el-date-picker
-          v-model="filters.dates"
-          :disabled-date="disabledDate"
-          end-placeholder="结束日期"
-          range-separator="—"
-          start-placeholder="开始日期"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-          @change="preset = 'CUSTOM'"
-        />
-        <el-button
-          type="primary"
-          :loading="loading || refreshing"
-          @click="load(false)"
-          >应用筛选</el-button
-        >
-        <el-button :loading="refreshing" @click="load(true)">刷新</el-button>
-        <el-button @click="toggleFullscreen">{{
-          isFullscreen ? '退出全屏' : '全屏'
-        }}</el-button>
-      </div>
-    </section>
-
-    <el-alert
-      v-if="errorMessage"
-      class="error-alert"
-      :closable="false"
-      show-icon
-      title="数据暂时无法加载"
-      type="error"
+  <Page>
+    <main
+      ref="pageRef"
+      class="dashboard-page"
+      :class="{ fullscreen: isFullscreen }"
     >
-      <template #default>
-        <span>{{ errorMessage }}</span>
-        <el-button link type="danger" @click="load(false)">局部重试</el-button>
-      </template>
-    </el-alert>
-
-    <section v-if="loading && !summary" class="core-grid" aria-label="加载中">
-      <el-skeleton
-        v-for="index in 5"
-        :key="index"
-        animated
-        class="metric-skeleton"
-      >
-        <template #template
-          ><el-skeleton-item variant="rect" class="skeleton-box"
-        /></template>
-      </el-skeleton>
-    </section>
-    <section v-else class="core-grid" aria-label="今日核心指标">
-      <article
-        v-for="card in coreCards"
-        :key="card.key"
-        class="core-card"
-        :class="[card.accent]"
-      >
-        <div class="card-topline">
-          <span>{{ card.label }}</span
-          ><i></i>
+      <section class="action-bar" aria-label="仪表盘操作">
+        <div class="range-actions">
+          <el-radio-group
+            :model-value="preset"
+            size="small"
+            @change="setPreset($event as 7 | 30 | 90)"
+          >
+            <el-radio-button :value="7">7 天</el-radio-button>
+            <el-radio-button :value="30">30 天</el-radio-button>
+            <el-radio-button :value="90">90 天</el-radio-button>
+          </el-radio-group>
+          <button
+            class="date-range-button"
+            type="button"
+            @click="openFilterDrawer"
+          >
+            {{ dateRangeLabel }}
+          </button>
         </div>
-        <strong>{{ metricValue(card.metric) }}</strong>
-        <div class="comparison-row">
-          <span :class="comparisonTone(card.metric)">{{
-            formatComparison(
-              card.metric || {
-                value: 0,
-                comparisonValue: 0,
-                comparisonLabel: '',
-              },
-            )
-          }}</span>
-          <small>{{ card.metric?.comparisonLabel || '较昨日' }}</small>
+        <div class="page-actions">
+          <div class="refresh-meta">
+            <span :class="{ paused: autoRefreshPaused }">
+              {{ autoRefreshPaused ? '自动刷新已暂停' : '60 秒自动刷新' }}
+            </span>
+            <small>更新于 {{ lastUpdated }}</small>
+          </div>
+          <el-button :icon="Filter" @click="openFilterDrawer">
+            筛选<span v-if="activeFilterTags.length > 0"
+              >（{{ activeFilterTags.length }}）</span
+            >
+          </el-button>
+          <el-button
+            :icon="Refresh"
+            :loading="refreshing"
+            aria-label="刷新仪表盘"
+            @click="load(true)"
+          >
+            刷新
+          </el-button>
+          <el-button :icon="FullScreen" @click="toggleFullscreen">
+            {{ isFullscreen ? '退出全屏' : '全屏' }}
+          </el-button>
         </div>
-        <p>{{ card.note }}</p>
-      </article>
-    </section>
+      </section>
 
-    <section class="auxiliary-strip" aria-label="区间辅助指标">
-      <article v-for="item in auxiliaryCards" :key="item.label">
-        <span>{{ item.label }}</span
-        ><strong>{{ item.value }}</strong>
-      </article>
-      <div class="coverage-pill" :class="coverageStatusClass">
-        <i></i>{{ coverageMessage }}
+      <div v-if="activeFilterTags.length > 0" class="active-filters">
+        <span>当前筛选</span>
+        <el-tag
+          v-for="tag in activeFilterTags"
+          :key="tag.key"
+          closable
+          effect="plain"
+          @close="clearFilter(tag.key)"
+        >
+          {{ tag.label }}
+        </el-tag>
       </div>
-    </section>
 
-    <section v-if="!loading && summary && !hasData" class="empty-state">
-      <div class="empty-radar" aria-hidden="true"><i></i><i></i><i></i></div>
-      <h2>当前筛选范围暂无效果事实</h2>
-      <p>可以扩大日期范围或清除渠道、广告主、应用及监测链接筛选。</p>
-      <el-button type="primary" @click="setPreset(30)"
-        >查看最近 30 天</el-button
+      <el-alert
+        v-if="errorMessage"
+        class="error-alert"
+        :closable="false"
+        show-icon
+        title="数据暂时无法加载"
+        type="error"
       >
-    </section>
+        <template #default>
+          <span>{{ errorMessage }}</span>
+          <el-button link type="danger" @click="load(false)"
+            >重新加载</el-button
+          >
+        </template>
+      </el-alert>
 
-    <section v-if="hasData" class="chart-grid">
-      <article class="chart-card span-2">
-        <div class="panel-title">
-          <div>
-            <span>01 / TRAFFIC</span>
-            <h2>流量趋势</h2>
+      <section
+        v-if="loading && !summary"
+        class="metric-grid"
+        aria-label="加载中"
+      >
+        <el-card
+          v-for="index in 5"
+          :key="index"
+          shadow="never"
+          class="metric-card"
+        >
+          <el-skeleton animated :rows="2" />
+        </el-card>
+      </section>
+      <section v-else class="metric-grid" aria-label="今日核心指标">
+        <el-card
+          v-for="card in coreCards"
+          :key="card.key"
+          shadow="never"
+          class="metric-card"
+        >
+          <div class="metric-title">
+            <span>{{ card.label }}</span>
+            <el-tooltip :content="card.note" placement="top">
+              <el-icon class="metric-help" :aria-label="card.note">
+                <InfoFilled />
+              </el-icon>
+            </el-tooltip>
           </div>
-          <p>全部、有效与设备窗重复点击</p>
-        </div>
-        <EchartsUI ref="trafficRef" height="320px" />
-      </article>
-      <article class="chart-card span-2">
-        <div class="panel-title">
-          <div>
-            <span>02 / CONVERSION</span>
-            <h2>转化趋势</h2>
+          <div class="metric-value-row">
+            <strong>{{ metricValue(card.metric) }}</strong>
+            <span class="comparison-label">
+              {{ card.metric?.comparisonLabel || '较昨日' }}
+            </span>
+            <b :class="comparisonTone(card.metric)">
+              {{
+                formatComparison(
+                  card.metric || {
+                    value: 0,
+                    comparisonValue: 0,
+                    comparisonLabel: '',
+                  },
+                )
+              }}
+            </b>
           </div>
-          <p>上游 actionTime 自然日</p>
-        </div>
-        <EchartsUI ref="conversionRef" height="320px" />
-      </article>
-      <article class="chart-card span-2">
-        <div class="panel-title">
-          <div>
-            <span>03 / RATE</span>
-            <h2>转化率趋势</h2>
-          </div>
-          <p>分母：设备窗有效点击</p>
-        </div>
-        <EchartsUI ref="rateRef" height="300px" />
-      </article>
-      <article class="chart-card">
-        <div class="panel-title">
-          <div>
-            <span>04 / FUNNEL</span>
-            <h2>转化漏斗</h2>
-          </div>
-        </div>
-        <EchartsUI ref="funnelRef" height="300px" />
-      </article>
-      <article class="chart-card span-3 retention-card">
-        <div class="panel-title">
-          <div>
-            <span>05 / RETENTION</span>
-            <h2>D2–D7 留存矩阵</h2>
-          </div>
-          <p>上游明确回传事件口径 · 数值为事件次数</p>
-        </div>
-        <EchartsUI ref="retentionRef" height="340px" />
-      </article>
-      <article class="chart-card span-2">
-        <div class="panel-title">
-          <div>
-            <span>06 / DELIVERY</span>
-            <h2>回传质量</h2>
-          </div>
-          <p>原始、成功、扣除与死亡失败</p>
-        </div>
-        <EchartsUI ref="qualityRef" height="290px" />
-      </article>
-      <article class="chart-card span-2 configuration-panel">
-        <div class="panel-title">
-          <div>
-            <span>07 / COVERAGE</span>
-            <h2>配置覆盖</h2>
-          </div>
-        </div>
-        <div class="configuration-body">
-          <EchartsUI ref="configurationRef" height="250px" />
-          <dl>
-            <div>
-              <dt>启用渠道</dt>
-              <dd>
-                {{ formatInteger(summary?.configuration.activeChannels) }}
-              </dd>
-            </div>
-            <div>
-              <dt>启用广告主</dt>
-              <dd>
-                {{ formatInteger(summary?.configuration.activeAdvertisers) }}
-              </dd>
-            </div>
-            <div>
-              <dt>应用链接</dt>
-              <dd>
-                {{ formatInteger(summary?.configuration.activeAppLinks) }}
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </article>
-    </section>
+        </el-card>
+      </section>
 
-    <section v-if="canViewRuntime || canViewAccount" class="privileged-grid">
-      <article v-if="canViewRuntime" class="ops-panel">
-        <div class="panel-title">
-          <div>
-            <span>OPS / RUNTIME</span>
-            <h2>投递运行健康</h2>
+      <el-card shadow="never" class="trend-card">
+        <template #header>
+          <div class="card-heading">
+            <div>
+              <h2>数据趋势</h2>
+              <p>{{ dateRangeLabel }}</p>
+            </div>
+            <el-tooltip :content="coverageMessage" placement="left">
+              <el-tag :type="coverageTagType" effect="plain" size="small">
+                {{
+                  summary?.dataCoverage.clickQualityComplete
+                    ? '口径完整'
+                    : '口径说明'
+                }}
+              </el-tag>
+            </el-tooltip>
           </div>
-          <b :class="{ danger: (runtime?.deadDeliveries || 0) > 0 }">{{
-            (runtime?.deadDeliveries || 0) > 0 ? '需要关注' : '运行正常'
-          }}</b>
-        </div>
-        <div v-if="runtime" class="ops-metrics">
-          <div>
-            <span>待投递</span
-            ><strong>{{ formatInteger(runtime.pendingDeliveries) }}</strong>
-          </div>
-          <div>
-            <span>重试</span
-            ><strong>{{ formatInteger(runtime.retryDeliveries) }}</strong>
-          </div>
-          <div>
-            <span>死亡任务</span
-            ><strong>{{ formatInteger(runtime.deadDeliveries) }}</strong>
-          </div>
-          <div>
-            <span>成功量</span
-            ><strong>{{ formatInteger(runtime.successfulDeliveries) }}</strong>
-          </div>
-          <div>
-            <span>入口死信</span
-            ><strong>{{ formatInteger(runtime.ingressDlq) }}</strong>
-          </div>
-          <div>
-            <span>Stream 积压</span
-            ><strong>{{ formatInteger(runtime.feedbackStreamPending) }}</strong>
-          </div>
-        </div>
-        <el-empty v-else :image-size="56" description="运行概览暂不可用" />
-      </article>
-      <article v-if="canViewAccount" class="ops-panel account-panel">
-        <div class="panel-title">
-          <div>
-            <span>FIN / ACCOUNT</span>
-            <h2>账户与账务</h2>
-          </div>
-          <b>CNY</b>
-        </div>
-        <div v-if="account" class="account-metrics">
-          <div class="balance">
-            <span>当前范围余额</span
-            ><strong>{{ money(account.totalBalance) }}</strong>
-          </div>
-          <div>
-            <span>区间充值</span
-            ><strong>{{ money(account.rechargeAmount) }}</strong>
-          </div>
-          <div>
-            <span>CPC 消耗</span><strong>{{ money(account.cpcSpend) }}</strong>
-          </div>
-          <div>
-            <span>拒绝扣费</span
-            ><strong>{{ formatInteger(account.rejectedCharges) }}</strong>
-          </div>
-        </div>
-        <el-empty v-else :image-size="56" description="账务概览暂不可用" />
-      </article>
-    </section>
+        </template>
+        <el-skeleton v-if="loading && !summary" animated class="chart-skeleton">
+          <template #template>
+            <el-skeleton-item variant="rect" class="chart-skeleton__item" />
+          </template>
+        </el-skeleton>
+        <EchartsUI v-else-if="hasData" ref="trendRef" height="500px" />
+        <el-empty
+          v-else
+          :image-size="96"
+          description="当前筛选范围暂无效果数据"
+        >
+          <el-button type="primary" @click="setPreset(30)"
+            >查看最近 30 天</el-button
+          >
+        </el-empty>
+      </el-card>
 
-    <footer>
-      SCX ADX · 数据均按 {{ summary?.timezone || REPORT_TIMEZONE }} 自然日汇总 ·
-      付费仅表示事件次数
-    </footer>
-  </main>
+      <el-collapse
+        v-if="summary"
+        v-model="expandedSections"
+        class="more-collapse"
+      >
+        <el-collapse-item name="more">
+          <template #title>
+            <div class="more-title">
+              <div>
+                <strong>更多数据</strong>
+                <span>辅助指标、漏斗、留存、回传质量与运行信息</span>
+              </div>
+              <el-tag effect="plain" size="small">
+                {{ moreExpanded ? '收起' : '展开查看' }}
+              </el-tag>
+            </div>
+          </template>
+
+          <div class="more-content">
+            <section class="auxiliary-grid" aria-label="区间辅助指标">
+              <article v-for="item in auxiliaryCards" :key="item.label">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}</strong>
+              </article>
+            </section>
+
+            <section v-if="hasData" class="detail-grid">
+              <el-card shadow="never" class="detail-card">
+                <template #header>
+                  <div class="detail-heading">
+                    <h3>转化漏斗</h3>
+                    <span>有效点击 → 激活 → 注册 → 付费</span>
+                  </div>
+                </template>
+                <EchartsUI ref="funnelRef" height="300px" />
+              </el-card>
+              <el-card shadow="never" class="detail-card retention-card">
+                <template #header>
+                  <div class="detail-heading">
+                    <h3>D2–D7 留存矩阵</h3>
+                    <span>上游明确回传事件次数</span>
+                  </div>
+                </template>
+                <EchartsUI ref="retentionRef" height="320px" />
+              </el-card>
+              <el-card shadow="never" class="detail-card">
+                <template #header>
+                  <div class="detail-heading">
+                    <h3>回传质量</h3>
+                    <span>原始、成功、扣除与死亡失败</span>
+                  </div>
+                </template>
+                <EchartsUI ref="qualityRef" height="290px" />
+              </el-card>
+              <el-card shadow="never" class="detail-card">
+                <template #header>
+                  <div class="detail-heading">
+                    <h3>配置覆盖</h3>
+                    <span>渠道、广告主、应用与路由状态</span>
+                  </div>
+                </template>
+                <div class="configuration-body">
+                  <EchartsUI ref="configurationRef" height="250px" />
+                  <dl>
+                    <div>
+                      <dt>启用渠道</dt>
+                      <dd>
+                        {{
+                          formatInteger(summary.configuration.activeChannels)
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>启用广告主</dt>
+                      <dd>
+                        {{
+                          formatInteger(summary.configuration.activeAdvertisers)
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>应用链接</dt>
+                      <dd>
+                        {{
+                          formatInteger(summary.configuration.activeAppLinks)
+                        }}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </el-card>
+            </section>
+
+            <section
+              v-if="canViewRuntime || canViewAccount"
+              class="privileged-grid"
+            >
+              <el-card
+                v-if="canViewRuntime"
+                v-loading="optionalLoading"
+                shadow="never"
+                class="detail-card"
+              >
+                <template #header>
+                  <div class="detail-heading detail-heading--status">
+                    <div>
+                      <h3>投递运行健康</h3>
+                      <span>队列、重试和死信状态</span>
+                    </div>
+                    <el-tag
+                      :type="
+                        (runtime?.deadDeliveries || 0) > 0
+                          ? 'danger'
+                          : 'success'
+                      "
+                      effect="plain"
+                      size="small"
+                    >
+                      {{
+                        (runtime?.deadDeliveries || 0) > 0
+                          ? '需要关注'
+                          : '运行正常'
+                      }}
+                    </el-tag>
+                  </div>
+                </template>
+                <div v-if="runtime" class="ops-metrics">
+                  <div>
+                    <span>待投递</span
+                    ><strong>{{
+                      formatInteger(runtime.pendingDeliveries)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>重试</span
+                    ><strong>{{
+                      formatInteger(runtime.retryDeliveries)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>死亡任务</span
+                    ><strong>{{
+                      formatInteger(runtime.deadDeliveries)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>成功量</span
+                    ><strong>{{
+                      formatInteger(runtime.successfulDeliveries)
+                    }}</strong>
+                  </div>
+                  <div>
+                    <span>入口死信</span
+                    ><strong>{{ formatInteger(runtime.ingressDlq) }}</strong>
+                  </div>
+                  <div>
+                    <span>Stream 积压</span
+                    ><strong>{{
+                      formatInteger(runtime.feedbackStreamPending)
+                    }}</strong>
+                  </div>
+                </div>
+                <el-empty
+                  v-else
+                  :image-size="56"
+                  :description="
+                    runtimeError ? '运行概览加载失败' : '运行概览暂不可用'
+                  "
+                >
+                  <el-button
+                    v-if="runtimeError"
+                    link
+                    type="primary"
+                    @click="loadOptionalData"
+                    >重试</el-button
+                  >
+                </el-empty>
+              </el-card>
+
+              <el-card
+                v-if="canViewAccount"
+                v-loading="optionalLoading"
+                shadow="never"
+                class="detail-card"
+              >
+                <template #header>
+                  <div class="detail-heading detail-heading--status">
+                    <div>
+                      <h3>账户与账务</h3>
+                      <span>当前筛选范围 · CNY</span>
+                    </div>
+                    <el-tag effect="plain" size="small">CNY</el-tag>
+                  </div>
+                </template>
+                <div v-if="account" class="account-metrics">
+                  <div class="balance">
+                    <span>当前范围余额</span
+                    ><strong>{{ money(account.totalBalance) }}</strong>
+                  </div>
+                  <div>
+                    <span>区间充值</span
+                    ><strong>{{ money(account.rechargeAmount) }}</strong>
+                  </div>
+                  <div>
+                    <span>CPC 消耗</span
+                    ><strong>{{ money(account.cpcSpend) }}</strong>
+                  </div>
+                  <div>
+                    <span>拒绝扣费</span
+                    ><strong>{{
+                      formatInteger(account.rejectedCharges)
+                    }}</strong>
+                  </div>
+                </div>
+                <el-empty
+                  v-else
+                  :image-size="56"
+                  :description="
+                    accountError ? '账务概览加载失败' : '账务概览暂不可用'
+                  "
+                >
+                  <el-button
+                    v-if="accountError"
+                    link
+                    type="primary"
+                    @click="loadOptionalData"
+                    >重试</el-button
+                  >
+                </el-empty>
+              </el-card>
+            </section>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
+      <el-drawer
+        v-model="filterDrawerVisible"
+        :append-to-body="!isFullscreen"
+        direction="rtl"
+        size="420px"
+        title="数据筛选"
+      >
+        <el-form class="filter-form" label-position="top">
+          <el-form-item label="时间范围">
+            <el-radio-group
+              :model-value="draftPreset"
+              size="small"
+              @change="setDraftPreset($event as 7 | 30 | 90)"
+            >
+              <el-radio-button :value="7">7 天</el-radio-button>
+              <el-radio-button :value="30">30 天</el-radio-button>
+              <el-radio-button :value="90">90 天</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="自定义日期">
+            <el-date-picker
+              v-model="draftFilters.dates"
+              :disabled-date="disabledDate"
+              end-placeholder="结束日期"
+              range-separator="至"
+              start-placeholder="开始日期"
+              type="daterange"
+              value-format="YYYY-MM-DD"
+              @change="draftPreset = 'CUSTOM'"
+            />
+          </el-form-item>
+          <el-form-item label="渠道">
+            <el-select
+              v-model="draftFilters.channelId"
+              clearable
+              filterable
+              placeholder="全部渠道"
+            >
+              <el-option
+                v-for="item in options.channels"
+                :key="item.id"
+                :label="item.channelName"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="广告主">
+            <el-select
+              v-model="draftFilters.advertiserId"
+              clearable
+              filterable
+              placeholder="全部广告主"
+            >
+              <el-option
+                v-for="item in draftCascaded.advertisers"
+                :key="item.id"
+                :label="item.advertiserName"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="应用链接">
+            <el-select
+              v-model="draftFilters.appLinkId"
+              clearable
+              filterable
+              placeholder="全部应用链接"
+            >
+              <el-option
+                v-for="item in draftCascaded.appLinks"
+                :key="item.id"
+                :label="item.linkName"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="监测链接">
+            <el-select
+              v-model="draftFilters.monitorId"
+              clearable
+              filterable
+              placeholder="全部监测链接"
+            >
+              <el-option
+                v-for="item in draftCascaded.monitors"
+                :key="item.id"
+                :label="item.monitorName"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <div class="drawer-footer">
+            <el-button @click="resetDraftFilters">重置</el-button>
+            <div>
+              <el-button @click="filterDrawerVisible = false">取消</el-button>
+              <el-button type="primary" @click="applyDraftFilters"
+                >应用筛选</el-button
+              >
+            </div>
+          </div>
+        </template>
+      </el-drawer>
+    </main>
+  </Page>
 </template>
 
 <style scoped>
 .dashboard-page {
-  --dash-bg: #07111e;
-  --dash-panel: #0d1a2a;
-  --dash-panel-2: #101f31;
-  --dash-border: rgb(125 155 190 / 18%);
-  --dash-text: #eef5ff;
-  --dash-muted: #8291a7;
-
-  min-height: 100%;
-  padding: 24px;
-  overflow: auto;
-  color: var(--dash-text);
-  background:
-    linear-gradient(rgb(255 255 255 / 1.5%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 1.5%) 1px, transparent 1px),
-    radial-gradient(circle at 84% -10%, rgb(14 165 233 / 15%), transparent 32%),
-    var(--dash-bg);
-  background-size:
-    32px 32px,
-    32px 32px,
-    auto,
-    auto;
+  min-width: 0;
+  color: var(--el-text-color-primary);
 }
 
 .dashboard-page.fullscreen {
   height: 100vh;
+  padding: 20px;
+  overflow: auto;
+  background: hsl(var(--background));
 }
 
-.command-bar {
+.action-bar {
   display: flex;
-  gap: 24px;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.brand-block h1 {
-  margin: 7px 0 3px;
-  font-family: 'Arial Narrow', 'PingFang SC', sans-serif;
-  font-size: clamp(27px, 3vw, 38px);
-  font-weight: 720;
-  letter-spacing: -0.04em;
-}
-
-.brand-block p,
-.status-block {
-  font-size: 12px;
-  color: var(--dash-muted);
-}
-
-.brand-block p {
-  margin: 0;
-}
-
-.live-mark {
-  display: flex;
-  gap: 8px;
+  gap: 16px;
   align-items: center;
-  font: 700 11px/1 monospace;
-  color: #38bdf8;
-  letter-spacing: 0.18em;
+  justify-content: space-between;
+  margin-bottom: 16px;
 }
 
-.live-mark i,
-.coverage-pill i {
+.range-actions,
+.page-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.date-range-button {
+  padding: 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.date-range-button:hover,
+.date-range-button:focus-visible {
+  color: var(--el-color-primary);
+}
+
+.date-range-button:focus-visible {
+  outline: 2px solid var(--el-color-primary-light-5);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.refresh-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.refresh-meta span::before {
+  display: inline-block;
   width: 6px;
   height: 6px;
-  background: #34d399;
+  margin-right: 6px;
+  content: '';
+  background: var(--el-color-success);
   border-radius: 50%;
-  box-shadow: 0 0 12px #34d399;
 }
 
-.status-block {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  justify-content: flex-end;
+.refresh-meta span.paused::before {
+  background: var(--el-color-warning);
 }
 
-.refresh-status {
-  color: #86efac;
+.refresh-meta small {
+  color: var(--el-text-color-placeholder);
 }
 
-.refresh-status.paused {
-  color: #fbbf24;
-}
-
-.filter-shell {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 12px;
-  margin-bottom: 16px;
-  background: rgb(10 23 38 / 92%);
-  border: 1px solid var(--dash-border);
-  border-radius: 12px;
-  backdrop-filter: blur(18px);
-}
-
-.filter-row {
+.active-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
 }
 
-.filter-row :deep(.el-select) {
-  width: 150px;
-}
-
-.filter-row :deep(.el-date-editor) {
-  width: 250px;
-}
-
-.filter-row :deep(.el-input__wrapper),
-.filter-row :deep(.el-select__wrapper) {
-  background: #0b1726;
-  box-shadow: 0 0 0 1px var(--dash-border) inset;
+.active-filters > span {
+  margin-right: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .error-alert {
@@ -1106,227 +1324,253 @@ onBeforeUnmount(() => {
   justify-content: space-between;
 }
 
-.core-grid {
+.metric-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
 }
 
-.core-card {
-  position: relative;
-  min-height: 170px;
-  padding: 18px;
-  overflow: hidden;
-  background: linear-gradient(145deg, rgb(18 35 55 / 96%), rgb(10 24 39 / 96%));
-  border: 1px solid var(--dash-border);
-  border-radius: 10px;
-}
-
-.core-card::after {
-  position: absolute;
-  right: -28px;
-  bottom: -42px;
-  width: 110px;
-  height: 110px;
-  content: '';
-  border: 1px solid rgb(56 189 248 / 15%);
-  border-radius: 50%;
-}
-
-.card-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  color: #a9b7c9;
-}
-
-.card-topline i {
-  width: 28px;
-  height: 2px;
-  background: #38bdf8;
-}
-
-.core-card.amber .card-topline i {
-  background: #f59e0b;
-}
-
-.core-card.blue .card-topline i {
-  background: #60a5fa;
-}
-
-.core-card.green .card-topline i {
-  background: #34d399;
-}
-
-.core-card.red .card-topline i {
-  background: #fb7185;
-}
-
-.core-card strong {
-  display: block;
-  margin: 18px 0 9px;
-  font:
-    720 clamp(26px, 3vw, 38px)/1 'DIN Alternate',
-    'Arial Narrow',
-    sans-serif;
-  letter-spacing: -0.04em;
-}
-
-.comparison-row {
-  display: flex;
-  gap: 7px;
-  align-items: baseline;
-}
-
-.comparison-row span {
-  font: 700 13px/1 monospace;
-}
-
-.comparison-row small {
-  color: var(--dash-muted);
-}
-
-.comparison-row .positive {
-  color: #34d399;
-}
-
-.comparison-row .negative {
-  color: #fb7185;
-}
-
-.comparison-row .muted {
-  color: #8b9aaf;
-}
-
-.core-card p {
-  margin: 15px 0 0;
-  font-size: 11px;
-  color: #6f8096;
-}
-
-.metric-skeleton,
-.skeleton-box {
-  width: 100%;
-  height: 170px;
-}
-
-.auxiliary-strip {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(90px, 1fr)) 2fr;
-  margin: 12px 0 18px;
-  background: rgb(9 22 36 / 75%);
-  border: 1px solid var(--dash-border);
-  border-radius: 10px;
-}
-
-.auxiliary-strip article {
-  padding: 13px 15px;
-  border-right: 1px solid var(--dash-border);
-}
-
-.auxiliary-strip span {
-  display: block;
-  font-size: 11px;
-  color: var(--dash-muted);
-}
-
-.auxiliary-strip strong {
-  display: block;
-  margin-top: 5px;
-  font: 700 16px/1.2 monospace;
-  color: #dce8f7;
-}
-
-.coverage-pill {
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  font-size: 11px;
-  color: #86efac;
-  text-align: center;
-}
-
-.coverage-pill.is-incomplete-history,
-.coverage-pill.is-no-eligible-click {
-  color: #fbbf24;
-}
-
-.coverage-pill.is-incomplete-history i,
-.coverage-pill.is-no-eligible-click i {
-  background: #f59e0b;
-  box-shadow: 0 0 12px #f59e0b;
-}
-
-.chart-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.chart-card,
-.ops-panel {
+.metric-card {
   min-width: 0;
-  padding: 17px;
-  background: linear-gradient(150deg, rgb(14 29 47 / 96%), rgb(9 21 35 / 96%));
-  border: 1px solid var(--dash-border);
-  border-radius: 10px;
+  border-color: var(--el-border-color-lighter);
 }
 
-.span-2 {
-  grid-column: span 2;
-}
-
-.span-3 {
-  grid-column: span 3;
-}
-
-.panel-title {
+.metric-card :deep(.el-card__body) {
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 156px;
+  padding: 24px 20px;
 }
 
-.panel-title span {
-  font: 700 9px/1 monospace;
-  color: #38bdf8;
-  letter-spacing: 0.13em;
+.metric-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: clamp(18px, 1.45vw, 25px);
+  font-weight: 650;
+  color: var(--el-text-color-secondary);
 }
 
-.panel-title h2 {
-  margin: 5px 0 0;
-  font-size: 16px;
+.metric-help {
+  font-size: 14px;
+  color: var(--el-text-color-placeholder);
+  cursor: help;
+}
+
+.metric-value-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: baseline;
+  margin-top: 24px;
+}
+
+.metric-value-row strong {
+  margin-right: 2px;
+  font-size: clamp(24px, 1.8vw, 32px);
+  line-height: 1;
+  color: var(--el-text-color-primary);
+  letter-spacing: -0.025em;
+}
+
+.comparison-label {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.metric-value-row b {
+  font-size: 14px;
   font-weight: 650;
 }
 
-.panel-title p {
+.positive {
+  color: var(--el-color-success);
+}
+
+.negative {
+  color: var(--el-color-danger);
+}
+
+.muted {
+  color: var(--el-text-color-placeholder);
+}
+
+.trend-card {
+  margin-top: 16px;
+  border-color: var(--el-border-color-lighter);
+}
+
+.trend-card :deep(.el-card__header) {
+  padding: 18px 20px 12px;
+  border-bottom: 0;
+}
+
+.trend-card :deep(.el-card__body) {
+  padding: 0 16px 14px;
+}
+
+.card-heading,
+.detail-heading,
+.detail-heading--status {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-heading h2,
+.detail-heading h3 {
+  margin: 0;
+  font-weight: 650;
+  color: var(--el-text-color-primary);
+}
+
+.card-heading h2 {
+  font-size: 18px;
+}
+
+.card-heading p,
+.detail-heading span {
   margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--dash-muted);
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.chart-skeleton,
+.chart-skeleton__item {
+  width: 100%;
+  height: 500px;
+}
+
+.more-collapse {
+  margin-top: 16px;
+  overflow: hidden;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+}
+
+.more-collapse :deep(.el-collapse-item__header) {
+  height: 66px;
+  padding: 0 20px;
+  border-bottom: 0;
+}
+
+.more-collapse :deep(.el-collapse-item__wrap) {
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-bottom: 0;
+}
+
+.more-collapse :deep(.el-collapse-item__content) {
+  padding: 0;
+}
+
+.more-title {
+  display: flex;
+  flex: 1;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  margin-right: 12px;
+}
+
+.more-title > div {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.more-title strong {
+  font-size: 15px;
+}
+
+.more-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.more-content {
+  padding: 16px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.auxiliary-grid {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--el-border-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
+}
+
+.auxiliary-grid article {
+  min-width: 0;
+  padding: 14px 12px;
+  background: var(--el-bg-color);
+}
+
+.auxiliary-grid span,
+.ops-metrics span,
+.account-metrics span {
+  display: block;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.auxiliary-grid strong,
+.ops-metrics strong,
+.account-metrics strong {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 17px;
+  color: var(--el-text-color-primary);
+}
+
+.detail-grid,
+.privileged-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.detail-card {
+  min-width: 0;
+  border-color: var(--el-border-color-lighter);
+}
+
+.detail-card :deep(.el-card__header) {
+  padding: 16px 18px;
+}
+
+.detail-heading {
+  align-items: flex-start;
+}
+
+.detail-heading h3 {
+  font-size: 16px;
+}
+
+.detail-heading > span {
   text-align: right;
 }
 
-.panel-title b {
-  padding: 5px 8px;
-  font: 600 10px/1 monospace;
-  color: #86efac;
-  background: rgb(52 211 153 / 10%);
-  border: 1px solid rgb(52 211 153 / 25%);
-  border-radius: 4px;
-}
-
-.panel-title b.danger {
-  color: #fda4af;
-  background: rgb(251 113 133 / 10%);
-  border-color: rgb(251 113 133 / 25%);
+.retention-card {
+  grid-column: span 2;
 }
 
 .configuration-body {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(110px, 0.6fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(120px, 0.6fr);
   align-items: center;
 }
 
@@ -1336,213 +1580,180 @@ onBeforeUnmount(() => {
 
 .configuration-body dl div {
   padding: 10px 0;
-  border-bottom: 1px solid var(--dash-border);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .configuration-body dt {
-  font-size: 11px;
-  color: var(--dash-muted);
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .configuration-body dd {
   margin: 5px 0 0;
-  font: 700 20px/1 monospace;
+  font-size: 20px;
+  font-weight: 650;
 }
 
-.privileged-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.ops-metrics {
+.ops-metrics,
+.account-metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  margin-top: 20px;
   overflow: hidden;
-  background: var(--dash-border);
-  border: 1px solid var(--dash-border);
-  border-radius: 6px;
+  background: var(--el-border-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-base);
 }
 
 .ops-metrics div,
 .account-metrics div {
   padding: 14px;
-  background: #0b1828;
-}
-
-.ops-metrics span,
-.account-metrics span {
-  display: block;
-  font-size: 11px;
-  color: var(--dash-muted);
-}
-
-.ops-metrics strong,
-.account-metrics strong {
-  display: block;
-  margin-top: 7px;
-  font: 700 20px/1 monospace;
-}
-
-.account-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  margin-top: 20px;
-  overflow: hidden;
-  background: var(--dash-border);
-  border: 1px solid var(--dash-border);
-  border-radius: 6px;
+  background: var(--el-bg-color);
 }
 
 .account-metrics .balance {
   grid-column: span 3;
-  background: linear-gradient(90deg, rgb(14 116 144 / 22%), #0b1828);
+  background: var(--el-color-primary-light-9);
 }
 
 .account-metrics .balance strong {
-  font-size: 26px;
-  color: #67e8f9;
+  font-size: 24px;
+  color: var(--el-color-primary);
 }
 
-.empty-state {
+.filter-form :deep(.el-select),
+.filter-form :deep(.el-date-editor) {
+  width: 100%;
+}
+
+.drawer-footer {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 360px;
-  background: var(--dash-panel);
-  border: 1px dashed rgb(125 155 190 / 28%);
-  border-radius: 10px;
+  justify-content: space-between;
 }
 
-.empty-state h2 {
-  margin: 18px 0 6px;
-  font-size: 18px;
-}
-
-.empty-state p {
-  margin: 0 0 18px;
-  color: var(--dash-muted);
-}
-
-.empty-radar {
-  position: relative;
-  width: 86px;
-  height: 86px;
-  border: 1px solid rgb(56 189 248 / 30%);
-  border-radius: 50%;
-}
-
-.empty-radar i {
-  position: absolute;
-  inset: 14px;
-  border: 1px solid rgb(56 189 248 / 22%);
-  border-radius: 50%;
-}
-
-.empty-radar i:nth-child(2) {
-  inset: 28px;
-}
-
-.empty-radar i:nth-child(3) {
-  inset: 41px;
-  background: #38bdf8;
-  box-shadow: 0 0 18px #38bdf8;
-}
-
-footer {
-  padding: 22px 0 4px;
-  font: 10px/1.5 monospace;
-  color: #526278;
-  text-align: center;
-  letter-spacing: 0.05em;
-}
-
-@media (max-width: 1280px) {
-  .core-grid {
-    grid-template-columns: repeat(3, 1fr);
+@media (max-width: 1399px) {
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .auxiliary-strip {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .coverage-pill {
-    min-height: 55px;
-  }
-
-  .retention-card {
-    grid-column: span 2;
+  .auxiliary-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 900px) {
-  .dashboard-page {
-    padding: 14px;
-  }
-
-  .command-bar {
-    flex-direction: column;
+@media (max-width: 1023px) {
+  .action-bar {
     align-items: flex-start;
   }
 
-  .status-block {
+  .page-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .refresh-meta {
+    width: 100%;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auxiliary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-page.fullscreen {
+    padding: 12px;
+  }
+
+  .action-bar,
+  .range-actions,
+  .page-actions {
+    flex-wrap: wrap;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .action-bar {
+    flex-direction: column;
+  }
+
+  .date-range-button {
+    flex: 1;
+    text-align: right;
+  }
+
+  .page-actions {
     justify-content: flex-start;
   }
 
-  .core-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .refresh-meta {
+    align-items: flex-start;
   }
 
-  .chart-grid {
+  .metric-title {
+    font-size: 19px;
+  }
+
+  .detail-grid,
+  .privileged-grid {
     grid-template-columns: 1fr;
   }
 
-  .span-2,
-  .span-3,
   .retention-card {
     grid-column: auto;
   }
 
-  .privileged-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 600px) {
-  .core-grid,
-  .auxiliary-strip {
-    grid-template-columns: 1fr;
+  .more-title > div {
+    display: block;
   }
 
-  .auxiliary-strip article {
-    border-right: 0;
-    border-bottom: 1px solid var(--dash-border);
-  }
-
-  .filter-row :deep(.el-select),
-  .filter-row :deep(.el-date-editor) {
-    width: 100%;
+  .more-title span {
+    display: block;
+    max-width: 52vw;
+    margin-top: 2px;
   }
 
   .configuration-body {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 599px) {
+  .metric-grid,
+  .auxiliary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card :deep(.el-card__body) {
+    min-height: 132px;
+    padding: 20px;
+  }
+
+  .metric-value-row {
+    margin-top: 18px;
+  }
+
+  .chart-skeleton,
+  .chart-skeleton__item {
+    height: 420px;
+  }
+
+  .account-metrics,
   .ops-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .account-metrics {
-    grid-template-columns: 1fr;
+  .account-metrics .balance {
+    grid-column: span 2;
   }
 
-  .account-metrics .balance {
-    grid-column: auto;
+  .more-content {
+    padding: 10px;
   }
 }
 
