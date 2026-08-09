@@ -1,4 +1,4 @@
-# SCX OCPX 双向转发引擎实现说明（V70-V75 / Reactor 双向适配与 CPC 账务）
+# SCX OCPX 双向转发引擎实现说明（V70-V77 / Reactor 双向适配、点击验重与 CPC 账务）
 
 ## 1. 当前结论
 
@@ -9,6 +9,7 @@
   -> HMAC/Nonce/QPS 校验
   -> Redis Stream 64 分区可靠接入
   -> 批量事务写 MySQL 事实
+  -> CLICK 按监测路由 + 平台感知设备 HMAC + 服务端接收时间窗验重
   -> CLICK 按 OFF/AUDIT_ONLY/CPC 做幂等记账或真实扣费
   -> 余额允许时创建上游投递任务
   -> Coco CLICK 或 TEMPLATE_GET SHOW/CLICK 宏适配与异步投递
@@ -40,7 +41,8 @@
 - 请求体兼容 snake_case `FeedbackReq`，以 `monitor_id` 或 `task_id` 定位已发布路由。
 - 签名原文：`METHOD + "\n" + 原始PATH + "\n" + X-Timestamp + "\n" + X-Nonce + "\n" + sha256(原始请求体)`。
 - 有 `event_id` 时直接作为幂等事件 ID；CLICK 可回退到 `clickid`；否则使用渠道、路由、事件与规范化 JSON 指纹生成。
-- 新事件返回 202；同 ID 同载荷返回 200；同 ID 不同载荷或 nonce 重放返回 409；限流为 429；Redis 或副本确认不可用为 503。
+- 新事件返回 202；同 ID 同载荷返回 200；同 ID 不同载荷或 nonce 重放返回 409；限流为 429；Redis 或副本确认不可用为 503。202 只承诺 Redis 可靠受理，不承诺 MySQL 已落库、设备窗有效或上游成功。
+- CLICK 落库事务内按“监测路由 + 版本化设备 HMAC”锁定窗口状态；不同事件 ID 命中窗口仍保留事实并标记 `DEDUPLICATED`，不计费、不创建上游任务。窗口使用服务端 `received_at`。没有可用设备号时记录 `SKIPPED_NO_DEVICE` 并仅执行事件 ID 幂等；窗口配置为 0 时设备验重关闭，事件 ID 幂等仍有效。
 
 ### 3.2 上游 feedback
 
@@ -65,9 +67,9 @@
 
 ## 5. 数据与隐私
 
-V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并新增：事件事实、AES-GCM 协议快照、callback 引用、投递任务/尝试、扣量决策、接入 DLQ、配置 Outbox、RTA 决策日志和 Billing 账本。V72 把账本扩展为余额前后值、操作人和备注，并将广告主余额精度统一为 6 位小数。
+V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并新增：事件事实、AES-GCM 协议快照、callback 引用、投递任务/尝试、扣量决策、接入 DLQ、配置 Outbox、RTA 决策日志和 Billing 账本。V72 把账本扩展为余额前后值、操作人和备注，并将广告主余额精度统一为 6 位小数。V77 为监测链接增加 0–604800 秒点击验重窗口，事件事实增加设备平台/类型/哈希版本，并新增并发窗口状态和不可变决策表。
 
-原始设备标识只存在于接入边界和 7 天 AES-GCM 协议快照；事实表只保存版本化 HMAC 关联键。callback 引用同样 7 天有效。外呼错误只记录受控错误码/异常类型，响应体最多读取 4 KiB，日志不得输出完整 URL、设备标识、密钥或 callback 参数。生产禁止 HTTP、私网/环回/链路本地/多播解析地址和重定向。
+原始设备标识只存在于接入边界和 7 天 AES-GCM 协议快照；事实表只保存带平台、类型域和版本的 HMAC 关联键。Android 选择顺序为 `oaid/oaid_md5 → gaid/aaid → android_id/android_idmd5 → imei/imei_md5`，iOS 为 `idfa/idfa_md5 → caid → idfv`。callback 引用同样 7 天有效。外呼错误只记录受控错误码/异常类型，响应体最多读取 4 KiB，日志不得输出完整 URL、设备标识、密钥或 callback 参数。生产禁止 HTTP、私网/环回/链路本地/多播解析地址和重定向。
 
 ## 6. 扣量、RTA 与 Billing
 
@@ -79,7 +81,7 @@ V70 扩展渠道、广告主、监测链接、扣量规则和小时报表，并�
 
 ## 7. 配置发布和管理端
 
-渠道、广告主、监测链接或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、Adapter 能力元数据声明的宏规则、RTA/Billing 模式，以及 AUDIT_ONLY/CPC 单价大于 0。V75 统一内置 Adapter 的 `supportedMacros/requiredUrlMacros/requiredAnyUrlMacros`，发布服务不再写死媒体编码。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
+渠道、广告主、监测链接（包括点击验重窗口）或扣量规则发生变化时，相关路由自动回到 `DRAFT`。发布时校验：上下游启用、适配器注册状态、HMAC 密钥、双向 HTTPS 地址及精确域名白名单、Adapter 能力元数据声明的宏规则、RTA/Billing 模式、点击验重窗口 0–604800 秒，以及 AUDIT_ONLY/CPC 单价大于 0。V75 统一内置 Adapter 的 `supportedMacros/requiredUrlMacros/requiredAnyUrlMacros`，发布服务不再写死媒体编码。成功后增加 `config_version`、写 `published_at` 与配置 Outbox。
 
 管理端新增适配器/鉴权、Coco 宏 URL、下游 callback、RTA/Billing、路由版本/发布按钮，以及 OCPX 运行中心的积压、成功、重试、死亡任务、DLQ、方向分布和人工重放。监测链接“接入信息”抽屉可复制 Feedback URL、HMAC 头、签名公式、Callback 路径模式与 Apifox/Postman 集合位置，但只回显密钥是否已配置，不回传明文。V70 默认只向 `ROLE_ADMIN` 授予路由发布和重放，`ROLE_OPERATOR` 仅可查看运行状态。
 

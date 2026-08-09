@@ -45,6 +45,8 @@ public class AdxMonitorLink {
 
 	private String billingMode;
 
+	private Integer clickDedupWindowSeconds;
+
 	private LocalDateTime publishedAt;
 
 	@TableLogic

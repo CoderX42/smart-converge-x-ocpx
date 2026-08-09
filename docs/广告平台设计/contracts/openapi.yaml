@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX 双向转发 API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     scx-ocpx-engine 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco 或通用宏模板
     upstream callback 由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
@@ -23,7 +23,9 @@ paths:
       description: >-
         签名原文为 METHOD、原始 PATH、X-Timestamp、X-Nonce、sha256(原始请求体)，
         各行以换行符连接，再以渠道密钥计算小写十六进制 HMAC-SHA256。
-        202 只表示 Redis Stream 已可靠接收，不表示上游投递成功。
+        202 只表示 Redis Stream 已可靠接收，不表示 MySQL 已落库或上游投递成功。
+        CLICK 的设备窗口验重在异步落库事务中完成，因此不同事件 ID 的设备窗口重复点击仍返回 202，
+        但事实会标记 DEDUPLICATED，且不计费、不创建上游任务。
       parameters:
         - name: channelCode
           in: path
@@ -42,7 +44,7 @@ paths:
               $ref: './feedback-req-v1.schema.json'
       responses:
         '202':
-          description: 新事件已可靠进入接入队列
+          description: 新事件已可靠进入接入队列；后续可能被设备窗口判定为 DEDUPLICATED
           content:
             application/json:
               schema: { $ref: '#/components/schemas/IngressResult' }

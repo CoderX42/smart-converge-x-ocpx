@@ -1,0 +1,13 @@
+prefix=20260809T035227Z-callback-qps100
+expected_unique=6111
+feedback_facts=6111
+ingress_dlq=0
+click_decisions=6111
+eligible=6111
+deduplicated=0
+skipped_no_device=0
+upstream_jobs=6111
+deduplicated_jobs=0
+billing_entries=0
+redis_pending=0
+redis_lag=0

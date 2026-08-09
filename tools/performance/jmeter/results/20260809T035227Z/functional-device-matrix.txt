@@ -1,0 +1,17 @@
++-----------------+----------------+--------------------+-------+
+| device_platform | device_id_type | device_key_version | facts |
++-----------------+----------------+--------------------+-------+
+| NULL            | NULL           |               NULL |     1 |
+| ANDROID         | AAID           |                  1 |     1 |
+| ANDROID         | ANDROID_ID     |                  1 |     1 |
+| ANDROID         | ANDROID_ID_MD5 |                  1 |     1 |
+| ANDROID         | GAID           |                  1 |     1 |
+| ANDROID         | IMEI           |                  1 |     1 |
+| ANDROID         | IMEI_MD5       |                  1 |     1 |
+| ANDROID         | OAID           |                  1 |    14 |
+| ANDROID         | OAID_MD5       |                  1 |     1 |
+| IOS             | CAID           |                  1 |     1 |
+| IOS             | IDFA           |                  1 |     3 |
+| IOS             | IDFA_MD5       |                  1 |     1 |
+| IOS             | IDFV           |                  1 |     1 |
++-----------------+----------------+--------------------+-------+

@@ -1,0 +1,8 @@
+target_qps=300
+duration_seconds=300
+threads=188
+requests=90073
+measured_qps=300.425
+max_pending=38
+max_lag=595
+drain_seconds=1

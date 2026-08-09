@@ -250,6 +250,8 @@ public class AdxCatalogService {
 		entity.setRemark(trimToNull(request.remark()));
 		entity.setUpstreamFeedbackUrl(trimToNull(request.upstreamFeedbackUrl()));
 		entity.setDownstreamCallbackUrl(trimToNull(request.downstreamCallbackUrl()));
+		entity.setClickDedupWindowSeconds(
+				request.clickDedupWindowSeconds() == null ? 3600 : request.clickDedupWindowSeconds());
 		entity.setRtaMode(request.rtaMode());
 		entity.setBillingMode(request.billingMode());
 		entity.setRouteStatus("DRAFT");
@@ -557,8 +559,9 @@ public class AdxCatalogService {
 				advertiserName, entity.getAppLinkId(), appLinkName, entity.getMonitorName(), entity.getBizId(),
 				entity.getUnitPrice(), entity.getRemark(), entity.getShowUrl(), entity.getClickUrl(),
 				entity.getUpstreamFeedbackUrl(), effectiveUrl, source, entity.getDownstreamCallbackUrl(),
-				entity.getRouteStatus(), entity.getConfigVersion(), entity.getRtaMode(), entity.getBillingMode(),
-				entity.getPublishedAt(), entity.getCreateTime(), entity.getUpdateTime());
+				entity.getClickDedupWindowSeconds(), entity.getRouteStatus(), entity.getConfigVersion(),
+				entity.getRtaMode(), entity.getBillingMode(), entity.getPublishedAt(), entity.getCreateTime(),
+				entity.getUpdateTime());
 	}
 
 	private CatalogViews.Deduction deductionView(AdxDeductionRule entity, String channelName, String appLinkName) {

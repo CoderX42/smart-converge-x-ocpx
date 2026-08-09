@@ -25,6 +25,8 @@ public class AdxRoutePublishService {
 
 	private static final Pattern TEMPLATE_MACRO = Pattern.compile("__[A-Z0-9_]+__");
 
+	private static final int DEFAULT_CLICK_DEDUP_WINDOW_SECONDS = 3600;
+
 	private final AdxMonitorLinkMapper monitorMapper;
 
 	private final AdxChannelMapper channelMapper;
@@ -50,6 +52,9 @@ public class AdxRoutePublishService {
 		AdxMonitorLink monitor = require(monitorMapper.selectById(monitorId), "监测链接不存在");
 		AdxChannel channel = require(channelMapper.selectById(monitor.getChannelId()), "渠道不存在");
 		AdxAdvertiser advertiser = require(advertiserMapper.selectById(monitor.getAdvertiserId()), "广告主不存在");
+		if (monitor.getClickDedupWindowSeconds() == null) {
+			monitor.setClickDedupWindowSeconds(DEFAULT_CLICK_DEDUP_WINDOW_SECONDS);
+		}
 		validate(channel, advertiser, monitor);
 		long nextVersion = monitor.getConfigVersion() == null ? 1 : monitor.getConfigVersion() + 1;
 		monitor.setRouteStatus("PUBLISHED");
@@ -96,6 +101,9 @@ public class AdxRoutePublishService {
 		if (!("OFF".equals(monitor.getBillingMode()) || "AUDIT_ONLY".equals(monitor.getBillingMode())
 				|| "CPC".equals(monitor.getBillingMode()))) {
 			throw new IllegalArgumentException("计费模式只能为 OFF、AUDIT_ONLY 或 CPC");
+		}
+		if (monitor.getClickDedupWindowSeconds() < 0 || monitor.getClickDedupWindowSeconds() > 604800) {
+			throw new IllegalArgumentException("点击验重窗口必须在 0 到 604800 秒之间");
 		}
 		if (!"OFF".equals(monitor.getBillingMode())
 				&& (monitor.getUnitPrice() == null || monitor.getUnitPrice().signum() <= 0)) {

@@ -1,0 +1,16 @@
+redis_replica_unavailable_http=503
+redis_primary_unavailable_http=503
+prefix=20260809T034116Z-fault-pending
+expected_unique=20
+feedback_facts=17
+ingress_dlq=3
+click_decisions=17
+eligible=17
+deduplicated=0
+skipped_no_device=0
+upstream_jobs=17
+deduplicated_jobs=0
+billing_entries=0
+redis_pending=0
+redis_lag=0
+restart_pending_drain_seconds=152

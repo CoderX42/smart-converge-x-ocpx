@@ -1,0 +1,5 @@
+scx:
+  ocpx:
+    upstream-delivery-enabled: true
+    downstream-delivery-enabled: true
+    circuit-failure-threshold: 100000

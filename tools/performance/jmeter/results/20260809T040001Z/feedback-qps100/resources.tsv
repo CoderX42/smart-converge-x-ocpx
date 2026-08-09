@@ -1,0 +1,3 @@
+timestamp	redis_pending	redis_lag	engine_rss_kb	docker_stats
+2026-08-09T04:06:16Z	0	0	534656	scx-ocpx-jmeter-redis-replica-1=5.14%/8.629MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=8.37%/8.742MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=18.43%/669.4MiB / 7.737GiB;
+2026-08-09T04:06:23Z	0	0	518128	scx-ocpx-jmeter-redis-replica-1=1.16%/8.805MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=4.81%/8.887MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=3.70%/670.8MiB / 7.737GiB;

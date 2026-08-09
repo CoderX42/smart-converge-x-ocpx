@@ -1,0 +1,13 @@
+prefix=20260809T040655Z-functional
+expected_unique=28
+feedback_facts=28
+ingress_dlq=0
+click_decisions=28
+eligible=16
+deduplicated=11
+skipped_no_device=1
+upstream_jobs=17
+deduplicated_jobs=0
+billing_entries=0
+redis_pending=0
+redis_lag=0

@@ -1,0 +1,4 @@
+run_id=20260809T040001Z
+completed_stages=1
+configured_stages=100:5
+result_dir=/Users/karl/code/yw-tech/smart-converge-x/tools/performance/jmeter/results/20260809T040001Z

@@ -13,6 +13,7 @@ import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
 import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
 import com.yzytech.scx.ocpx.runtime.config.RouteConfigurationCache;
 import com.yzytech.scx.ocpx.runtime.error.OcpxException;
+import com.yzytech.scx.ocpx.runtime.model.DeviceIdentity;
 import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.model.IngressResult;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
@@ -50,7 +51,7 @@ public class FeedbackIngressService {
 
 	private final AdapterRegistry adapterRegistry;
 
-	private final OcpxRuntimeProperties properties;
+	private final DeviceIdentityResolver deviceIdentityResolver;
 
 	private final ReactiveBlockingExecutor blockingExecutor;
 
@@ -65,7 +66,7 @@ public class FeedbackIngressService {
 		this.protocolCrypto = protocolCrypto;
 		this.feedbackIngress = feedbackIngress;
 		this.adapterRegistry = adapterRegistry;
-		this.properties = properties;
+		this.deviceIdentityResolver = new DeviceIdentityResolver(properties);
 		this.blockingExecutor = blockingExecutor;
 	}
 
@@ -127,7 +128,7 @@ public class FeedbackIngressService {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "feedback cannot be normalized");
 		}
 		String payloadHash = OcpxHashing.sha256(normalizedPayload);
-		String deviceKeyHash = deviceKeyHash(feedback);
+		DeviceIdentity deviceIdentity = deviceIdentityResolver.resolve(feedback);
 		OffsetDateTime occurredAt = occurredAt(feedback.getEventTime());
 		String eventId = firstNonBlank(feedback.getEventId(),
 				eventType == OcpxEventType.CLICK ? feedback.getClickid() : null);
@@ -145,12 +146,17 @@ public class FeedbackIngressService {
 			upstreamAdapter = adapterRegistry.requireUpstream(route.upstreamAdapterCode());
 			boolean forward = upstreamAdapter.supports(eventType);
 			String callbackRef = forward ? UUID.randomUUID().toString().replace("-", "") : null;
+			OffsetDateTime receivedAt = OffsetDateTime.now();
 			NormalizedFeedbackEvent normalized = new NormalizedFeedbackEvent(eventId, payloadHash, eventType,
-					channelCode, route.routeId(), route.routeVersion(), occurredAt, OffsetDateTime.now(),
-					deviceKeyHash);
+					channelCode, route.routeId(), route.routeVersion(), occurredAt, receivedAt,
+					deviceIdentity == null ? null : deviceIdentity.platform(),
+					deviceIdentity == null ? null : deviceIdentity.idType(),
+					deviceIdentity == null ? null : deviceIdentity.keyVersion(),
+					deviceIdentity == null ? null : deviceIdentity.keyHash());
 			envelope = new FeedbackEnvelope(normalized.eventId(), normalized.payloadHash(), normalized.eventType(),
 					normalized.channelCode(), normalized.routeId(), normalized.routeVersion(), normalized.occurredAt(),
-					normalized.receivedAt(), normalized.deviceKeyHash(), callbackRef,
+					normalized.receivedAt(), normalized.devicePlatform(), normalized.deviceIdType(),
+					normalized.deviceKeyVersion(), normalized.deviceKeyHash(), callbackRef,
 					protocolCrypto.encrypt(canonicalWriter.writeValueAsString(feedback)),
 					protocolCrypto.encrypt(objectMapper.writeValueAsString(route)), forward, debugExecutionId);
 		}
@@ -166,14 +172,6 @@ public class FeedbackIngressService {
 	/** 服务内部的已校验上下文，避免后续阶段重复查询路由或重新解析报文。 */
 	private record PreparedFeedback(RouteSnapshot route, FeedbackReqV1 feedback, UpstreamAdapter upstreamAdapter,
 			FeedbackEnvelope envelope) {
-	}
-
-	private String deviceKeyHash(FeedbackReqV1 feedback) {
-		String candidate = firstNonBlank(feedback.getOaid(), feedback.getOaidMd5(), feedback.getIdfa(),
-				feedback.getIdfaMd5(), feedback.getImei(), feedback.getImeiMd5(), feedback.getCaid(),
-				feedback.getAndroidId(), feedback.getAndroidIdMd5(), feedback.getAaid(), feedback.getGaid(),
-				feedback.getIdfv());
-		return candidate == null ? null : OcpxHashing.hmacSha256(properties.getDeviceHmacKey(), candidate.trim());
 	}
 
 	private OffsetDateTime occurredAt(Long epoch) {

@@ -1,0 +1,13 @@
+prefix=20260809T034116Z-fault-pending
+expected_unique=20
+feedback_facts=18
+ingress_dlq=3
+click_decisions=18
+eligible=18
+deduplicated=0
+skipped_no_device=0
+upstream_jobs=18
+deduplicated_jobs=0
+billing_entries=0
+redis_pending=0
+redis_lag=0

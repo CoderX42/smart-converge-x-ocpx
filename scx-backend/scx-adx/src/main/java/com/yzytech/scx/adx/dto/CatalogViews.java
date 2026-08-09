@@ -27,8 +27,9 @@ public final class CatalogViews {
 	public record Monitor(String id, String channelId, String channelName, String advertiserId, String advertiserName,
 			String appLinkId, String appLinkName, String monitorName, String bizId, BigDecimal unitPrice, String remark,
 			String showUrl, String clickUrl, String upstreamFeedbackUrl, String effectiveUpstreamFeedbackUrl,
-			String upstreamFeedbackSource, String downstreamCallbackUrl, String routeStatus, Long configVersion,
-			String rtaMode, String billingMode, LocalDateTime publishedAt, LocalDateTime createTime,
+			String upstreamFeedbackSource, String downstreamCallbackUrl, Integer clickDedupWindowSeconds,
+			String routeStatus, Long configVersion, String rtaMode, String billingMode, LocalDateTime publishedAt,
+			LocalDateTime createTime,
 			LocalDateTime updateTime) {
 	}
 

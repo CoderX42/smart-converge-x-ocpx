@@ -108,7 +108,7 @@ class AdxCatalogServiceTest {
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(advertiser);
 		when(appLinkMapper.selectById("link-1")).thenReturn(link);
 		CatalogRequests.SaveMonitor request = new CatalogRequests.SaveMonitor("channel-1", "advertiser-1", "link-1",
-				"监测链接", null, BigDecimal.ONE, null, null, null, "OFF", "OFF");
+				"监测链接", null, BigDecimal.ONE, null, null, null, null, "OFF", "OFF");
 
 		assertThatThrownBy(() -> service.saveMonitor(null, request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("应用链接不属于所选广告主");
@@ -133,7 +133,7 @@ class AdxCatalogServiceTest {
 			return 1;
 		});
 		CatalogRequests.SaveMonitor request = new CatalogRequests.SaveMonitor("channel-1", "advertiser-1", "link-1",
-				"监测链接", null, BigDecimal.ONE, null, null, null, "OFF", "OFF");
+				"监测链接", null, BigDecimal.ONE, null, null, null, null, "OFF", "OFF");
 
 		service.saveMonitor(null, request);
 
@@ -143,6 +143,7 @@ class AdxCatalogServiceTest {
 		assertThat(monitor.getValue().getShowUrl())
 			.isEqualTo("https://ocpx.example/ocpx/open-api/ocpx/v1/channels/media_main/feedback");
 		assertThat(monitor.getValue().getClickUrl()).isEqualTo(monitor.getValue().getShowUrl());
+		assertThat(monitor.getValue().getClickDedupWindowSeconds()).isEqualTo(3600);
 	}
 
 	@Test

@@ -81,17 +81,32 @@ public class OcpxPersistenceRepository {
 			int inserted = jdbcTemplate.update("""
 					INSERT IGNORE INTO scx_ocpx_event
 					(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
-					 monitor_id,route_version,occurred_at,received_at,device_key_hash,payload_hash,status,callback_ref,
+					 monitor_id,route_version,occurred_at,received_at,device_platform,device_id_type,device_key_version,
+					 device_key_hash,payload_hash,status,callback_ref,
 					 debug_execution_id,is_debug)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					""", id(), envelope.eventId(), null, "DOWNSTREAM_FEEDBACK", envelope.eventType().name(),
 					route.channelId(), route.advertiserId(), route.appLinkId(), route.routeId(), route.routeVersion(),
 					Timestamp.from(envelope.occurredAt().toInstant()),
-					Timestamp.from(envelope.receivedAt().toInstant()), envelope.deviceKeyHash(), envelope.payloadHash(),
-					"PERSISTED", envelope.callbackRef(), envelope.debugExecutionId(),
+					Timestamp.from(envelope.receivedAt().toInstant()), envelope.devicePlatform(), envelope.deviceIdType(),
+					envelope.deviceKeyVersion(), envelope.deviceKeyHash(), envelope.payloadHash(), "PERSISTED",
+					envelope.callbackRef(), envelope.debugExecutionId(),
 					envelope.debugExecutionId() == null ? 0 : 1);
 			if (inserted == 0) {
 				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "DUPLICATE", "幂等事件已存在，未重复写入");
+				return;
+			}
+			ClickDedupDecision clickDedup = decideClickDedup(envelope, route);
+			if (clickDedup.duplicate()) {
+				jdbcTemplate.update("""
+						UPDATE scx_ocpx_event SET status='DEDUPLICATED',callback_ref=NULL
+						WHERE event_id=? AND source_direction='DOWNSTREAM_FEEDBACK'
+						""", envelope.eventId());
+				if (envelope.debugExecutionId() == null) {
+					upsertFeedbackMetric(envelope, route, BigDecimal.ZERO);
+				}
+				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "CLICK_DEDUPLICATED",
+						"点击事实已保存，设备窗口内不计费且不向上游投递");
 				return;
 			}
 			BillingPort.BillingResult billing = BillingPort.BillingResult.disabled();
@@ -141,6 +156,78 @@ public class OcpxPersistenceRepository {
 		}
 		catch (Exception e) {
 			throw new IllegalStateException("Cannot persist feedback event", e);
+		}
+	}
+
+	private ClickDedupDecision decideClickDedup(FeedbackEnvelope envelope, RouteSnapshot route) {
+		if (envelope.eventType() != OcpxEventType.CLICK) {
+			return ClickDedupDecision.notApplicable();
+		}
+		int windowSeconds = Math.max(0, route.clickDedupWindowSeconds());
+		if (envelope.debugExecutionId() != null) {
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "DEBUG_EVENT",
+					envelope.eventId(), false);
+		}
+		if (!StringUtils.hasText(envelope.deviceKeyHash())) {
+			return recordClickDecision(envelope, route, windowSeconds, "SKIPPED_NO_DEVICE", "NO_DEVICE_ID",
+					envelope.eventId(), false);
+		}
+		if (windowSeconds == 0) {
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "WINDOW_DISABLED",
+					envelope.eventId(), false);
+		}
+		int inserted = jdbcTemplate.update("""
+				INSERT IGNORE INTO scx_ocpx_click_dedup_state
+				(monitor_id,device_key_hash,canonical_event_id,canonical_received_at,create_time,update_time)
+				VALUES (?,?,?,?,NOW(3),NOW(3))
+				""", route.routeId(), envelope.deviceKeyHash(), envelope.eventId(),
+				Timestamp.from(envelope.receivedAt().toInstant()));
+		if (inserted == 1) {
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "FIRST_IN_WINDOW",
+					envelope.eventId(), false);
+		}
+		ClickDedupState state = jdbcTemplate.queryForObject("""
+				SELECT canonical_event_id,canonical_received_at
+				FROM scx_ocpx_click_dedup_state
+				WHERE monitor_id=? AND device_key_hash=? FOR UPDATE
+				""", (rs, rowNum) -> new ClickDedupState(rs.getString(1),
+				rs.getTimestamp(2).toInstant().atOffset(java.time.ZoneOffset.UTC)), route.routeId(),
+				envelope.deviceKeyHash());
+		if (state == null) {
+			throw new IllegalStateException("click dedup state disappeared during transaction");
+		}
+		if (!envelope.receivedAt().isBefore(state.receivedAt().plusSeconds(windowSeconds))) {
+			jdbcTemplate.update("""
+					UPDATE scx_ocpx_click_dedup_state
+					SET canonical_event_id=?,canonical_received_at=?,update_time=NOW(3)
+					WHERE monitor_id=? AND device_key_hash=?
+					""", envelope.eventId(), Timestamp.from(envelope.receivedAt().toInstant()), route.routeId(),
+					envelope.deviceKeyHash());
+			return recordClickDecision(envelope, route, windowSeconds, "ELIGIBLE", "WINDOW_EXPIRED",
+					envelope.eventId(), false);
+		}
+		return recordClickDecision(envelope, route, windowSeconds, "DEDUPLICATED", "WITHIN_WINDOW",
+				state.eventId(), true);
+	}
+
+	private ClickDedupDecision recordClickDecision(FeedbackEnvelope envelope, RouteSnapshot route, int windowSeconds,
+			String status, String reason, String canonicalEventId, boolean duplicate) {
+		jdbcTemplate.update("""
+				INSERT INTO scx_ocpx_click_dedup_decision
+				(event_id,monitor_id,device_key_hash,window_seconds,status,reason,canonical_event_id,received_at,create_time)
+				VALUES (?,?,?,?,?,?,?,?,NOW(3))
+				""", envelope.eventId(), route.routeId(), envelope.deviceKeyHash(), windowSeconds, status, reason,
+				canonicalEventId, Timestamp.from(envelope.receivedAt().toInstant()));
+		return new ClickDedupDecision(duplicate);
+	}
+
+	private record ClickDedupState(String eventId, OffsetDateTime receivedAt) {
+	}
+
+	private record ClickDedupDecision(boolean duplicate) {
+
+		private static ClickDedupDecision notApplicable() {
+			return new ClickDedupDecision(false);
 		}
 	}
 

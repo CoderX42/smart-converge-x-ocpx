@@ -3,6 +3,38 @@ import type { ApiDebugRequest, ApiDebugTarget } from '#/api/adx';
 const sensitiveKey =
   /authorization|cookie|password|passwd|secret|token|signature|x-sign|appsecret|access[_-]?key|phone|mobile|id[_-]?card|real[_-]?name/i;
 
+type ClientCrypto = {
+  getRandomValues?: (array: Uint8Array) => Uint8Array;
+  randomUUID?: () => string;
+};
+
+/**
+ * Generates a client-side trace value without assuming randomUUID is available.
+ * These values are business debug samples, never authentication credentials.
+ */
+export function createDebugClientId(cryptoApi?: ClientCrypto | null) {
+  const source = cryptoApi === undefined ? globalThis.crypto : cryptoApi;
+  if (typeof source?.randomUUID === 'function') {
+    try {
+      return source.randomUUID();
+    } catch {
+      // Continue with getRandomValues for restricted browser/WebView contexts.
+    }
+  }
+  if (typeof source?.getRandomValues === 'function') {
+    try {
+      const bytes = new Uint8Array(16);
+      source.getRandomValues(bytes);
+      return Array.from(bytes, (value) =>
+        value.toString(16).padStart(2, '0'),
+      ).join('');
+    } catch {
+      // The final fallback is sufficient for a non-security debug sample ID.
+    }
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 export function serializeRequestBody(
   bodyType: ApiDebugRequest['bodyType'],
   text: string,

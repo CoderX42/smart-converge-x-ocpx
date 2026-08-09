@@ -8,6 +8,8 @@ import com.yzytech.scx.ocpx.runtime.model.FeedbackEnvelope;
 import com.yzytech.scx.ocpx.runtime.model.IngressResult;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.DecoratedRedisConnection;
+import org.springframework.data.redis.connection.lettuce.LettuceConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.SessionCallback;
@@ -15,6 +17,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+
+import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.output.IntegerOutput;
 
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -65,7 +70,7 @@ public class RedisFeedbackIngress {
 					String state = operations.execute(ENQUEUE_SCRIPT, List.of(idempotencyKey, stream),
 							envelope.payloadHash(), Long.toString(properties.getIdempotencyTtl().toMillis()),
 							envelope.eventId(), serialized);
-					return result(envelope.eventId(), state, operations);
+					return result(envelope.eventId(), state);
 				}
 			});
 			if (result == null) {
@@ -78,12 +83,12 @@ public class RedisFeedbackIngress {
 		}
 	}
 
-	private IngressResult result(String eventId, String state, RedisOperations<String, String> operations) {
+	private IngressResult result(String eventId, String state) {
 		if (state == null) {
 			throw new OcpxException(HttpStatus.SERVICE_UNAVAILABLE, "feedback queue unavailable");
 		}
 		if (state.startsWith("ACCEPTED:") || "DUPLICATE".equals(state)) {
-			awaitReplicaIfRequired(operations);
+			awaitReplicaIfRequired();
 			return new IngressResult(eventId,
 					state.startsWith("ACCEPTED:") ? IngressResult.Status.ACCEPTED : IngressResult.Status.DUPLICATE,
 					OffsetDateTime.now());
@@ -107,19 +112,37 @@ public class RedisFeedbackIngress {
 		return Math.floorMod(eventId.hashCode(), properties.getPartitionCount());
 	}
 
-	private void awaitReplicaIfRequired(RedisOperations<String, String> operations) {
+	private void awaitReplicaIfRequired() {
 		if (properties.getReplicaAcksRequired() <= 0) {
 			return;
 		}
-		Long acknowledged = operations.execute((RedisCallback<Long>) (RedisConnection connection) -> {
-			Object result = connection.execute("WAIT",
-					Integer.toString(properties.getReplicaAcksRequired()).getBytes(StandardCharsets.UTF_8),
-					Long.toString(properties.getReplicaAckTimeoutMs()).getBytes(StandardCharsets.UTF_8));
-			return result instanceof Long value ? value : 0L;
-		});
+		Long acknowledged = redisTemplate.execute((RedisCallback<Long>) this::waitForReplica, true);
 		if (acknowledged == null || acknowledged < properties.getReplicaAcksRequired()) {
 			throw new OcpxException(HttpStatus.SERVICE_UNAVAILABLE, "feedback queue replica quorum unavailable");
 		}
+	}
+
+	private Long waitForReplica(RedisConnection connection) {
+		byte[] replicas = Integer.toString(properties.getReplicaAcksRequired()).getBytes(StandardCharsets.UTF_8);
+		byte[] timeout = Long.toString(properties.getReplicaAckTimeoutMs()).getBytes(StandardCharsets.UTF_8);
+		RedisConnection delegate = connection;
+		while (delegate instanceof DecoratedRedisConnection decorated) {
+			delegate = decorated.getDelegate();
+		}
+		Object result;
+		if (delegate instanceof LettuceConnection lettuce) {
+			result = lettuce.execute("WAIT", new IntegerOutput<>(ByteArrayCodec.INSTANCE), replicas, timeout);
+		}
+		else {
+			result = delegate.execute("WAIT", replicas, timeout);
+		}
+		if (result instanceof Number value) {
+			return value.longValue();
+		}
+		if (result instanceof byte[] value) {
+			return Long.parseLong(new String(value, StandardCharsets.UTF_8));
+		}
+		return 0L;
 	}
 
 }

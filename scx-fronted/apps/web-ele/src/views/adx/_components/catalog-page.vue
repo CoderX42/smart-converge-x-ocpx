@@ -171,6 +171,7 @@ const columns = computed<Column[]>(() => {
       { label: '单价', minWidth: 110, prop: 'unitPrice' },
       { label: '发布状态', minWidth: 110, prop: 'routeStatus' },
       { label: '版本', minWidth: 90, prop: 'configVersion' },
+      { label: '点击验重窗口', minWidth: 130, prop: 'clickDedupWindowSeconds' },
       {
         label: '上游点击地址（配置/已发布）',
         minWidth: 300,
@@ -247,6 +248,9 @@ function display(row: Row, prop: string) {
     ];
   }
   if (prop === 'ratio') return `${(Number(value || 0) * 100).toFixed(2)}%`;
+  if (prop === 'clickDedupWindowSeconds') {
+    return Number(value || 0) === 0 ? '关闭' : `${Number(value)} 秒`;
+  }
   if (prop === 'upstreamFeedbackSource') {
     return {
       ADVERTISER_DEFAULT: '已发布 · 广告主默认',
@@ -308,7 +312,12 @@ function resetForm() {
       status: 'ACTIVE',
     },
     deduction: { ratio: 1 },
-    monitor: { billingMode: 'OFF', rtaMode: 'OFF', unitPrice: 0 },
+    monitor: {
+      billingMode: 'OFF',
+      clickDedupWindowSeconds: 3600,
+      rtaMode: 'OFF',
+      unitPrice: 0,
+    },
   };
   Object.assign(form, defaults[props.kind]);
 }
@@ -861,6 +870,17 @@ onMounted(async () => {
             />
             <span class="field-hint">
               TEMPLATE_GET_DOWNSTREAM 至少包含 __EVENT__、__EVENT_ID__。
+            </span>
+          </el-form-item>
+          <el-form-item label="点击验重窗口" prop="clickDedupWindowSeconds">
+            <el-input-number
+              v-model="form.clickDedupWindowSeconds"
+              :max="604800"
+              :min="0"
+              :step="60"
+            />
+            <span class="field-hint">
+              按监测路由和设备指纹验重，单位秒；0 仅关闭设备窗口，事件 ID 幂等始终生效。
             </span>
           </el-form-item>
           <el-form-item label="RTA模式" prop="rtaMode">

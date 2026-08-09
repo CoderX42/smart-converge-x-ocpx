@@ -25,9 +25,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -110,6 +108,7 @@ public class FeedbackStreamWorker {
 			if (pending == null || pending.isEmpty()) {
 				continue;
 			}
+			List<RecordId> claimable = new ArrayList<>();
 			for (PendingMessage message : pending) {
 				if (message.getElapsedTimeSinceLastDelivery().compareTo(properties.getPendingIdle()) < 0) {
 					continue;
@@ -117,62 +116,16 @@ public class FeedbackStreamWorker {
 				if (message.getTotalDeliveryCount() >= properties.getMaxDeliveryAttempts()) {
 					moveToDlq(key, partition, message.getId());
 				}
-			}
-			persistAndAcknowledge(key, partition, autoClaimRecords(key));
-		}
-	}
-
-	private List<MapRecord<String, Object, Object>> autoClaimRecords(String key) {
-		List<MapRecord<String, Object, Object>> records = redisTemplate
-			.execute((RedisCallback<List<MapRecord<String, Object, Object>>>) connection -> {
-			Object raw = connection.execute("XAUTOCLAIM", key.getBytes(StandardCharsets.UTF_8),
-					GROUP.getBytes(StandardCharsets.UTF_8), consumerName.getBytes(StandardCharsets.UTF_8),
-					Long.toString(properties.getPendingIdle().toMillis()).getBytes(StandardCharsets.UTF_8),
-					"0-0".getBytes(StandardCharsets.UTF_8), "COUNT".getBytes(StandardCharsets.UTF_8),
-					Integer.toString(properties.getBatchSize()).getBytes(StandardCharsets.UTF_8));
-			if (!(raw instanceof List<?> response) || response.size() < 2
-					|| !(response.get(1) instanceof List<?> rawRecords)) {
-				return List.of();
-			}
-			List<MapRecord<String, Object, Object>> claimed = new ArrayList<>();
-			for (Object rawRecord : rawRecords) {
-				MapRecord<String, Object, Object> record = mapRecord(key, rawRecord);
-				if (record != null) {
-					claimed.add(record);
+				else {
+					claimable.add(message.getId());
 				}
 			}
-			return claimed;
-		});
-		return records == null ? List.of() : records;
-	}
-
-	private MapRecord<String, Object, Object> mapRecord(String key, Object rawRecord) {
-		if (!(rawRecord instanceof List<?> parts) || parts.size() < 2 || !(parts.get(1) instanceof List<?> fields)) {
-			return null;
+			if (!claimable.isEmpty()) {
+				List<MapRecord<String, Object, Object>> claimed = redisTemplate.opsForStream()
+					.claim(key, GROUP, consumerName, properties.getPendingIdle(), claimable.toArray(RecordId[]::new));
+				persistAndAcknowledge(key, partition, claimed);
+			}
 		}
-		RecordId id = recordId(parts.get(0));
-		if (id == null || fields.size() % 2 != 0) {
-			return null;
-		}
-		Map<Object, Object> values = new LinkedHashMap<>();
-		for (int index = 0; index < fields.size(); index += 2) {
-			values.put(textValue(fields.get(index)), textValue(fields.get(index + 1)));
-		}
-		return MapRecord.create(key, values).withId(id);
-	}
-
-	private RecordId recordId(Object value) {
-		if (value instanceof byte[] bytes) {
-			return RecordId.of(new String(bytes, StandardCharsets.UTF_8));
-		}
-		if (value instanceof String string) {
-			return RecordId.of(string);
-		}
-		return null;
-	}
-
-	private String textValue(Object value) {
-		return value instanceof byte[] bytes ? new String(bytes, StandardCharsets.UTF_8) : String.valueOf(value);
 	}
 
 	private void persistAndAcknowledge(String key, int partition, List<MapRecord<String, Object, Object>> records) {

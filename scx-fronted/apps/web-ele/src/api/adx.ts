@@ -101,6 +101,7 @@ export type MonitorLink = CatalogRecord & {
   bizId?: string;
   channelId: string;
   channelName?: string;
+  clickDedupWindowSeconds: number;
   clickUrl?: string;
   configVersion: number;
   downstreamCallbackUrl?: string;

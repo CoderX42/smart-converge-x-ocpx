@@ -1,0 +1,12 @@
+prefix=20260809T040001Z-callback-qps100
+callback_unique=610
+callback_http_requests=1220
+callback_http_success=1220
+callback_facts=610
+deduction_decisions=610
+downstream_jobs=610
+downstream_unique_keys=610
+downstream_attempts=1830
+downstream_success_keys=610
+invalid_signatures=0
+callback_bad_status=0

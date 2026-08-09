@@ -1,0 +1,13 @@
+prefix=20260809T040655Z-feedback-qps300
+expected_unique=90073
+feedback_facts=90073
+ingress_dlq=0
+click_decisions=90073
+eligible=90073
+deduplicated=0
+skipped_no_device=0
+upstream_jobs=90073
+deduplicated_jobs=0
+billing_entries=0
+redis_pending=0
+redis_lag=0

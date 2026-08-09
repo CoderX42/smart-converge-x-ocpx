@@ -1,0 +1,10 @@
+timestamp	redis_pending	redis_lag	engine_rss_kb	docker_stats
+2026-08-09T03:54:34Z	0	0	564960	scx-ocpx-jmeter-redis-replica-1=4.63%/5.562MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=8.57%/5.754MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=19.47%/584.3MiB / 7.737GiB;
+2026-08-09T03:54:41Z	1	3	390384	scx-ocpx-jmeter-redis-replica-1=3.57%/6.266MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=5.90%/6.5MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=43.68%/592.6MiB / 7.737GiB;
+2026-08-09T03:54:48Z	0	1	468096	scx-ocpx-jmeter-redis-replica-1=3.31%/6.621MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=5.90%/6.582MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=31.01%/602.5MiB / 7.737GiB;
+2026-08-09T03:54:55Z	0	2	536624	scx-ocpx-jmeter-redis-replica-1=2.97%/6.91MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=6.73%/6.789MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=30.38%/608.2MiB / 7.737GiB;
+2026-08-09T03:55:03Z	0	0	489216	scx-ocpx-jmeter-redis-replica-1=2.02%/7.02MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=6.17%/6.98MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=31.68%/614.6MiB / 7.737GiB;
+2026-08-09T03:55:10Z	1	0	537664	scx-ocpx-jmeter-redis-replica-1=2.68%/7.285MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=7.38%/7.219MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=38.29%/620.3MiB / 7.737GiB;
+2026-08-09T03:55:17Z	0	0	470704	scx-ocpx-jmeter-redis-replica-1=2.09%/7.852MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=5.95%/7.75MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=44.53%/625.5MiB / 7.737GiB;
+2026-08-09T03:55:25Z	1	6	401296	scx-ocpx-jmeter-redis-replica-1=2.44%/8.105MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=6.11%/7.91MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=53.41%/631.2MiB / 7.737GiB;
+2026-08-09T03:55:32Z	1	11	527584	scx-ocpx-jmeter-redis-replica-1=3.03%/8.191MiB / 7.737GiB;scx-ocpx-jmeter-redis-primary-1=6.63%/8.238MiB / 7.737GiB;scx-ocpx-jmeter-mysql-1=50.19%/636.1MiB / 7.737GiB;

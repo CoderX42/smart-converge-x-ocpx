@@ -49,6 +49,9 @@ public class OcpxRuntimeProperties {
 	@NotBlank
 	private String deviceHmacKey;
 
+	@Min(1)
+	private int deviceHmacKeyVersion = 1;
+
 	@NotBlank
 	private String payloadAesKey;
 
@@ -178,6 +181,14 @@ public class OcpxRuntimeProperties {
 
 	public void setDeviceHmacKey(String deviceHmacKey) {
 		this.deviceHmacKey = deviceHmacKey;
+	}
+
+	public int getDeviceHmacKeyVersion() {
+		return deviceHmacKeyVersion;
+	}
+
+	public void setDeviceHmacKeyVersion(int deviceHmacKeyVersion) {
+		this.deviceHmacKeyVersion = deviceHmacKeyVersion;
 	}
 
 	public String getPayloadAesKey() {

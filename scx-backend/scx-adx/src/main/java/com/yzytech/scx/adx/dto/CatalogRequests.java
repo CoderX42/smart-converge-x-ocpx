@@ -3,6 +3,8 @@ package com.yzytech.scx.adx.dto;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -45,6 +47,7 @@ public final class CatalogRequests {
 			@NotBlank @Size(max = 100) String monitorName, @Size(max = 100) String bizId,
 			@NotNull @DecimalMin("0") BigDecimal unitPrice, @Size(max = 500) String remark,
 			@Size(max = 5000) String upstreamFeedbackUrl, @Size(max = 1500) String downstreamCallbackUrl,
+			@Min(0) @Max(604800) Integer clickDedupWindowSeconds,
 			@NotBlank @Pattern(regexp = "OFF") String rtaMode,
 			@NotBlank @Pattern(regexp = "OFF|AUDIT_ONLY|CPC") String billingMode) {
 	}

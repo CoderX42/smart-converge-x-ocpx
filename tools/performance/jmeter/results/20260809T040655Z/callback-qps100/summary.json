@@ -1,0 +1,13 @@
+{
+  "failures": 0,
+  "maxMs": 205,
+  "measuredQps": 102.121,
+  "measuredSeconds": 59.782,
+  "p50Ms": 2,
+  "p95Ms": 8,
+  "p99Ms": 51,
+  "requests": 6105,
+  "statuses": {
+    "202": 6105
+  }
+}

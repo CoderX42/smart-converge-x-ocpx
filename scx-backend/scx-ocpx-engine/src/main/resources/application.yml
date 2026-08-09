@@ -43,6 +43,7 @@ scx:
     replica-acks-required: 0
     replica-ack-timeout-ms: 20
     device-hmac-key: replace-before-production-device-hmac-key
+    device-hmac-key-version: 1
     payload-aes-key: replace-before-production-payload-aes-key
     callback-token-key: replace-before-production-callback-token-key
     allow-http: true

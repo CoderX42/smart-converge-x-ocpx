@@ -77,6 +77,7 @@ class AdxRoutePublishServiceTest {
 		var result = service.publish("monitor-1");
 
 		assertThat(result).containsEntry("routeStatus", "PUBLISHED").containsEntry("configVersion", 5L);
+		assertThat(fixture.monitor().getClickDedupWindowSeconds()).isEqualTo(3600);
 		verify(monitorMapper).updateById(fixture.monitor());
 		verify(configChangeService).enqueueMonitor("monitor-1", 5L, "ROUTE_PUBLISHED");
 	}

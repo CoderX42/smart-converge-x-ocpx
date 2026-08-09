@@ -16,6 +16,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -68,6 +70,27 @@ class OcpxPersistenceRepositoryTest {
 
 		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 		verify(jdbcTemplate).update(contains("cost_amount=cost_amount+VALUES(cost_amount)"), any(Object[].class));
+	}
+
+	@Test
+	void deviceWindowDuplicateKeepsFactButSkipsBillingAndDelivery() throws Exception {
+		when(jdbcTemplate.update(contains("INSERT IGNORE INTO scx_ocpx_click_dedup_state"), any(Object[].class)))
+			.thenReturn(0);
+		ResultSet resultSet = mock(ResultSet.class);
+		when(resultSet.getString(1)).thenReturn("canonical-click");
+		when(resultSet.getTimestamp(2)).thenReturn(Timestamp.from(OffsetDateTime.parse("2026-08-07T08:59:30Z").toInstant()));
+		when(jdbcTemplate.queryForObject(contains("FROM scx_ocpx_click_dedup_state"),
+				any(org.springframework.jdbc.core.RowMapper.class), any(Object[].class)))
+			.thenAnswer(invocation -> {
+				org.springframework.jdbc.core.RowMapper<?> mapper = invocation.getArgument(1);
+				return mapper.mapRow(resultSet, 0);
+			});
+
+		repository.persistFeedbackBatch(List.of(envelope()));
+
+		verify(jdbcTemplate).update(contains("status='DEDUPLICATED'"), eq("click-1"));
+		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
+		verify(jdbcTemplate, never()).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 	}
 
 	@Test

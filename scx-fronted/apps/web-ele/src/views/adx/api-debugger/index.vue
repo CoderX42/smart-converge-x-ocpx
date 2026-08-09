@@ -37,6 +37,7 @@ import {
 } from '#/api/adx';
 
 import {
+  createDebugClientId,
   formatJsonText,
   formatResponseText,
   maskSensitiveText,
@@ -68,11 +69,11 @@ const requestBody = ref(
   JSON.stringify(
     {
       channel_id: '',
-      clickid: `debug-${crypto.randomUUID()}`,
+      clickid: `debug-${createDebugClientId()}`,
       event: 'CLICK',
       event_time: Math.floor(Date.now() / 1000),
       monitor_id: '',
-      oaid: `debug-device-${crypto.randomUUID()}`,
+      oaid: `debug-device-${createDebugClientId()}`,
       os: 'android',
       schema_version: '1.0',
     },
@@ -424,11 +425,11 @@ watch([targetId, scenario], () => {
       ? JSON.stringify(
           {
             channel_id: target.channelCode,
-            clickid: `debug-${crypto.randomUUID()}`,
+            clickid: `debug-${createDebugClientId()}`,
             event: 'CLICK',
             event_time: Math.floor(Date.now() / 1000),
             monitor_id: target.monitorId,
-            oaid: `debug-device-${crypto.randomUUID()}`,
+            oaid: `debug-device-${createDebugClientId()}`,
             os: 'android',
             schema_version: '1.0',
           },

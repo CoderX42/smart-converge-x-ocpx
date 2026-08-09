@@ -16,7 +16,7 @@ public class RouteConfigurationRepository {
 			      c.key_version, c.secret_key, a.id, m.app_link_id, a.adapter_code, a.secret_key,
 			      m.published_upstream_feedback_url,
 			      a.macro_params, m.downstream_callback_url, m.unit_price, COALESCE(d.ratio, 1.0000), m.rta_mode,
-			      m.billing_mode
+			      m.billing_mode, m.click_dedup_window_seconds
 			FROM scx_adx_monitor_link m
 			JOIN scx_adx_channel c ON c.id=m.channel_id AND c.deleted=0 AND c.status='ACTIVE'
 			JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0 AND a.status='ACTIVE'
@@ -30,7 +30,8 @@ public class RouteConfigurationRepository {
 					rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getInt(8), rs.getString(9),
 					rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14),
 					rs.getString(15), rs.getString(16), rs.getObject(17, BigDecimal.class),
-					rs.getObject(18, BigDecimal.class), rs.getString(19), rs.getString(20)), rs.getString(2));
+					rs.getObject(18, BigDecimal.class), rs.getString(19), rs.getString(20), rs.getInt(21)),
+			rs.getString(2));
 
 	private final JdbcTemplate jdbcTemplate;
 
