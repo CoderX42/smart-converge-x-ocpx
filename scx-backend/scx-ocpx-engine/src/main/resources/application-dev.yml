@@ -24,5 +24,6 @@ spring:
 # 生产环境仍在 application-prod.yml 中保持关闭，避免未完成 UAT 就外发。
 scx:
   ocpx:
+    debug-execution-enabled: true
     upstream-delivery-enabled: true
     downstream-delivery-enabled: true

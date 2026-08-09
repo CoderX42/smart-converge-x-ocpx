@@ -50,12 +50,23 @@ class AdxRouteContractTest {
 		assertRoute(AdxRuntimeController.class, "replay", PostMapping.class, "/deliveries/{id}/replay");
 		assertRoute(AdxRuntimeController.class, "ingressDlq", GetMapping.class, "/ingress-dlq");
 		assertRoute(AdxRuntimeController.class, "replayIngressDlq", PostMapping.class, "/ingress-dlq/{id}/replay");
+
+		assertRoot(ApiDebugController.class, "/adx/api-debug");
+		assertRoute(ApiDebugController.class, "targets", GetMapping.class, "/targets");
+		assertRoute(ApiDebugController.class, "preflight", PostMapping.class, "/preflight");
+		assertRoute(ApiDebugController.class, "authorize", PostMapping.class, "/authorizations");
+		assertRoute(ApiDebugController.class, "execute", PostMapping.class, "/executions");
+		assertRoute(ApiDebugController.class, "executeMultipart", PostMapping.class, "/executions/multipart");
+		assertRoute(ApiDebugController.class, "execution", GetMapping.class, "/executions/{id}");
+		assertRoute(ApiDebugController.class, "logs", GetMapping.class, "/executions/{id}/logs");
+		assertRoute(ApiDebugController.class, "recentLogs", GetMapping.class, "/logs/recent");
+		assertRoute(ApiDebugController.class, "cases", GetMapping.class, "/cases");
 	}
 
 	@Test
 	void protectsEveryPublicAdxEndpointWithAPermissionCode() {
 		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxReportController.class,
-				AdxRuntimeController.class)) {
+				AdxRuntimeController.class, ApiDebugController.class)) {
 			for (Method method : controller.getDeclaredMethods()) {
 				if (hasHttpMapping(method)) {
 					SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);

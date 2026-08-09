@@ -6,5 +6,14 @@ import java.time.OffsetDateTime;
 
 public record FeedbackEnvelope(String eventId, String payloadHash, OcpxEventType eventType, String channelCode,
 		String routeId, long routeVersion, OffsetDateTime occurredAt, OffsetDateTime receivedAt, String deviceKeyHash,
-		String callbackRef, String encryptedFeedback, String encryptedRoute, boolean forwardUpstream) {
+		String callbackRef, String encryptedFeedback, String encryptedRoute, boolean forwardUpstream,
+		String debugExecutionId) {
+
+	public FeedbackEnvelope(String eventId, String payloadHash, OcpxEventType eventType, String channelCode,
+			String routeId, long routeVersion, OffsetDateTime occurredAt, OffsetDateTime receivedAt,
+			String deviceKeyHash, String callbackRef, String encryptedFeedback, String encryptedRoute,
+			boolean forwardUpstream) {
+		this(eventId, payloadHash, eventType, channelCode, routeId, routeVersion, occurredAt, receivedAt, deviceKeyHash,
+				callbackRef, encryptedFeedback, encryptedRoute, forwardUpstream, null);
+	}
 }

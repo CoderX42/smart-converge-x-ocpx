@@ -269,6 +269,112 @@ export type ReportOptions = {
   monitors: MonitorLink[];
 };
 
+export type ApiDebugTarget = {
+  advertiserId: string;
+  advertiserName: string;
+  billingMode: string;
+  channelCode: string;
+  channelId: string;
+  channelName: string;
+  downstreamAdapterCode: string;
+  downstreamTargetHost?: string;
+  monitorId: string;
+  monitorName: string;
+  routeStatus: string;
+  routeVersion: number;
+  unitPrice: number;
+  upstreamAdapterCode: string;
+  upstreamTargetHost?: string;
+};
+
+export type ApiDebugRequest = {
+  body?: string;
+  bodyType: 'FORM_DATA' | 'FORM_URLENCODED' | 'JSON' | 'NONE' | 'TEXT';
+  headers: Record<string, string>;
+  method: 'DELETE' | 'GET' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT';
+  mode: 'CUSTOM' | 'INTEGRATED';
+  monitorId?: string;
+  scenario?: 'DOWNSTREAM_TO_UPSTREAM' | 'UPSTREAM_TO_DOWNSTREAM';
+  timeoutSeconds: number;
+  url: string;
+};
+
+export type ApiDebugPreflight = {
+  billable: boolean;
+  confirmationPhrase: string;
+  draftId: string;
+  environment: string;
+  expiresAt: string;
+  riskSummary: string;
+  sideEffectSummary: string;
+  target?: ApiDebugTarget;
+};
+
+export type ApiDebugExecution = {
+  createdBy: string;
+  createTime: string;
+  durationMs?: number;
+  errorMessage?: string;
+  id: string;
+  mode: string;
+  monitorId?: string;
+  requestBody?: string;
+  requestHeaders?: string;
+  requestMethod: string;
+  requestUrl: string;
+  responseBody?: string;
+  responseHeaders?: string;
+  responseMime?: string;
+  responseSha256?: string;
+  responseSize?: number;
+  responseStatus?: number;
+  riskSummary?: string;
+  routeVersion?: number;
+  scenario?: string;
+  sideEffectSummary?: string;
+  status: string;
+  updateTime: string;
+};
+
+export type ApiDebugExecutionLog = {
+  createTime: string;
+  detailJson?: string;
+  level: string;
+  message: string;
+  phase: string;
+  sequence: number;
+  source: 'ENGINE' | 'MANAGEMENT';
+};
+
+export type ApiDebugCase = {
+  caseName: string;
+  createdBy: string;
+  createTime: string;
+  description?: string;
+  id: string;
+  mode: 'CUSTOM' | 'INTEGRATED';
+  monitorId?: string;
+  requestJson: string;
+  scenario?: 'DOWNSTREAM_TO_UPSTREAM' | 'UPSTREAM_TO_DOWNSTREAM';
+  updatedBy: string;
+  updateTime: string;
+};
+
+export type ApiDebugRecentLog = {
+  level: string;
+  logger: string;
+  message: string;
+  sequence: number;
+  source: 'ENGINE' | 'MANAGEMENT';
+  timestamp: string;
+};
+
+export type ApiDebugRecentLogs = {
+  nextCursor: number;
+  records: ApiDebugRecentLog[];
+  truncated: boolean;
+};
+
 type Query = {
   [key: string]: any;
   current?: number;
@@ -416,4 +522,104 @@ export function exportReport(params: Query) {
 
 export function getDashboardSummary() {
   return requestClient.get<DashboardSummary>('/adx/dashboard/summary');
+}
+
+export function getApiDebugTargets(keyword?: string) {
+  return requestClient.get<ApiDebugTarget[]>('/adx/api-debug/targets', {
+    params: { keyword },
+  });
+}
+
+export function preflightApiDebug(data: ApiDebugRequest) {
+  return requestClient.post<ApiDebugPreflight>(
+    '/adx/api-debug/preflight',
+    data,
+  );
+}
+
+export function authorizeApiDebug(data: {
+  confirmationPhrase: string;
+  draftId: string;
+  password: string;
+  purpose: 'EXECUTE' | 'RAW_LOGS';
+}) {
+  return requestClient.post<{ expiresAt: string; token: string }>(
+    '/adx/api-debug/authorizations',
+    data,
+  );
+}
+
+export function executeApiDebug(draftId: string, authorizationToken: string) {
+  return requestClient.post<ApiDebugExecution>('/adx/api-debug/executions', {
+    authorizationToken,
+    draftId,
+  });
+}
+
+export function executeMultipartApiDebug(
+  draftId: string,
+  authorizationToken: string,
+  files: File[],
+) {
+  const data = new FormData();
+  data.append('draftId', draftId);
+  data.append('authorizationToken', authorizationToken);
+  for (const file of files) data.append('files', file);
+  return requestClient.post<ApiDebugExecution>(
+    '/adx/api-debug/executions/multipart',
+    data,
+  );
+}
+
+export function getApiDebugExecution(id: string) {
+  return requestClient.get<ApiDebugExecution>(
+    `/adx/api-debug/executions/${id}`,
+  );
+}
+
+export function getApiDebugExecutions(params: Query) {
+  return requestClient.get<PageResult<ApiDebugExecution>>(
+    '/adx/api-debug/executions',
+    { params },
+  );
+}
+
+export function getApiDebugExecutionLogs(id: string, afterSequence = 0) {
+  return requestClient.get<ApiDebugExecutionLog[]>(
+    `/adx/api-debug/executions/${id}/logs`,
+    { params: { afterSequence } },
+  );
+}
+
+export function authorizeApiDebugLogs(password: string) {
+  return authorizeApiDebug({
+    confirmationPhrase: 'VIEW RAW LOGS',
+    draftId: 'RAW_LOGS',
+    password,
+    purpose: 'RAW_LOGS',
+  });
+}
+
+export function getApiDebugRecentLogs(
+  authorizationToken: string,
+  params: Query,
+) {
+  return requestClient.get<ApiDebugRecentLogs>('/adx/api-debug/logs/recent', {
+    headers: { 'X-SCX-Debug-Authorization': authorizationToken },
+    params,
+  });
+}
+
+export function getApiDebugCases() {
+  return requestClient.get<ApiDebugCase[]>('/adx/api-debug/cases');
+}
+
+export function saveApiDebugCase(data: Partial<ApiDebugCase>) {
+  return data.id
+    ? requestClient.put<ApiDebugCase>(`/adx/api-debug/cases/${data.id}`, data)
+    : requestClient.post<ApiDebugCase>('/adx/api-debug/cases', data);
+}
+
+export function deleteApiDebugCase(id: string) {
+  return requestClient.delete<boolean>(`/adx/api-debug/cases/${id}`);
 }

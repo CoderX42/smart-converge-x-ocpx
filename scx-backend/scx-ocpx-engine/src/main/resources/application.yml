@@ -32,6 +32,7 @@ scx:
     public-base-url: http://127.0.0.1:10000/ocpx
     partition-count: 64
     batch-size: 500
+    debug-execution-enabled: true
     poll-delay-ms: 20
     idempotency-ttl: 7d
     nonce-ttl: 5m

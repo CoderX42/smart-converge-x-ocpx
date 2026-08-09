@@ -78,13 +78,18 @@ public class FeedbackIngressService {
 	 */
 	public Mono<IngressResult> accept(String channelCode, String method, String path, String rawBody,
 			HttpHeaders headers) {
+		return accept(channelCode, method, path, rawBody, headers, null);
+	}
+
+	public Mono<IngressResult> accept(String channelCode, String method, String path, String rawBody,
+			HttpHeaders headers, String debugExecutionId) {
 		if (rawBody.getBytes(StandardCharsets.UTF_8).length > MAX_FEEDBACK_BYTES) {
 			return Mono.error(new OcpxException(HttpStatus.BAD_REQUEST, "feedback payload is too large"));
 		}
 		return blockingExecutor.call(() -> routeCache.requireDownstreamAdapter(channelCode))
 			.flatMap(adapterCode -> adapterRegistry.requireDownstream(adapterCode).parseFeedback(rawBody))
 			.flatMap(feedback -> blockingExecutor
-				.call(() -> prepare(channelCode, method, path, rawBody, headers, feedback)))
+				.call(() -> prepare(channelCode, method, path, rawBody, headers, feedback, debugExecutionId)))
 			.flatMap(prepared -> prepared.upstreamAdapter()
 				.validateFeedback(prepared.route(), prepared.feedback())
 				.then(blockingExecutor.call(() -> feedbackIngress.enqueue(prepared.envelope()))))
@@ -93,7 +98,7 @@ public class FeedbackIngressService {
 	}
 
 	private PreparedFeedback prepare(String channelCode, String method, String path, String rawBody,
-			HttpHeaders headers, FeedbackReqV1 feedback) {
+			HttpHeaders headers, FeedbackReqV1 feedback, String debugExecutionId) {
 		String routeReference = firstNonBlank(feedback.getMonitorId(), feedback.getTaskId());
 		if (routeReference == null) {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, "monitor_id or task_id is required");
@@ -147,7 +152,7 @@ public class FeedbackIngressService {
 					normalized.channelCode(), normalized.routeId(), normalized.routeVersion(), normalized.occurredAt(),
 					normalized.receivedAt(), normalized.deviceKeyHash(), callbackRef,
 					protocolCrypto.encrypt(canonicalWriter.writeValueAsString(feedback)),
-					protocolCrypto.encrypt(objectMapper.writeValueAsString(route)), forward);
+					protocolCrypto.encrypt(objectMapper.writeValueAsString(route)), forward, debugExecutionId);
 		}
 		catch (IllegalArgumentException e) {
 			throw new OcpxException(HttpStatus.BAD_REQUEST, e.getMessage());

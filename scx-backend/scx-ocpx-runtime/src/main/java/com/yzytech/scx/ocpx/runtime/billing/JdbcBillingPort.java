@@ -32,6 +32,13 @@ public class JdbcBillingPort implements BillingPort {
 	@Transactional
 	public BillingResult charge(String chargeEventId, String advertiserId, BigDecimal amount, String currency,
 			String mode) {
+		return charge(chargeEventId, advertiserId, amount, currency, mode, null);
+	}
+
+	@Override
+	@Transactional
+	public BillingResult charge(String chargeEventId, String advertiserId, BigDecimal amount, String currency,
+			String mode, String debugExecutionId) {
 		if (!SUPPORTED_MODES.contains(mode)) {
 			return BillingResult.disabled();
 		}
@@ -51,12 +58,12 @@ public class JdbcBillingPort implements BillingPort {
 		}
 		if ("AUDIT_ONLY".equals(mode)) {
 			insertEntry(chargeEventId, advertiserId, amount, currency, mode, "RECORDED", "NO_BALANCE_MUTATION",
-					balanceBefore, balanceBefore);
+					balanceBefore, balanceBefore, debugExecutionId);
 			return new BillingResult("RECORDED", "NO_BALANCE_MUTATION", balanceBefore);
 		}
 		if (balanceBefore.compareTo(amount) < 0) {
 			insertEntry(chargeEventId, advertiserId, amount, currency, mode, "REJECTED", "INSUFFICIENT_BALANCE",
-					balanceBefore, balanceBefore);
+					balanceBefore, balanceBefore, debugExecutionId);
 			return new BillingResult("REJECTED", "INSUFFICIENT_BALANCE", balanceBefore);
 		}
 		BigDecimal balanceAfter = balanceBefore.subtract(amount);
@@ -67,7 +74,7 @@ public class JdbcBillingPort implements BillingPort {
 			throw new IllegalStateException("advertiser balance update failed");
 		}
 		insertEntry(chargeEventId, advertiserId, amount, currency, mode, "POSTED", "CLICK_CHARGED", balanceBefore,
-				balanceAfter);
+				balanceAfter, debugExecutionId);
 		return new BillingResult("POSTED", "CLICK_CHARGED", balanceAfter);
 	}
 
@@ -82,14 +89,16 @@ public class JdbcBillingPort implements BillingPort {
 	}
 
 	private void insertEntry(String chargeEventId, String advertiserId, BigDecimal amount, String currency, String mode,
-			String status, String reason, BigDecimal balanceBefore, BigDecimal balanceAfter) {
-		jdbcTemplate.update("""
-				INSERT INTO scx_ocpx_billing_entry
-				(id,charge_event_id,advertiser_id,amount,currency,mode,status,reason,balance_before,balance_after,
-				 operator_id,remark,create_time)
-				VALUES (?,?,?,?,?,?,?,?,?,?,'SYSTEM','OCPX CLICK',NOW(3))
-				""", id(), chargeEventId, advertiserId, amount, currency, mode, status, reason, balanceBefore,
-				balanceAfter);
+			String status, String reason, BigDecimal balanceBefore, BigDecimal balanceAfter, String debugExecutionId) {
+		jdbcTemplate.update(
+				"""
+						INSERT INTO scx_ocpx_billing_entry
+						(id,charge_event_id,debug_execution_id,source,advertiser_id,amount,currency,mode,status,reason,balance_before,balance_after,
+						 operator_id,remark,create_time)
+						VALUES (?,?,?, ?,?,?,?,?,?,?,?,?,'SYSTEM','OCPX CLICK',NOW(3))
+						""",
+				id(), chargeEventId, debugExecutionId, debugExecutionId == null ? "BUSINESS" : "DEBUG", advertiserId,
+				amount, currency, mode, status, reason, balanceBefore, balanceAfter);
 	}
 
 	private String id() {

@@ -101,6 +101,12 @@ secure:
 scx:
   ocpx:
     partition-count: 64
+  api-debug:
+    enabled: true
+    full-chain-enabled: true
+    raw-logs-enabled: true
+    environment: development
+    engine-base-url: http://127.0.0.1:10000/ocpx
 
 boot:
   swagger:

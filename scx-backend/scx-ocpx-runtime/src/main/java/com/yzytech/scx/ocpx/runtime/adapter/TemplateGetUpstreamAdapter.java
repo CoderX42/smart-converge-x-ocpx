@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.runtime.adapter;
 
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
+import com.yzytech.scx.ocpx.contract.AdapterDebugSupport;
 import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
@@ -49,7 +50,7 @@ import java.util.stream.Collectors;
  * </p>
  */
 @Component
-public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
+public class TemplateGetUpstreamAdapter implements UpstreamAdapter, AdapterDebugSupport {
 
 	/** 只有曝光和点击属于“渠道到广告主”的反馈；转化事件走相反方向的 callback。 */
 	private static final Set<OcpxEventType> FEEDBACK_EVENTS = Set.of(OcpxEventType.SHOW, OcpxEventType.CLICK);
@@ -90,6 +91,31 @@ public class TemplateGetUpstreamAdapter implements UpstreamAdapter {
 	@Override
 	public boolean supports(OcpxEventType eventType) {
 		return FEEDBACK_EVENTS.contains(eventType);
+	}
+
+	@Override
+	public FeedbackReqV1 sampleFeedback(RouteSnapshot route, String executionId) {
+		FeedbackReqV1 request = new FeedbackReqV1();
+		request.setEvent("CLICK");
+		request.setEventId("debug-" + executionId);
+		request.setClickid("debug-click-" + executionId);
+		request.setEventTime(System.currentTimeMillis() / 1000);
+		request.setOs("android");
+		request.setOaid("debug-device-" + executionId);
+		request.setIp("203.0.113.10");
+		request.setUa("SCX-API-Debugger/1.0");
+		request.setModel("SCX-Debug-Device");
+		request.setCampaignId("debug-campaign");
+		request.setAdgroupId("debug-adgroup");
+		request.setCreativeId("debug-creative");
+		request.setAdvertiserId(route.advertiserId());
+		return request;
+	}
+
+	@Override
+	public Map<String, String> sampleCallback(RouteSnapshot route, String callbackToken, String executionId) {
+		return Map.of("ext", callbackToken, "s", route.channelId() + "_" + route.routeId(), "action_type", "ACTIVATE",
+				"conversion_id", "debug-" + executionId);
 	}
 
 	@Override

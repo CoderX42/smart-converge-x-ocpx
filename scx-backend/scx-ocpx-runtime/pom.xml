@@ -16,6 +16,10 @@
             <artifactId>scx-ocpx-contract</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.scx</groupId>
+            <artifactId>scx-common-log</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>

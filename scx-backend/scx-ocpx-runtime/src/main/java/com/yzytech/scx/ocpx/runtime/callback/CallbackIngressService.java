@@ -35,11 +35,18 @@ public class CallbackIngressService {
 
 	/** 上游 callback 的校验、归一化、扣量与可靠落库响应式编排。 */
 	public Mono<Result> accept(UpstreamAdapter adapter, Map<String, String> parameters) {
+		return accept(adapter, parameters, null);
+	}
+
+	public Mono<Result> accept(UpstreamAdapter adapter, Map<String, String> parameters, String debugExecutionId) {
 		return adapter.callbackToken(parameters)
 			.switchIfEmpty(Mono.error(new IllegalArgumentException("callback token is required")))
 			.flatMap(token -> blockingExecutor.call(() -> tokenService.verify(token)))
 			.flatMap(callbackRef -> blockingExecutor.call(() -> repository.requireCallbackContext(callbackRef))
-				.flatMap(context -> parseAndPersist(adapter, parameters, callbackRef, context)))
+				.flatMap(context -> parseAndPersist(adapter, parameters, callbackRef,
+						debugExecutionId == null ? context
+								: new CallbackContext(context.callbackRef(), context.feedbackEventId(), context.route(),
+										context.feedback(), debugExecutionId))))
 			.onErrorMap(IllegalArgumentException.class,
 					error -> new OcpxException(HttpStatus.BAD_REQUEST, error.getMessage()));
 	}

@@ -14,7 +14,7 @@
     <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>
-                %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{35} - %msg%n
+                %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{35} [debugExecutionId=%X{debugExecutionId:-}] - %msg%n
             </pattern>
         </encoder>
     </appender>
@@ -32,7 +32,7 @@
         </rollingPolicy>
         <encoder>
             <pattern>
-                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{35} - %msg%n
+                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{35} [debugExecutionId=%X{debugExecutionId:-}] - %msg%n
             </pattern>
         </encoder>
     </appender>
@@ -51,16 +51,17 @@
         </filter>
         <encoder>
             <pattern>
-                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{35} - %msg%n
+                %d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{35} [debugExecutionId=%X{debugExecutionId:-}] - %msg%n
             </pattern>
         </encoder>
     </appender>
+    <appender name="apiDebugBuffer" class="com.yzytech.scx.common.log.appender.BoundedSanitizedLogAppender"/>
 
     <root level="INFO">
         <appender-ref ref="stdout"/>
         <appender-ref ref="debug"/>
         <appender-ref ref="error" />
+        <appender-ref ref="apiDebugBuffer"/>
     </root>
 
 </configuration>
-

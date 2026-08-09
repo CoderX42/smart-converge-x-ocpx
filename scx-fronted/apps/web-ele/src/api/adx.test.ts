@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  authorizeApiDebug,
+  executeApiDebug,
   exportReport,
   getAdvertiserLedger,
+  getApiDebugExecutionLogs,
+  getApiDebugRecentLogs,
+  getApiDebugTargets,
   getCatalog,
   getMonitorIntegration,
   getReport,
@@ -11,6 +16,7 @@ import {
   getRuntimeEvents,
   getRuntimeEventTimeline,
   getRuntimeIngressAudits,
+  preflightApiDebug,
   rechargeAdvertiser,
   saveCatalog,
 } from './adx';
@@ -103,6 +109,79 @@ describe('aDX API contract', () => {
 
     expect(requestClient.get).toHaveBeenCalledWith(
       '/adx/monitors/monitor-1/integration',
+    );
+  });
+
+  it('connects debugger preflight, one-time authorization and execution', () => {
+    const request = {
+      body: '{"event":"CLICK"}',
+      bodyType: 'JSON' as const,
+      headers: { Accept: 'application/json' },
+      method: 'POST' as const,
+      mode: 'INTEGRATED' as const,
+      monitorId: 'monitor-1',
+      scenario: 'DOWNSTREAM_TO_UPSTREAM' as const,
+      timeoutSeconds: 5,
+      url: 'locked-target.example.com',
+    };
+    getApiDebugTargets();
+    preflightApiDebug(request);
+    authorizeApiDebug({
+      confirmationPhrase: 'EXECUTE:draft-1',
+      draftId: 'draft-1',
+      password: 'not-a-real-password',
+      purpose: 'EXECUTE',
+    });
+    executeApiDebug('draft-1', 'one-time-token');
+    getApiDebugExecutionLogs('draft-1', 9);
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/api-debug/targets', {
+      params: { keyword: undefined },
+    });
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/api-debug/preflight',
+      request,
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/api-debug/authorizations',
+      {
+        confirmationPhrase: 'EXECUTE:draft-1',
+        draftId: 'draft-1',
+        password: 'not-a-real-password',
+        purpose: 'EXECUTE',
+      },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/api-debug/executions',
+      { authorizationToken: 'one-time-token', draftId: 'draft-1' },
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/api-debug/executions/draft-1/logs',
+      { params: { afterSequence: 9 } },
+    );
+  });
+
+  it('keeps raw log filters behind the dedicated authorization token', () => {
+    getApiDebugRecentLogs('short-lived-token', {
+      cursor: 12,
+      keyword: 'delivery',
+      level: 'ERROR',
+      source: 'ENGINE',
+    });
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/api-debug/logs/recent',
+      {
+        headers: {
+          'X-SCX-Debug-Authorization': 'short-lived-token',
+        },
+        params: {
+          cursor: 12,
+          keyword: 'delivery',
+          level: 'ERROR',
+          source: 'ENGINE',
+        },
+      },
     );
   });
 });

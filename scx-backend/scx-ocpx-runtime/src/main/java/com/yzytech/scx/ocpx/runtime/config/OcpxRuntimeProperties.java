@@ -63,6 +63,8 @@ public class OcpxRuntimeProperties {
 
 	private boolean downstreamDeliveryEnabled;
 
+	private boolean debugExecutionEnabled = true;
+
 	@Min(1)
 	private int adapterConcurrency = 64;
 
@@ -224,6 +226,14 @@ public class OcpxRuntimeProperties {
 
 	public void setDownstreamDeliveryEnabled(boolean downstreamDeliveryEnabled) {
 		this.downstreamDeliveryEnabled = downstreamDeliveryEnabled;
+	}
+
+	public boolean isDebugExecutionEnabled() {
+		return debugExecutionEnabled;
+	}
+
+	public void setDebugExecutionEnabled(boolean debugExecutionEnabled) {
+		this.debugExecutionEnabled = debugExecutionEnabled;
 	}
 
 	public int getAdapterConcurrency() {

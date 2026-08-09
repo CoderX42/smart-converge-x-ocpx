@@ -49,6 +49,12 @@ public class RouteConfigurationRepository {
 		return jdbcTemplate.query(ROUTE_SELECT + " WHERE " + PUBLISHED, ROW_MAPPER);
 	}
 
+	public Optional<RouteSnapshot> findPublishedById(String monitorId) {
+		List<PublishedRoute> rows = jdbcTemplate.query(ROUTE_SELECT + " WHERE m.id=? AND " + PUBLISHED + " LIMIT 1",
+				ROW_MAPPER, monitorId);
+		return rows.stream().map(PublishedRoute::route).findFirst();
+	}
+
 	public record PublishedRoute(RouteSnapshot route, String bizId) {
 	}
 

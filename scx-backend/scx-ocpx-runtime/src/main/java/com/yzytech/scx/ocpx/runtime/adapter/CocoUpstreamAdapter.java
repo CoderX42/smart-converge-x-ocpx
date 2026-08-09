@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
 import com.yzytech.scx.ocpx.contract.AdapterHttpResponse;
 import com.yzytech.scx.ocpx.contract.AdapterCapabilities;
+import com.yzytech.scx.ocpx.contract.AdapterDebugSupport;
 import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
@@ -31,7 +32,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Component
-public class CocoUpstreamAdapter implements UpstreamAdapter {
+public class CocoUpstreamAdapter implements UpstreamAdapter, AdapterDebugSupport {
 
 	private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -56,6 +57,31 @@ public class CocoUpstreamAdapter implements UpstreamAdapter {
 	@Override
 	public boolean supports(OcpxEventType eventType) {
 		return eventType == OcpxEventType.CLICK;
+	}
+
+	@Override
+	public FeedbackReqV1 sampleFeedback(RouteSnapshot route, String executionId) {
+		FeedbackReqV1 request = new FeedbackReqV1();
+		request.setEvent("CLICK");
+		request.setEventId("debug-" + executionId);
+		request.setClickid("debug-click-" + executionId);
+		request.setEventTime(System.currentTimeMillis() / 1000);
+		request.setOs("android");
+		request.setOaid("debug-device-" + executionId);
+		request.setIp("203.0.113.10");
+		request.setUa("SCX-API-Debugger/1.0");
+		request.setModel("SCX-Debug-Device");
+		request.setCampaignId("debug-campaign");
+		request.setAdgroupId("debug-adgroup");
+		request.setCreativeId("debug-creative");
+		request.setAdvertiserId(route.advertiserId());
+		return request;
+	}
+
+	@Override
+	public Map<String, String> sampleCallback(RouteSnapshot route, String callbackToken, String executionId) {
+		return Map.of("ext", callbackToken, "s", route.channelId() + "_" + route.routeId(), "action_type", "ACTIVATE",
+				"conversion_id", "debug-" + executionId);
 	}
 
 	@Override

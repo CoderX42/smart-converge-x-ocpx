@@ -18,6 +18,10 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -32,6 +36,8 @@ import java.util.UUID;
 
 @Repository
 public class OcpxPersistenceRepository {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(OcpxPersistenceRepository.class);
 
 	private static final ZoneId REPORT_ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -59,7 +65,12 @@ public class OcpxPersistenceRepository {
 	@Transactional
 	public void persistFeedbackBatch(List<FeedbackEnvelope> envelopes) {
 		for (FeedbackEnvelope envelope : envelopes) {
-			persistFeedback(envelope);
+			try (MDC.MDCCloseable ignored = openDebugMdc(envelope.debugExecutionId())) {
+				if (StringUtils.hasText(envelope.debugExecutionId())) {
+					LOGGER.info("Persisting correlated API debug feedback event={}", envelope.eventId());
+				}
+				persistFeedback(envelope);
+			}
 		}
 	}
 
@@ -70,20 +81,26 @@ public class OcpxPersistenceRepository {
 			int inserted = jdbcTemplate.update("""
 					INSERT IGNORE INTO scx_ocpx_event
 					(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
-					 monitor_id,route_version,occurred_at,received_at,device_key_hash,payload_hash,status,callback_ref)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					 monitor_id,route_version,occurred_at,received_at,device_key_hash,payload_hash,status,callback_ref,
+					 debug_execution_id,is_debug)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					""", id(), envelope.eventId(), null, "DOWNSTREAM_FEEDBACK", envelope.eventType().name(),
 					route.channelId(), route.advertiserId(), route.appLinkId(), route.routeId(), route.routeVersion(),
 					Timestamp.from(envelope.occurredAt().toInstant()),
 					Timestamp.from(envelope.receivedAt().toInstant()), envelope.deviceKeyHash(), envelope.payloadHash(),
-					"PERSISTED", envelope.callbackRef());
+					"PERSISTED", envelope.callbackRef(), envelope.debugExecutionId(),
+					envelope.debugExecutionId() == null ? 0 : 1);
 			if (inserted == 0) {
+				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "DUPLICATE", "幂等事件已存在，未重复写入");
 				return;
 			}
 			BillingPort.BillingResult billing = BillingPort.BillingResult.disabled();
 			if (envelope.eventType() == OcpxEventType.CLICK && !"OFF".equals(route.billingMode())) {
-				billing = billingPort.charge(envelope.eventId(), route.advertiserId(), route.unitPrice(), "CNY",
-						route.billingMode());
+				billing = envelope.debugExecutionId() == null
+						? billingPort.charge(envelope.eventId(), route.advertiserId(), route.unitPrice(), "CNY",
+								route.billingMode())
+						: billingPort.charge(envelope.eventId(), route.advertiserId(), route.unitPrice(), "CNY",
+								route.billingMode(), envelope.debugExecutionId());
 				if (!billing.permitsDelivery()) {
 					jdbcTemplate.update("""
 							UPDATE scx_ocpx_event SET status='BILLING_REJECTED'
@@ -100,21 +117,27 @@ public class OcpxPersistenceRepository {
 						Timestamp.from(envelope.receivedAt().plus(properties.getSnapshotTtl()).toInstant()));
 				jdbcTemplate.update("""
 						INSERT INTO scx_ocpx_callback_ref
-						(id,feedback_event_id,route_version,expires_at,create_time)
-						VALUES (?,?,?,?,NOW(3))
+						(id,feedback_event_id,route_version,debug_execution_id,expires_at,create_time)
+						VALUES (?,?,?,?,?,NOW(3))
 						""", envelope.callbackRef(), envelope.eventId(), route.routeVersion(),
+						envelope.debugExecutionId(),
 						Timestamp.from(envelope.receivedAt().plus(properties.getCallbackTokenTtl()).toInstant()));
 				jdbcTemplate.update(
 						"""
 								INSERT IGNORE INTO scx_ocpx_delivery_job
-								(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,
+								(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,debug_execution_id,
 								 create_time,update_time)
-								VALUES (?,?,?,'FEEDBACK_UPSTREAM',?,'PENDING',0,NOW(3),?,NOW(3),NOW(3))
+								VALUES (?,?,?,'FEEDBACK_UPSTREAM',?,'PENDING',0,NOW(3),?,?,NOW(3),NOW(3))
 								""",
 						id(), envelope.eventId(), envelope.eventId(), route.upstreamAdapterCode(),
-						envelope.callbackRef());
+						envelope.callbackRef(), envelope.debugExecutionId());
 			}
-			upsertFeedbackMetric(envelope, route, billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
+			if (envelope.debugExecutionId() == null) {
+				upsertFeedbackMetric(envelope, route, billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
+			}
+			String status = envelope.forwardUpstream() && billing.permitsDelivery() ? "WAITING_ASYNC"
+					: billing.permitsDelivery() ? "SUCCEEDED" : "PARTIAL";
+			completeDebug(envelope.debugExecutionId(), status, "PERSISTED", "反馈事实与账务处理已完成");
 		}
 		catch (Exception e) {
 			throw new IllegalStateException("Cannot persist feedback event", e);
@@ -124,14 +147,14 @@ public class OcpxPersistenceRepository {
 	public CallbackContext requireCallbackContext(String callbackRef) {
 		try {
 			return jdbcTemplate.queryForObject("""
-					SELECT r.id,r.feedback_event_id,s.feedback_ciphertext,s.route_ciphertext
+					SELECT r.id,r.feedback_event_id,s.feedback_ciphertext,s.route_ciphertext,r.debug_execution_id
 					FROM scx_ocpx_callback_ref r
 					JOIN scx_ocpx_protocol_snapshot s ON s.feedback_event_id=r.feedback_event_id
 					WHERE r.id=? AND r.expires_at>NOW(3)
 					""", (rs, rowNum) -> {
 				FeedbackReqV1 feedback = decrypt(rs.getString(3), FeedbackReqV1.class);
 				RouteSnapshot route = decrypt(rs.getString(4), RouteSnapshot.class);
-				return new CallbackContext(rs.getString(1), rs.getString(2), route, feedback);
+				return new CallbackContext(rs.getString(1), rs.getString(2), route, feedback, rs.getString(5));
 			}, callbackRef);
 		}
 		catch (EmptyResultDataAccessException e) {
@@ -158,51 +181,62 @@ public class OcpxPersistenceRepository {
 		int inserted = jdbcTemplate.update("""
 				INSERT IGNORE INTO scx_ocpx_event
 				(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
-				 monitor_id,route_version,occurred_at,received_at,payload_hash,status,callback_ref,amount,amount_raw)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				 monitor_id,route_version,occurred_at,received_at,payload_hash,status,callback_ref,amount,amount_raw,
+				 debug_execution_id,is_debug)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				""", id(), callback.eventId(), context.feedbackEventId(), "UPSTREAM_CALLBACK",
 				callback.eventType().name(), route.channelId(), route.advertiserId(), route.appLinkId(),
 				route.routeId(), route.routeVersion(), Timestamp.from(callback.actionTime().toInstant()),
 				Timestamp.from(OffsetDateTime.now().toInstant()), callback.eventId(), "PERSISTED",
-				context.callbackRef(), callback.amount(), callback.amountRaw());
+				context.callbackRef(), callback.amount(), callback.amountRaw(), context.debugExecutionId(),
+				context.debugExecutionId() == null ? 0 : 1);
 		if (inserted == 0) {
 			return false;
 		}
-		jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_ocpx_deduction_decision
-				(id,callback_event_id,monitor_id,event_type,rule_version,ratio,forwarded,reason,create_time)
-				VALUES (?,?,?,?,?,?,?,?,NOW(3))
-				""", id(), callback.eventId(), route.routeId(), callback.eventType().name(), route.routeVersion(),
-				route.deductionRatio(), forwarded, decisionReason);
+		jdbcTemplate.update(
+				"""
+						INSERT IGNORE INTO scx_ocpx_deduction_decision
+						(id,callback_event_id,debug_execution_id,monitor_id,event_type,rule_version,ratio,forwarded,reason,create_time)
+						VALUES (?,?,?,?,?,?,?,?,?,NOW(3))
+						""",
+				id(), callback.eventId(), context.debugExecutionId(), route.routeId(), callback.eventType().name(),
+				route.routeVersion(), route.deductionRatio(), forwarded, decisionReason);
 		if (forwarded && route.downstreamCallbackUrl() != null && !route.downstreamCallbackUrl().isBlank()) {
 			jdbcTemplate.update("""
 					UPDATE scx_ocpx_protocol_snapshot
 					SET expires_at=GREATEST(expires_at,DATE_ADD(NOW(3),INTERVAL 1 DAY))
 					WHERE feedback_event_id=?
 					""", context.feedbackEventId());
-			jdbcTemplate.update("""
-					INSERT IGNORE INTO scx_ocpx_delivery_job
-					(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,
-					 create_time,update_time)
-					VALUES (?,?,?,'CALLBACK_DOWNSTREAM',?,'PENDING',0,NOW(3),?,NOW(3),NOW(3))
-					""", id(), callback.eventId(), context.feedbackEventId(), route.channelAdapterCode(),
-					context.callbackRef());
+			jdbcTemplate.update(
+					"""
+							INSERT IGNORE INTO scx_ocpx_delivery_job
+							(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,debug_execution_id,
+							 create_time,update_time)
+							VALUES (?,?,?,'CALLBACK_DOWNSTREAM',?,'PENDING',0,NOW(3),?,?,NOW(3),NOW(3))
+							""",
+					id(), callback.eventId(), context.feedbackEventId(), route.channelAdapterCode(),
+					context.callbackRef(), context.debugExecutionId());
 		}
-		upsertCallbackMetric(callback, route, forwarded);
+		if (context.debugExecutionId() == null) {
+			upsertCallbackMetric(callback, route, forwarded);
+		}
+		completeDebug(context.debugExecutionId(),
+				forwarded && StringUtils.hasText(route.downstreamCallbackUrl()) ? "WAITING_ASYNC" : "SUCCEEDED",
+				"CALLBACK_PERSISTED", "回调事实与扣量决策已完成");
 		return true;
 	}
 
 	@Transactional
 	public List<DeliveryJob> claimDeliveryJobs(int limit, String direction) {
 		List<DeliveryJob> jobs = jdbcTemplate.query("""
-				SELECT id,event_id,source_event_id,direction,adapter_code,callback_ref,attempt_count
+				SELECT id,event_id,source_event_id,direction,adapter_code,callback_ref,attempt_count,debug_execution_id
 				FROM scx_ocpx_delivery_job
 				WHERE status IN ('PENDING','RETRY') AND direction=? AND next_retry_at<=NOW(3)
 				  AND (lease_until IS NULL OR lease_until<NOW(3))
 				ORDER BY next_retry_at,id
 				LIMIT ? FOR UPDATE SKIP LOCKED
 				""", (rs, rowNum) -> new DeliveryJob(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-				rs.getString(5), rs.getString(6), rs.getInt(7)), direction, limit);
+				rs.getString(5), rs.getString(6), rs.getInt(7), rs.getString(8)), direction, limit);
 		for (DeliveryJob job : jobs) {
 			jdbcTemplate.update(
 					"""
@@ -259,9 +293,10 @@ public class OcpxPersistenceRepository {
 			return;
 		}
 		insertAttempt(job, attempt, "SUCCESS", statusCode, null, audit);
-		if ("CALLBACK_DOWNSTREAM".equals(job.direction())) {
+		if ("CALLBACK_DOWNSTREAM".equals(job.direction()) && job.debugExecutionId() == null) {
 			incrementDeliveryMetric(job.eventId(), "forwarded_conversion_count");
 		}
+		completeDebug(job.debugExecutionId(), "SUCCEEDED", "DELIVERY_SUCCESS", "目标接口返回成功");
 	}
 
 	@Transactional
@@ -289,9 +324,11 @@ public class OcpxPersistenceRepository {
 			return;
 		}
 		insertAttempt(job, attempt, dead ? "DEAD" : "FAILED", statusCode, error, audit);
-		if (dead) {
+		if (dead && job.debugExecutionId() == null) {
 			incrementDeliveryMetric(job.eventId(), "delivery_failure_count");
 		}
+		completeDebug(job.debugExecutionId(), dead ? "PARTIAL" : "WAITING_ASYNC",
+				dead ? "DELIVERY_DEAD" : "DELIVERY_RETRY", dead ? "投递达到最大次数" : "投递失败，已进入重试");
 	}
 
 	@Transactional
@@ -306,14 +343,16 @@ public class OcpxPersistenceRepository {
 
 	private void insertAttempt(DeliveryJob job, int attempt, String status, Integer statusCode, String error,
 			DeliveryAttemptAudit audit) {
-		jdbcTemplate.update("""
-				INSERT INTO scx_ocpx_delivery_attempt
-				(id,job_id,attempt_no,status,http_status,error_message,request_method,target_host,target_path,
-				 request_summary,response_excerpt,duration_ms,create_time)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
-				""", id(), job.id(), attempt, status, statusCode, truncate(error, 1000), audit.requestMethod(),
-				audit.targetHost(), truncate(audit.targetPath(), 1000), truncate(audit.requestSummary(), 4000),
-				truncate(audit.responseExcerpt(), 2000), audit.durationMs());
+		jdbcTemplate.update(
+				"""
+						INSERT INTO scx_ocpx_delivery_attempt
+						(id,job_id,debug_execution_id,attempt_no,status,http_status,error_message,request_method,target_host,target_path,
+						 request_summary,response_excerpt,duration_ms,create_time)
+						VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
+						""",
+				id(), job.id(), job.debugExecutionId(), attempt, status, statusCode, truncate(error, 1000),
+				audit.requestMethod(), audit.targetHost(), truncate(audit.targetPath(), 1000),
+				truncate(audit.requestSummary(), 4000), truncate(audit.responseExcerpt(), 2000), audit.durationMs());
 	}
 
 	private void incrementDeliveryMetric(String eventId, String metricColumn) {
@@ -337,6 +376,36 @@ public class OcpxPersistenceRepository {
 				ON DUPLICATE KEY UPDATE %s=%s+1
 				""".formatted(metricColumn, metricColumn, metricColumn), id(), hour, target.channelId(),
 				target.advertiserId(), target.appLinkId(), target.monitorId());
+	}
+
+	private void completeDebug(String executionId, String status, String phase, String message) {
+		if (!StringUtils.hasText(executionId)) {
+			return;
+		}
+		jdbcTemplate.update("UPDATE scx_api_debug_execution SET status=?,update_time=NOW(3) WHERE id=?", status,
+				executionId);
+		for (int attempt = 0; attempt < 4; attempt++) {
+			Long sequence = jdbcTemplate.queryForObject(
+					"SELECT COALESCE(MAX(sequence_no),0)+1 FROM scx_api_debug_execution_log WHERE execution_id=?",
+					Long.class, executionId);
+			try {
+				jdbcTemplate.update("""
+						INSERT INTO scx_api_debug_execution_log
+						(id,execution_id,sequence_no,source,level,phase,message,detail_json,create_time)
+						VALUES (?,?,?,'ENGINE','INFO',?,?,NULL,NOW(3))
+						""", id(), executionId, sequence == null ? 1 : sequence, phase, truncate(message, 2000));
+				break;
+			}
+			catch (org.springframework.dao.DuplicateKeyException error) {
+				if (attempt == 3) {
+					LOGGER.warn("API debug structured log sequence remained contended: phase={}", phase);
+				}
+			}
+		}
+	}
+
+	private MDC.MDCCloseable openDebugMdc(String executionId) {
+		return MDC.putCloseable("debugExecutionId", StringUtils.hasText(executionId) ? executionId : "-");
 	}
 
 	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route, BigDecimal costAmount) {

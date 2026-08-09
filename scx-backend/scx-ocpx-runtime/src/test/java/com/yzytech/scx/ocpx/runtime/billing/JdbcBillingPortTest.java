@@ -44,7 +44,7 @@ class JdbcBillingPortTest {
 		assertThat(result.balanceAfter()).isEqualByComparingTo("8.750000");
 		ArgumentCaptor<Object[]> entry = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_billing_entry"), entry.capture());
-		assertThat(entry.getValue()[6]).isEqualTo("POSTED");
+		assertThat(entry.getValue()[8]).isEqualTo("POSTED");
 	}
 
 	@Test
@@ -57,7 +57,7 @@ class JdbcBillingPortTest {
 		verify(jdbcTemplate, never()).update(contains("UPDATE scx_adx_advertiser"), any(Object[].class));
 		ArgumentCaptor<Object[]> entry = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_billing_entry"), entry.capture());
-		assertThat(entry.getValue()[6]).isEqualTo("REJECTED");
+		assertThat(entry.getValue()[8]).isEqualTo("REJECTED");
 	}
 
 	@Test
@@ -68,6 +68,20 @@ class JdbcBillingPortTest {
 		assertThat(result.status()).isEqualTo("RECORDED");
 		assertThat(result.balanceAfter()).isEqualByComparingTo("10.000000");
 		verify(jdbcTemplate, never()).update(contains("UPDATE scx_adx_advertiser"), any(Object[].class));
+	}
+
+	@Test
+	void marksRealDebugChargeWithoutRollingBackTheLedger() {
+		when(jdbcTemplate.update(contains("UPDATE scx_adx_advertiser"), any(Object[].class))).thenReturn(1);
+
+		BillingPort.BillingResult result = billingPort.charge("click-1", "advertiser-1", new BigDecimal("1.250000"),
+				"CNY", "CPC", "debug-execution-1");
+
+		assertThat(result.status()).isEqualTo("POSTED");
+		ArgumentCaptor<Object[]> entry = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_billing_entry"), entry.capture());
+		assertThat(entry.getValue()[2]).isEqualTo("debug-execution-1");
+		assertThat(entry.getValue()[3]).isEqualTo("DEBUG");
 	}
 
 }

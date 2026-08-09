@@ -6,6 +6,7 @@ import com.yzytech.scx.ocpx.runtime.persistence.OcpxPersistenceRepository;
 import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -54,7 +55,15 @@ public class DeliveryWorker {
 	private Flux<Void> claimAndDeliver(String direction) {
 		return blockingExecutor.call(() -> repository.claimDeliveryJobs(100, direction))
 			.flatMapMany(Flux::fromIterable)
-			.flatMap(deliveryService::deliver, properties.getAdapterConcurrency());
+			.flatMap(job -> {
+				try (MDC.MDCCloseable ignored = MDC.putCloseable("debugExecutionId",
+						job.debugExecutionId() == null ? "-" : job.debugExecutionId())) {
+					if (job.debugExecutionId() != null) {
+						LOG.info("Resuming correlated API debug delivery job={}", job.id());
+					}
+					return deliveryService.deliver(job);
+				}
+			}, properties.getAdapterConcurrency());
 	}
 
 }
