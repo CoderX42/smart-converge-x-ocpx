@@ -6,6 +6,10 @@ import com.yzytech.scx.adx.dto.DashboardCoverageRow;
 import com.yzytech.scx.adx.dto.DashboardDailyRow;
 import com.yzytech.scx.adx.dto.DashboardViews;
 import com.yzytech.scx.adx.mapper.AdxHourlyReportMapper;
+import com.yzytech.scx.adx.service.AdxAccessScope.PermissionLevel;
+import com.yzytech.scx.adx.service.AdxAccessScope.Restriction;
+import com.yzytech.scx.adx.service.AdxAccessScope.ScopeType;
+import com.yzytech.scx.adx.service.AdxAccessScope.Snapshot;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -54,9 +58,9 @@ public class AdxReportService {
 		if (start.plusYears(2).isBefore(end)) {
 			throw new IllegalArgumentException("单次查询范围不能超过两年");
 		}
-		String scopedAdvertiserId = accessScope.constrainAdvertiser(advertiserId);
-		return reportMapper.summary(page, normalized, channelId, monitorId, scopedAdvertiserId, appLinkId,
-				start.atStartOfDay(), end.plusDays(1).atStartOfDay());
+		ScopeFilters scope = scopeFilters(channelId, advertiserId);
+		return reportMapper.summary(page, normalized, channelId, monitorId, advertiserId, appLinkId,
+				scope.advertiserIds(), scope.channelIds(), start.atStartOfDay(), end.plusDays(1).atStartOfDay());
 	}
 
 	public DashboardViews.Summary dashboard(LocalDate startDate, LocalDate endDate, String channelId,
@@ -65,11 +69,12 @@ public class AdxReportService {
 		LocalDate start = startDate == null ? today.minusDays(29) : startDate;
 		LocalDate end = endDate == null ? today : endDate;
 		validateDashboardRange(start, end, today);
-		String scopedAdvertiserId = accessScope.constrainAdvertiser(advertiserId);
+		ScopeFilters scope = scopeFilters(channelId, advertiserId);
 		LocalDate queryStart = start.isBefore(today.minusDays(2)) ? start : today.minusDays(2);
 		LocalDate queryEnd = end.isAfter(today) ? end : today;
 		List<DashboardDailyRow> source = reportMapper.dashboardDaily(queryStart.atStartOfDay(),
-				queryEnd.plusDays(1).atStartOfDay(), channelId, scopedAdvertiserId, appLinkId, monitorId);
+				queryEnd.plusDays(1).atStartOfDay(), channelId, advertiserId, appLinkId, monitorId,
+				scope.advertiserIds(), scope.channelIds());
 		Map<LocalDate, DashboardDailyRow> indexed = new HashMap<>();
 		for (DashboardDailyRow row : source) {
 			indexed.put(row.getReportDate(), row);
@@ -82,10 +87,10 @@ public class AdxReportService {
 			trend.add(new DashboardViews.DailyPoint(date, metrics(row)));
 		}
 		DashboardViews.MetricSet totals = metrics(totalsRow);
-		DashboardCoverageRow coverageRow = reportMapper.dashboardCoverage(channelId, scopedAdvertiserId, appLinkId,
+		DashboardCoverageRow coverageRow = reportMapper.dashboardCoverage(channelId, advertiserId, appLinkId, monitorId,
+				scope.advertiserIds(), scope.channelIds());
+		DashboardViews.Filters filters = new DashboardViews.Filters(start, end, channelId, advertiserId, appLinkId,
 				monitorId);
-		DashboardViews.Filters filters = new DashboardViews.Filters(start, end, channelId, scopedAdvertiserId,
-				appLinkId, monitorId);
 		LocalDateTime dataUpdatedAt = source.stream()
 			.map(DashboardDailyRow::getDataUpdatedAt)
 			.filter(java.util.Objects::nonNull)
@@ -102,12 +107,30 @@ public class AdxReportService {
 		LocalDate start = startDate == null ? today.minusDays(29) : startDate;
 		LocalDate end = endDate == null ? today : endDate;
 		validateDashboardRange(start, end, today);
-		String scopedAdvertiserId = accessScope.constrainAdvertiser(advertiserId);
+		ScopeFilters scope = scopeFilters(channelId, advertiserId);
 		Map<String, Object> values = reportMapper.accountSummary(start.atStartOfDay(), end.plusDays(1).atStartOfDay(),
-				channelId, scopedAdvertiserId, appLinkId, monitorId);
+				channelId, advertiserId, appLinkId, monitorId, scope.advertiserIds(), scope.channelIds());
 		return new DashboardViews.AccountSummary("CNY", decimal(values, "totalBalance"),
 				decimal(values, "rechargeAmount"), decimal(values, "cpcSpend"), decimal(values, "cpaSpend"),
-				number(values, "rejectedCharges"), number(values, "cpaRejectedCharges"), LocalDateTime.now(REPORT_ZONE));
+				number(values, "rejectedCharges"), number(values, "cpaRejectedCharges"),
+				LocalDateTime.now(REPORT_ZONE));
+	}
+
+	private ScopeFilters scopeFilters(String channelId, String advertiserId) {
+		Snapshot snapshot = accessScope.current();
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(ScopeType.CHANNEL, channelId, PermissionLevel.VIEW);
+		}
+		if (StringUtils.hasText(advertiserId)) {
+			accessScope.require(ScopeType.ADVERTISER, advertiserId, PermissionLevel.VIEW);
+		}
+		Restriction advertisers = snapshot.restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		Restriction channels = snapshot.restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
+		return new ScopeFilters(advertisers.unrestricted() ? null : advertisers.ids(),
+				channels.unrestricted() ? null : channels.ids());
+	}
+
+	private record ScopeFilters(List<String> advertiserIds, List<String> channelIds) {
 	}
 
 	public byte[] export(String granularity, String channelId, String monitorId, String advertiserId, String appLinkId,

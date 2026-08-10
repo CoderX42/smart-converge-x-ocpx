@@ -71,12 +71,20 @@ class AdxRouteContractTest {
 		assertRoute(ApiDebugController.class, "logs", GetMapping.class, "/executions/{id}/logs");
 		assertRoute(ApiDebugController.class, "recentLogs", GetMapping.class, "/logs/recent");
 		assertRoute(ApiDebugController.class, "cases", GetMapping.class, "/cases");
+
+		assertRoot(AdxAccessScopeController.class, "/adx/access-scopes");
+		assertRoute(AdxAccessScopeController.class, "get", GetMapping.class, "/users/{userId}");
+		assertRoute(AdxAccessScopeController.class, "replace", PutMapping.class, "/users/{userId}");
+		assertRoute(AdxAccessScopeController.class, "impact", GetMapping.class, "/users/{userId}/impact");
+		assertRoute(AdxAccessScopeController.class, "options", GetMapping.class, "/options");
+		assertPermission(AdxAccessScopeController.class, "replace", "adx:scope:edit");
 	}
 
 	@Test
 	void protectsEveryPublicAdxEndpointWithAPermissionCode() {
-		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxEventController.class, AdxReportController.class,
-				AdxRuntimeController.class, ApiDebugController.class)) {
+		for (Class<?> controller : Arrays.asList(AdxCatalogController.class, AdxEventController.class,
+				AdxReportController.class, AdxRuntimeController.class, ApiDebugController.class,
+				AdxAccessScopeController.class)) {
 			for (Method method : controller.getDeclaredMethods()) {
 				if (hasHttpMapping(method)) {
 					SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);

@@ -2,6 +2,8 @@ package com.yzytech.scx.adx.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.adx.dto.CatalogViews;
+import com.yzytech.scx.adx.service.AdxAccessScope.PermissionLevel;
+import com.yzytech.scx.adx.service.AdxAccessScope.ScopeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,7 @@ public class AdxAccountService {
 	@Transactional
 	public CatalogViews.AccountMutation recharge(String advertiserId, String requestId, BigDecimal amount,
 			String operatorId) {
-		String scopedAdvertiserId = requireScope(advertiserId);
+		String scopedAdvertiserId = requireScope(advertiserId, PermissionLevel.OPERATE);
 		BigDecimal normalizedAmount = amount.setScale(2, RoundingMode.UNNECESSARY);
 		String chargeEventId = "RECHARGE:" + scopedAdvertiserId + ":" + requestId;
 		BigDecimal balanceBefore = lockBalance(scopedAdvertiserId);
@@ -61,35 +63,34 @@ public class AdxAccountService {
 	}
 
 	public Page<CatalogViews.AccountEntry> ledger(Page<CatalogViews.AccountEntry> page, String advertiserId) {
-		String scopedAdvertiserId = requireScope(advertiserId);
+		String scopedAdvertiserId = requireScope(advertiserId, PermissionLevel.VIEW);
 		long current = Math.max(1, page.getCurrent());
 		long size = Math.min(100, Math.max(1, page.getSize()));
 		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?",
 				Long.class, scopedAdvertiserId);
-		List<CatalogViews.AccountEntry> records = jdbcTemplate.query(
-				"""
-						SELECT id,advertiser_id,charge_event_id,channel_id,app_link_id,monitor_id,source_event_code,
-						       conversion_event_code,media_event_code,amount,currency,mode,status,reason,balance_before,
-						       balance_after,operator_id,remark,create_time
-						FROM scx_ocpx_billing_entry WHERE advertiser_id=? ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?
-						""",
+		List<CatalogViews.AccountEntry> records = jdbcTemplate.query("""
+				SELECT id,advertiser_id,charge_event_id,channel_id,app_link_id,monitor_id,source_event_code,
+				       conversion_event_code,media_event_code,amount,currency,mode,status,reason,balance_before,
+				       balance_after,operator_id,remark,create_time
+				FROM scx_ocpx_billing_entry WHERE advertiser_id=? ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?
+				""",
 				(rs, rowNum) -> new CatalogViews.AccountEntry(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
 						rs.getString(9), rs.getBigDecimal(10), rs.getString(11), rs.getString(12), rs.getString(13),
-						rs.getString(14), rs.getBigDecimal(15), rs.getBigDecimal(16), rs.getString(17), rs.getString(18),
-						timestamp(rs.getTimestamp(19))),
+						rs.getString(14), rs.getBigDecimal(15), rs.getBigDecimal(16), rs.getString(17),
+						rs.getString(18), timestamp(rs.getTimestamp(19))),
 				scopedAdvertiserId, size, (current - 1) * size);
 		Page<CatalogViews.AccountEntry> result = new Page<>(current, size, total == null ? 0 : total);
 		result.setRecords(records);
 		return result;
 	}
 
-	private String requireScope(String requestedAdvertiserId) {
-		String scopedAdvertiserId = accessScope.constrainAdvertiser(requestedAdvertiserId);
-		if (!StringUtils.hasText(scopedAdvertiserId)) {
+	private String requireScope(String requestedAdvertiserId, PermissionLevel level) {
+		if (!StringUtils.hasText(requestedAdvertiserId)) {
 			throw new IllegalArgumentException("广告主不能为空");
 		}
-		return scopedAdvertiserId;
+		accessScope.require(ScopeType.ADVERTISER, requestedAdvertiserId, level);
+		return requestedAdvertiserId;
 	}
 
 	private BigDecimal lockBalance(String advertiserId) {

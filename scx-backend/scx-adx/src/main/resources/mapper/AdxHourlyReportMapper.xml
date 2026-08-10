@@ -74,6 +74,20 @@
     <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
     <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
     <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND r.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND r.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedChannelIds != null">AND 1=0</when>
+    </choose>
     GROUP BY <include refid="timeBucket"/>, r.channel_id, r.monitor_id, r.advertiser_id, r.app_link_id
     ORDER BY <include refid="timeBucket"/> DESC, MAX(c.channel_name), MAX(a.advertiser_name)
   </select>
@@ -110,6 +124,20 @@
     <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
     <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
     <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND r.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND r.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedChannelIds != null">AND 1=0</when>
+    </choose>
     GROUP BY DATE(r.time_hour)
     ORDER BY report_date
   </select>
@@ -130,6 +158,20 @@
     <if test="advertiserId != null and advertiserId != ''">AND m.advertiser_id = #{advertiserId}</if>
     <if test="appLinkId != null and appLinkId != ''">AND m.app_link_id = #{appLinkId}</if>
     <if test="monitorId != null and monitorId != ''">AND m.id = #{monitorId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND m.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND m.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedChannelIds != null">AND 1=0</when>
+    </choose>
   </select>
 
   <select id="accountSummary" resultType="java.util.HashMap">
@@ -137,6 +179,13 @@
       (SELECT COALESCE(SUM(a.balance),0) FROM scx_adx_advertiser a
        WHERE a.deleted=0
        <if test="advertiserId != null and advertiserId != ''">AND a.id = #{advertiserId}</if>
+       <choose>
+         <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+           AND a.id IN
+           <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+         </when>
+         <when test="allowedAdvertiserIds != null">AND 1=0</when>
+       </choose>
       ) AS totalBalance,
       COALESCE(SUM(CASE WHEN b.mode='RECHARGE' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS rechargeAmount,
       COALESCE(SUM(CASE WHEN b.mode='CPC' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS cpcSpend,
@@ -147,6 +196,20 @@
     WHERE b.create_time &gt;= #{start} AND b.create_time &lt; #{end}
     AND b.debug_execution_id IS NULL
     <if test="advertiserId != null and advertiserId != ''">AND b.advertiser_id = #{advertiserId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND b.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND (b.mode='RECHARGE' OR b.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>)
+      </when>
+      <when test="allowedChannelIds != null">AND b.mode='RECHARGE'</when>
+    </choose>
     AND (b.mode='RECHARGE' OR (b.mode='CPA' AND b.status='REJECTED'
       <if test="channelId != null and channelId != ''">AND b.channel_id = #{channelId}</if>
       <if test="appLinkId != null and appLinkId != ''">AND b.app_link_id = #{appLinkId}</if>

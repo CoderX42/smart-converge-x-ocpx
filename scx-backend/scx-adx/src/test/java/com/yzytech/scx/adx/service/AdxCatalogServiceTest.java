@@ -44,6 +44,8 @@ class AdxCatalogServiceTest {
 
 	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
 
+	private final AdxUserScopeService userScopeService = mock(AdxUserScopeService.class);
+
 	private final AdxConfigChangeService configChangeService = mock(AdxConfigChangeService.class);
 
 	private final AdxEventService eventService = mock(AdxEventService.class);
@@ -53,7 +55,8 @@ class AdxCatalogServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new AdxCatalogService(channelMapper, advertiserMapper, appLinkMapper, monitorMapper, deductionMapper,
-				systemUserMapper, systemUserRoleMapper, accessScope, configChangeService, eventService);
+				systemUserMapper, systemUserRoleMapper, accessScope, userScopeService, configChangeService,
+				eventService);
 	}
 
 	@Test
@@ -95,6 +98,7 @@ class AdxCatalogServiceTest {
 		ArgumentCaptor<SysUserRole> role = ArgumentCaptor.forClass(SysUserRole.class);
 		verify(systemUserRoleMapper).insert(role.capture());
 		assertThat(role.getValue().getRoleId()).isEqualTo("role_advertiser");
+		verify(userScopeService).ensureAdvertiserScope("user-1", "advertiser-1");
 	}
 
 	@Test

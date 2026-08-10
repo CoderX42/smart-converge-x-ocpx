@@ -8,6 +8,8 @@ import com.yzytech.scx.adx.entity.AdxMonitorLink;
 import com.yzytech.scx.adx.mapper.AdxAdvertiserMapper;
 import com.yzytech.scx.adx.mapper.AdxChannelMapper;
 import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
+import com.yzytech.scx.adx.service.AdxAccessScope.PermissionLevel;
+import com.yzytech.scx.adx.service.AdxAccessScope.ScopeType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -50,11 +52,8 @@ public class AdxOcpxIntegrationService {
 
 	public CatalogViews.OcpxIntegration get(String monitorId) {
 		AdxMonitorLink monitor = require(monitorMapper.selectById(monitorId), "监测链接不存在");
-		String advertiserScope = accessScope.currentAdvertiserId();
-		if (StringUtils.hasText(advertiserScope) && !advertiserScope.equals(monitor.getAdvertiserId())) {
-			// 不向越权请求暴露资源是否真实存在。
-			throw new IllegalArgumentException("监测链接不存在");
-		}
+		accessScope.require(ScopeType.ADVERTISER, monitor.getAdvertiserId(), PermissionLevel.VIEW);
+		accessScope.require(ScopeType.CHANNEL, monitor.getChannelId(), PermissionLevel.VIEW);
 		AdxChannel channel = require(channelMapper.selectById(monitor.getChannelId()), "渠道不存在");
 		AdxAdvertiser advertiser = require(advertiserMapper.selectById(monitor.getAdvertiserId()), "广告主不存在");
 		String feedbackUrl = firstNonBlank(monitor.getClickUrl(), monitor.getShowUrl());

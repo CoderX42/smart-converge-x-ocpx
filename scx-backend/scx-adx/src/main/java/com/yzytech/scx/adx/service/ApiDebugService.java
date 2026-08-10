@@ -84,6 +84,8 @@ public class ApiDebugService {
 
 	private final ApiDebugProperties properties;
 
+	private final AdxAccessScope accessScope;
+
 	private final ExecutorService executor = Executors.newFixedThreadPool(20);
 
 	private final Semaphore globalConcurrency = new Semaphore(20);
@@ -97,11 +99,12 @@ public class ApiDebugService {
 	private final OkHttpClient internalClient;
 
 	public ApiDebugService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper, StringRedisTemplate redisTemplate,
-			ApiDebugProperties properties) {
+			ApiDebugProperties properties, AdxAccessScope accessScope) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.objectMapper = objectMapper;
 		this.redisTemplate = redisTemplate;
 		this.properties = properties;
+		this.accessScope = accessScope;
 		Dns safeDns = hostname -> validateAddresses(hostname);
 		this.httpClient = new OkHttpClient.Builder().dns(safeDns)
 			.proxy(Proxy.NO_PROXY)
@@ -122,6 +125,9 @@ public class ApiDebugService {
 
 	public List<ApiDebugViews.Target> targets(String keyword) {
 		String search = StringUtils.hasText(keyword) ? "%" + keyword.trim() + "%" : "%";
+		TargetScope scope = targetScope(AdxAccessScope.PermissionLevel.VIEW);
+		List<Object> args = new ArrayList<>(List.of(search, search, search, search));
+		args.addAll(scope.args());
 		return jdbcTemplate.query(
 				"""
 						SELECT m.id,m.monitor_name,m.config_version,m.route_status,c.id,c.channel_name,c.channel_code,c.adapter_code,
@@ -132,13 +138,13 @@ public class ApiDebugService {
 						JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0 AND a.status='ACTIVE'
 						WHERE m.deleted=0 AND m.route_status='PUBLISHED'
 						  AND (m.id LIKE ? OR m.monitor_name LIKE ? OR c.channel_name LIKE ? OR a.advertiser_name LIKE ?)
-						ORDER BY m.update_time DESC LIMIT 200
-						""",
+						"""
+						+ scope.clause() + " ORDER BY m.update_time DESC LIMIT 200",
 				(rs, rowNum) -> new ApiDebugViews.Target(rs.getString(1), rs.getString(2), rs.getLong(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
 						rs.getString(9), rs.getString(10), rs.getString(11), host(rs.getString(12)),
 						host(rs.getString(13)), rs.getString(14), rs.getBigDecimal(15)),
-				search, search, search, search);
+				args.toArray());
 	}
 
 	@Transactional
@@ -155,7 +161,7 @@ public class ApiDebugService {
 			if (!properties.isFullChainEnabled()) {
 				throw new IllegalArgumentException("完整链路调试已停用");
 			}
-			target = requireTarget(request.monitorId());
+			target = requireTarget(request.monitorId(), AdxAccessScope.PermissionLevel.OPERATE);
 			routeVersion = target.routeVersion();
 			billable = isBillable(target.billingMode(), request.scenario(), request.body());
 			requestUrl = "DOWNSTREAM_TO_UPSTREAM".equals(request.scenario()) ? target.upstreamTargetHost()
@@ -207,6 +213,7 @@ public class ApiDebugService {
 		}
 		else {
 			ExecutionDraft draft = requireDraft(request.draftId());
+			requireDraftObjectScope(draft);
 			String phrase = draft.billable() ? "REAL-BILLING:" + draft.id() : "EXECUTE:" + draft.id();
 			if (!MessageDigest.isEqual(bytes(phrase), bytes(request.confirmationPhrase()))) {
 				throw new IllegalArgumentException("执行确认短语不正确");
@@ -225,6 +232,7 @@ public class ApiDebugService {
 	public ApiDebugViews.Execution execute(ApiDebugRequests.Execute request, String sessionToken, String ip) {
 		ensureEnabled();
 		ExecutionDraft draft = requireDraft(request.draftId());
+		requireDraftObjectScope(draft);
 		validateGrant(request.authorizationToken(), draft.id(), "EXECUTE", sessionToken, ip, true);
 		checkRate(draft.createdBy());
 		Semaphore perUser = userConcurrency.computeIfAbsent(draft.createdBy(), ignored -> new Semaphore(2));
@@ -308,8 +316,8 @@ public class ApiDebugService {
 				       request_body,response_status,response_headers,response_body,response_mime,response_size,
 				       response_sha256,duration_ms,risk_summary,side_effect_summary,error_message,created_by,
 				       create_time,update_time
-				FROM scx_api_debug_execution WHERE id=?
-				""", this::executionRow, id);
+				FROM scx_api_debug_execution WHERE id=? AND created_by=?
+				""", this::executionRow, id, SecurityUtils.getUserId());
 		if (rows.isEmpty()) {
 			throw new IllegalArgumentException("调试执行不存在");
 		}
@@ -319,16 +327,18 @@ public class ApiDebugService {
 	public Page<ApiDebugViews.Execution> executions(long current, long size) {
 		long safeSize = Math.min(Math.max(size, 1), 100);
 		long safeCurrent = Math.max(current, 1);
-		Long total = jdbcTemplate
-			.queryForObject("SELECT COUNT(*) FROM scx_api_debug_execution WHERE status<>'PREFLIGHT'", Long.class);
+		String userId = SecurityUtils.getUserId();
+		Long total = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM scx_api_debug_execution WHERE status<>'PREFLIGHT' AND created_by=?", Long.class,
+				userId);
 		List<ApiDebugViews.Execution> rows = jdbcTemplate.query("""
 				SELECT id,mode,scenario,status,monitor_id,route_version,request_method,request_url,request_headers,
 				       request_body,response_status,response_headers,response_body,response_mime,response_size,
 				       response_sha256,duration_ms,risk_summary,side_effect_summary,error_message,created_by,
 				       create_time,update_time
-				FROM scx_api_debug_execution WHERE status<>'PREFLIGHT'
+				FROM scx_api_debug_execution WHERE status<>'PREFLIGHT' AND created_by=?
 				ORDER BY create_time DESC LIMIT ? OFFSET ?
-				""", this::executionRow, safeSize, (safeCurrent - 1) * safeSize);
+				""", this::executionRow, userId, safeSize, (safeCurrent - 1) * safeSize);
 		Page<ApiDebugViews.Execution> page = new Page<>(safeCurrent, safeSize, total == null ? 0 : total);
 		page.setRecords(rows);
 		return page;
@@ -361,20 +371,32 @@ public class ApiDebugService {
 	}
 
 	public List<ApiDebugViews.DebugCase> cases() {
+		String userId = SecurityUtils.getUserId();
 		return jdbcTemplate.query(
 				"""
 						SELECT id,case_name,description,mode,scenario,monitor_id,request_json,created_by,updated_by,create_time,update_time
-						FROM scx_api_debug_case WHERE deleted=0 ORDER BY update_time DESC LIMIT 500
+						FROM scx_api_debug_case WHERE deleted=0 AND created_by=? ORDER BY update_time DESC LIMIT 500
 						""",
 				(rs, rowNum) -> new ApiDebugViews.DebugCase(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
-						rs.getString(9), rs.getTimestamp(10).toLocalDateTime(), rs.getTimestamp(11).toLocalDateTime()));
+						rs.getString(9), rs.getTimestamp(10).toLocalDateTime(), rs.getTimestamp(11).toLocalDateTime()),
+				userId);
 	}
 
 	@Transactional
 	public ApiDebugViews.DebugCase saveCase(ApiDebugRequests.CaseSave request) {
 		String userId = SecurityUtils.getUserId();
 		String caseId = StringUtils.hasText(request.id()) ? request.id() : id();
+		if (StringUtils.hasText(request.id())) {
+			Long owned = jdbcTemplate.queryForObject(
+					"SELECT COUNT(*) FROM scx_api_debug_case WHERE id=? AND created_by=?", Long.class, caseId, userId);
+			if (owned == null || owned == 0) {
+				throw new IllegalArgumentException("调试用例不存在");
+			}
+		}
+		if ("INTEGRATED".equals(request.mode())) {
+			requireTarget(request.monitorId());
+		}
 		jdbcTemplate.update(
 				"""
 						INSERT INTO scx_api_debug_case
@@ -394,8 +416,9 @@ public class ApiDebugService {
 
 	public void deleteCase(String id) {
 		if (jdbcTemplate.update(
-				"UPDATE scx_api_debug_case SET deleted=1,updated_by=?,update_time=NOW(3) WHERE id=? AND deleted=0",
-				SecurityUtils.getUserId(), id) == 0) {
+				"UPDATE scx_api_debug_case SET deleted=1,updated_by=?,update_time=NOW(3)"
+						+ " WHERE id=? AND created_by=? AND deleted=0",
+				SecurityUtils.getUserId(), id, SecurityUtils.getUserId()) == 0) {
 			throw new IllegalArgumentException("调试用例不存在");
 		}
 	}
@@ -728,10 +751,51 @@ public class ApiDebugService {
 	}
 
 	private ApiDebugViews.Target requireTarget(String monitorId) {
-		return targets(monitorId).stream()
-			.filter(target -> target.monitorId().equals(monitorId))
+		return requireTarget(monitorId, AdxAccessScope.PermissionLevel.VIEW);
+	}
+
+	private ApiDebugViews.Target requireTarget(String monitorId, AdxAccessScope.PermissionLevel level) {
+		ApiDebugViews.Target target = targets(monitorId).stream()
+			.filter(item -> item.monitorId().equals(monitorId))
 			.findFirst()
 			.orElseThrow(() -> new IllegalArgumentException("已发布调试目标不存在"));
+		accessScope.require(AdxAccessScope.ScopeType.ADVERTISER, target.advertiserId(), level);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, target.channelId(), level);
+		return target;
+	}
+
+	private void requireDraftObjectScope(ExecutionDraft draft) {
+		if ("INTEGRATED".equals(draft.mode())) {
+			requireTarget(draft.monitorId(), AdxAccessScope.PermissionLevel.OPERATE);
+		}
+	}
+
+	private TargetScope targetScope(AdxAccessScope.PermissionLevel level) {
+		AdxAccessScope.Snapshot snapshot = accessScope.current();
+		StringBuilder clause = new StringBuilder();
+		List<Object> args = new ArrayList<>();
+		appendTargetRestriction(clause, args, "m.advertiser_id",
+				snapshot.restriction(AdxAccessScope.ScopeType.ADVERTISER, level));
+		appendTargetRestriction(clause, args, "m.channel_id",
+				snapshot.restriction(AdxAccessScope.ScopeType.CHANNEL, level));
+		return new TargetScope(clause.toString(), List.copyOf(args));
+	}
+
+	private void appendTargetRestriction(StringBuilder clause, List<Object> args, String column,
+			AdxAccessScope.Restriction restriction) {
+		if (restriction.unrestricted()) {
+			return;
+		}
+		if (restriction.ids().isEmpty()) {
+			clause.append(" AND 1=0");
+			return;
+		}
+		clause.append(" AND ")
+			.append(column)
+			.append(" IN (")
+			.append(String.join(",", java.util.Collections.nCopies(restriction.ids().size(), "?")))
+			.append(")");
+		args.addAll(restriction.ids());
 	}
 
 	private ExecutionDraft requireDraft(String id) {
@@ -997,6 +1061,9 @@ public class ApiDebugService {
 	private record ExecutionDraft(String id, String mode, String scenario, String monitorId, String method, String url,
 			String headers, String body, String createdBy, Long routeVersion, String bodyType, int timeoutSeconds,
 			boolean billable) {
+	}
+
+	private record TargetScope(String clause, List<Object> args) {
 	}
 
 	private record UploadPart(String fieldName, String fileName, String contentType, byte[] bytes,

@@ -23,37 +23,35 @@ import java.util.UUID;
 @Service
 public class AdxEventService {
 
-	private static final List<Seed> UPSTREAM_SEEDS = List.of(new Seed("ACTIVATE", "激活"),
-			new Seed("ACQUISITION", "拉新"), new Seed("REGISTER", "注册"),
-			new Seed("FIRST_REACTIVATION", "首唤"), new Seed("REACTIVATION_COMMON", "拉活（常用）"),
+	private static final List<Seed> UPSTREAM_SEEDS = List.of(new Seed("ACTIVATE", "激活"), new Seed("ACQUISITION", "拉新"),
+			new Seed("REGISTER", "注册"), new Seed("FIRST_REACTIVATION", "首唤"), new Seed("REACTIVATION_COMMON", "拉活（常用）"),
 			new Seed("ALIPAY_ASSIST_SUCCESS_5S", "支付宝预算“助力成功&5s播放”"), new Seed("PAYMENT", "付费"),
-			new Seed("NEXT_DAY_RETENTION", "次留"), new Seed("RETENTION_D3", "3日留存"),
-			new Seed("RETENTION_D4", "4日留存"), new Seed("RETENTION_D5", "5日留存"),
-			new Seed("RETENTION_D6", "6日留存"), new Seed("RETENTION_D7", "7日留存"),
+			new Seed("NEXT_DAY_RETENTION", "次留"), new Seed("RETENTION_D3", "3日留存"), new Seed("RETENTION_D4", "4日留存"),
+			new Seed("RETENTION_D5", "5日留存"), new Seed("RETENTION_D6", "6日留存"), new Seed("RETENTION_D7", "7日留存"),
 			new Seed("APP_VISIT", "APP内访问"), new Seed("RECALL", "召回"), new Seed("KEY_ACTION", "关键行为"),
-			new Seed("FIRST_ORDER", "首购"), new Seed("REACTIVATION", "拉活"),
-			new Seed("VALID_EVOKE", "有效唤端"), new Seed("ORDER", "下单"), new Seed("LEAD", "线索"),
-			new Seed("BUDGET_UNDEFINED", "预算未定义"));
+			new Seed("FIRST_ORDER", "首购"), new Seed("REACTIVATION", "拉活"), new Seed("VALID_EVOKE", "有效唤端"),
+			new Seed("ORDER", "下单"), new Seed("LEAD", "线索"), new Seed("BUDGET_UNDEFINED", "预算未定义"));
 
-	private static final List<Seed> MEDIA_SEEDS = List.of(new Seed("ACTIVATE", "激活"),
-			new Seed("REGISTER", "注册"), new Seed("NEXT_DAY_RETENTION", "次留"),
-			new Seed("REACTIVATION", "拉活/唤醒/唤起/唤端"), new Seed("FIRST_ACTIVATION", "首活首唤"),
-			new Seed("FIRST_ORDER", "首单/首购"), new Seed("COMPLETE_ORDER", "完单"),
-			new Seed("PAYMENT", "购买/付费"), new Seed("ORDER", "下单"),
-			new Seed("VIDEO_COMPLETE_90S", "完播90秒"), new Seed("KEY_ACTION", "自定义事件/关键行为"),
-			new Seed("RETENTION_D2", "2日留存"), new Seed("RETENTION_D3", "3日留存"),
-			new Seed("RETENTION_D4", "4日留存"), new Seed("RETENTION_D5", "5日留存"),
-			new Seed("RETENTION_D6", "6日留存"), new Seed("RETENTION_D7", "7日留存"),
-			new Seed("FORM_SUBMIT", "表单提交"), new Seed("KEY_PAGE_VIEW", "关键页面行为/关键页面浏览"),
-			new Seed("AUTHENTICATION", "授信/授权"), new Seed("RECALL", "拉回"), new Seed("UNKNOWN", "未知"));
+	private static final List<Seed> MEDIA_SEEDS = List.of(new Seed("ACTIVATE", "激活"), new Seed("REGISTER", "注册"),
+			new Seed("NEXT_DAY_RETENTION", "次留"), new Seed("REACTIVATION", "拉活/唤醒/唤起/唤端"),
+			new Seed("FIRST_ACTIVATION", "首活首唤"), new Seed("FIRST_ORDER", "首单/首购"), new Seed("COMPLETE_ORDER", "完单"),
+			new Seed("PAYMENT", "购买/付费"), new Seed("ORDER", "下单"), new Seed("VIDEO_COMPLETE_90S", "完播90秒"),
+			new Seed("KEY_ACTION", "自定义事件/关键行为"), new Seed("RETENTION_D2", "2日留存"), new Seed("RETENTION_D3", "3日留存"),
+			new Seed("RETENTION_D4", "4日留存"), new Seed("RETENTION_D5", "5日留存"), new Seed("RETENTION_D6", "6日留存"),
+			new Seed("RETENTION_D7", "7日留存"), new Seed("FORM_SUBMIT", "表单提交"),
+			new Seed("KEY_PAGE_VIEW", "关键页面行为/关键页面浏览"), new Seed("AUTHENTICATION", "授信/授权"), new Seed("RECALL", "拉回"),
+			new Seed("UNKNOWN", "未知"));
 
 	private static final Set<String> DEFAULT_MAPPING_CODES = Set.of("ACTIVATE", "REGISTER", "PAYMENT",
 			"NEXT_DAY_RETENTION");
 
 	private final JdbcTemplate jdbcTemplate;
 
-	public AdxEventService(JdbcTemplate jdbcTemplate) {
+	private final AdxAccessScope accessScope;
+
+	public AdxEventService(JdbcTemplate jdbcTemplate, AdxAccessScope accessScope) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.accessScope = accessScope;
 	}
 
 	public Page<EventViews.Definition> definitions(long current, long size, String category, String channelId,
@@ -63,15 +61,19 @@ public class AdxEventService {
 		StringBuilder where = new StringBuilder(" WHERE e.deleted=0 ");
 		List<Object> args = new ArrayList<>();
 		append(where, args, " AND e.category=?", category);
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.VIEW);
+		}
 		append(where, args, " AND e.channel_id=?", channelId);
 		append(where, args, " AND e.status=?", status);
+		appendChannelDefinitionScope(where, args, AdxAccessScope.PermissionLevel.VIEW);
 		if (StringUtils.hasText(keyword)) {
 			where.append(" AND (e.event_code LIKE ? OR e.event_name LIKE ?)");
 			args.add("%" + keyword.trim() + "%");
 			args.add("%" + keyword.trim() + "%");
 		}
-		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_adx_event_definition e" + where,
-				Long.class, args.toArray());
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_adx_event_definition e" + where, Long.class,
+				args.toArray());
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(safeSize);
 		pageArgs.add((safeCurrent - 1) * safeSize);
@@ -83,16 +85,17 @@ public class AdxEventService {
 				       (SELECT COUNT(*) FROM scx_adx_monitor_event_binding b
 				          JOIN scx_adx_channel_event_mapping m ON m.id=b.event_mapping_id
 				        WHERE m.upstream_event_id=e.id OR m.conversion_event_id=e.id OR m.media_event_id=e.id),
-			       (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s
-			        WHERE (e.category='UPSTREAM' AND s.upstream_event_code=e.event_code AND s.monitor_id IN
-			              (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))
-			           OR (e.category='CONVERSION' AND s.conversion_event_code=e.event_code)
+				      (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s
+				       WHERE (e.category='UPSTREAM' AND s.upstream_event_code=e.event_code AND s.monitor_id IN
+				             (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))
+				          OR (e.category='CONVERSION' AND s.conversion_event_code=e.event_code)
 				           OR (e.category='MEDIA' AND s.media_event_code=e.event_code AND s.monitor_id IN
 				              (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))),
 				       e.create_time,e.update_time
 				FROM scx_adx_event_definition e
 				LEFT JOIN scx_adx_channel c ON c.id=e.channel_id
-				""" + where + " ORDER BY e.sort_order,e.event_code LIMIT ? OFFSET ?", this::definition, pageArgs.toArray());
+				""" + where + " ORDER BY e.sort_order,e.event_code LIMIT ? OFFSET ?", this::definition,
+				pageArgs.toArray());
 		Page<EventViews.Definition> result = new Page<>(safeCurrent, safeSize, total == null ? 0 : total);
 		result.setRecords(records);
 		return result;
@@ -102,10 +105,12 @@ public class AdxEventService {
 	public EventViews.Definition saveDefinition(String id, EventRequests.SaveDefinition request) {
 		String category = request.category().trim().toUpperCase();
 		String channelId = "CONVERSION".equals(category) ? "" : requireChannel(request.channelId());
+		requireDefinitionScope(category, channelId, AdxAccessScope.PermissionLevel.MANAGE);
 		String eventCode = "CONVERSION".equals(category) ? request.eventCode().trim().toUpperCase()
 				: request.eventCode().trim();
 		if (StringUtils.hasText(id)) {
 			DefinitionRow existing = requireDefinition(id);
+			requireDefinitionScope(existing.category(), existing.channelId(), AdxAccessScope.PermissionLevel.MANAGE);
 			if ("DISABLED".equals(request.status()) && draftReferenceCount(id) > 0) {
 				throw new IllegalArgumentException("事件仍被监测链接草稿引用，请先移除绑定");
 			}
@@ -123,23 +128,25 @@ public class AdxEventService {
 		}
 		ensureUniqueDefinition(null, category, channelId, eventCode);
 		String newId = id();
-		jdbcTemplate.update("""
-				INSERT INTO scx_adx_event_definition
-				(id,category,channel_id,event_code,event_name,status,sort_order,remark,built_in,deleted,create_time,update_time)
-				VALUES (?,?,?,?,?,?,?,?,0,0,NOW(3),NOW(3))
-				""", newId, category, channelId, eventCode, request.eventName().trim(), request.status(),
+		jdbcTemplate.update(
+				"""
+						INSERT INTO scx_adx_event_definition
+						(id,category,channel_id,event_code,event_name,status,sort_order,remark,built_in,deleted,create_time,update_time)
+						VALUES (?,?,?,?,?,?,?,?,0,0,NOW(3),NOW(3))
+						""",
+				newId, category, channelId, eventCode, request.eventName().trim(), request.status(),
 				request.sortOrder(), trim(request.remark()));
 		return definitionById(newId);
 	}
 
 	@Transactional
 	public void disableDefinition(String id) {
-		requireDefinition(id);
+		DefinitionRow definition = requireDefinition(id);
+		requireDefinitionScope(definition.category(), definition.channelId(), AdxAccessScope.PermissionLevel.MANAGE);
 		if (draftReferenceCount(id) > 0) {
 			throw new IllegalArgumentException("事件仍被监测链接草稿引用，请先移除绑定");
 		}
-		jdbcTemplate.update("UPDATE scx_adx_event_definition SET status='DISABLED',update_time=NOW(3) WHERE id=?",
-				id);
+		jdbcTemplate.update("UPDATE scx_adx_event_definition SET status='DISABLED',update_time=NOW(3) WHERE id=?", id);
 		jdbcTemplate.update("""
 				UPDATE scx_adx_channel_event_mapping SET status='DISABLED',update_time=NOW(3)
 				WHERE upstream_event_id=? OR conversion_event_id=? OR media_event_id=?
@@ -152,9 +159,14 @@ public class AdxEventService {
 		StringBuilder where = new StringBuilder(" WHERE m.deleted=0 ");
 		List<Object> args = new ArrayList<>();
 		append(where, args, " AND m.channel_id=?", channelId);
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.VIEW);
+		}
+		appendChannelScope(where, args, "m.channel_id", AdxAccessScope.PermissionLevel.VIEW);
 		append(where, args, " AND m.status=?", status);
 		if (StringUtils.hasText(keyword)) {
-			where.append(" AND (u.event_code LIKE ? OR u.event_name LIKE ? OR v.event_name LIKE ? OR d.event_name LIKE ?)");
+			where.append(
+					" AND (u.event_code LIKE ? OR u.event_name LIKE ? OR v.event_name LIKE ? OR d.event_name LIKE ?)");
 			for (int i = 0; i < 4; i++) {
 				args.add("%" + keyword.trim() + "%");
 			}
@@ -186,6 +198,7 @@ public class AdxEventService {
 	@Transactional
 	public EventViews.Mapping saveMapping(String id, EventRequests.SaveMapping request) {
 		String channelId = requireChannel(request.channelId());
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.MANAGE);
 		DefinitionRow upstream = requireDefinition(request.upstreamEventId());
 		DefinitionRow conversion = requireDefinition(request.conversionEventId());
 		DefinitionRow media = requireDefinition(request.mediaEventId());
@@ -208,25 +221,30 @@ public class AdxEventService {
 		String mappingId = StringUtils.hasText(id) ? id : id();
 		if (StringUtils.hasText(id)) {
 			MappingRow existing = requireMapping(id);
+			accessScope.require(AdxAccessScope.ScopeType.CHANNEL, existing.channelId(),
+					AdxAccessScope.PermissionLevel.MANAGE);
 			long draftReferences = draftMappingReferences(id);
 			if ("DISABLED".equals(request.status()) && draftReferences > 0) {
 				throw new IllegalArgumentException("映射仍被监测链接草稿引用，请先移除绑定");
 			}
-			if (draftReferences > 0 && (!existing.upstreamEventId().equals(upstream.id())
-					|| !existing.channelId().equals(channelId))) {
+			if (draftReferences > 0
+					&& (!existing.upstreamEventId().equals(upstream.id()) || !existing.channelId().equals(channelId))) {
 				throw new IllegalArgumentException("映射已被草稿引用，不可修改渠道或上游事件");
 			}
 			jdbcTemplate.update("""
 					UPDATE scx_adx_channel_event_mapping SET channel_id=?,upstream_event_id=?,conversion_event_id=?,
 					 media_event_id=?,status=?,remark=?,update_time=NOW(3) WHERE id=? AND deleted=0
-					""", channelId, upstream.id(), conversion.id(), media.id(), request.status(), trim(request.remark()), id);
+					""", channelId, upstream.id(), conversion.id(), media.id(), request.status(),
+					trim(request.remark()), id);
 		}
 		else {
-			jdbcTemplate.update("""
-					INSERT INTO scx_adx_channel_event_mapping
-					(id,channel_id,upstream_event_id,conversion_event_id,media_event_id,status,remark,deleted,create_time,update_time)
-					VALUES (?,?,?,?,?,?,?,0,NOW(3),NOW(3))
-					""", mappingId, channelId, upstream.id(), conversion.id(), media.id(), request.status(),
+			jdbcTemplate.update(
+					"""
+							INSERT INTO scx_adx_channel_event_mapping
+							(id,channel_id,upstream_event_id,conversion_event_id,media_event_id,status,remark,deleted,create_time,update_time)
+							VALUES (?,?,?,?,?,?,?,0,NOW(3),NOW(3))
+							""",
+					mappingId, channelId, upstream.id(), conversion.id(), media.id(), request.status(),
 					trim(request.remark()));
 		}
 		return mappingById(mappingId);
@@ -234,7 +252,9 @@ public class AdxEventService {
 
 	@Transactional
 	public void disableMapping(String id) {
-		requireMapping(id);
+		MappingRow mapping = requireMapping(id);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, mapping.channelId(),
+				AdxAccessScope.PermissionLevel.MANAGE);
 		if (draftMappingReferences(id) > 0) {
 			throw new IllegalArgumentException("映射仍被监测链接草稿引用，请先移除绑定");
 		}
@@ -245,6 +265,7 @@ public class AdxEventService {
 
 	public List<EventViews.Option> options(String channelId) {
 		requireChannel(channelId);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.VIEW);
 		return jdbcTemplate.query("""
 				SELECT m.id,u.event_code,u.event_name,v.event_code,v.event_name,d.event_code,d.event_name
 				FROM scx_adx_channel_event_mapping m
@@ -253,28 +274,38 @@ public class AdxEventService {
 				JOIN scx_adx_event_definition d ON d.id=m.media_event_id AND d.status='ACTIVE' AND d.deleted=0
 				WHERE m.channel_id=? AND m.status='ACTIVE' AND m.deleted=0
 				ORDER BY u.sort_order,u.event_code
-				""", (rs, rowNum) -> new EventViews.Option(rs.getString(1), rs.getString(2), rs.getString(3),
-				bindingName(rs.getString(2), rs.getString(3)), rs.getString(4), rs.getString(5), rs.getString(6),
-				rs.getString(7)), channelId);
+				""",
+				(rs, rowNum) -> new EventViews.Option(rs.getString(1), rs.getString(2), rs.getString(3),
+						bindingName(rs.getString(2), rs.getString(3)), rs.getString(4), rs.getString(5),
+						rs.getString(6), rs.getString(7)),
+				channelId);
 	}
 
 	public List<EventViews.Binding> bindings(String monitorId) {
-		return jdbcTemplate.query("""
-				SELECT b.id,b.event_mapping_id,u.event_code,u.event_name,v.event_code,v.event_name,d.event_code,d.event_name,
-				 b.assessment_unit_price,b.daily_limit
-				FROM scx_adx_monitor_event_binding b
-				JOIN scx_adx_channel_event_mapping m ON m.id=b.event_mapping_id
-				JOIN scx_adx_event_definition u ON u.id=m.upstream_event_id
-				JOIN scx_adx_event_definition v ON v.id=m.conversion_event_id
-				JOIN scx_adx_event_definition d ON d.id=m.media_event_id
-				WHERE b.monitor_id=? ORDER BY u.sort_order,u.event_code
-				""", (rs, rowNum) -> new EventViews.Binding(rs.getString(1), rs.getString(2), rs.getString(3),
-				rs.getString(4), bindingName(rs.getString(3), rs.getString(4)), rs.getString(5), rs.getString(6),
-				rs.getString(7), rs.getString(8), rs.getBigDecimal(9), rs.getInt(10)), monitorId);
+		requireMonitorScope(monitorId, AdxAccessScope.PermissionLevel.VIEW);
+		return jdbcTemplate.query(
+				"""
+						SELECT b.id,b.event_mapping_id,u.event_code,u.event_name,v.event_code,v.event_name,d.event_code,d.event_name,
+						 b.assessment_unit_price,b.daily_limit
+						FROM scx_adx_monitor_event_binding b
+						JOIN scx_adx_channel_event_mapping m ON m.id=b.event_mapping_id
+						JOIN scx_adx_event_definition u ON u.id=m.upstream_event_id
+						JOIN scx_adx_event_definition v ON v.id=m.conversion_event_id
+						JOIN scx_adx_event_definition d ON d.id=m.media_event_id
+						WHERE b.monitor_id=? ORDER BY u.sort_order,u.event_code
+						""",
+				(rs, rowNum) -> new EventViews.Binding(rs.getString(1), rs.getString(2), rs.getString(3),
+						rs.getString(4), bindingName(rs.getString(3), rs.getString(4)), rs.getString(5),
+						rs.getString(6), rs.getString(7), rs.getString(8), rs.getBigDecimal(9), rs.getInt(10)),
+				monitorId);
 	}
 
 	@Transactional
 	public void replaceBindings(String monitorId, String channelId, List<EventRequests.MonitorBinding> bindings) {
+		MonitorObject monitor = requireMonitorScope(monitorId, AdxAccessScope.PermissionLevel.OPERATE);
+		if (!monitor.channelId().equals(channelId)) {
+			throw new IllegalArgumentException("监测链接与渠道不匹配");
+		}
 		List<EventRequests.MonitorBinding> safe = EventRequests.safeBindings(bindings);
 		Set<String> mappingIds = new HashSet<>();
 		for (EventRequests.MonitorBinding binding : safe) {
@@ -295,12 +326,17 @@ public class AdxEventService {
 					INSERT INTO scx_adx_monitor_event_binding
 					(id,monitor_id,event_mapping_id,assessment_unit_price,daily_limit,create_time,update_time)
 					VALUES (?,?,?,?,?,NOW(3),NOW(3))
-					""", id(), monitorId, binding.eventMappingId(), binding.assessmentUnitPrice(), binding.dailyLimit());
+					""", id(), monitorId, binding.eventMappingId(), binding.assessmentUnitPrice(),
+					binding.dailyLimit());
 		}
 	}
 
 	@Transactional
 	public int publishSnapshot(String monitorId, String channelId, long routeVersion) {
+		MonitorObject monitor = requireMonitorScope(monitorId, AdxAccessScope.PermissionLevel.OPERATE);
+		if (!monitor.channelId().equals(channelId)) {
+			throw new IllegalArgumentException("监测链接与渠道不匹配");
+		}
 		List<EventViews.Binding> bindings = bindings(monitorId);
 		for (EventViews.Binding binding : bindings) {
 			MappingRow mapping = lockMapping(binding.eventMappingId());
@@ -318,7 +354,8 @@ public class AdxEventService {
 					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
 					""", id(), monitorId, routeVersion, binding.eventMappingId(), binding.upstreamEventCode(),
 					binding.upstreamEventName(), binding.conversionEventCode(), binding.conversionEventName(),
-					binding.mediaEventCode(), binding.mediaEventName(), binding.assessmentUnitPrice(), binding.dailyLimit());
+					binding.mediaEventCode(), binding.mediaEventName(), binding.assessmentUnitPrice(),
+					binding.dailyLimit());
 		}
 		return bindings.size();
 	}
@@ -345,16 +382,17 @@ public class AdxEventService {
 						rs.getString(8), rs.getString(9), rs.getBigDecimal(10), rs.getInt(11)));
 		}, monitorIds.toArray());
 		Map<String, EventViews.BindingSummary> result = new HashMap<>();
-		grouped.forEach((monitorId, rows) -> result.put(monitorId,
-				new EventViews.BindingSummary(rows.size(), rows.stream()
-					.map(row -> row.bindingDisplayName() + " ¥" + row.assessmentUnitPrice().stripTrailingZeros().toPlainString()
-							+ (row.dailyLimit() == 0 ? " / 不限量" : " / " + row.dailyLimit() + "次"))
-					.collect(java.util.stream.Collectors.joining("；")))));
+		grouped.forEach((monitorId, rows) -> result.put(monitorId, new EventViews.BindingSummary(rows.size(), rows
+			.stream()
+			.map(row -> row.bindingDisplayName() + " ¥" + row.assessmentUnitPrice().stripTrailingZeros().toPlainString()
+					+ (row.dailyLimit() == 0 ? " / 不限量" : " / " + row.dailyLimit() + "次"))
+			.collect(java.util.stream.Collectors.joining("；")))));
 		return result;
 	}
 
 	@Transactional
 	public void initializeChannel(String channelId) {
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.MANAGE);
 		for (int i = 0; i < UPSTREAM_SEEDS.size(); i++) {
 			upsertSeed("UPSTREAM", channelId, UPSTREAM_SEEDS.get(i), (i + 1) * 10);
 		}
@@ -365,23 +403,27 @@ public class AdxEventService {
 			String upstreamId = definitionId("UPSTREAM", channelId, code);
 			String conversionId = definitionId("CONVERSION", "", code);
 			String mediaId = definitionId("MEDIA", channelId, code);
-			jdbcTemplate.update("""
-					INSERT INTO scx_adx_channel_event_mapping
-					(id,channel_id,upstream_event_id,conversion_event_id,media_event_id,status,remark,deleted,create_time,update_time)
-					VALUES (?,?,?,?,?,'ACTIVE','系统默认映射',0,NOW(3),NOW(3))
-					ON DUPLICATE KEY UPDATE conversion_event_id=VALUES(conversion_event_id),media_event_id=VALUES(media_event_id),
-					 update_time=NOW(3)
-					""", id(), channelId, upstreamId, conversionId, mediaId);
+			jdbcTemplate.update(
+					"""
+							INSERT INTO scx_adx_channel_event_mapping
+							(id,channel_id,upstream_event_id,conversion_event_id,media_event_id,status,remark,deleted,create_time,update_time)
+							VALUES (?,?,?,?,?,'ACTIVE','系统默认映射',0,NOW(3),NOW(3))
+							ON DUPLICATE KEY UPDATE conversion_event_id=VALUES(conversion_event_id),media_event_id=VALUES(media_event_id),
+							 update_time=NOW(3)
+							""",
+					id(), channelId, upstreamId, conversionId, mediaId);
 		}
 	}
 
 	private void upsertSeed(String category, String channelId, Seed seed, int sort) {
-		jdbcTemplate.update("""
-				INSERT INTO scx_adx_event_definition
-				(id,category,channel_id,event_code,event_name,status,sort_order,built_in,deleted,create_time,update_time)
-				VALUES (?,?,?,?,?,'ACTIVE',?,1,0,NOW(3),NOW(3))
-				ON DUPLICATE KEY UPDATE event_name=VALUES(event_name),built_in=1,deleted=0,update_time=NOW(3)
-				""", id(), category, channelId, seed.code(), seed.name(), sort);
+		jdbcTemplate.update(
+				"""
+						INSERT INTO scx_adx_event_definition
+						(id,category,channel_id,event_code,event_name,status,sort_order,built_in,deleted,create_time,update_time)
+						VALUES (?,?,?,?,?,'ACTIVE',?,1,0,NOW(3),NOW(3))
+						ON DUPLICATE KEY UPDATE event_name=VALUES(event_name),built_in=1,deleted=0,update_time=NOW(3)
+						""",
+				id(), category, channelId, seed.code(), seed.name(), sort);
 	}
 
 	private String definitionId(String category, String channelId, String code) {
@@ -395,36 +437,40 @@ public class AdxEventService {
 	}
 
 	private EventViews.Definition definitionById(String id) {
-		return jdbcTemplate.queryForObject("""
-				SELECT e.id,e.category,NULLIF(e.channel_id,''),c.channel_name,e.event_code,e.event_name,e.status,e.sort_order,
-				 e.remark,e.built_in,
-				 EXISTS(SELECT 1 FROM scx_adx_channel_event_mapping x WHERE x.deleted=0 AND
-				   (x.upstream_event_id=e.id OR x.conversion_event_id=e.id OR x.media_event_id=e.id)),
-				 (SELECT COUNT(*) FROM scx_adx_monitor_event_binding b
-				   JOIN scx_adx_channel_event_mapping m ON m.id=b.event_mapping_id
-				   WHERE m.upstream_event_id=e.id OR m.conversion_event_id=e.id OR m.media_event_id=e.id),
-				 (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s
-				   WHERE (e.category='UPSTREAM' AND s.upstream_event_code=e.event_code AND s.monitor_id IN
-				         (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))
-				      OR (e.category='CONVERSION' AND s.conversion_event_code=e.event_code)
-				      OR (e.category='MEDIA' AND s.media_event_code=e.event_code AND s.monitor_id IN
-				         (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))),
-				 e.create_time,e.update_time
-				FROM scx_adx_event_definition e LEFT JOIN scx_adx_channel c ON c.id=e.channel_id WHERE e.id=? AND e.deleted=0
-				""", this::definition, id);
+		return jdbcTemplate.queryForObject(
+				"""
+						SELECT e.id,e.category,NULLIF(e.channel_id,''),c.channel_name,e.event_code,e.event_name,e.status,e.sort_order,
+						 e.remark,e.built_in,
+						 EXISTS(SELECT 1 FROM scx_adx_channel_event_mapping x WHERE x.deleted=0 AND
+						   (x.upstream_event_id=e.id OR x.conversion_event_id=e.id OR x.media_event_id=e.id)),
+						 (SELECT COUNT(*) FROM scx_adx_monitor_event_binding b
+						   JOIN scx_adx_channel_event_mapping m ON m.id=b.event_mapping_id
+						   WHERE m.upstream_event_id=e.id OR m.conversion_event_id=e.id OR m.media_event_id=e.id),
+						 (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s
+						   WHERE (e.category='UPSTREAM' AND s.upstream_event_code=e.event_code AND s.monitor_id IN
+						         (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))
+						      OR (e.category='CONVERSION' AND s.conversion_event_code=e.event_code)
+						      OR (e.category='MEDIA' AND s.media_event_code=e.event_code AND s.monitor_id IN
+						         (SELECT id FROM scx_adx_monitor_link WHERE channel_id=e.channel_id))),
+						 e.create_time,e.update_time
+						FROM scx_adx_event_definition e LEFT JOIN scx_adx_channel c ON c.id=e.channel_id WHERE e.id=? AND e.deleted=0
+						""",
+				this::definition, id);
 	}
 
 	private EventViews.Mapping mappingById(String id) {
-		return jdbcTemplate.queryForObject("""
-				SELECT m.id,m.channel_id,c.channel_name,u.id,u.event_code,u.event_name,v.id,v.event_code,v.event_name,
-				 d.id,d.event_code,d.event_name,m.status,m.remark,
-				 (SELECT COUNT(*) FROM scx_adx_monitor_event_binding b WHERE b.event_mapping_id=m.id),
-				 (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s WHERE s.event_mapping_id=m.id),m.create_time,m.update_time
-				FROM scx_adx_channel_event_mapping m JOIN scx_adx_channel c ON c.id=m.channel_id
-				JOIN scx_adx_event_definition u ON u.id=m.upstream_event_id
-				JOIN scx_adx_event_definition v ON v.id=m.conversion_event_id
-				JOIN scx_adx_event_definition d ON d.id=m.media_event_id WHERE m.id=? AND m.deleted=0
-				""", this::mapping, id);
+		return jdbcTemplate.queryForObject(
+				"""
+						SELECT m.id,m.channel_id,c.channel_name,u.id,u.event_code,u.event_name,v.id,v.event_code,v.event_name,
+						 d.id,d.event_code,d.event_name,m.status,m.remark,
+						 (SELECT COUNT(*) FROM scx_adx_monitor_event_binding b WHERE b.event_mapping_id=m.id),
+						 (SELECT COUNT(*) FROM scx_adx_route_event_snapshot s WHERE s.event_mapping_id=m.id),m.create_time,m.update_time
+						FROM scx_adx_channel_event_mapping m JOIN scx_adx_channel c ON c.id=m.channel_id
+						JOIN scx_adx_event_definition u ON u.id=m.upstream_event_id
+						JOIN scx_adx_event_definition v ON v.id=m.conversion_event_id
+						JOIN scx_adx_event_definition d ON d.id=m.media_event_id WHERE m.id=? AND m.deleted=0
+						""",
+				this::mapping, id);
 	}
 
 	private EventViews.Definition definition(ResultSet rs, int rowNum) throws SQLException {
@@ -497,6 +543,63 @@ public class AdxEventService {
 		return channelId;
 	}
 
+	private void requireDefinitionScope(String category, String channelId, AdxAccessScope.PermissionLevel level) {
+		if ("CONVERSION".equals(category)) {
+			accessScope.requireAll(level);
+			return;
+		}
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, level);
+	}
+
+	private void appendChannelDefinitionScope(StringBuilder where, List<Object> args,
+			AdxAccessScope.PermissionLevel level) {
+		AdxAccessScope.Restriction restriction = accessScope.current()
+			.restriction(AdxAccessScope.ScopeType.CHANNEL, level);
+		if (restriction.unrestricted()) {
+			return;
+		}
+		if (restriction.ids().isEmpty()) {
+			where.append(" AND 1=0");
+			return;
+		}
+		where.append(" AND (e.category='CONVERSION' OR e.channel_id IN (")
+			.append(String.join(",", java.util.Collections.nCopies(restriction.ids().size(), "?")))
+			.append("))");
+		args.addAll(restriction.ids());
+	}
+
+	private void appendChannelScope(StringBuilder where, List<Object> args, String column,
+			AdxAccessScope.PermissionLevel level) {
+		AdxAccessScope.Restriction restriction = accessScope.current()
+			.restriction(AdxAccessScope.ScopeType.CHANNEL, level);
+		if (restriction.unrestricted()) {
+			return;
+		}
+		if (restriction.ids().isEmpty()) {
+			where.append(" AND 1=0");
+			return;
+		}
+		where.append(" AND ")
+			.append(column)
+			.append(" IN (")
+			.append(String.join(",", java.util.Collections.nCopies(restriction.ids().size(), "?")))
+			.append(")");
+		args.addAll(restriction.ids());
+	}
+
+	private MonitorObject requireMonitorScope(String monitorId, AdxAccessScope.PermissionLevel level) {
+		List<MonitorObject> rows = jdbcTemplate.query(
+				"SELECT advertiser_id,channel_id FROM scx_adx_monitor_link WHERE id=? AND deleted=0",
+				(rs, rowNum) -> new MonitorObject(rs.getString(1), rs.getString(2)), monitorId);
+		if (rows.isEmpty()) {
+			throw new IllegalArgumentException("监测链接不存在或无权访问");
+		}
+		MonitorObject monitor = rows.get(0);
+		accessScope.require(AdxAccessScope.ScopeType.ADVERTISER, monitor.advertiserId(), level);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, monitor.channelId(), level);
+		return monitor;
+	}
+
 	private void ensureUniqueDefinition(String id, String category, String channelId, String code) {
 		Long count = jdbcTemplate.queryForObject("""
 				SELECT COUNT(*) FROM scx_adx_event_definition
@@ -525,8 +628,8 @@ public class AdxEventService {
 	}
 
 	private long draftMappingReferences(String mappingId) {
-		Long value = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_adx_monitor_event_binding WHERE event_mapping_id=?",
-				Long.class, mappingId);
+		Long value = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM scx_adx_monitor_event_binding WHERE event_mapping_id=?", Long.class, mappingId);
 		return value == null ? 0 : value;
 	}
 
@@ -557,6 +660,9 @@ public class AdxEventService {
 
 	private record MappingRow(String id, String channelId, String upstreamEventId, String conversionEventId,
 			String mediaEventId, String status) {
+	}
+
+	private record MonitorObject(String advertiserId, String channelId) {
 	}
 
 }

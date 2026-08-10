@@ -6,6 +6,7 @@ import {
   Edit,
   InfoFilled,
   Key,
+  Operation,
   Plus,
   Refresh,
   Search,
@@ -44,6 +45,7 @@ const ResetPwd = defineAsyncComponent(
   () => import('./info/reset-password.vue'),
 );
 const LoginLog = defineAsyncComponent(() => import('./info/loginlog.vue'));
+const AccessScope = defineAsyncComponent(() => import('./access-scope.vue'));
 
 // 字典
 const { status } = useDict('status');
@@ -73,6 +75,7 @@ const treeRef = ref<InstanceType<typeof ElTree>>();
 const dialog = ref(false);
 const dialogLogin = ref(false);
 const formRef = ref();
+const accessScopeRef = ref();
 const queryRef = ref();
 const defaultProps = ref({
   children: 'children',
@@ -97,7 +100,6 @@ const initPage = async () => {
       {
         current: state.page.currentPage,
         size: state.page.pageSize,
-        type: '0',
       },
       state.queryParams,
     ),
@@ -164,6 +166,17 @@ const editPassword = (row: any) => {
 const showLoginLog = (row: any) => {
   state.userInfo = row;
   dialogLogin.value = true;
+};
+const showAccessScope = (row: any) => {
+  accessScopeRef.value.init(row);
+};
+const accountTypeName = (type: string) => {
+  const names: Record<string, string> = {
+    '0': '系统主账户',
+    '1': '店铺账号',
+    '2': '广告主账号',
+  };
+  return names[type] || '其他';
 };
 
 getDeptData();
@@ -241,6 +254,7 @@ initPage();
           </div>
           <!-- 新增修改弹窗 -->
           <Form ref="formRef" @init-page="initPage" />
+          <AccessScope ref="accessScopeRef" />
           <!-- 修改密码 -->
           <ElDialog
             v-model="dialog"
@@ -273,6 +287,11 @@ initPage();
                 </template>
               </ElTableColumn>
               <ElTableColumn prop="nickname" label="用户昵称" />
+              <ElTableColumn label="账号类型" width="110">
+                <template #default="scope">
+                  {{ accountTypeName(scope.row.type) }}
+                </template>
+              </ElTableColumn>
               <ElTableColumn prop="phone" label="手机号" />
               <ElTableColumn prop="deptName" label="部门" />
               <ElTableColumn prop="status" label="状态">
@@ -285,9 +304,18 @@ initPage();
                 label="操作"
                 align="center"
                 fixed="right"
-                width="220"
+                width="310"
               >
                 <template #default="scope">
+                  <ElButton
+                    link
+                    type="primary"
+                    v-access:code="'adx:scope:view'"
+                    @click="showAccessScope(scope.row)"
+                    :icon="Operation"
+                  >
+                    ADX范围
+                  </ElButton>
                   <ElButton
                     link
                     type="primary"

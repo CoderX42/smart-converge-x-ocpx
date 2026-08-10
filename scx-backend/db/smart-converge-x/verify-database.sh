@@ -83,6 +83,38 @@ if [[ "$admin_system_permission_count" -ne 9 ]]; then
   exit 1
 fi
 
+adx_scope_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_user_scope' AND column_name IN ('user_id','scope_type','scope_id','permission_level','valid_from','valid_to','status','version','deleted','active_scope_key')) OR (table_name='scx_adx_user_scope_revision' AND column_name IN ('user_id','version','update_by','update_time')));")"
+
+if [[ "$adx_scope_column_count" -ne 14 ]]; then
+  echo "Database verification failed: ADX object-scope schema is incomplete." >&2
+  exit 1
+fi
+
+admin_scope_permission_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(DISTINCT m.permission) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission IN ('adx:scope:view','adx:scope:edit');")"
+
+if [[ "$admin_scope_permission_count" -ne 2 ]]; then
+  echo "Database verification failed: administrator ADX object-scope permissions are incomplete." >&2
+  exit 1
+fi
+
+active_scope_administrator_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(DISTINCT s.user_id) FROM scx_adx_user_scope s JOIN sys_user u ON u.id=s.user_id WHERE u.del_flag='0' AND s.deleted=0 AND s.status='ACTIVE' AND s.scope_type='ALL' AND s.scope_id IS NULL AND s.permission_level='MANAGE' AND (s.valid_from IS NULL OR s.valid_from<=NOW(3)) AND (s.valid_to IS NULL OR s.valid_to>NOW(3));")"
+
+if [[ "$active_scope_administrator_count" -lt 1 ]]; then
+  echo "Database verification failed: at least one active ADX scope administrator is required." >&2
+  exit 1
+fi
+
+invalid_scope_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_adx_user_scope WHERE deleted=0 AND (scope_type NOT IN ('ALL','ADVERTISER','CHANNEL','MEDIA_ACCOUNT') OR permission_level NOT IN ('VIEW','OPERATE','MANAGE') OR (scope_type='ALL' AND scope_id IS NOT NULL) OR (scope_type<>'ALL' AND scope_id IS NULL) OR (valid_from IS NOT NULL AND valid_to IS NOT NULL AND valid_from>=valid_to));")"
+
+if [[ "$invalid_scope_count" -ne 0 ]]; then
+  echo "Database verification failed: invalid ADX object-scope rows found." >&2
+  exit 1
+fi
+
 ocpx_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
   --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_adx_channel' AND column_name IN ('channel_code','adapter_code','auth_type','config_version','callback_host_allowlist')) OR (table_name='scx_adx_advertiser' AND column_name IN ('upstream_host_allowlist','bid_url')) OR (table_name='scx_adx_monitor_link' AND column_name IN ('route_status','config_version','downstream_callback_url','upstream_feedback_url','published_upstream_feedback_url','click_dedup_window_seconds','event_snapshot_version')) OR (table_name='scx_adx_hourly_report' AND column_name IN ('raw_conversion_count','forwarded_conversion_count','deducted_conversion_count','delivery_failure_count','first_order_count','eligible_click_count','deduplicated_click_count','skipped_click_count','classified_click_count','first_activate_count','reactivation_count','retention_3d_count','retention_4d_count','retention_5d_count','retention_6d_count','retention_7d_count','create_time','update_time')) OR (table_name='scx_ocpx_event' AND column_name IN ('device_platform','device_id_type','device_key_version','source_event_code','conversion_event_code','media_event_code','cpa_charge_amount','daily_limit_result')) OR (table_name='scx_ocpx_delivery_attempt' AND column_name IN ('request_method','target_host','target_path','request_summary','response_excerpt','duration_ms')) OR (table_name='scx_ocpx_billing_entry' AND column_name IN ('balance_before','balance_after','operator_id','remark','channel_id','app_link_id','monitor_id','source_event_code','conversion_event_code','media_event_code')));")"
 

@@ -13,6 +13,7 @@ SCX_REQUIRED_TABLES=(
   scx_adx_monitor_link scx_adx_deduction_rule scx_adx_hourly_report
   scx_adx_event_definition scx_adx_channel_event_mapping
   scx_adx_monitor_event_binding scx_adx_route_event_snapshot
+  scx_adx_user_scope scx_adx_user_scope_revision
   scx_api_debug_case scx_api_debug_execution scx_api_debug_execution_log
   scx_api_debug_log_access_audit
   scx_ocpx_adapter scx_ocpx_event scx_ocpx_protocol_snapshot scx_ocpx_callback_ref

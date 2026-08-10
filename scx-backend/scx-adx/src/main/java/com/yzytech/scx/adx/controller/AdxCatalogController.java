@@ -17,6 +17,7 @@ import com.yzytech.scx.adx.service.AdxRoutePublishService;
 import com.yzytech.scx.adx.service.AdxOcpxIntegrationService;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -245,6 +246,9 @@ public class AdxCatalogController {
 		}
 		catch (IllegalArgumentException e) {
 			return Result.fail(e.getMessage());
+		}
+		catch (BootBusinessException e) {
+			throw e;
 		}
 		catch (Exception e) {
 			return Result.fail("操作失败");

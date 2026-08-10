@@ -4,6 +4,7 @@ import {
   authorizeApiDebug,
   executeApiDebug,
   exportReport,
+  getAccessScopeOptions,
   getAdvertiserLedger,
   getApiDebugExecutionLogs,
   getApiDebugRecentLogs,
@@ -22,8 +23,11 @@ import {
   getRuntimeEvents,
   getRuntimeEventTimeline,
   getRuntimeIngressAudits,
+  getUserAccessScopeImpact,
+  getUserAccessScopes,
   preflightApiDebug,
   rechargeAdvertiser,
+  replaceUserAccessScopes,
   saveCatalog,
   saveEventDefinition,
   saveEventMapping,
@@ -238,6 +242,42 @@ describe('aDX API contract', () => {
           level: 'ERROR',
           source: 'ENGINE',
         },
+      },
+    );
+  });
+
+  it('uses a versioned whole-set contract for user object scopes', () => {
+    getUserAccessScopes('user-1');
+    getUserAccessScopeImpact('user-1');
+    getAccessScopeOptions();
+    replaceUserAccessScopes('user-1', 3, [
+      {
+        permissionLevel: 'VIEW',
+        scopeId: 'channel-1',
+        scopeType: 'CHANNEL',
+      },
+    ]);
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1/impact',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/options',
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1',
+      {
+        scopes: [
+          {
+            permissionLevel: 'VIEW',
+            scopeId: 'channel-1',
+            scopeType: 'CHANNEL',
+          },
+        ],
+        version: 3,
       },
     );
   });

@@ -33,8 +33,10 @@ class AdxRoutePublishServiceTest {
 
 	private final AdxEventService eventService = mock(AdxEventService.class);
 
+	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
+
 	private final AdxRoutePublishService service = new AdxRoutePublishService(monitorMapper, channelMapper,
-			advertiserMapper, configChangeService, adapterService, eventService);
+			advertiserMapper, configChangeService, adapterService, eventService, accessScope);
 
 	@Test
 	void rejectsRoutesWithoutHmac() {

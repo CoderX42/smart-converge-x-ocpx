@@ -17,6 +17,10 @@ import com.yzytech.scx.adx.mapper.AdxDeductionRuleMapper;
 import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
 import com.yzytech.scx.adx.mapper.AdxSystemUserMapper;
 import com.yzytech.scx.adx.mapper.AdxSystemUserRoleMapper;
+import com.yzytech.scx.adx.service.AdxAccessScope.PermissionLevel;
+import com.yzytech.scx.adx.service.AdxAccessScope.Restriction;
+import com.yzytech.scx.adx.service.AdxAccessScope.ScopeType;
+import com.yzytech.scx.adx.service.AdxAccessScope.Snapshot;
 import com.yzytech.scx.system.api.entity.SysUser;
 import com.yzytech.scx.system.api.entity.SysUserRole;
 import lombok.RequiredArgsConstructor;
@@ -59,14 +63,21 @@ public class AdxCatalogService {
 
 	private final AdxAccessScope accessScope;
 
+	private final AdxUserScopeService userScopeService;
+
 	private final AdxConfigChangeService configChangeService;
 
 	private final AdxEventService eventService;
 
 	public IPage<CatalogViews.Channel> channels(Page<AdxChannel> page, String keyword) {
+		Restriction restriction = accessScope.current().restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
+		if (isEmpty(restriction)) {
+			return emptyPage(page);
+		}
 		return channelMapper
 			.selectPage(page,
 					Wrappers.<AdxChannel>lambdaQuery()
+						.in(!restriction.unrestricted(), AdxChannel::getId, restriction.ids())
 						.and(StringUtils.hasText(keyword),
 								q -> q.like(AdxChannel::getChannelName, keyword).or().like(AdxChannel::getUri, keyword))
 						.orderByDesc(AdxChannel::getCreateTime))
@@ -75,9 +86,15 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Channel saveChannel(String id, CatalogRequests.SaveChannel request) {
+		if (StringUtils.hasText(id)) {
+			requireChannel(id, PermissionLevel.OPERATE);
+		}
+		else {
+			accessScope.requireAll(PermissionLevel.MANAGE);
+		}
 		String publicBaseUri = validatePublicBaseUri(request.uri());
 		ensureUniqueChannel(id, request.channelName(), request.channelCode());
-		AdxChannel entity = StringUtils.hasText(id) ? requireChannel(id) : new AdxChannel();
+		AdxChannel entity = StringUtils.hasText(id) ? requireChannel(id, PermissionLevel.OPERATE) : new AdxChannel();
 		entity.setChannelCode(request.channelCode().trim());
 		entity.setChannelName(request.channelName().trim());
 		entity.setAdapterCode(request.adapterCode().trim().toUpperCase());
@@ -106,7 +123,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public void deleteChannel(String id) {
-		requireChannel(id);
+		requireChannel(id, PermissionLevel.MANAGE);
 		if (monitorMapper.selectCount(Wrappers.<AdxMonitorLink>lambdaQuery().eq(AdxMonitorLink::getChannelId, id)) > 0
 				|| deductionMapper
 					.selectCount(Wrappers.<AdxDeductionRule>lambdaQuery().eq(AdxDeductionRule::getChannelId, id)) > 0) {
@@ -116,9 +133,14 @@ public class AdxCatalogService {
 	}
 
 	public IPage<CatalogViews.Advertiser> advertisers(Page<AdxAdvertiser> page, String keyword) {
+		Restriction restriction = accessScope.current().restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		if (isEmpty(restriction)) {
+			return emptyPage(page);
+		}
 		return advertiserMapper
 			.selectPage(page,
 					Wrappers.<AdxAdvertiser>lambdaQuery()
+						.in(!restriction.unrestricted(), AdxAdvertiser::getId, restriction.ids())
 						.and(StringUtils.hasText(keyword),
 								q -> q.like(AdxAdvertiser::getAdvertiserName, keyword)
 									.or()
@@ -129,8 +151,15 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Advertiser saveAdvertiser(String id, CatalogRequests.SaveAdvertiser request) {
+		if (StringUtils.hasText(id)) {
+			requireAdvertiser(id, PermissionLevel.OPERATE);
+		}
+		else {
+			accessScope.requireAll(PermissionLevel.MANAGE);
+		}
 		ensureUniqueAdvertiser(id, request.advertiserName(), request.account());
-		AdxAdvertiser entity = StringUtils.hasText(id) ? requireAdvertiser(id) : new AdxAdvertiser();
+		AdxAdvertiser entity = StringUtils.hasText(id) ? requireAdvertiser(id, PermissionLevel.OPERATE)
+				: new AdxAdvertiser();
 		if (!StringUtils.hasText(id) && !StringUtils.hasText(request.password())) {
 			throw new IllegalArgumentException("新增广告主时密码必填");
 		}
@@ -166,7 +195,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public void deleteAdvertiser(String id) {
-		requireAdvertiser(id);
+		requireAdvertiser(id, PermissionLevel.MANAGE);
 		if (appLinkMapper.selectCount(Wrappers.<AdxAppLink>lambdaQuery().eq(AdxAppLink::getAdvertiserId, id)) > 0
 				|| monitorMapper
 					.selectCount(Wrappers.<AdxMonitorLink>lambdaQuery().eq(AdxMonitorLink::getAdvertiserId, id)) > 0) {
@@ -177,8 +206,16 @@ public class AdxCatalogService {
 	}
 
 	public IPage<CatalogViews.AppLink> appLinks(Page<AdxAppLink> page, String advertiserId, String keyword) {
+		Restriction restriction = accessScope.current().restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		if (StringUtils.hasText(advertiserId)) {
+			accessScope.require(ScopeType.ADVERTISER, advertiserId, PermissionLevel.VIEW);
+		}
+		if (isEmpty(restriction)) {
+			return emptyPage(page);
+		}
 		Page<AdxAppLink> result = appLinkMapper.selectPage(page,
 				Wrappers.<AdxAppLink>lambdaQuery()
+					.in(!restriction.unrestricted(), AdxAppLink::getAdvertiserId, restriction.ids())
 					.eq(StringUtils.hasText(advertiserId), AdxAppLink::getAdvertiserId, advertiserId)
 					.and(StringUtils.hasText(keyword),
 							q -> q.like(AdxAppLink::getLinkName, keyword).or().like(AdxAppLink::getLinkUrl, keyword))
@@ -190,11 +227,11 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.AppLink saveAppLink(String id, CatalogRequests.SaveAppLink request) {
-		AdxAdvertiser advertiser = requireAdvertiser(request.advertiserId());
+		AdxAdvertiser advertiser = requireAdvertiser(request.advertiserId(), PermissionLevel.OPERATE);
 		if (!List.of(1, 2, 3, 4).contains(request.linkPlatform())) {
 			throw new IllegalArgumentException("应用平台无效");
 		}
-		AdxAppLink entity = StringUtils.hasText(id) ? requireAppLink(id) : new AdxAppLink();
+		AdxAppLink entity = StringUtils.hasText(id) ? requireAppLink(id, PermissionLevel.OPERATE) : new AdxAppLink();
 		entity.setAdvertiserId(request.advertiserId());
 		entity.setLinkPlatform(request.linkPlatform());
 		entity.setLinkName(request.linkName().trim());
@@ -215,7 +252,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public void deleteAppLink(String id) {
-		requireAppLink(id);
+		requireAppLink(id, PermissionLevel.MANAGE);
 		if (monitorMapper.selectCount(Wrappers.<AdxMonitorLink>lambdaQuery().eq(AdxMonitorLink::getAppLinkId, id)) > 0
 				|| deductionMapper
 					.selectCount(Wrappers.<AdxDeductionRule>lambdaQuery().eq(AdxDeductionRule::getAppLinkId, id)) > 0) {
@@ -226,7 +263,21 @@ public class AdxCatalogService {
 
 	public IPage<CatalogViews.Monitor> monitors(Page<AdxMonitorLink> page, String channelId, String advertiserId,
 			String keyword) {
+		Snapshot snapshot = accessScope.current();
+		Restriction channels = snapshot.restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
+		Restriction advertisers = snapshot.restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(ScopeType.CHANNEL, channelId, PermissionLevel.VIEW);
+		}
+		if (StringUtils.hasText(advertiserId)) {
+			accessScope.require(ScopeType.ADVERTISER, advertiserId, PermissionLevel.VIEW);
+		}
+		if (isEmpty(channels) || isEmpty(advertisers)) {
+			return emptyPage(page);
+		}
 		Page<AdxMonitorLink> result = monitorMapper.selectPage(page, Wrappers.<AdxMonitorLink>lambdaQuery()
+			.in(!channels.unrestricted(), AdxMonitorLink::getChannelId, channels.ids())
+			.in(!advertisers.unrestricted(), AdxMonitorLink::getAdvertiserId, advertisers.ids())
 			.eq(StringUtils.hasText(channelId), AdxMonitorLink::getChannelId, channelId)
 			.eq(StringUtils.hasText(advertiserId), AdxMonitorLink::getAdvertiserId, advertiserId)
 			.and(StringUtils.hasText(keyword),
@@ -237,13 +288,14 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Monitor saveMonitor(String id, CatalogRequests.SaveMonitor request) {
-		AdxChannel channel = requireChannel(request.channelId());
-		AdxAdvertiser advertiser = requireAdvertiser(request.advertiserId());
-		AdxAppLink appLink = requireAppLink(request.appLinkId());
+		AdxChannel channel = requireChannel(request.channelId(), PermissionLevel.OPERATE);
+		AdxAdvertiser advertiser = requireAdvertiser(request.advertiserId(), PermissionLevel.OPERATE);
+		AdxAppLink appLink = requireAppLink(request.appLinkId(), PermissionLevel.OPERATE);
 		if (!request.advertiserId().equals(appLink.getAdvertiserId())) {
 			throw new IllegalArgumentException("应用链接不属于所选广告主");
 		}
-		AdxMonitorLink entity = StringUtils.hasText(id) ? requireMonitor(id) : new AdxMonitorLink();
+		AdxMonitorLink entity = StringUtils.hasText(id) ? requireMonitor(id, PermissionLevel.OPERATE)
+				: new AdxMonitorLink();
 		entity.setChannelId(request.channelId());
 		entity.setAdvertiserId(request.advertiserId());
 		entity.setAppLinkId(request.appLinkId());
@@ -277,7 +329,7 @@ public class AdxCatalogService {
 	}
 
 	public CatalogViews.Monitor monitor(String id) {
-		AdxMonitorLink entity = requireMonitor(id);
+		AdxMonitorLink entity = requireMonitor(id, PermissionLevel.VIEW);
 		AdxChannel channel = requireChannel(entity.getChannelId());
 		AdxAdvertiser advertiser = requireAdvertiser(entity.getAdvertiserId());
 		AdxAppLink appLink = requireAppLink(entity.getAppLinkId());
@@ -287,7 +339,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public void deleteMonitor(String id) {
-		AdxMonitorLink monitor = requireMonitor(id);
+		AdxMonitorLink monitor = requireMonitor(id, PermissionLevel.MANAGE);
 		eventService.replaceBindings(id, monitor.getChannelId(), List.of());
 		monitorMapper.deleteById(monitor);
 		configChangeService.enqueueMonitor(id, monitor.getConfigVersion() == null ? 1 : monitor.getConfigVersion() + 1,
@@ -295,8 +347,23 @@ public class AdxCatalogService {
 	}
 
 	public IPage<CatalogViews.Deduction> deductions(Page<AdxDeductionRule> page, String channelId, String appLinkId) {
+		Snapshot snapshot = accessScope.current();
+		Restriction channels = snapshot.restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
+		Restriction advertisers = snapshot.restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(ScopeType.CHANNEL, channelId, PermissionLevel.VIEW);
+		}
+		if (StringUtils.hasText(appLinkId)) {
+			requireAppLink(appLinkId, PermissionLevel.VIEW);
+		}
+		List<String> visibleLinks = visibleAppLinkIds(advertisers);
+		if (isEmpty(channels) || (!advertisers.unrestricted() && visibleLinks.isEmpty())) {
+			return emptyPage(page);
+		}
 		Page<AdxDeductionRule> result = deductionMapper.selectPage(page,
 				Wrappers.<AdxDeductionRule>lambdaQuery()
+					.in(!channels.unrestricted(), AdxDeductionRule::getChannelId, channels.ids())
+					.in(!advertisers.unrestricted(), AdxDeductionRule::getAppLinkId, visibleLinks)
 					.eq(StringUtils.hasText(channelId), AdxDeductionRule::getChannelId, channelId)
 					.eq(StringUtils.hasText(appLinkId), AdxDeductionRule::getAppLinkId, appLinkId)
 					.orderByDesc(AdxDeductionRule::getCreateTime));
@@ -304,26 +371,32 @@ public class AdxCatalogService {
 	}
 
 	public Map<String, Object> reportOptions() {
-		String advertiserScope = accessScope.currentAdvertiserId();
-		List<AdxAdvertiser> advertiserRows = advertiserMapper.selectList(Wrappers.<AdxAdvertiser>lambdaQuery()
-			.eq(StringUtils.hasText(advertiserScope), AdxAdvertiser::getId, advertiserScope)
-			.orderByAsc(AdxAdvertiser::getAdvertiserName));
+		Snapshot snapshot = accessScope.current();
+		Restriction advertisers = snapshot.restriction(ScopeType.ADVERTISER, PermissionLevel.VIEW);
+		Restriction channels = snapshot.restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
+		List<AdxAdvertiser> advertiserRows = isEmpty(advertisers) ? List.of()
+				: advertiserMapper.selectList(Wrappers.<AdxAdvertiser>lambdaQuery()
+					.in(!advertisers.unrestricted(), AdxAdvertiser::getId, advertisers.ids())
+					.orderByAsc(AdxAdvertiser::getAdvertiserName));
 		Map<String, String> advertiserNames = advertiserRows.stream()
 			.collect(Collectors.toMap(AdxAdvertiser::getId, AdxAdvertiser::getAdvertiserName));
 		Map<String, String> advertiserBidUrls = advertiserRows.stream()
 			.collect(Collectors.toMap(AdxAdvertiser::getId, AdxAdvertiser::getBidUrl));
-		List<AdxAppLink> linkRows = appLinkMapper.selectList(Wrappers.<AdxAppLink>lambdaQuery()
-			.eq(StringUtils.hasText(advertiserScope), AdxAppLink::getAdvertiserId, advertiserScope)
-			.orderByAsc(AdxAppLink::getLinkName));
+		List<AdxAppLink> linkRows = isEmpty(advertisers) ? List.of()
+				: appLinkMapper.selectList(Wrappers.<AdxAppLink>lambdaQuery()
+					.in(!advertisers.unrestricted(), AdxAppLink::getAdvertiserId, advertisers.ids())
+					.orderByAsc(AdxAppLink::getLinkName));
 		Map<String, String> linkNames = linkRows.stream()
 			.collect(Collectors.toMap(AdxAppLink::getId, AdxAppLink::getLinkName));
-		List<AdxMonitorLink> monitorRows = monitorMapper.selectList(Wrappers.<AdxMonitorLink>lambdaQuery()
-			.eq(StringUtils.hasText(advertiserScope), AdxMonitorLink::getAdvertiserId, advertiserScope)
-			.orderByAsc(AdxMonitorLink::getMonitorName));
-		List<String> channelIds = monitorRows.stream().map(AdxMonitorLink::getChannelId).distinct().toList();
-		List<AdxChannel> channelRows = StringUtils.hasText(advertiserScope)
-				? (channelIds.isEmpty() ? List.of() : channelMapper.selectBatchIds(channelIds))
-				: channelMapper.selectList(Wrappers.<AdxChannel>lambdaQuery().orderByAsc(AdxChannel::getChannelName));
+		List<AdxMonitorLink> monitorRows = isEmpty(advertisers) || isEmpty(channels) ? List.of()
+				: monitorMapper.selectList(Wrappers.<AdxMonitorLink>lambdaQuery()
+					.in(!advertisers.unrestricted(), AdxMonitorLink::getAdvertiserId, advertisers.ids())
+					.in(!channels.unrestricted(), AdxMonitorLink::getChannelId, channels.ids())
+					.orderByAsc(AdxMonitorLink::getMonitorName));
+		List<AdxChannel> channelRows = isEmpty(channels) ? List.of()
+				: channelMapper.selectList(Wrappers.<AdxChannel>lambdaQuery()
+					.in(!channels.unrestricted(), AdxChannel::getId, channels.ids())
+					.orderByAsc(AdxChannel::getChannelName));
 		Map<String, String> channelNames = channelRows.stream()
 			.collect(Collectors.toMap(AdxChannel::getId, AdxChannel::getChannelName));
 		Map<String, com.yzytech.scx.adx.dto.EventViews.BindingSummary> monitorSummaries = eventService
@@ -344,8 +417,8 @@ public class AdxCatalogService {
 
 	@Transactional
 	public CatalogViews.Deduction saveDeduction(String id, CatalogRequests.SaveDeduction request) {
-		AdxChannel channel = requireChannel(request.channelId());
-		AdxAppLink appLink = requireAppLink(request.appLinkId());
+		AdxChannel channel = requireChannel(request.channelId(), PermissionLevel.OPERATE);
+		AdxAppLink appLink = requireAppLink(request.appLinkId(), PermissionLevel.OPERATE);
 		long duplicate = deductionMapper.selectCount(Wrappers.<AdxDeductionRule>lambdaQuery()
 			.eq(AdxDeductionRule::getChannelId, request.channelId())
 			.eq(AdxDeductionRule::getAppLinkId, request.appLinkId())
@@ -353,7 +426,8 @@ public class AdxCatalogService {
 		if (duplicate > 0) {
 			throw new IllegalArgumentException("该渠道和应用链接已配置扣量规则");
 		}
-		AdxDeductionRule entity = StringUtils.hasText(id) ? requireDeduction(id) : new AdxDeductionRule();
+		AdxDeductionRule entity = StringUtils.hasText(id) ? requireDeduction(id, PermissionLevel.OPERATE)
+				: new AdxDeductionRule();
 		entity.setChannelId(request.channelId());
 		entity.setAppLinkId(request.appLinkId());
 		entity.setRatio(request.ratio());
@@ -370,7 +444,7 @@ public class AdxCatalogService {
 
 	@Transactional
 	public void deleteDeduction(String id) {
-		AdxDeductionRule rule = requireDeduction(id);
+		AdxDeductionRule rule = requireDeduction(id, PermissionLevel.MANAGE);
 		deductionMapper.deleteById(rule);
 		configChangeService.deductionChanged(rule.getChannelId(), rule.getAppLinkId());
 	}
@@ -424,23 +498,53 @@ public class AdxCatalogService {
 	}
 
 	private AdxChannel requireChannel(String id) {
-		return require(channelMapper.selectById(id), "渠道不存在");
+		return requireChannel(id, PermissionLevel.VIEW);
+	}
+
+	private AdxChannel requireChannel(String id, PermissionLevel permissionLevel) {
+		accessScope.require(ScopeType.CHANNEL, id, permissionLevel);
+		return require(channelMapper.selectById(id), "渠道不存在或无权访问");
 	}
 
 	private AdxAdvertiser requireAdvertiser(String id) {
-		return require(advertiserMapper.selectById(id), "广告主不存在");
+		return requireAdvertiser(id, PermissionLevel.VIEW);
+	}
+
+	private AdxAdvertiser requireAdvertiser(String id, PermissionLevel permissionLevel) {
+		accessScope.require(ScopeType.ADVERTISER, id, permissionLevel);
+		return require(advertiserMapper.selectById(id), "广告主不存在或无权访问");
 	}
 
 	private AdxAppLink requireAppLink(String id) {
-		return require(appLinkMapper.selectById(id), "应用链接不存在");
+		return requireAppLink(id, PermissionLevel.VIEW);
+	}
+
+	private AdxAppLink requireAppLink(String id, PermissionLevel permissionLevel) {
+		AdxAppLink link = require(appLinkMapper.selectById(id), "应用链接不存在或无权访问");
+		accessScope.require(ScopeType.ADVERTISER, link.getAdvertiserId(), permissionLevel);
+		return link;
 	}
 
 	private AdxMonitorLink requireMonitor(String id) {
-		return require(monitorMapper.selectById(id), "监测链接不存在");
+		return requireMonitor(id, PermissionLevel.VIEW);
+	}
+
+	private AdxMonitorLink requireMonitor(String id, PermissionLevel permissionLevel) {
+		AdxMonitorLink monitor = require(monitorMapper.selectById(id), "监测链接不存在或无权访问");
+		accessScope.require(ScopeType.ADVERTISER, monitor.getAdvertiserId(), permissionLevel);
+		accessScope.require(ScopeType.CHANNEL, monitor.getChannelId(), permissionLevel);
+		return monitor;
 	}
 
 	private AdxDeductionRule requireDeduction(String id) {
-		return require(deductionMapper.selectById(id), "扣量规则不存在");
+		return requireDeduction(id, PermissionLevel.VIEW);
+	}
+
+	private AdxDeductionRule requireDeduction(String id, PermissionLevel permissionLevel) {
+		AdxDeductionRule rule = require(deductionMapper.selectById(id), "扣量规则不存在或无权访问");
+		accessScope.require(ScopeType.CHANNEL, rule.getChannelId(), permissionLevel);
+		requireAppLink(rule.getAppLinkId(), permissionLevel);
+		return rule;
 	}
 
 	private <T> T require(T value, String message) {
@@ -503,6 +607,31 @@ public class AdxCatalogService {
 			role.setRoleId(ADVERTISER_ROLE_ID);
 			systemUserRoleMapper.insert(role);
 		}
+		userScopeService.ensureAdvertiserScope(user.getId(), advertiser.getId());
+	}
+
+	private List<String> visibleAppLinkIds(Restriction advertisers) {
+		if (advertisers.unrestricted()) {
+			return List.of();
+		}
+		if (advertisers.ids().isEmpty()) {
+			return List.of();
+		}
+		return appLinkMapper
+			.selectList(Wrappers.<AdxAppLink>lambdaQuery().in(AdxAppLink::getAdvertiserId, advertisers.ids()))
+			.stream()
+			.map(AdxAppLink::getId)
+			.toList();
+	}
+
+	private boolean isEmpty(Restriction restriction) {
+		return !restriction.unrestricted() && restriction.ids().isEmpty();
+	}
+
+	private <T> IPage<T> emptyPage(Page<?> requested) {
+		Page<T> page = new Page<>(requested.getCurrent(), requested.getSize(), 0);
+		page.setRecords(List.of());
+		return page;
 	}
 
 	private void deleteAdvertiserLogin(String advertiserId) {

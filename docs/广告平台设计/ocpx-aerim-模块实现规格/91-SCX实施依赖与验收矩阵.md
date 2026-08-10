@@ -24,7 +24,7 @@ Accepted 需求/决策
 
 | Slice | 目标 | 前置 | 主要改动 | 完成证据 | 状态 |
 |---|---|---|---|---|---|
-| `S0` | 术语、权限与对象范围基线 | Accepted ADR-001/002 | scope 表/API、权限码、服务端过滤、菜单约定 | 范围越权测试、缓存失效、菜单/按钮/API 一致 | Ready for design |
+| `S0` | 术语、权限与对象范围基线 | Accepted ADR-001/002 | scope/revision 表、API、权限码、服务端过滤、菜单约定 | 范围越权测试、缓存版本失效、菜单/按钮/API 一致 | **Source + local gates complete (2026-08-10); target pending** |
 | `S1` | Advertiser 接入资料收口 | S0 | 复用 advertiser，资料版本/凭据 revision | Secret 不回显、资料扫描/权限、依赖路由待重发 | Ready for design |
 | `S2` | Product 主数据 | S0/S1 | Product 表/API/UI/事件默认策略 | CRUD、唯一、归档引用、范围、Logo | Ready for implementation after review |
 | `S3` | MediaAccount / MediaCredential | S0 | Channel 分层、业务账户、外部凭据 revision、内部负责人 | 账户 CRUD、Secret 只写、owner 分权、连接检查边界 | Ready for implementation after review |
@@ -39,6 +39,8 @@ Accepted 需求/决策
 | `S12` | DP 转换 | 供应商 RFC/ADR | Adapter/SSRF/幂等/UI | 安全测试、正式协议、隐私/TTL/UAT | **Blocked** |
 
 S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须先由 S0/S1 固定。S8 前必须先保证运行事实具备完整维度，否则报表页面只会掩盖数据缺口。
+
+S0 的“local gates complete”仅表示当前工作树源码、迁移契约、一次性 MySQL 8.4 空库/升级副本、撤权后误重放不回授、后端测试、前端类型/单测/规则/构建等本地证据通过。目标数据库未应用 V81，目标服务与浏览器尚未验收，也未发布生产；进入 S1 可以依赖该源码契约，但上线结论仍受 `DB-G5` 约束。
 
 ## 3. SCX 模块落点
 
@@ -56,7 +58,7 @@ S2 与 S3 可并行，但共享的 scope、审计、存储和错误约定必须�
 
 | Slice | Migration/Data | API/Contract | UI | Permission/Scope | Async/Failure | Tests |
 |---|---|---|---|---|---|---|
-| S0 | `scx_adx_user_scope`、唯一/有效期 | scope 整体读写/impact | 用户 ADX scope 页签 | function + object intersection | 缓存失效重试 | 越权 ID、角色变化、缓存旧值 |
+| S0 | `scx_adx_user_scope` + revision、活动唯一/有效期 | scope 整体读写/impact/options | 用户行 ADX scope 抽屉 | function + object intersection；最后 ALL/MANAGE 保护 | DB revision 每次校验 + 本机/Redis 提交后失效 | 越权 ID、有效期、并发 version、缓存旧值、迁移契约 |
 | S1 | document/version、credential revision | advertiser 扩展/rotate/docs | 广告主/资料抽屉 | credential/document 独立权 | 上传清理、轮换重叠 | Secret/URL/文件/引用 |
 | S2 | product/policy | `/adx/products` | Product 表/抽屉 | advertiser scope | Logo 临时清理 | CRUD/唯一/归档/事件行 |
 | S3 | media_account/credential/owner | `/adx/media-accounts` + credentials/owners | 媒体账户、渠道用户凭据、内部负责人 | Channel/Account scope + credential 独立权 | Secret revision/连接检查 worker | 凭据不回显、owner 分权、Adapter、状态 |

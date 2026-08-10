@@ -26,8 +26,8 @@ import java.util.Comparator;
  * </p>
  *
  * <p>
- * 数据权限由 {@link AdxAccessScope} 统一收敛：广告主账号只能读取自身事件及其关联 attempts/入口审计；管理员和
- * 运营账号按已有权限查看全局运行状态。返回内容只包含运行审计的脱敏摘要，不负责读取或还原协议快照中的敏感原文。
+ * 数据权限由 {@link AdxAccessScope} 统一收敛：事件、投递、attempts、入口审计和补偿命令同时受广告主与渠道对象范围约束；
+ * 只有显式 ALL 授权可查看全局运行状态。返回内容只包含运行审计的脱敏摘要，不负责读取或还原协议快照中的敏感原文。
  * </p>
  */
 @Service
@@ -46,7 +46,7 @@ public class AdxRuntimeService {
 	 * @param jdbcTemplate 查询 OCPX 与 ADX 运行表
 	 * @param redisTemplate 查询 feedback stream 积压并执行 DLQ 重放
 	 * @param partitionCount feedback stream 分区数量，必须与数据面配置一致
-	 * @param accessScope 当前管理账号的广告主数据范围
+	 * @param accessScope 当前管理账号的 ADX 对象范围
 	 */
 	public AdxRuntimeService(JdbcTemplate jdbcTemplate, StringRedisTemplate redisTemplate,
 			@Value("${scx.ocpx.partition-count:64}") int partitionCount, AdxAccessScope accessScope) {
@@ -66,19 +66,29 @@ public class AdxRuntimeService {
 	 * @return 任务状态、方向、DLQ 和 stream 积压概览
 	 */
 	public RuntimeViews.Overview overview() {
+		ScopeSql deliveryScope = deliveryScope("j", AdxAccessScope.PermissionLevel.VIEW);
 		Map<String, Long> statuses = new LinkedHashMap<>();
 		jdbcTemplate.query(
-				"SELECT status,COUNT(*) FROM scx_ocpx_delivery_job WHERE debug_execution_id IS NULL GROUP BY status",
+				"SELECT j.status,COUNT(*) FROM scx_ocpx_delivery_job j WHERE j.debug_execution_id IS NULL"
+						+ deliveryScope.clause() + " GROUP BY j.status",
+				deliveryScope.args().toArray(),
 				(RowCallbackHandler) rs -> statuses.put(rs.getString(1), rs.getLong(2)));
 		Map<String, Long> directions = new LinkedHashMap<>();
 		jdbcTemplate.query(
-				"SELECT direction,COUNT(*) FROM scx_ocpx_delivery_job WHERE debug_execution_id IS NULL GROUP BY direction",
+				"SELECT j.direction,COUNT(*) FROM scx_ocpx_delivery_job j WHERE j.debug_execution_id IS NULL"
+						+ deliveryScope.clause() + " GROUP BY j.direction",
+				deliveryScope.args().toArray(),
 				(RowCallbackHandler) rs -> directions.put(rs.getString(1), rs.getLong(2)));
-		Long dlq = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_dlq WHERE status='PENDING'",
-				Long.class);
+		ScopeSql dlqScope = eventReferenceScope("d.event_id", AdxAccessScope.PermissionLevel.VIEW);
+		Long dlq = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM scx_ocpx_ingress_dlq d WHERE d.status='PENDING'" + dlqScope.clause(), Long.class,
+				dlqScope.args().toArray());
 		return new RuntimeViews.Overview(statuses.getOrDefault("PENDING", 0L), statuses.getOrDefault("RETRY", 0L),
 				statuses.getOrDefault("DEAD", 0L), statuses.getOrDefault("SUCCESS", 0L), dlq == null ? 0 : dlq,
-				feedbackPending(), directions);
+				accessScope.current()
+					.restriction(AdxAccessScope.ScopeType.ALL, AdxAccessScope.PermissionLevel.VIEW)
+					.unrestricted() ? feedbackPending() : -1,
+				directions);
 	}
 
 	/**
@@ -95,20 +105,22 @@ public class AdxRuntimeService {
 	 * @return 按创建时间倒序排列的投递任务分页
 	 */
 	public Page<RuntimeViews.Delivery> deliveries(long current, long size, String status, String direction) {
-		String where = " WHERE 1=1" + (StringUtils.hasText(status) ? " AND status=?" : "")
-				+ (StringUtils.hasText(direction) ? " AND direction=?" : "");
+		ScopeSql scope = deliveryScope("j", AdxAccessScope.PermissionLevel.VIEW);
+		String where = " WHERE 1=1" + (StringUtils.hasText(status) ? " AND j.status=?" : "")
+				+ (StringUtils.hasText(direction) ? " AND j.direction=?" : "") + scope.clause();
 		List<Object> args = new java.util.ArrayList<>();
 		if (StringUtils.hasText(status))
 			args.add(status);
 		if (StringUtils.hasText(direction))
 			args.add(direction);
-		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_delivery_job" + where, Long.class,
+		args.addAll(scope.args());
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_delivery_job j" + where, Long.class,
 				args.toArray());
 		args.add(size);
 		args.add((current - 1) * size);
 		List<RuntimeViews.Delivery> rows = jdbcTemplate.query("""
 				SELECT id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,last_error,
-				       create_time,update_time FROM scx_ocpx_delivery_job
+				       j.create_time,j.update_time FROM scx_ocpx_delivery_job j
 				""" + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?",
 				(rs, rowNum) -> new RuntimeViews.Delivery(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getInt(7),
@@ -128,18 +140,20 @@ public class AdxRuntimeService {
 	 * @return 按创建时间倒序排列的 DLQ 分页
 	 */
 	public Page<RuntimeViews.IngressDlq> ingressDlq(long current, long size, String status) {
-		String where = StringUtils.hasText(status) ? " WHERE status=?" : "";
+		ScopeSql scope = eventReferenceScope("d.event_id", AdxAccessScope.PermissionLevel.VIEW);
+		String where = " WHERE 1=1" + (StringUtils.hasText(status) ? " AND d.status=?" : "") + scope.clause();
 		List<Object> args = new java.util.ArrayList<>();
 		if (StringUtils.hasText(status)) {
 			args.add(status);
 		}
-		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_dlq" + where, Long.class,
+		args.addAll(scope.args());
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_dlq d" + where, Long.class,
 				args.toArray());
 		args.add(size);
 		args.add((current - 1) * size);
 		List<RuntimeViews.IngressDlq> rows = jdbcTemplate.query("""
 				SELECT id,partition_no,stream_record_id,event_id,reason,status,create_time,replayed_at
-				FROM scx_ocpx_ingress_dlq
+				FROM scx_ocpx_ingress_dlq d
 				""" + where + " ORDER BY create_time DESC LIMIT ? OFFSET ?",
 				(rs, rowNum) -> new RuntimeViews.IngressDlq(rs.getString(1), rs.getInt(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getTimestamp(7).toLocalDateTime(),
@@ -179,8 +193,15 @@ public class AdxRuntimeService {
 		addEquals(where, args, "e.event_id", eventId);
 		addEquals(where, args, "e.source_direction", direction);
 		addEquals(where, args, "e.event_type", eventType);
+		if (StringUtils.hasText(channelId)) {
+			accessScope.require(AdxAccessScope.ScopeType.CHANNEL, channelId, AdxAccessScope.PermissionLevel.VIEW);
+		}
+		if (StringUtils.hasText(advertiserId)) {
+			accessScope.require(AdxAccessScope.ScopeType.ADVERTISER, advertiserId, AdxAccessScope.PermissionLevel.VIEW);
+		}
 		addEquals(where, args, "e.channel_id", channelId);
-		addEquals(where, args, "e.advertiser_id", accessScope.constrainAdvertiser(advertiserId));
+		addEquals(where, args, "e.advertiser_id", advertiserId);
+		appendObjectScope(where, args, "e.advertiser_id", "e.channel_id", AdxAccessScope.PermissionLevel.VIEW);
 		addEquals(where, args, "e.monitor_id", monitorId);
 		addEquals(where, args, "e.status", status);
 		if (startTime != null) {
@@ -208,8 +229,9 @@ public class AdxRuntimeService {
 				(rs, rowNum) -> new RuntimeViews.Event(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
 						rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13),
-						rs.getString(14), rs.getString(15), rs.getBigDecimal(16), rs.getString(17), rs.getBigDecimal(18),
-						rs.getString(19), rs.getTimestamp(20).toLocalDateTime(), rs.getTimestamp(21).toLocalDateTime()),
+						rs.getString(14), rs.getString(15), rs.getBigDecimal(16), rs.getString(17),
+						rs.getBigDecimal(18), rs.getString(19), rs.getTimestamp(20).toLocalDateTime(),
+						rs.getTimestamp(21).toLocalDateTime()),
 				args.toArray());
 		Page<RuntimeViews.Event> page = new Page<>(current, size, total == null ? 0 : total);
 		page.setRecords(rows);
@@ -232,28 +254,34 @@ public class AdxRuntimeService {
 	 * @throws IllegalArgumentException 事件不存在或不在当前账号数据范围内
 	 */
 	public List<RuntimeViews.TimelineItem> eventTimeline(String id) {
-		String advertiserId = accessScope.currentAdvertiserId();
+		ScopeSql scope = objectScope("advertiser_id", "channel_id", AdxAccessScope.PermissionLevel.VIEW);
 		List<EventIdentity> identities = jdbcTemplate.query("""
 				SELECT event_id,parent_event_id,advertiser_id FROM scx_ocpx_event
-				WHERE (id=? OR event_id=?) AND (? IS NULL OR advertiser_id=?) LIMIT 1
-				""", (rs, rowNum) -> new EventIdentity(rs.getString(1), rs.getString(2), rs.getString(3)), id, id,
-				advertiserId, advertiserId);
+				WHERE (id=? OR event_id=?)
+				""" + scope.clause() + " LIMIT 1",
+				(rs, rowNum) -> new EventIdentity(rs.getString(1), rs.getString(2), rs.getString(3)),
+				concat(List.of(id, id), scope.args()).toArray());
 		if (identities.isEmpty()) {
 			throw new IllegalArgumentException("事件不存在或无权查看");
 		}
 		EventIdentity identity = identities.get(0);
 		String rootEventId = StringUtils.hasText(identity.parentEventId()) ? identity.parentEventId()
 				: identity.eventId();
+		// A child cannot be used as a bridge into a parent event from another object
+		// scope, even if corrupt historical lineage exists.
+		requireEventScope(rootEventId, AdxAccessScope.PermissionLevel.VIEW);
 		List<RuntimeViews.TimelineItem> result = new ArrayList<>();
-		result.addAll(jdbcTemplate.query(
-				"""
-						SELECT source_direction,status,event_id,
-						 CONCAT(event_type,':',COALESCE(source_event_code,'-'),'→',COALESCE(conversion_event_code,'-'),'→',COALESCE(media_event_code,'-')),
-						 received_at FROM scx_ocpx_event
-						WHERE event_id=? OR parent_event_id=? ORDER BY received_at
-						""", (rs, rowNum) -> new RuntimeViews.TimelineItem(rs.getString(1), rs.getString(2),
-						rs.getString(3), rs.getString(4), rs.getTimestamp(5).toLocalDateTime()),
-				rootEventId, rootEventId));
+		result.addAll(
+				jdbcTemplate
+					.query("""
+							SELECT source_direction,status,event_id,
+							 CONCAT(event_type,':',COALESCE(source_event_code,'-'),'→',COALESCE(conversion_event_code,'-'),'→',COALESCE(media_event_code,'-')),
+							 received_at FROM scx_ocpx_event
+							WHERE event_id=? OR parent_event_id=? ORDER BY received_at
+							""",
+							(rs, rowNum) -> new RuntimeViews.TimelineItem(rs.getString(1), rs.getString(2),
+									rs.getString(3), rs.getString(4), rs.getTimestamp(5).toLocalDateTime()),
+							rootEventId, rootEventId));
 		result.addAll(jdbcTemplate.query("""
 				SELECT CONCAT(mode,'_BILLING'),status,id,CONCAT(mode,':',COALESCE(reason,'')),create_time
 				FROM scx_ocpx_billing_entry WHERE charge_event_id=? OR charge_event_id IN
@@ -291,20 +319,20 @@ public class AdxRuntimeService {
 	 * @return 按尝试序号升序排列的 HTTP attempts；无记录或无权查看时返回空列表
 	 */
 	public List<RuntimeViews.DeliveryAttempt> deliveryAttempts(String deliveryId) {
-		String advertiserId = accessScope.currentAdvertiserId();
+		ScopeSql scope = objectScope("e.advertiser_id", "e.channel_id", AdxAccessScope.PermissionLevel.VIEW);
 		return jdbcTemplate.query("""
 				SELECT a.id,a.job_id,a.attempt_no,a.status,a.http_status,a.error_message,a.request_method,a.target_host,
 				       a.target_path,a.request_summary,a.response_excerpt,a.duration_ms,a.create_time
 				FROM scx_ocpx_delivery_attempt a
 				JOIN scx_ocpx_delivery_job j ON j.id=a.job_id
-				JOIN scx_ocpx_event e ON e.event_id=j.source_event_id
-				WHERE a.job_id=? AND (? IS NULL OR e.advertiser_id=?) ORDER BY a.attempt_no
-				""",
+				JOIN scx_ocpx_event e ON e.event_id=COALESCE(j.source_event_id,j.event_id)
+				WHERE a.job_id=?
+				""" + scope.clause() + " ORDER BY a.attempt_no",
 				(rs, rowNum) -> new RuntimeViews.DeliveryAttempt(rs.getString(1), rs.getString(2), rs.getInt(3),
 						rs.getString(4), (Integer) rs.getObject(5), rs.getString(6), rs.getString(7), rs.getString(8),
 						rs.getString(9), rs.getString(10), rs.getString(11), (Long) rs.getObject(12),
 						rs.getTimestamp(13).toLocalDateTime()),
-				deliveryId, advertiserId, advertiserId);
+				concat(List.of(deliveryId), scope.args()).toArray());
 	}
 
 	/**
@@ -329,25 +357,20 @@ public class AdxRuntimeService {
 			LocalDateTime endTime) {
 		StringBuilder where = new StringBuilder(" WHERE 1=1");
 		List<Object> args = new ArrayList<>();
-		addEquals(where, args, "channel_code", channelCode);
-		addEquals(where, args, "result_status", resultStatus);
-		addEquals(where, args, "event_id", eventId);
-		addEquals(where, args, "route_reference", routeReference);
+		addEquals(where, args, "ia.channel_code", channelCode);
+		addEquals(where, args, "ia.result_status", resultStatus);
+		addEquals(where, args, "ia.event_id", eventId);
+		addEquals(where, args, "ia.route_reference", routeReference);
 		if (startTime != null) {
-			where.append(" AND create_time>=?");
+			where.append(" AND ia.create_time>=?");
 			args.add(startTime);
 		}
 		if (endTime != null) {
-			where.append(" AND create_time<?");
+			where.append(" AND ia.create_time<?");
 			args.add(endTime);
 		}
-		String scopedAdvertiser = accessScope.currentAdvertiserId();
-		if (StringUtils.hasText(scopedAdvertiser)) {
-			where.append(" AND EXISTS (SELECT 1 FROM scx_adx_monitor_link m WHERE m.advertiser_id=?")
-				.append(" AND (m.id=route_reference OR m.biz_id=route_reference))");
-			args.add(scopedAdvertiser);
-		}
-		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_audit" + where, Long.class,
+		appendIngressAuditScope(where, args, AdxAccessScope.PermissionLevel.VIEW);
+		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_ingress_audit ia" + where, Long.class,
 				args.toArray());
 		args.add(size);
 		args.add((current - 1) * size);
@@ -355,7 +378,7 @@ public class AdxRuntimeService {
 				"""
 						SELECT id,request_id,channel_code,event_id,route_reference,result_status,http_status,reason,payload_hash,
 						       client_id,key_version,remote_ip_masked,duration_ms,create_time
-						FROM scx_ocpx_ingress_audit
+						FROM scx_ocpx_ingress_audit ia
 						"""
 						+ where + " ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?",
 				(rs, rowNum) -> new RuntimeViews.IngressAudit(rs.getString(1), rs.getString(2), rs.getString(3),
@@ -380,6 +403,13 @@ public class AdxRuntimeService {
 	 */
 	@Transactional
 	public void replayDelivery(String id) {
+		List<String> eventIds = jdbcTemplate.query(
+				"SELECT COALESCE(source_event_id,event_id) FROM scx_ocpx_delivery_job WHERE id=? AND status='DEAD'",
+				(rs, rowNum) -> rs.getString(1), id);
+		if (eventIds.isEmpty()) {
+			throw new IllegalArgumentException("仅死亡任务可以重放");
+		}
+		requireEventScope(eventIds.get(0), AdxAccessScope.PermissionLevel.OPERATE);
 		int updated = jdbcTemplate.update("""
 				UPDATE scx_ocpx_delivery_job SET status='PENDING',attempt_count=0,next_retry_at=NOW(3),
 				 lease_owner=NULL,lease_until=NULL,last_error=NULL,update_time=NOW(3)
@@ -410,6 +440,7 @@ public class AdxRuntimeService {
 			throw new IllegalArgumentException("仅待处理入口死信可以重放");
 		}
 		IngressDlqPayload payload = rows.get(0);
+		requireEventScope(payload.eventId(), AdxAccessScope.PermissionLevel.OPERATE);
 		if (payload.reason().startsWith("INVALID_ENVELOPE")) {
 			throw new IllegalArgumentException("无效协议死信必须修正数据后重新接入，不能直接重放");
 		}
@@ -461,12 +492,98 @@ public class AdxRuntimeService {
 		}
 	}
 
+	private ScopeSql deliveryScope(String alias, AdxAccessScope.PermissionLevel level) {
+		ScopeSql eventScope = objectScope("e.advertiser_id", "e.channel_id", level);
+		return new ScopeSql(
+				" AND EXISTS (SELECT 1 FROM scx_ocpx_event e WHERE (e.event_id=" + alias
+						+ ".source_event_id OR e.event_id=" + alias + ".event_id)" + eventScope.clause() + ")",
+				eventScope.args());
+	}
+
+	private ScopeSql eventReferenceScope(String eventReference, AdxAccessScope.PermissionLevel level) {
+		ScopeSql eventScope = objectScope("e.advertiser_id", "e.channel_id", level);
+		return new ScopeSql(" AND EXISTS (SELECT 1 FROM scx_ocpx_event e WHERE e.event_id=" + eventReference
+				+ eventScope.clause() + ")", eventScope.args());
+	}
+
+	private ScopeSql objectScope(String advertiserColumn, String channelColumn, AdxAccessScope.PermissionLevel level) {
+		StringBuilder clause = new StringBuilder();
+		List<Object> args = new ArrayList<>();
+		appendObjectScope(clause, args, advertiserColumn, channelColumn, level);
+		return new ScopeSql(clause.toString(), List.copyOf(args));
+	}
+
+	private void appendObjectScope(StringBuilder where, List<Object> args, String advertiserColumn,
+			String channelColumn, AdxAccessScope.PermissionLevel level) {
+		AdxAccessScope.Snapshot snapshot = accessScope.current();
+		appendRestriction(where, args, advertiserColumn,
+				snapshot.restriction(AdxAccessScope.ScopeType.ADVERTISER, level));
+		appendRestriction(where, args, channelColumn, snapshot.restriction(AdxAccessScope.ScopeType.CHANNEL, level));
+	}
+
+	private void appendIngressAuditScope(StringBuilder where, List<Object> args, AdxAccessScope.PermissionLevel level) {
+		ScopeSql eventScope = objectScope("e.advertiser_id", "e.channel_id", level);
+		ScopeSql monitorScope = objectScope("m.advertiser_id", "m.channel_id", level);
+		where.append(" AND (EXISTS (SELECT 1 FROM scx_ocpx_event e WHERE e.event_id=ia.event_id")
+			.append(eventScope.clause())
+			.append(") OR EXISTS (SELECT 1 FROM scx_adx_monitor_link m")
+			.append(" WHERE (m.id=ia.route_reference OR m.biz_id=ia.route_reference)")
+			.append(monitorScope.clause())
+			.append("))");
+		args.addAll(eventScope.args());
+		args.addAll(monitorScope.args());
+	}
+
+	private void appendRestriction(StringBuilder where, List<Object> args, String column,
+			AdxAccessScope.Restriction restriction) {
+		if (restriction.unrestricted()) {
+			return;
+		}
+		if (restriction.ids().isEmpty()) {
+			where.append(" AND 1=0");
+			return;
+		}
+		where.append(" AND ")
+			.append(column)
+			.append(" IN (")
+			.append(String.join(",", java.util.Collections.nCopies(restriction.ids().size(), "?")))
+			.append(")");
+		args.addAll(restriction.ids());
+	}
+
+	private void requireEventScope(String eventId, AdxAccessScope.PermissionLevel level) {
+		if (!StringUtils.hasText(eventId)) {
+			throw new IllegalArgumentException("事件不存在或无权查看");
+		}
+		List<EventObject> rows = jdbcTemplate.query(
+				"SELECT advertiser_id,channel_id FROM scx_ocpx_event WHERE event_id=? LIMIT 1",
+				(rs, rowNum) -> new EventObject(rs.getString(1), rs.getString(2)), eventId);
+		if (rows.isEmpty()) {
+			throw new IllegalArgumentException("事件不存在或无权查看");
+		}
+		EventObject object = rows.get(0);
+		accessScope.require(AdxAccessScope.ScopeType.ADVERTISER, object.advertiserId(), level);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, object.channelId(), level);
+	}
+
+	private List<Object> concat(List<?> prefix, List<Object> suffix) {
+		List<Object> result = new ArrayList<>(prefix);
+		result.addAll(suffix);
+		return result;
+	}
+
 	/** 入口死信重放所需的最小内部投影。 */
 	private record IngressDlqPayload(int partition, String eventId, String envelope, String reason) {
 	}
 
 	/** 事件时间线根节点解析所需的最小内部投影。 */
 	private record EventIdentity(String eventId, String parentEventId, String advertiserId) {
+	}
+
+	private record EventObject(String advertiserId, String channelId) {
+	}
+
+	private record ScopeSql(String clause, List<Object> args) {
 	}
 
 }

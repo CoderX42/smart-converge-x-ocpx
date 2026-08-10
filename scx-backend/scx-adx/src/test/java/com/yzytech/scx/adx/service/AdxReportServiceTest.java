@@ -19,6 +19,8 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.eq;
 
+import java.util.Map;
+
 class AdxReportServiceTest {
 
 	private final AdxHourlyReportMapper mapper = mock(AdxHourlyReportMapper.class);
@@ -26,6 +28,10 @@ class AdxReportServiceTest {
 	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
 
 	private final AdxReportService service = new AdxReportService(mapper, accessScope);
+
+	private AdxAccessScope.Snapshot allScope() {
+		return new AdxAccessScope.Snapshot(1L, AdxAccessScope.PermissionLevel.MANAGE, Map.of());
+	}
 
 	@Test
 	void rejectsInvertedDateRangeBeforeQuery() {
@@ -37,7 +43,8 @@ class AdxReportServiceTest {
 
 	@Test
 	void dashboardReturnsStableZeroSafeContract() {
-		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
+		when(accessScope.current()).thenReturn(allScope());
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(List.of());
 
 		DashboardViews.Summary result = service.dashboard(null, null, null, null, null, null);
 
@@ -50,13 +57,14 @@ class AdxReportServiceTest {
 
 	@Test
 	void dashboardMarksHistoricalClickCoverageAsUnavailable() {
+		when(accessScope.current()).thenReturn(allScope());
 		DashboardDailyRow row = new DashboardDailyRow();
 		row.setReportDate(LocalDate.now(java.time.ZoneId.of("Asia/Shanghai")));
 		row.setClicks(10L);
 		row.setClassifiedClicks(8L);
 		row.setEligibleClicks(7L);
 		row.setActivates(3L);
-		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of(row));
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(List.of(row));
 
 		DashboardViews.Summary result = service.dashboard(null, null, null, null, null, null);
 
@@ -75,24 +83,34 @@ class AdxReportServiceTest {
 
 	@Test
 	void dashboardForcesAdvertiserScopeAcrossAllDimensions() {
-		when(accessScope.constrainAdvertiser("forged-advertiser")).thenReturn("own-advertiser");
-		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
+		AdxAccessScope.Snapshot limited = new AdxAccessScope.Snapshot(1L, null,
+				Map.of(AdxAccessScope.ScopeType.ADVERTISER,
+						Map.of("own-advertiser", AdxAccessScope.PermissionLevel.VIEW), AdxAccessScope.ScopeType.CHANNEL,
+						Map.of("channel-1", AdxAccessScope.PermissionLevel.VIEW)));
+		when(accessScope.current()).thenReturn(limited);
+		when(mapper.dashboardDaily(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(List.of());
 
-		service.dashboard(null, null, "channel-1", "forged-advertiser", "app-1", "monitor-1");
+		service.dashboard(null, null, "channel-1", "own-advertiser", "app-1", "monitor-1");
 
-		verify(mapper).dashboardDaily(any(), any(), eq("channel-1"), eq("own-advertiser"), eq("app-1"),
-				eq("monitor-1"));
+		verify(mapper).dashboardDaily(any(), any(), eq("channel-1"), eq("own-advertiser"), eq("app-1"), eq("monitor-1"),
+				eq(List.of("own-advertiser")), eq(List.of("channel-1")));
 	}
 
 	@Test
 	void forcesAdvertiserUsersToTheirOwnReportScope() {
-		when(accessScope.constrainAdvertiser("other-advertiser")).thenReturn("own-advertiser");
-		when(mapper.summary(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(new Page<>());
+		AdxAccessScope.Snapshot limited = new AdxAccessScope.Snapshot(1L, null,
+				Map.of(AdxAccessScope.ScopeType.ADVERTISER,
+						Map.of("own-advertiser", AdxAccessScope.PermissionLevel.VIEW), AdxAccessScope.ScopeType.CHANNEL,
+						Map.of("channel-1", AdxAccessScope.PermissionLevel.VIEW)));
+		when(accessScope.current()).thenReturn(limited);
+		when(mapper.summary(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+			.thenReturn(new Page<>());
 
-		service.summary(new Page<>(), "DATE", null, null, "other-advertiser", null, LocalDate.of(2026, 8, 1),
+		service.summary(new Page<>(), "DATE", null, null, "own-advertiser", null, LocalDate.of(2026, 8, 1),
 				LocalDate.of(2026, 8, 2));
 
-		verify(mapper).summary(any(), eq("DATE"), any(), any(), eq("own-advertiser"), any(), any(), any());
+		verify(mapper).summary(any(), eq("DATE"), any(), any(), eq("own-advertiser"), any(),
+				eq(List.of("own-advertiser")), eq(List.of("channel-1")), any(), any());
 	}
 
 }

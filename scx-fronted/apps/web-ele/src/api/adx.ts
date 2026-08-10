@@ -16,6 +16,52 @@ export type AdapterDefinition = {
   status: string;
 };
 
+export type AccessScopeType =
+  'ADVERTISER' | 'ALL' | 'CHANNEL' | 'MEDIA_ACCOUNT';
+
+export type AccessPermissionLevel = 'MANAGE' | 'OPERATE' | 'VIEW';
+
+export type AccessScope = {
+  id?: string;
+  permissionLevel: AccessPermissionLevel;
+  scopeId?: string;
+  scopeName?: string;
+  scopeType: AccessScopeType;
+  status?: string;
+  validFrom?: string;
+  validTo?: string;
+};
+
+export type UserAccessScopes = {
+  scopes: AccessScope[];
+  userId: string;
+  version: number;
+};
+
+export type AccessScopeOption = {
+  id: string;
+  name: string;
+  scopeType: AccessScopeType;
+  status: string;
+};
+
+export type AccessScopeOptions = {
+  advertisers: AccessScopeOption[];
+  allManageable: boolean;
+  channels: AccessScopeOption[];
+  mediaAccounts: AccessScopeOption[];
+};
+
+export type AccessScopeImpact = {
+  advertiserCount: number;
+  appLinkCount: number;
+  channelCount: number;
+  monitorCount: number;
+  publishedMonitorCount: number;
+  userId: string;
+  version: number;
+};
+
 export type OcpxIntegration = {
   authType: string;
   callbackPathPattern: string;
@@ -838,4 +884,31 @@ export function saveApiDebugCase(data: Partial<ApiDebugCase>) {
 
 export function deleteApiDebugCase(id: string) {
   return requestClient.delete<boolean>(`/adx/api-debug/cases/${id}`);
+}
+
+export function getUserAccessScopes(userId: string) {
+  return requestClient.get<UserAccessScopes>(
+    `/adx/access-scopes/users/${userId}`,
+  );
+}
+
+export function getAccessScopeOptions() {
+  return requestClient.get<AccessScopeOptions>('/adx/access-scopes/options');
+}
+
+export function getUserAccessScopeImpact(userId: string) {
+  return requestClient.get<AccessScopeImpact>(
+    `/adx/access-scopes/users/${userId}/impact`,
+  );
+}
+
+export function replaceUserAccessScopes(
+  userId: string,
+  version: number,
+  scopes: AccessScope[],
+) {
+  return requestClient.put<UserAccessScopes>(
+    `/adx/access-scopes/users/${userId}`,
+    { scopes, version },
+  );
 }

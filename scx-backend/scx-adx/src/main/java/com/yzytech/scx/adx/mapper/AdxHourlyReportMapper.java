@@ -19,18 +19,25 @@ public interface AdxHourlyReportMapper extends BaseMapper<AdxHourlyReport> {
 	Page<ReportRow> summary(Page<ReportRow> page, @Param("granularity") String granularity,
 			@Param("channelId") String channelId, @Param("monitorId") String monitorId,
 			@Param("advertiserId") String advertiserId, @Param("appLinkId") String appLinkId,
-			@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+			@Param("allowedAdvertiserIds") List<String> allowedAdvertiserIds,
+			@Param("allowedChannelIds") List<String> allowedChannelIds, @Param("start") LocalDateTime start,
+			@Param("end") LocalDateTime end);
 
 	List<DashboardDailyRow> dashboardDaily(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
 			@Param("channelId") String channelId, @Param("advertiserId") String advertiserId,
-			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId);
+			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId,
+			@Param("allowedAdvertiserIds") List<String> allowedAdvertiserIds,
+			@Param("allowedChannelIds") List<String> allowedChannelIds);
 
 	DashboardCoverageRow dashboardCoverage(@Param("channelId") String channelId,
 			@Param("advertiserId") String advertiserId, @Param("appLinkId") String appLinkId,
-			@Param("monitorId") String monitorId);
+			@Param("monitorId") String monitorId, @Param("allowedAdvertiserIds") List<String> allowedAdvertiserIds,
+			@Param("allowedChannelIds") List<String> allowedChannelIds);
 
 	Map<String, Object> accountSummary(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end,
 			@Param("channelId") String channelId, @Param("advertiserId") String advertiserId,
-			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId);
+			@Param("appLinkId") String appLinkId, @Param("monitorId") String monitorId,
+			@Param("allowedAdvertiserIds") List<String> allowedAdvertiserIds,
+			@Param("allowedChannelIds") List<String> allowedChannelIds);
 
 }

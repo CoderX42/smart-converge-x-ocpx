@@ -40,22 +40,30 @@ public class AdxRoutePublishService {
 
 	private final AdxEventService eventService;
 
+	private final AdxAccessScope accessScope;
+
 	public AdxRoutePublishService(AdxMonitorLinkMapper monitorMapper, AdxChannelMapper channelMapper,
 			AdxAdvertiserMapper advertiserMapper, AdxConfigChangeService configChangeService,
-			AdxAdapterService adapterService, AdxEventService eventService) {
+			AdxAdapterService adapterService, AdxEventService eventService, AdxAccessScope accessScope) {
 		this.monitorMapper = monitorMapper;
 		this.channelMapper = channelMapper;
 		this.advertiserMapper = advertiserMapper;
 		this.configChangeService = configChangeService;
 		this.adapterService = adapterService;
 		this.eventService = eventService;
+		this.accessScope = accessScope;
 	}
 
 	@Transactional
 	public Map<String, Object> publish(String monitorId) {
-		AdxMonitorLink monitor = require(monitorMapper.selectOne(Wrappers.<AdxMonitorLink>lambdaQuery()
-			.eq(AdxMonitorLink::getId, monitorId)
-			.last("FOR UPDATE")), "监测链接不存在");
+		AdxMonitorLink monitor = require(
+				monitorMapper.selectOne(
+						Wrappers.<AdxMonitorLink>lambdaQuery().eq(AdxMonitorLink::getId, monitorId).last("FOR UPDATE")),
+				"监测链接不存在");
+		accessScope.require(AdxAccessScope.ScopeType.ADVERTISER, monitor.getAdvertiserId(),
+				AdxAccessScope.PermissionLevel.OPERATE);
+		accessScope.require(AdxAccessScope.ScopeType.CHANNEL, monitor.getChannelId(),
+				AdxAccessScope.PermissionLevel.OPERATE);
 		AdxChannel channel = require(channelMapper.selectById(monitor.getChannelId()), "渠道不存在");
 		AdxAdvertiser advertiser = require(advertiserMapper.selectById(monitor.getAdvertiserId()), "广告主不存在");
 		if (monitor.getClickDedupWindowSeconds() == null) {
