@@ -40,10 +40,6 @@ public class RouteConfigurationRepository {
 		this.objectMapper = objectMapper;
 	}
 
-	RouteConfigurationRepository(JdbcTemplate jdbcTemplate, ProtocolCrypto protocolCrypto) {
-		this(jdbcTemplate, protocolCrypto, new ObjectMapper().findAndRegisterModules());
-	}
-
 	public Optional<RouteSnapshot> findPublished(String channelCode, String routeReference) {
 		return jdbcTemplate
 			.query(ACTIVE_ROUTE_SELECT + " AND (m.id=? OR m.biz_id=?)", this::mapRoute, routeReference, routeReference)

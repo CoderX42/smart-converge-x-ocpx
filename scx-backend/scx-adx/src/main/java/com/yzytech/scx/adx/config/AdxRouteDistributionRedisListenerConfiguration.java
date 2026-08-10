@@ -3,13 +3,14 @@ package com.yzytech.scx.adx.config;
 import com.yzytech.scx.adx.service.AdxRouteDistributionApplyWorker;
 import com.yzytech.scx.ocpx.runtime.config.RouteConfigurationCache;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
 @Configuration(proxyBeanMethods = false)
-@RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "scx.adx.tracking", name = "distribution-worker-enabled", havingValue = "true")
 public class AdxRouteDistributionRedisListenerConfiguration {
 
 	private final RedisMessageListenerContainer listenerContainer;
@@ -17,6 +18,14 @@ public class AdxRouteDistributionRedisListenerConfiguration {
 	private final AdxRouteDistributionApplyWorker applyWorker;
 
 	private final AdxTrackingProperties properties;
+
+	public AdxRouteDistributionRedisListenerConfiguration(
+			@Qualifier("redisMessageListenerContainer") RedisMessageListenerContainer listenerContainer,
+			AdxRouteDistributionApplyWorker applyWorker, AdxTrackingProperties properties) {
+		this.listenerContainer = listenerContainer;
+		this.applyWorker = applyWorker;
+		this.properties = properties;
+	}
 
 	@PostConstruct
 	void registerRouteDistributionListener() {

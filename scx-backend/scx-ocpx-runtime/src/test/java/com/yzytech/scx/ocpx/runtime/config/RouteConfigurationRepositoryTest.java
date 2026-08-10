@@ -1,7 +1,9 @@
 package com.yzytech.scx.ocpx.runtime.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDateTime;
@@ -17,7 +19,16 @@ class RouteConfigurationRepositoryTest {
 	private final ProtocolCrypto crypto = mock(ProtocolCrypto.class);
 
 	private final RouteConfigurationRepository repository = new RouteConfigurationRepository(mock(JdbcTemplate.class),
-			crypto);
+			crypto, new ObjectMapper().findAndRegisterModules());
+
+	@Test
+	void springSelectsTheSingleProductionConstructor() {
+		new ApplicationContextRunner().withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class))
+			.withBean(ProtocolCrypto.class, () -> mock(ProtocolCrypto.class))
+			.withBean(ObjectMapper.class, () -> new ObjectMapper().findAndRegisterModules())
+			.withUserConfiguration(RouteConfigurationRepository.class)
+			.run(context -> assertThat(context).hasNotFailed().hasSingleBean(RouteConfigurationRepository.class));
+	}
 
 	@Test
 	void decryptsTheCredentialRevisionFrozenByThePublishedRoute() {

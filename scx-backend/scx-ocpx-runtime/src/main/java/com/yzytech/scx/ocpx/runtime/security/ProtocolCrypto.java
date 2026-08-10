@@ -1,7 +1,6 @@
 package com.yzytech.scx.ocpx.runtime.security;
 
-import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
-import org.springframework.stereotype.Component;
+import com.yzytech.scx.ocpx.runtime.config.OcpxCryptoProperties;
 
 import javax.crypto.Cipher;
 import javax.crypto.Mac;
@@ -13,7 +12,6 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-@Component
 public class ProtocolCrypto {
 
 	private static final int IV_LENGTH = 12;
@@ -24,7 +22,7 @@ public class ProtocolCrypto {
 
 	private final SecureRandom random = new SecureRandom();
 
-	public ProtocolCrypto(OcpxRuntimeProperties properties) {
+	public ProtocolCrypto(OcpxCryptoProperties properties) {
 		try {
 			byte[] keyBytes = MessageDigest.getInstance("SHA-256")
 				.digest(properties.getPayloadAesKey().getBytes(StandardCharsets.UTF_8));

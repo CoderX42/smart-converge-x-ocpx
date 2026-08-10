@@ -53,9 +53,6 @@ public class OcpxRuntimeProperties {
 	private int deviceHmacKeyVersion = 1;
 
 	@NotBlank
-	private String payloadAesKey;
-
-	@NotBlank
 	private String callbackTokenKey;
 
 	private boolean allowHttp;
@@ -189,14 +186,6 @@ public class OcpxRuntimeProperties {
 
 	public void setDeviceHmacKeyVersion(int deviceHmacKeyVersion) {
 		this.deviceHmacKeyVersion = deviceHmacKeyVersion;
-	}
-
-	public String getPayloadAesKey() {
-		return payloadAesKey;
-	}
-
-	public void setPayloadAesKey(String payloadAesKey) {
-		this.payloadAesKey = payloadAesKey;
 	}
 
 	public String getCallbackTokenKey() {

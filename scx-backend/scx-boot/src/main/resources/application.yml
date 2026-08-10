@@ -6,6 +6,8 @@ server:
 spring:
   application:
     name: scx-boot
+  config:
+    import: classpath:ocpx-protocol-crypto.yml
   profiles:
     active: dev
   cloud:

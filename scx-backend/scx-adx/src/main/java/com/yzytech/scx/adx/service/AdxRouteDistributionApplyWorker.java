@@ -4,6 +4,7 @@ import com.yzytech.scx.adx.config.AdxTrackingProperties;
 import com.yzytech.scx.ocpx.runtime.config.RouteConfigurationCache;
 import com.yzytech.scx.ocpx.runtime.config.RouteConfigurationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,6 +19,7 @@ import java.util.UUID;
  * the scheduled database scan provides crash recovery.
  */
 @Component
+@ConditionalOnProperty(prefix = "scx.adx.tracking", name = "distribution-worker-enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class AdxRouteDistributionApplyWorker implements MessageListener {
 

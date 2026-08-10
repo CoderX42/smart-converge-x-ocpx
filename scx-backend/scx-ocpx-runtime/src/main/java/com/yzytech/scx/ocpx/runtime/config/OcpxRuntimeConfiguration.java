@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.runtime.config;
 
+import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,8 +18,13 @@ import java.time.Duration;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
-@EnableConfigurationProperties(OcpxRuntimeProperties.class)
+@EnableConfigurationProperties({ OcpxRuntimeProperties.class, OcpxCryptoProperties.class })
 public class OcpxRuntimeConfiguration {
+
+	@Bean
+	ProtocolCrypto protocolCrypto(OcpxCryptoProperties properties) {
+		return new ProtocolCrypto(properties);
+	}
 
 	@Bean
 	WebClient ocpxWebClient(WebClient.Builder builder) {

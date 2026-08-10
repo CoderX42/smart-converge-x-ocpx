@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: scx-ocpx-engine
+  config:
+    import: classpath:ocpx-protocol-crypto.yml
   profiles:
     active: dev
   main:
@@ -44,7 +46,6 @@ scx:
     replica-ack-timeout-ms: 20
     device-hmac-key: replace-before-production-device-hmac-key
     device-hmac-key-version: 1
-    payload-aes-key: replace-before-production-payload-aes-key
     callback-token-key: replace-before-production-callback-token-key
     allow-http: true
     allow-private-addresses: true

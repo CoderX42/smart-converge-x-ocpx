@@ -1,6 +1,6 @@
 package com.yzytech.scx.ocpx.runtime.security;
 
-import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
+import com.yzytech.scx.ocpx.runtime.config.OcpxCryptoProperties;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,7 +9,7 @@ class ProtocolCryptoTest {
 
 	@Test
 	void encryptsRoundTripsAndBuildsDomainSeparatedBlindIndexes() {
-		OcpxRuntimeProperties properties = new OcpxRuntimeProperties();
+		OcpxCryptoProperties properties = new OcpxCryptoProperties();
 		properties.setPayloadAesKey("local-test-key-material-only");
 		ProtocolCrypto crypto = new ProtocolCrypto(properties);
 

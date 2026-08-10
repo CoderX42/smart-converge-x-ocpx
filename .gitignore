@@ -5,6 +5,9 @@
 coverage/
 reports/
 
+# Turborepo local task cache
+/.turbo/
+
 # Runtime logs and log archives
 logs/
 *.log

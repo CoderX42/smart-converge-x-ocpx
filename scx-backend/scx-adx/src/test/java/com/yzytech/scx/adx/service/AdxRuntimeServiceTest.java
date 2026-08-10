@@ -16,7 +16,7 @@ import com.yzytech.scx.adx.config.AdxRuntimeCenterProperties;
 import com.yzytech.scx.adx.dto.RuntimeRequests;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.common.security.util.SecurityUtils;
-import com.yzytech.scx.ocpx.runtime.config.OcpxRuntimeProperties;
+import com.yzytech.scx.ocpx.runtime.config.OcpxCryptoProperties;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -204,7 +204,7 @@ class AdxRuntimeServiceTest {
 	}
 
 	private ProtocolCrypto crypto() {
-		OcpxRuntimeProperties runtime = new OcpxRuntimeProperties();
+		OcpxCryptoProperties runtime = new OcpxCryptoProperties();
 		runtime.setPayloadAesKey("unit-test-only-runtime-key");
 		return new ProtocolCrypto(runtime);
 	}

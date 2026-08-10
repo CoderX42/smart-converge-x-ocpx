@@ -30,5 +30,4 @@ scx:
     upstream-delivery-enabled: false
     downstream-delivery-enabled: false
     device-hmac-key: 8f851e6a80d6d34f7cbff3ce3dc82b2920d0bd6f53d5da41b902681934ae7ce1
-    payload-aes-key: 42c3dff87e8abea48a1ae2de20a2a1cd6a6573f36471a6b2399820b9ef12eaf5
     callback-token-key: 78713e2dd4ac23e6e42e3c9b25c2bbfd527986a33e2169b222286a4d8c5afdef
