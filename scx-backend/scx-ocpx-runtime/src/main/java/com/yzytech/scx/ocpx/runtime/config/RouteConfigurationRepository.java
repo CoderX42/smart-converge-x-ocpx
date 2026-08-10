@@ -1,108 +1,207 @@
 package com.yzytech.scx.ocpx.runtime.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
-import com.yzytech.scx.ocpx.contract.RouteEventSnapshot;
+import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
+/** Reads only immutable S7 snapshots that have instance distribution evidence. */
 @Repository
 public class RouteConfigurationRepository {
 
-	private static final String ROUTE_SELECT = """
-			SELECT m.id, m.biz_id, m.config_version, c.id, c.channel_code, c.adapter_code, c.auth_type,
-			      c.key_version, c.secret_key, a.id, m.app_link_id, a.adapter_code, a.secret_key,
-			      m.published_upstream_feedback_url,
-			      a.macro_params, m.downstream_callback_url, m.unit_price, COALESCE(d.ratio, 1.0000), m.rta_mode,
-			      m.billing_mode, m.click_dedup_window_seconds, COALESCE(m.event_snapshot_version,0)
-			FROM scx_adx_monitor_link m
-			JOIN scx_adx_channel c ON c.id=m.channel_id AND c.deleted=0 AND c.status='ACTIVE'
-			JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0 AND a.status='ACTIVE'
-			LEFT JOIN scx_adx_deduction_rule d ON d.channel_id=m.channel_id AND d.app_link_id=m.app_link_id AND d.deleted=0
+	private static final String ACTIVE_ROUTE_SELECT = """
+			SELECT v.route_code_hash,v.runtime_snapshot_ciphertext,m.biz_id
+			FROM scx_adx_route_version v
+			JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+			JOIN scx_adx_route_distribution d ON d.route_version_id=v.id AND d.target_group='DEFAULT'
+			JOIN scx_adx_monitor_link m ON m.id=v.monitor_id
+			WHERE v.status='PUBLISHED' AND d.status IN ('ACTIVE','DEGRADED')
+			 AND s.deny_at IS NULL
+			 AND ((s.acceptance_status='ACTIVE' AND (s.accept_from IS NULL OR s.accept_from<=NOW(3)))
+			      OR (s.acceptance_status='OVERLAP' AND s.accept_until>NOW(3)))
 			""";
-
-	private static final String PUBLISHED = " m.deleted=0 AND m.route_status='PUBLISHED' ";
-
-	private static final org.springframework.jdbc.core.RowMapper<PublishedRoute> ROW_MAPPER = (rs,
-			rowNum) -> new PublishedRoute(new RouteSnapshot(rs.getString(1), rs.getString(2), rs.getLong(3),
-					rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getInt(8), rs.getString(9),
-					rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13), rs.getString(14),
-					rs.getString(15), rs.getString(16), rs.getObject(17, BigDecimal.class),
-					rs.getObject(18, BigDecimal.class), rs.getString(19), rs.getString(20), rs.getInt(21), List.of(),
-					rs.getInt(22)),
-			rs.getString(2));
 
 	private final JdbcTemplate jdbcTemplate;
 
-	public RouteConfigurationRepository(JdbcTemplate jdbcTemplate) {
+	private final ProtocolCrypto protocolCrypto;
+
+	private final ObjectMapper objectMapper;
+
+	public RouteConfigurationRepository(JdbcTemplate jdbcTemplate, ProtocolCrypto protocolCrypto,
+			ObjectMapper objectMapper) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.protocolCrypto = protocolCrypto;
+		this.objectMapper = objectMapper;
+	}
+
+	RouteConfigurationRepository(JdbcTemplate jdbcTemplate, ProtocolCrypto protocolCrypto) {
+		this(jdbcTemplate, protocolCrypto, new ObjectMapper().findAndRegisterModules());
 	}
 
 	public Optional<RouteSnapshot> findPublished(String channelCode, String routeReference) {
-		List<PublishedRoute> rows = jdbcTemplate.query(
-				ROUTE_SELECT + " WHERE c.channel_code=? AND (m.id=? OR m.biz_id=?) AND " + PUBLISHED + " LIMIT 1",
-				ROW_MAPPER, channelCode, routeReference, routeReference);
-		return rows.stream().map(PublishedRoute::route).findFirst().map(this::attachEventMappings);
+		return jdbcTemplate
+			.query(ACTIVE_ROUTE_SELECT + " AND (m.id=? OR m.biz_id=?)", this::mapRoute, routeReference, routeReference)
+			.stream()
+			.map(PublishedRoute::route)
+			.filter(route -> channelCode.equals(route.channelCode()))
+			.findFirst();
+	}
+
+	public Optional<RouteSnapshot> findByRouteCode(String routeCode) {
+		String hash = protocolCrypto.blindIndex("ADX_ROUTE_CODE", routeCode);
+		return jdbcTemplate.query(ACTIVE_ROUTE_SELECT + " AND v.route_code_hash=? LIMIT 1", this::mapRoute, hash)
+			.stream()
+			.map(PublishedRoute::route)
+			.findFirst();
 	}
 
 	public List<PublishedRoute> findAllPublished() {
-		return attachEventMappings(jdbcTemplate.query(ROUTE_SELECT + " WHERE " + PUBLISHED, ROW_MAPPER));
+		return jdbcTemplate.query(ACTIVE_ROUTE_SELECT, this::mapRoute);
+	}
+
+	/**
+	 * Lists immutable versions awaiting application by this runtime instance. The
+	 * returned metadata contains no route code, URL or credential value.
+	 */
+	public List<DistributableRoute> findDistributable(int limit) {
+		int boundedLimit = Math.max(1, Math.min(limit, 100));
+		return jdbcTemplate.query("""
+				SELECT d.id,v.id,v.route_version
+				FROM scx_adx_route_distribution d
+				JOIN scx_adx_route_version v ON v.id=d.route_version_id
+				JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+				WHERE v.status='PUBLISHED' AND d.target_group='DEFAULT'
+				 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
+				 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL
+				ORDER BY d.create_time LIMIT ?
+				""", (rs, rowNum) -> new DistributableRoute(rs.getString(1), rs.getString(2), rs.getLong(3)),
+				boundedLimit);
+	}
+
+	public Optional<DistributableRoute> findDistributable(String routeVersionId, long routeVersion) {
+		return jdbcTemplate
+			.query("""
+					SELECT d.id,v.id,v.route_version
+					FROM scx_adx_route_distribution d
+					JOIN scx_adx_route_version v ON v.id=d.route_version_id
+					JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+					WHERE v.id=? AND v.route_version=? AND v.status='PUBLISHED' AND d.target_group='DEFAULT'
+					 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
+					 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL
+					""", (rs, rowNum) -> new DistributableRoute(rs.getString(1), rs.getString(2), rs.getLong(3)),
+					routeVersionId, routeVersion)
+			.stream()
+			.findFirst();
+	}
+
+	/** Validates and decrypts an exact immutable version before acknowledging apply. */
+	public RouteSnapshot validateDistributableSnapshot(DistributableRoute candidate) {
+		List<RouteSnapshot> snapshots = jdbcTemplate.query("""
+				SELECT v.runtime_snapshot_ciphertext
+				FROM scx_adx_route_distribution d
+				JOIN scx_adx_route_version v ON v.id=d.route_version_id
+				JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+				WHERE d.id=? AND v.id=? AND v.route_version=? AND v.status='PUBLISHED'
+				 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
+				 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL
+				FOR UPDATE
+				""", (rs, rowNum) -> decodeSnapshot(rs.getString(1)), candidate.distributionId(),
+				candidate.routeVersionId(), candidate.routeVersion());
+		if (snapshots.size() != 1 || snapshots.get(0).routeVersion() != candidate.routeVersion()) {
+			throw new IllegalStateException("distributable route version changed before apply");
+		}
+		return snapshots.get(0);
 	}
 
 	public Optional<RouteSnapshot> findPublishedById(String monitorId) {
-		List<PublishedRoute> rows = jdbcTemplate.query(ROUTE_SELECT + " WHERE m.id=? AND " + PUBLISHED + " LIMIT 1",
-				ROW_MAPPER, monitorId);
-		return rows.stream().map(PublishedRoute::route).findFirst().map(this::attachEventMappings);
+		return jdbcTemplate
+			.query(ACTIVE_ROUTE_SELECT + " AND v.monitor_id=? ORDER BY v.route_version DESC LIMIT 1", this::mapRoute,
+					monitorId)
+			.stream()
+			.map(PublishedRoute::route)
+			.findFirst();
 	}
 
-	private RouteSnapshot attachEventMappings(RouteSnapshot route) {
-		return route.withEventMappings(jdbcTemplate.query("""
-				SELECT event_mapping_id,upstream_event_code,upstream_event_name,conversion_event_code,
-				 conversion_event_name,media_event_code,media_event_name,assessment_unit_price,daily_limit
-				FROM scx_adx_route_event_snapshot WHERE monitor_id=? AND route_version=?
-				ORDER BY upstream_event_code
-				""", EVENT_MAPPER, route.routeId(), route.routeVersion()));
-	}
-
-	private List<PublishedRoute> attachEventMappings(List<PublishedRoute> routes) {
-		if (routes.isEmpty()) {
-			return routes;
+	private PublishedRoute mapRoute(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+		try {
+			String plaintext = protocolCrypto.decrypt(rs.getString(2));
+			JsonNode root = objectMapper.readTree(plaintext);
+			RouteSnapshot route = decodeSnapshot(root);
+			return new PublishedRoute(route, rs.getString(3), rs.getString(1), text(root, "linkUrlTemplate"),
+					text(root, "macroSchemaJson"));
 		}
-		String predicates = String.join(" OR ", Collections.nCopies(routes.size(), "(monitor_id=? AND route_version=?)"));
-		List<Object> parameters = new ArrayList<>();
-		routes.forEach(row -> {
-			parameters.add(row.route().routeId());
-			parameters.add(row.route().routeVersion());
-		});
-		Map<String, List<RouteEventSnapshot>> events = new HashMap<>();
-		jdbcTemplate.query("""
-				SELECT monitor_id,route_version,event_mapping_id,upstream_event_code,upstream_event_name,
-				 conversion_event_code,conversion_event_name,media_event_code,media_event_name,
-				 assessment_unit_price,daily_limit
-				FROM scx_adx_route_event_snapshot WHERE """ + predicates, rs -> {
-			String key = rs.getString(1) + "|" + rs.getLong(2);
-			events.computeIfAbsent(key, ignored -> new ArrayList<>())
-				.add(new RouteEventSnapshot(rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6),
-						rs.getString(7), rs.getString(8), rs.getString(9), rs.getBigDecimal(10), rs.getInt(11)));
-		}, parameters.toArray());
-		return routes.stream()
-			.map(row -> new PublishedRoute(row.route().withEventMappings(
-					events.getOrDefault(row.route().routeId() + "|" + row.route().routeVersion(), List.of())), row.bizId()))
-			.toList();
+		catch (IllegalStateException error) {
+			throw error;
+		}
+		catch (Exception error) {
+			throw new IllegalStateException("immutable route snapshot cannot be decoded", error);
+		}
 	}
 
-	private static final org.springframework.jdbc.core.RowMapper<RouteEventSnapshot> EVENT_MAPPER = (rs,
-			rowNum) -> new RouteEventSnapshot(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
-				rs.getString(5), rs.getString(6), rs.getString(7), rs.getBigDecimal(8), rs.getInt(9));
+	RouteSnapshot decodeSnapshot(String ciphertext) {
+		try {
+			return decodeSnapshot(objectMapper.readTree(protocolCrypto.decrypt(ciphertext)));
+		}
+		catch (IllegalStateException error) {
+			throw error;
+		}
+		catch (Exception error) {
+			throw new IllegalStateException("immutable route snapshot cannot be decoded", error);
+		}
+	}
 
-	public record PublishedRoute(RouteSnapshot route, String bizId) {
+	private RouteSnapshot decodeSnapshot(JsonNode root) throws Exception {
+		JsonNode routeNode = root.path("route");
+		if (routeNode.isMissingNode() || routeNode.isNull()) {
+			throw new IllegalStateException("immutable route snapshot is incomplete");
+		}
+		RouteSnapshot route = objectMapper.treeToValue(routeNode, RouteSnapshot.class);
+		if (route.eventSnapshotVersion() != 2 || !"SNAPSHOT".equals(route.eventMappingMode())
+				|| route.eventMappings() == null || route.eventMappings().isEmpty()) {
+			throw new IllegalStateException("route has no canonical event snapshot");
+		}
+		return route;
+	}
+
+	String resolveUpstreamSecret(String ciphertext, String storageMode, String status, LocalDateTime overlapUntil,
+			String legacySecret) {
+		if ("RETIRED".equals(status)
+				|| ("OVERLAP".equals(status) && (overlapUntil == null || !overlapUntil.isAfter(LocalDateTime.now())))) {
+			throw new IllegalStateException("Published advertiser credential revision is no longer valid");
+		}
+		if ("ENCRYPTED".equals(storageMode)) {
+			if (ciphertext == null || ciphertext.isBlank()) {
+				throw new IllegalStateException("Published advertiser credential revision is incomplete");
+			}
+			return protocolCrypto.decrypt(ciphertext);
+		}
+		return legacySecret;
+	}
+
+	private String text(JsonNode root, String field) {
+		JsonNode value = root.path(field);
+		return value.isTextual() ? value.asText() : null;
+	}
+
+	public record PublishedRoute(RouteSnapshot route, String bizId, String routeCodeHash, String destinationTemplate,
+			String macroSchemaJson) {
+
+		public PublishedRoute(RouteSnapshot route, String bizId) {
+			this(route, bizId, null, null, null);
+		}
+
+		public PublishedRoute(RouteSnapshot route, String bizId, String routeCodeHash) {
+			this(route, bizId, routeCodeHash, null, null);
+		}
+	}
+
+	public record DistributableRoute(String distributionId, String routeVersionId, long routeVersion) {
 	}
 
 }

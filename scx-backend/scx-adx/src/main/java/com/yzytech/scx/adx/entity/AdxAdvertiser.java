@@ -19,14 +19,33 @@ public class AdxAdvertiser {
 	@TableId(type = IdType.ASSIGN_ID)
 	private String id;
 
+	private String advertiserCode;
+
 	private String advertiserName;
 
 	private String adapterCode;
+
+	private Long adapterVersion;
 
 	private String bidUrl;
 
 	@JsonIgnore
 	private String secretKey;
+
+	@JsonIgnore
+	private String credentialRef;
+
+	private Long credentialRevision;
+
+	private String currentDocumentId;
+
+	private Long documentRevision;
+
+	@JsonIgnore
+	private String createRequestKey;
+
+	@JsonIgnore
+	private String createRequestHash;
 
 	private String macroParams;
 

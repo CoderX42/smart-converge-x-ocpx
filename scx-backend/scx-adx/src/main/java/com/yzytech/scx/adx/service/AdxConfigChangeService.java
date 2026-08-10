@@ -19,12 +19,57 @@ public class AdxConfigChangeService {
 		draftRoutes("channel_id=?", channelId);
 	}
 
-	public void advertiserChanged(String advertiserId) {
-		draftRoutes("advertiser_id=?", advertiserId);
+	public int advertiserChanged(String advertiserId) {
+		return advertiserChanged(advertiserId, "广告主接入配置已变更");
 	}
 
-	public void appLinkChanged(String appLinkId) {
-		draftRoutes("app_link_id=?", appLinkId);
+	public int advertiserChanged(String advertiserId, String reason) {
+		return jdbcTemplate.update("""
+				UPDATE scx_adx_monitor_link
+				SET republish_required=1,republish_reason=?
+				WHERE deleted=0 AND route_status='PUBLISHED' AND advertiser_id=?
+				""", reason, advertiserId);
+	}
+
+	public int appLinkChanged(String appLinkId) {
+		return appLinkChanged(appLinkId, "应用链接配置已变更");
+	}
+
+	public int appLinkChanged(String appLinkId, String reason) {
+		return jdbcTemplate.update("""
+				UPDATE scx_adx_monitor_link
+				SET republish_required=1,republish_reason=?
+				WHERE deleted=0 AND route_status='PUBLISHED' AND app_link_id=?
+				""", reason, appLinkId);
+	}
+
+	public int productChanged(String productId, String reason) {
+		return jdbcTemplate.update("""
+				UPDATE scx_adx_monitor_link m
+				JOIN scx_adx_app_link l ON l.id=m.app_link_id AND l.deleted=0
+				SET m.republish_required=1,m.republish_reason=?
+				WHERE m.deleted=0 AND m.route_status='PUBLISHED' AND l.product_id=?
+				""", reason, productId);
+	}
+
+	public int mediaAccountChanged(String mediaAccountId, String reason) {
+		return jdbcTemplate.update("""
+				UPDATE scx_adx_monitor_link
+				SET republish_required=1,republish_reason=?
+				WHERE deleted=0 AND route_status='PUBLISHED' AND media_account_id=?
+				""", reason, mediaAccountId);
+	}
+
+	/**
+	 * Task edits only mark already-published dependent Monitor rows for a future explicit
+	 * publish. They never enqueue Outbox work or alter frozen snapshots.
+	 */
+	public int taskChanged(String taskId, String reason) {
+		return jdbcTemplate.update("""
+				UPDATE scx_adx_monitor_link
+				SET republish_required=1,republish_reason=?
+				WHERE deleted=0 AND route_status='PUBLISHED' AND task_id=?
+				""", reason, taskId);
 	}
 
 	public void deductionChanged(String channelId, String appLinkId) {

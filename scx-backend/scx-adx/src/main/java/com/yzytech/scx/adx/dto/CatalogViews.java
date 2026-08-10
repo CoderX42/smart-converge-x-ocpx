@@ -14,9 +14,8 @@ public final class CatalogViews {
 			String status, Long configVersion, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
-	public record Advertiser(String id, String advertiserName, String adapterCode, String bidUrl,
-			boolean secretConfigured, String macroParams, String upstreamHostAllowlist, String account,
-			BigDecimal balance, String status, Long configVersion, LocalDateTime createTime, LocalDateTime updateTime) {
+	/** 报表筛选专用最小视图，不暴露账户、投标地址或凭据状态。 */
+	public record AdvertiserOption(String id, String advertiserName) {
 	}
 
 	public record AppLink(String id, String advertiserId, String advertiserName, Integer linkPlatform, String linkName,
@@ -28,7 +27,8 @@ public final class CatalogViews {
 			String appLinkId, String appLinkName, String monitorName, String bizId, BigDecimal unitPrice, String remark,
 			String showUrl, String clickUrl, String upstreamFeedbackUrl, String effectiveUpstreamFeedbackUrl,
 			String upstreamFeedbackSource, String downstreamCallbackUrl, Integer clickDedupWindowSeconds,
-			String routeStatus, Long configVersion, String rtaMode, String billingMode, LocalDateTime publishedAt,
+			String routeStatus, boolean republishRequired, String republishReason, Long configVersion, String rtaMode,
+			String billingMode, LocalDateTime publishedAt,
 			LocalDateTime createTime, LocalDateTime updateTime, List<EventViews.Binding> eventBindings, long bindingCount,
 			String bindingSummary) {
 	}

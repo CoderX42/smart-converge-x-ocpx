@@ -27,13 +27,6 @@ public final class CatalogRequests {
 			@NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status) {
 	}
 
-	public record SaveAdvertiser(@NotBlank @Size(max = 100) String advertiserName,
-			@NotBlank @Size(max = 32) String adapterCode, @NotBlank @Size(max = 5000) String bidUrl,
-			@Size(max = 255) String secretKey, @Size(max = 1000) String macroParams,
-			@NotBlank @Size(max = 1000) String upstreamHostAllowlist, @NotBlank @Size(max = 100) String account,
-			@Size(min = 8, max = 72) String password, @NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status) {
-	}
-
 	public record Recharge(@NotBlank @Pattern(regexp = "^[A-Za-z0-9_-]{16,64}$") String requestId,
 			@NotNull @DecimalMin("0.01") @DecimalMax("99999999999999.99") @Digits(integer = 14,
 					fraction = 2) BigDecimal amount) {

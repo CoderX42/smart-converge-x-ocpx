@@ -1,6 +1,7 @@
 package com.yzytech.scx.adx.service;
 
 import com.yzytech.scx.adx.dto.CatalogRequests;
+import com.yzytech.scx.adx.dto.CatalogViews;
 import com.yzytech.scx.adx.entity.AdxAdvertiser;
 import com.yzytech.scx.adx.entity.AdxAppLink;
 import com.yzytech.scx.adx.entity.AdxChannel;
@@ -9,22 +10,19 @@ import com.yzytech.scx.adx.mapper.AdxAppLinkMapper;
 import com.yzytech.scx.adx.mapper.AdxChannelMapper;
 import com.yzytech.scx.adx.mapper.AdxDeductionRuleMapper;
 import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
-import com.yzytech.scx.adx.mapper.AdxSystemUserMapper;
-import com.yzytech.scx.adx.mapper.AdxSystemUserRoleMapper;
-import com.yzytech.scx.system.api.entity.SysUser;
-import com.yzytech.scx.system.api.entity.SysUserRole;
-import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AdxCatalogServiceTest {
 
@@ -38,10 +36,6 @@ class AdxCatalogServiceTest {
 
 	private final AdxDeductionRuleMapper deductionMapper = mock(AdxDeductionRuleMapper.class);
 
-	private final AdxSystemUserMapper systemUserMapper = mock(AdxSystemUserMapper.class);
-
-	private final AdxSystemUserRoleMapper systemUserRoleMapper = mock(AdxSystemUserRoleMapper.class);
-
 	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
 
 	private final AdxConfigChangeService configChangeService = mock(AdxConfigChangeService.class);
@@ -53,48 +47,25 @@ class AdxCatalogServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new AdxCatalogService(channelMapper, advertiserMapper, appLinkMapper, monitorMapper, deductionMapper,
-				systemUserMapper, systemUserRoleMapper, accessScope, configChangeService, eventService);
+				accessScope, configChangeService, eventService, new AdxUrlPolicy());
 	}
 
 	@Test
-	void createAdvertiserRequiresPassword() {
-		when(advertiserMapper.selectCount(any())).thenReturn(0L);
-		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "COCO",
-				"https://example.test/bid", null, null, "example.test", "advertiser", null, "ACTIVE");
+	void legacyCatalogProjectionNeverReturnsStoredFullUrls() {
+		AdxAppLink link = new AdxAppLink();
+		link.setId("link-1");
+		link.setAdvertiserId("advertiser-1");
+		link.setLinkName("历史链接");
+		link.setLinkUrl("https://8.8.4.4/private-path?token=not-returned");
+		link.setDeeplink("https://8.8.4.4/deep/private");
+		link.setMappingStatus("LEGACY_PENDING_PRODUCT");
 
-		assertThatThrownBy(() -> service.saveAdvertiser(null, request)).isInstanceOf(IllegalArgumentException.class)
-			.hasMessage("新增广告主时密码必填");
-	}
+		CatalogViews.AppLink view = ReflectionTestUtils.invokeMethod(service, "appLinkView", link, "Advertiser");
 
-	@Test
-	void createAdvertiserAlsoCreatesAScopedLogin() {
-		when(advertiserMapper.selectCount(any())).thenReturn(0L);
-		when(systemUserMapper.selectCount(any())).thenReturn(0L);
-		when(systemUserRoleMapper.selectCount(any())).thenReturn(0L);
-		when(advertiserMapper.insert(any(AdxAdvertiser.class))).thenAnswer(invocation -> {
-			((AdxAdvertiser) invocation.getArgument(0)).setId("advertiser-1");
-			return 1;
-		});
-		when(systemUserMapper.insert(any(SysUser.class))).thenAnswer(invocation -> {
-			((SysUser) invocation.getArgument(0)).setId("user-1");
-			return 1;
-		});
-		CatalogRequests.SaveAdvertiser request = new CatalogRequests.SaveAdvertiser("测试广告主", "COCO",
-				"https://example.test/bid", null, null, "example.test", "advertiser", "password-123", "ACTIVE");
-
-		service.saveAdvertiser(null, request);
-
-		ArgumentCaptor<SysUser> user = ArgumentCaptor.forClass(SysUser.class);
-		verify(systemUserMapper).insert(user.capture());
-		assertThat(user.getValue().getUsername()).isEqualTo("advertiser");
-		assertThat(user.getValue().getShopId()).isEqualTo("advertiser-1");
-		assertThat(user.getValue().getType()).isEqualTo("2");
-		assertThat(new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().matches("password-123",
-				user.getValue().getPassword()))
-			.isTrue();
-		ArgumentCaptor<SysUserRole> role = ArgumentCaptor.forClass(SysUserRole.class);
-		verify(systemUserRoleMapper).insert(role.capture());
-		assertThat(role.getValue().getRoleId()).isEqualTo("role_advertiser");
+		assertThat(view).isNotNull();
+		assertThat(view.linkUrl()).isEqualTo("历史地址（待重新录入并校验）");
+		assertThat(view.deeplink()).isEqualTo("历史地址（待重新录入并校验）");
+		assertThat(view.toString()).doesNotContain("private-path", "not-returned", "/deep/private");
 	}
 
 	@Test
@@ -156,22 +127,6 @@ class AdxCatalogServiceTest {
 
 		assertThatThrownBy(() -> service.saveChannel(null, request)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("query");
-	}
-
-	@Test
-	void deletingAdvertiserUsesOriginalRbacLogicalUserDeletion() {
-		AdxAdvertiser advertiser = new AdxAdvertiser();
-		advertiser.setId("advertiser-1");
-		SysUser user = new SysUser();
-		user.setId("user-1");
-		when(advertiserMapper.selectById("advertiser-1")).thenReturn(advertiser);
-		when(systemUserMapper.selectOne(any())).thenReturn(user);
-
-		service.deleteAdvertiser("advertiser-1");
-
-		verify(advertiserMapper).deleteById("advertiser-1");
-		verify(systemUserRoleMapper).delete(any());
-		verify(systemUserMapper).deleteById("user-1");
 	}
 
 }

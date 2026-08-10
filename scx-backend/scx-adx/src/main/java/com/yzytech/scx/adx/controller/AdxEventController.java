@@ -1,20 +1,22 @@
 package com.yzytech.scx.adx.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.yzytech.scx.adx.dto.EventRequests;
 import com.yzytech.scx.adx.dto.EventViews;
+import com.yzytech.scx.adx.service.AdxEventModelService;
 import com.yzytech.scx.adx.service.AdxEventService;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,87 +29,118 @@ import java.util.concurrent.Callable;
 @RequestMapping("/adx")
 public class AdxEventController {
 
-	private final AdxEventService eventService;
+	private final AdxEventModelService eventModelService;
+
+	private final AdxEventService legacyEventService;
 
 	@GetMapping("/events")
-	@SaCheckPermission("adx:event:read")
-	public Result<Page<EventViews.Definition>> events(@RequestParam(defaultValue = "1") long current,
-			@RequestParam(defaultValue = "20") long size, String category, String channelId, String status,
-			String keyword) {
-		return call(() -> eventService.definitions(current, size, category, channelId, status, keyword));
+	@SaCheckPermission("adx:event:view")
+	public Result<IPage<EventViews.DefinitionDetail>> events(@RequestParam(defaultValue = "1") long current,
+			@RequestParam(defaultValue = "20") long size, String status, String direction, String keyword) {
+		return call(() -> eventModelService.definitions(current, size, status, direction, keyword));
+	}
+
+	@GetMapping("/events/{id}")
+	@SaCheckPermission("adx:event:view")
+	public Result<EventViews.DefinitionDetail> event(@PathVariable String id) {
+		return call(() -> eventModelService.definition(id));
 	}
 
 	@PostMapping("/events")
-	@SaCheckPermission("adx:event:write")
-	@SysLog("新增事件字典")
-	public Result<EventViews.Definition> createEvent(@Valid @RequestBody EventRequests.SaveDefinition request) {
-		return call(() -> eventService.saveDefinition(null, request));
+	@SaCheckPermission("adx:event:add")
+	@SysLog("新增标准事件定义")
+	public Result<EventViews.DefinitionDetail> createEvent(@RequestHeader("Idempotency-Key") String idempotencyKey,
+			@Valid @RequestBody EventRequests.CreateDefinition request) {
+		return call(() -> eventModelService.createDefinition(idempotencyKey, request));
 	}
 
 	@PutMapping("/events/{id}")
-	@SaCheckPermission("adx:event:write")
-	@SysLog("修改事件字典")
-	public Result<EventViews.Definition> updateEvent(@PathVariable String id,
-			@Valid @RequestBody EventRequests.SaveDefinition request) {
-		return call(() -> eventService.saveDefinition(id, request));
+	@SaCheckPermission("adx:event:edit")
+	@SysLog("修改标准事件定义")
+	public Result<EventViews.DefinitionDetail> updateEvent(@PathVariable String id,
+			@Valid @RequestBody EventRequests.UpdateDefinition request) {
+		return call(() -> eventModelService.updateDefinition(id, request));
 	}
 
-	@DeleteMapping("/events/{id}")
-	@SaCheckPermission("adx:event:write")
-	@SysLog("停用事件字典")
-	public Result<Boolean> disableEvent(@PathVariable String id) {
-		return call(() -> {
-			eventService.disableDefinition(id);
-			return true;
-		});
+	@PostMapping("/events/{id}/status")
+	@SaCheckPermission("adx:event:status")
+	@SysLog("变更标准事件定义状态")
+	public Result<EventViews.StatusResult> eventStatus(@PathVariable String id,
+			@Valid @RequestBody EventRequests.StatusAction request) {
+		return call(() -> eventModelService.changeDefinitionStatus(id, request));
+	}
+
+	@GetMapping("/events/{id}/references")
+	@SaCheckPermission("adx:event:view")
+	public Result<EventViews.ReferenceSummary> eventReferences(@PathVariable String id) {
+		return call(() -> eventModelService.definitionReference(id));
 	}
 
 	@GetMapping("/event-mappings")
-	@SaCheckPermission("adx:event:read")
-	public Result<Page<EventViews.Mapping>> mappings(@RequestParam(defaultValue = "1") long current,
-			@RequestParam(defaultValue = "20") long size, String channelId, String status, String keyword) {
-		return call(() -> eventService.mappings(current, size, channelId, status, keyword));
+	@SaCheckPermission("adx:event-mapping:view")
+	public Result<IPage<EventViews.MappingDetail>> mappings(@RequestParam(defaultValue = "1") long current,
+			@RequestParam(defaultValue = "20") long size, String channelId, String status, String direction,
+			String keyword) {
+		return call(() -> eventModelService.mappings(current, size, channelId, status, direction, keyword));
+	}
+
+	@GetMapping("/event-mappings/{id}")
+	@SaCheckPermission("adx:event-mapping:view")
+	public Result<EventViews.MappingDetail> mapping(@PathVariable String id) {
+		return call(() -> eventModelService.mapping(id));
 	}
 
 	@PostMapping("/event-mappings")
-	@SaCheckPermission("adx:event:write")
+	@SaCheckPermission("adx:event-mapping:add")
 	@SysLog("新增渠道事件映射")
-	public Result<EventViews.Mapping> createMapping(@Valid @RequestBody EventRequests.SaveMapping request) {
-		return call(() -> eventService.saveMapping(null, request));
+	public Result<EventViews.MappingDetail> createMapping(@RequestHeader("Idempotency-Key") String idempotencyKey,
+			@Valid @RequestBody EventRequests.CreateMapping request) {
+		return call(() -> eventModelService.createMapping(idempotencyKey, request));
 	}
 
 	@PutMapping("/event-mappings/{id}")
-	@SaCheckPermission("adx:event:write")
+	@SaCheckPermission("adx:event-mapping:edit")
 	@SysLog("修改渠道事件映射")
-	public Result<EventViews.Mapping> updateMapping(@PathVariable String id,
-			@Valid @RequestBody EventRequests.SaveMapping request) {
-		return call(() -> eventService.saveMapping(id, request));
+	public Result<EventViews.MappingDetail> updateMapping(@PathVariable String id,
+			@Valid @RequestBody EventRequests.UpdateMapping request) {
+		return call(() -> eventModelService.updateMapping(id, request));
 	}
 
-	@DeleteMapping("/event-mappings/{id}")
-	@SaCheckPermission("adx:event:write")
-	@SysLog("停用渠道事件映射")
-	public Result<Boolean> disableMapping(@PathVariable String id) {
-		return call(() -> {
-			eventService.disableMapping(id);
-			return true;
-		});
+	@PostMapping("/event-mappings/{id}/status")
+	@SaCheckPermission("adx:event-mapping:status")
+	@SysLog("变更渠道事件映射状态")
+	public Result<EventViews.StatusResult> mappingStatus(@PathVariable String id,
+			@Valid @RequestBody EventRequests.StatusAction request) {
+		return call(() -> eventModelService.changeMappingStatus(id, request));
 	}
 
+	@GetMapping("/event-mappings/{id}/references")
+	@SaCheckPermission("adx:event-mapping:view")
+	public Result<EventViews.ReferenceSummary> mappingReferences(@PathVariable String id) {
+		return call(() -> eventModelService.mappingReference(id));
+	}
+
+	/**
+	 * V80 Monitor compatibility only. Canonical Task bindings use the scoped S6 endpoints
+	 * on {@link AdxTaskController} and never infer a mapping from this list.
+	 */
 	@GetMapping("/channels/{channelId}/event-options")
 	@SaCheckPermission("adx:monitor:read")
 	public Result<List<EventViews.Option>> options(@PathVariable String channelId) {
-		return call(() -> eventService.options(channelId));
+		return call(() -> legacyEventService.options(channelId));
 	}
 
 	private <T> Result<T> call(Callable<T> action) {
 		try {
 			return Result.success(action.call());
 		}
-		catch (IllegalArgumentException e) {
-			return Result.fail(e.getMessage());
+		catch (IllegalArgumentException error) {
+			return Result.fail(error.getMessage());
 		}
-		catch (Exception e) {
+		catch (BootBusinessException error) {
+			throw error;
+		}
+		catch (Exception error) {
 			return Result.fail("操作失败");
 		}
 	}

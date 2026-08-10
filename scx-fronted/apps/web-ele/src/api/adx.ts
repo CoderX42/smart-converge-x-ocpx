@@ -2,6 +2,13 @@ import type { PageResult } from './business';
 
 import { requestClient } from '#/api/request';
 
+export * from './adx/app-link';
+export * from './adx/event-model';
+export * from './adx/media-account';
+export * from './adx/product';
+export * from './adx/runtime';
+export * from './adx/task';
+
 export type CatalogRecord = {
   createTime?: string;
   id: string;
@@ -14,6 +21,53 @@ export type AdapterDefinition = {
   capabilitiesJson: string;
   direction: 'DOWNSTREAM' | 'UPSTREAM';
   status: string;
+};
+
+export type AccessScopeType =
+  'ADVERTISER' | 'ALL' | 'CHANNEL' | 'MEDIA_ACCOUNT';
+
+export type AccessPermissionLevel = 'MANAGE' | 'OPERATE' | 'VIEW';
+
+export type AccessScope = {
+  id?: string;
+  permissionLevel: AccessPermissionLevel;
+  scopeId?: string;
+  scopeName?: string;
+  scopeType: AccessScopeType;
+  status?: string;
+  validFrom?: string;
+  validTo?: string;
+};
+
+export type UserAccessScopes = {
+  scopes: AccessScope[];
+  userId: string;
+  version: number;
+};
+
+export type AccessScopeOption = {
+  id: string;
+  name: string;
+  scopeType: AccessScopeType;
+  status: string;
+};
+
+export type AccessScopeOptions = {
+  advertisers: AccessScopeOption[];
+  allManageable: boolean;
+  channels: AccessScopeOption[];
+  mediaAccounts: AccessScopeOption[];
+};
+
+export type AccessScopeImpact = {
+  advertiserCount: number;
+  appLinkCount: number;
+  channelCount: number;
+  mediaAccountCount: number;
+  monitorCount: number;
+  publishedMonitorCount: number;
+  userId: string;
+  version: number;
 };
 
 export type OcpxIntegration = {
@@ -51,18 +105,85 @@ export type Channel = CatalogRecord & {
 };
 
 export type Advertiser = CatalogRecord & {
-  account: string;
-  adapterCode: string;
+  adapterKey: string;
+  adapterVersion: number;
   advertiserName: string;
   balance: number;
-  bidUrl: string;
+  balanceStatus: 'AVAILABLE' | 'EMPTY';
+  code: string;
   configVersion: number;
+  credentialConfigured: boolean;
+  credentialRevision: number;
+  documentRevision: number;
+  maskedBidUrl?: string;
+  republishRequired: boolean;
+  status: 'ACTIVE' | 'DISABLED';
+};
+
+export type AdvertiserDetail = CatalogRecord & {
+  accountMasked: string;
+  adapterKey: string;
+  adapterVersion: number;
+  advertiserName: string;
+  balance: number;
+  bidUrl?: string;
+  code: string;
+  configVersion: number;
+  credentialConfigured: boolean;
+  credentialRevision: number;
+  currentDocumentId?: string;
+  documentRevision: number;
   macroParams?: string;
-  password?: string;
-  secretConfigured: boolean;
-  secretKey?: string;
-  status: string;
-  upstreamHostAllowlist: string;
+  republishRequiredCount: number;
+  status: 'ACTIVE' | 'DISABLED';
+  upstreamHostAllowlist?: string;
+};
+
+export type AdvertiserAdapterCapability = {
+  adapterKey: string;
+  adapterName: string;
+  authTypes: string[];
+  eventVocabulary: string[];
+  maxTimeoutMs?: number;
+  requiresBidUrl: boolean;
+  supportsCallback: boolean;
+  version: number;
+};
+
+export type AdvertiserDocument = {
+  contentType: string;
+  createdAt: string;
+  createdBy: string;
+  current: boolean;
+  documentType: string;
+  fileName: string;
+  fileSize: number;
+  id: string;
+  scanStatus: 'CLEAN' | 'REJECTED';
+  status: 'ACTIVE' | 'RETIRED';
+  summary?: string;
+  version: number;
+};
+
+export type AdvertiserCreateInput = {
+  account: string;
+  adapterKey: string;
+  bidUrl?: string;
+  code: string;
+  credentialInput?: string;
+  macroParams?: string;
+  name: string;
+  password: string;
+  upstreamHostAllowlist?: string;
+};
+
+export type AdvertiserUpdateInput = {
+  adapterKey: string;
+  bidUrl?: string;
+  expectedVersion: number;
+  macroParams?: string;
+  name: string;
+  upstreamHostAllowlist?: string;
 };
 
 export type AccountEntry = {
@@ -119,6 +240,8 @@ export type MonitorLink = CatalogRecord & {
   monitorName: string;
   publishedAt?: string;
   remark?: string;
+  republishReason?: string;
+  republishRequired: boolean;
   routeStatus: string;
   rtaMode: string;
   showUrl?: string;
@@ -234,104 +357,101 @@ export type ReportRow = {
   visitCount: number;
 };
 
-export type RuntimeOverview = {
-  byDirection: Record<string, number>;
-  deadDeliveries: number;
-  feedbackStreamPending: number;
-  ingressDlq: number;
-  pendingDeliveries: number;
-  retryDeliveries: number;
-  successfulDeliveries: number;
+export type UnifiedReportMetricCode =
+  | 'activationRate'
+  | 'activations'
+  | 'adjustmentCount'
+  | 'costAmount'
+  | 'deductionCount'
+  | 'duplicateClicks'
+  | 'impressions'
+  | 'orders'
+  | 'paymentRate'
+  | 'payments'
+  | 'rawClicks'
+  | 'registrationPaymentRate'
+  | 'registrationRate'
+  | 'registrations'
+  | 'validClicks';
+
+export type UnifiedReportQuery = {
+  advertiserId?: string;
+  appLinkId?: string;
+  channelId?: string;
+  current?: number;
+  direction?: 'ASC' | 'DESC';
+  endDate: string;
+  grain: 'DAY' | 'HOUR';
+  groupBy: 'LINK' | 'MEDIA' | 'PRODUCT' | 'TASK' | 'TIME';
+  mediaAccountId?: string;
+  mediaLevel?: 'ACCOUNT' | 'CHANNEL';
+  metrics?: UnifiedReportMetricCode[];
+  productId?: string;
+  size?: number;
+  sort?: string;
+  startDate: string;
+  taskId?: string;
 };
 
-export type RuntimeDelivery = {
-  adapterCode: string;
-  attemptCount: number;
+export type UnifiedReportRecord = {
+  asOf?: string;
+  dimensionKey: string;
+  dimensions: Record<string, unknown>;
+  dimensionType: string;
+  finalityStatus: 'DELAYED' | 'FINAL' | 'PROVISIONAL';
+  metrics: Partial<Record<UnifiedReportMetricCode, UnifiedReportMetricValue>>;
+  qualityStatus: 'COMPLETE' | 'PARTIAL' | 'UNMAPPED';
+};
+
+export type UnifiedReportPage = {
+  asOf?: string;
+  current: number;
+  freshnessStatus: 'DELAYED' | 'FINAL' | 'PROVISIONAL';
+  metricDefinitions: Array<{
+    code: string;
+    denominator?: string;
+    kind: string;
+    label: string;
+    numerator?: string;
+    sensitive: boolean;
+    status: 'AVAILABLE' | 'UNAVAILABLE';
+  }>;
+  metricDefinitionsVersion: string;
+  pageSummary: {
+    label: string;
+    metrics: Record<string, UnifiedReportMetricValue>;
+  };
+  querySummary: {
+    label: string;
+    metrics: Record<string, UnifiedReportMetricValue>;
+  };
+  records: UnifiedReportRecord[];
+  size: number;
+  timezone: string;
+  total: number;
+};
+
+export type UnifiedReportMetricValue = {
+  denominator?: number;
+  numerator?: number;
+  status: 'AVAILABLE' | 'FORBIDDEN' | 'UNAVAILABLE' | 'ZERO_DENOMINATOR';
+  value?: number;
+};
+
+export type ReportExportTask = {
   createTime: string;
-  direction: string;
-  eventId: string;
+  errorCode?: string;
+  expiresAt?: string;
   id: string;
-  lastError?: string;
-  nextRetryAt: string;
-  sourceEventId: string;
-  status: string;
-  updateTime: string;
-};
-
-export type RuntimeIngressDlq = {
-  createTime: string;
-  eventId?: string;
-  id: string;
-  partitionNo: number;
-  reason: string;
-  replayedAt?: string;
-  status: string;
-  streamRecordId: string;
-};
-
-export type RuntimeEvent = {
-  advertiserId: string;
-  advertiserName?: string;
-  amount?: number;
-  amountRaw?: string;
-  channelId: string;
-  channelName?: string;
-  conversionEventCode?: string;
-  cpaChargeAmount?: number;
-  dailyLimitResult?: string;
-  direction: string;
-  eventId: string;
-  eventType: string;
-  id: string;
-  mediaEventCode?: string;
-  monitorId: string;
-  monitorName?: string;
-  occurredAt: string;
-  parentEventId?: string;
-  receivedAt: string;
-  sourceEventCode?: string;
-  status: string;
-};
-
-export type RuntimeTimelineItem = {
-  detail?: string;
-  occurredAt: string;
-  referenceId: string;
-  stage: string;
-  status: string;
-};
-
-export type RuntimeDeliveryAttempt = {
-  attemptNo: number;
-  createTime: string;
-  durationMs?: number;
-  errorMessage?: string;
-  httpStatus?: number;
-  id: string;
-  jobId: string;
-  requestMethod?: string;
-  requestSummary?: string;
-  responseExcerpt?: string;
-  status: string;
-  targetHost?: string;
-  targetPath?: string;
-};
-
-export type RuntimeIngressAudit = {
-  channelCode?: string;
-  clientId?: string;
-  createTime: string;
-  durationMs?: number;
-  eventId?: string;
-  httpStatus: number;
-  id: string;
-  keyVersion?: string;
-  payloadHash?: string;
-  reason?: string;
-  remoteIpMasked?: string;
-  requestId?: string;
-  resultStatus: string;
-  routeReference?: string;
+  status:
+    | 'CANCELLED'
+    | 'EXPIRED'
+    | 'FAILED'
+    | 'PENDING'
+    | 'PROCESSING'
+    | 'RETRY_WAIT'
+    | 'SUCCEEDED';
+  type: 'DEDUCTION' | 'STANDARD';
 };
 
 export type DashboardMetricSet = {
@@ -425,11 +545,91 @@ export type DashboardAccountSummary = {
   totalBalance: number;
 };
 
+export type DashboardSectionStatus = 'EMPTY' | 'ERROR' | 'READY' | 'TIMEOUT';
+
+export type DashboardSection<T> = {
+  data?: T;
+  errorCode?: string;
+  status: DashboardSectionStatus;
+  traceId?: string;
+};
+
+export type DashboardMetricCard = {
+  changeRate?: number;
+  comparison?: UnifiedReportMetricValue;
+  comparisonLabel: string;
+  current: UnifiedReportMetricValue;
+  label: string;
+  metric: UnifiedReportMetricCode;
+};
+
+export type DashboardTrendPoint = {
+  asOf?: string;
+  bucket: string;
+  finalityStatus: 'DELAYED' | 'FINAL' | 'PROVISIONAL';
+  metrics: Partial<Record<UnifiedReportMetricCode, UnifiedReportMetricValue>>;
+};
+
+export type DashboardRanking = {
+  groupBy: 'MEDIA' | 'PRODUCT' | 'TASK';
+  records: Array<{
+    asOf?: string;
+    dimensionKey: string;
+    finalityStatus: 'DELAYED' | 'FINAL' | 'PROVISIONAL';
+    metrics: Partial<Record<UnifiedReportMetricCode, UnifiedReportMetricValue>>;
+    objectId: string;
+  }>;
+};
+
+export type DashboardOverview = {
+  asOf?: string;
+  businessDate: string;
+  cacheHit: boolean;
+  cards: DashboardSection<DashboardMetricCard[]>;
+  endDate: string;
+  freshnessStatus: 'DELAYED' | 'FINAL' | 'PROVISIONAL';
+  mediaRanking: DashboardSection<DashboardRanking>;
+  metricDefinitions: UnifiedReportPage['metricDefinitions'];
+  metricDefinitionsVersion: string;
+  partialFailure: boolean;
+  productRanking: DashboardSection<DashboardRanking>;
+  scopeRevision: number;
+  startDate: string;
+  taskRanking: DashboardSection<DashboardRanking>;
+  timezone: string;
+  trend: DashboardSection<DashboardTrendPoint[]>;
+};
+
+export type DashboardQuery = {
+  advertiserId?: string;
+  appLinkId?: string;
+  channelId?: string;
+  endDate: string;
+  mediaAccountId?: string;
+  productId?: string;
+  startDate: string;
+  taskId?: string;
+};
+
 export type ReportOptions = {
-  advertisers: Advertiser[];
+  advertisers: AdvertiserOption[];
   appLinks: AppLink[];
   channels: Channel[];
   monitors: MonitorLink[];
+};
+
+export type UnifiedReportOptions = {
+  advertisers: Array<{ id: string; label: string; status: string }>;
+  appLinks: Array<{ id: string; label: string; status: string }>;
+  channels: Array<{ id: string; label: string; status: string }>;
+  mediaAccounts: Array<{ id: string; label: string; status: string }>;
+  products: Array<{ id: string; label: string; status: string }>;
+  tasks: Array<{ id: string; label: string; status: string }>;
+};
+
+export type AdvertiserOption = {
+  advertiserName: string;
+  id: string;
 };
 
 export type ApiDebugTarget = {
@@ -627,13 +827,134 @@ export function saveCatalog<K extends CatalogKind>(
   kind: K,
   data: Partial<KindRecord<K>>,
 ) {
+  if (kind === 'advertiser') {
+    throw new Error('Advertiser writes must use the revision-aware API');
+  }
   return data.id
     ? requestClient.put(`${endpoints[kind]}/${data.id}`, data)
     : requestClient.post(endpoints[kind], data);
 }
 
 export function deleteCatalog(kind: CatalogKind, id: string) {
+  if (kind === 'advertiser') {
+    throw new Error('Advertisers are disabled by status change, not deleted');
+  }
   return requestClient.delete<boolean>(`${endpoints[kind]}/${id}`);
+}
+
+export function getAdvertisers(params: Query) {
+  return requestClient.get<PageResult<Advertiser>>('/adx/advertisers', {
+    params,
+  });
+}
+
+export function getAdvertiserDetail(id: string) {
+  return requestClient.get<AdvertiserDetail>(`/adx/advertisers/${id}`);
+}
+
+export function getAdvertiserAdapterCapabilities() {
+  return requestClient.get<AdvertiserAdapterCapability[]>(
+    '/adx/advertisers/adapter-capabilities',
+  );
+}
+
+export function createAdvertiser(
+  data: AdvertiserCreateInput,
+  idempotencyKey: string,
+) {
+  return requestClient.post<AdvertiserDetail>('/adx/advertisers', data, {
+    headers: { 'Idempotency-Key': idempotencyKey },
+  });
+}
+
+export function updateAdvertiser(id: string, data: AdvertiserUpdateInput) {
+  return requestClient.put<AdvertiserDetail>(`/adx/advertisers/${id}`, data);
+}
+
+export function secondaryAuthenticate(password: string) {
+  return requestClient.post('/secondary-auth', { password });
+}
+
+export function rotateAdvertiserCredential(
+  id: string,
+  data: {
+    credentialInput: string;
+    expectedCredentialRevision: number;
+    reason: string;
+  },
+) {
+  return requestClient.post<{
+    configured: boolean;
+    overlapUntil?: string;
+    republishRequiredCount: number;
+    revision: number;
+  }>(`/adx/advertisers/${id}/credentials:rotate`, data);
+}
+
+export function changeAdvertiserStatus(
+  id: string,
+  data: {
+    confirmed: boolean;
+    expectedVersion: number;
+    reason: string;
+    status: 'ACTIVE' | 'DISABLED';
+  },
+) {
+  return requestClient.post(`/adx/advertisers/${id}/status`, data);
+}
+
+export function getAdvertiserDocuments(id: string) {
+  return requestClient.get<AdvertiserDocument[]>(
+    `/adx/advertisers/${id}/documents`,
+  );
+}
+
+export function uploadAdvertiserDocument(
+  id: string,
+  documentType: string,
+  summary: string,
+  file: File,
+) {
+  const data = new FormData();
+  data.append('documentType', documentType);
+  if (summary) data.append('summary', summary);
+  data.append('file', file);
+  return requestClient.post<AdvertiserDocument>(
+    `/adx/advertisers/${id}/documents`,
+    data,
+  );
+}
+
+export function setCurrentAdvertiserDocument(
+  advertiserId: string,
+  documentId: string,
+  expectedVersion: number,
+) {
+  return requestClient.post(
+    `/adx/advertisers/${advertiserId}/documents/${documentId}:current`,
+    { expectedVersion },
+  );
+}
+
+export function retireAdvertiserDocument(
+  advertiserId: string,
+  documentId: string,
+  reason: string,
+) {
+  return requestClient.post(
+    `/adx/advertisers/${advertiserId}/documents/${documentId}:retire`,
+    { reason },
+  );
+}
+
+export function downloadAdvertiserDocument(
+  advertiserId: string,
+  documentId: string,
+) {
+  return requestClient.get<Blob>(
+    `/adx/advertisers/${advertiserId}/documents/${documentId}/content`,
+    { responseReturn: 'body', responseType: 'blob' },
+  );
 }
 
 export function rechargeAdvertiser(
@@ -658,59 +979,8 @@ export function publishMonitor(id: string) {
   return requestClient.post(`/adx/monitors/${id}/publish`);
 }
 
-export function getRuntimeOverview() {
-  return requestClient.get<RuntimeOverview>('/adx/runtime/overview');
-}
-
-export function getRuntimeDeliveries(params: Query) {
-  return requestClient.get<PageResult<RuntimeDelivery>>(
-    '/adx/runtime/deliveries',
-    { params },
-  );
-}
-
-export function getRuntimeEvents(params: Query) {
-  return requestClient.get<PageResult<RuntimeEvent>>('/adx/runtime/events', {
-    params,
-  });
-}
-
-export function getRuntimeEventTimeline(id: string) {
-  return requestClient.get<RuntimeTimelineItem[]>(
-    `/adx/runtime/events/${id}/timeline`,
-  );
-}
-
-export function getRuntimeDeliveryAttempts(id: string) {
-  return requestClient.get<RuntimeDeliveryAttempt[]>(
-    `/adx/runtime/deliveries/${id}/attempts`,
-  );
-}
-
-export function getRuntimeIngressAudits(params: Query) {
-  return requestClient.get<PageResult<RuntimeIngressAudit>>(
-    '/adx/runtime/ingress-audits',
-    { params },
-  );
-}
-
-export function replayRuntimeDelivery(id: string) {
-  return requestClient.post(`/adx/runtime/deliveries/${id}/replay`);
-}
-
-export function getRuntimeIngressDlq(params: Query) {
-  return requestClient.get<PageResult<RuntimeIngressDlq>>(
-    '/adx/runtime/ingress-dlq',
-    { params },
-  );
-}
-
-export function replayRuntimeIngressDlq(id: string) {
-  return requestClient.post(`/adx/runtime/ingress-dlq/${id}/replay`);
-}
-
-export function getReport(params: Query) {
-  return requestClient.get<PageResult<ReportRow>>('/adx/reports/hourly', {
+export function getReport(params: UnifiedReportQuery) {
+  return requestClient.get<UnifiedReportPage>('/adx/reports/hourly', {
     params,
   });
 }
@@ -719,18 +989,46 @@ export function getReportOptions() {
   return requestClient.get<ReportOptions>('/adx/report-options');
 }
 
-export function exportReport(params: Query) {
-  return requestClient.get<Blob>('/adx/reports/hourly/export', {
-    params,
+export function getUnifiedReportOptions() {
+  return requestClient.get<UnifiedReportOptions>('/adx/reports/options');
+}
+
+export function exportReport(data: UnifiedReportQuery) {
+  return requestClient.post<ReportExportTask>('/adx/reports/exports', data);
+}
+
+export function exportDeductionReport(data: UnifiedReportQuery) {
+  return requestClient.post<ReportExportTask>(
+    '/adx/reports/deduction-exports',
+    data,
+  );
+}
+
+export function getReportExport(id: string) {
+  return requestClient.get<ReportExportTask>(`/adx/reports/exports/${id}`);
+}
+
+export function cancelReportExport(id: string) {
+  return requestClient.post<ReportExportTask>(
+    `/adx/reports/exports/${id}/cancel`,
+  );
+}
+
+export function downloadReportExport(id: string) {
+  return requestClient.get<Blob>(`/adx/reports/exports/${id}/download`, {
     responseReturn: 'body',
     responseType: 'blob',
   });
 }
 
-export function getDashboardSummary(params?: Query) {
-  return requestClient.get<DashboardSummary>('/adx/dashboard/summary', {
+export function getDashboardSummary(params: DashboardQuery) {
+  return requestClient.get<DashboardOverview>('/adx/dashboard/summary', {
     params,
   });
+}
+
+export function getDashboardOptions() {
+  return requestClient.get<UnifiedReportOptions>('/adx/dashboard/options');
 }
 
 export function getDashboardAccountSummary(params?: Query) {
@@ -838,4 +1136,31 @@ export function saveApiDebugCase(data: Partial<ApiDebugCase>) {
 
 export function deleteApiDebugCase(id: string) {
   return requestClient.delete<boolean>(`/adx/api-debug/cases/${id}`);
+}
+
+export function getUserAccessScopes(userId: string) {
+  return requestClient.get<UserAccessScopes>(
+    `/adx/access-scopes/users/${userId}`,
+  );
+}
+
+export function getAccessScopeOptions() {
+  return requestClient.get<AccessScopeOptions>('/adx/access-scopes/options');
+}
+
+export function getUserAccessScopeImpact(userId: string) {
+  return requestClient.get<AccessScopeImpact>(
+    `/adx/access-scopes/users/${userId}/impact`,
+  );
+}
+
+export function replaceUserAccessScopes(
+  userId: string,
+  version: number,
+  scopes: AccessScope[],
+) {
+  return requestClient.put<UserAccessScopes>(
+    `/adx/access-scopes/users/${userId}`,
+    { scopes, version },
+  );
 }

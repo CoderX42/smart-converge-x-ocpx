@@ -6,6 +6,7 @@
 > 账号边界：本轮授权账号当前可见范围
 > 阻塞原因：Accepted ADR-001 与当前实现约束将有效 RTA 模式锁定为 `OFF`；主动决策必须先有替代 ADR
 > 证据边界：页面、字段和只读交互来自本轮截图与现场观察；未执行新增、编辑保存、启停、真实请求或密钥轮换
+> 决策准备：[ADR-003 RTA 主动决策解锁门禁](../adr/ADR-003-RTA主动决策解锁门禁.md) 为 **Proposed / Not Accepted**，文件存在不解除 Blocked，不得据此启用 ACTIVE、外呼、shadow 或 UAT
 
 ## 1. 模块目标与非目标
 
@@ -315,3 +316,17 @@ Blocked 期间指标：
 6. 设备/广告字段最小集合、加密/签名协议、保留和删除要求；
 7. timeout、failure mode、重试、熔断、shadow、计费和停流策略；
 8. 全局密钥与 Profile 密钥是否为不同 credential 域，以及轮换重叠窗口。
+
+## 16. 当前 fail-closed 源码审计（2026-08-10）
+
+S11 仍为 `Blocked`，本节只记录阻断证据，不表示 Profile、统计或主动决策已经实现：
+
+- Task 创建/编辑 DTO 与 Service 均只接受 `OFF`，V86 当前态约束再次拒绝非 `OFF`；兼容 Monitor DTO 只接受 `OFF`，既有发布服务也在发布前拒绝非 `OFF`。
+- S7 publish-check 将非 `OFF` 标为 `FAIL`，正式冻结快照和 RouteVersion 写入固定 `OFF`，V88 RouteVersion 约束再次校验。
+- `RouteSnapshot` 合同现已在构造和反序列化边界拒绝任何非 `OFF` 值，因此异常密文快照不能进入运行缓存；唯一的 `RtaDecisionPort` 生产 Bean 是无网络依赖的 `DisabledRtaDecisionPort`，只返回 `SKIPPED/RTA_OFF`。
+- 当前源码没有 RTA Profile/全局设置/统计 Controller，没有 RTA 菜单或前端路由，也没有 RTA 连通检查、HTTP 客户端、shadow 或 ACTIVE 配置。因而不存在可读取的 RTA Secret；未来若实现禁用态 Profile，仍必须遵守只写 revision 且不回显原文。
+- 本地定向测试只证明非 `OFF` RouteSnapshot 构造失败和现有四层阻断合同；没有执行外呼、连通检查、供应商 Mock/UAT 或真实数据面验收。
+
+缺失的替代 ADR、供应商协议、成功口径、隐私/费用/容量/故障模式和 UAT 未发生变化，S11 不得标为完成。
+
+第二次 Blocked 审计只新增了 Proposed 决策清单；当前 OFF/409 防护是评审前置证据，不是 RTA 业务完成或外部决策已取得的证据。

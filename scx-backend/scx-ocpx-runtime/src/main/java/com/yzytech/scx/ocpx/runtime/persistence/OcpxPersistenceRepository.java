@@ -3,7 +3,6 @@ package com.yzytech.scx.ocpx.runtime.persistence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yzytech.scx.ocpx.contract.BillingPort;
 import com.yzytech.scx.ocpx.contract.FeedbackReqV1;
-import com.yzytech.scx.ocpx.contract.LogDataProjection;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
 import com.yzytech.scx.ocpx.contract.OcpxEventType;
 import com.yzytech.scx.ocpx.contract.RouteSnapshot;
@@ -79,15 +78,20 @@ public class OcpxPersistenceRepository {
 		try {
 			RouteSnapshot route = objectMapper.readValue(protocolCrypto.decrypt(envelope.encryptedRoute()),
 					RouteSnapshot.class);
-			int inserted = jdbcTemplate.update("""
-					INSERT IGNORE INTO scx_ocpx_event
-					(id,event_id,parent_event_id,source_direction,event_type,channel_id,advertiser_id,app_link_id,
-					 monitor_id,route_version,occurred_at,received_at,device_platform,device_id_type,device_key_version,
-					 device_key_hash,payload_hash,status,callback_ref,
-					 debug_execution_id,is_debug)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", id(), envelope.eventId(), null, "DOWNSTREAM_FEEDBACK", envelope.eventType().name(),
-					route.channelId(), route.advertiserId(), route.appLinkId(), route.routeId(), route.routeVersion(),
+			int inserted = jdbcTemplate.update(
+					"""
+							INSERT IGNORE INTO scx_ocpx_event
+							(id,event_id,parent_event_id,source_direction,event_type,tenant_id,channel_id,advertiser_id,product_id,
+							 app_link_id,task_id,media_account_id,operator_user_id,monitor_id,route_version_id,route_version,
+							 dimension_status,occurred_at,received_at,device_platform,device_id_type,device_key_version,
+							 device_key_hash,payload_hash,status,callback_ref,
+							 debug_execution_id,is_debug)
+							VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+							""",
+					id(), envelope.eventId(), null, "DOWNSTREAM_FEEDBACK", envelope.eventType().name(),
+					route.tenantId(), route.channelId(), route.advertiserId(), route.productId(), route.appLinkId(),
+					route.taskId(), route.mediaAccountId(), route.operatorUserId(), route.routeId(),
+					route.routeVersionId(), route.routeVersion(), hasFrozenDimensions(route) ? "FROZEN" : "UNMAPPED",
 					Timestamp.from(envelope.occurredAt().toInstant()),
 					Timestamp.from(envelope.receivedAt().toInstant()), envelope.devicePlatform(),
 					envelope.deviceIdType(), envelope.deviceKeyVersion(), envelope.deviceKeyHash(),
@@ -97,6 +101,7 @@ public class OcpxPersistenceRepository {
 				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "DUPLICATE", "幂等事件已存在，未重复写入");
 				return;
 			}
+			recordRuntimeFeedbackFact(envelope, route);
 			ClickDedupDecision clickDedup = decideClickDedup(envelope, route);
 			if (clickDedup.duplicate()) {
 				jdbcTemplate.update("""
@@ -104,7 +109,7 @@ public class OcpxPersistenceRepository {
 						WHERE event_id=? AND source_direction='DOWNSTREAM_FEEDBACK'
 						""", envelope.eventId());
 				if (envelope.debugExecutionId() == null) {
-					upsertFeedbackMetric(envelope, route, clickDedup, BigDecimal.ZERO);
+					recordFeedbackContribution(envelope, route, clickDedup, BigDecimal.ZERO);
 				}
 				completeDebug(envelope.debugExecutionId(), "SUCCEEDED", "CLICK_DEDUPLICATED",
 						"点击事实已保存，设备窗口内不计费且不向上游投递");
@@ -149,7 +154,7 @@ public class OcpxPersistenceRepository {
 						envelope.callbackRef(), envelope.debugExecutionId());
 			}
 			if (envelope.debugExecutionId() == null) {
-				upsertFeedbackMetric(envelope, route, clickDedup,
+				recordFeedbackContribution(envelope, route, clickDedup,
 						billing.posted() ? route.unitPrice() : BigDecimal.ZERO);
 			}
 			String status = envelope.forwardUpstream() && billing.permitsDelivery() ? "WAITING_ASYNC"
@@ -283,8 +288,8 @@ public class OcpxPersistenceRepository {
 	}
 
 	@Transactional
-	public CallbackPersistenceResult persistCallback(NormalizedCallbackEvent callback, CallbackContext context, boolean forwarded,
-			String decisionReason) {
+	public CallbackPersistenceResult persistCallback(NormalizedCallbackEvent callback, CallbackContext context,
+			boolean forwarded, String decisionReason) {
 		RouteSnapshot route = context.route();
 		if (callbackExists(callback.eventId())) {
 			return new CallbackPersistenceResult("DUPLICATE");
@@ -301,15 +306,15 @@ public class OcpxPersistenceRepository {
 			else {
 				LocalDate businessDate = LocalDate.now(REPORT_ZONE);
 				jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_event_daily_quota
-					(monitor_id,upstream_event_code,business_date,queued_count,create_time,update_time)
-					VALUES (?,?,?,0,NOW(3),NOW(3))
-					ON DUPLICATE KEY UPDATE queued_count=queued_count
-					""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+						INSERT INTO scx_ocpx_event_daily_quota
+						(monitor_id,upstream_event_code,business_date,queued_count,create_time,update_time)
+						VALUES (?,?,?,0,NOW(3),NOW(3))
+						ON DUPLICATE KEY UPDATE queued_count=queued_count
+						""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
 				Integer queued = jdbcTemplate.queryForObject("""
-					SELECT queued_count FROM scx_ocpx_event_daily_quota
-					WHERE monitor_id=? AND upstream_event_code=? AND business_date=? FOR UPDATE
-					""", Integer.class, route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+						SELECT queued_count FROM scx_ocpx_event_daily_quota
+						WHERE monitor_id=? AND upstream_event_code=? AND business_date=? FOR UPDATE
+						""", Integer.class, route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
 				if (callbackExists(callback.eventId())) {
 					return new CallbackPersistenceResult("DUPLICATE");
 				}
@@ -327,9 +332,9 @@ public class OcpxPersistenceRepository {
 				}
 				insertDeductionDecision(callback, context, true, decisionReason);
 				jdbcTemplate.update("""
-					UPDATE scx_ocpx_event_daily_quota SET queued_count=queued_count+1,update_time=NOW(3)
-					WHERE monitor_id=? AND upstream_event_code=? AND business_date=?
-					""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
+						UPDATE scx_ocpx_event_daily_quota SET queued_count=queued_count+1,update_time=NOW(3)
+						WHERE monitor_id=? AND upstream_event_code=? AND business_date=?
+						""", route.routeId(), callback.mappedUpstreamEventCode(), businessDate);
 				if (!createDownstreamJob(callback, context)) {
 					throw new IllegalStateException("published callback route has no downstream delivery target");
 				}
@@ -342,7 +347,7 @@ public class OcpxPersistenceRepository {
 			insertDeductionDecision(callback, context, false, decisionReason);
 		}
 		if (context.debugExecutionId() == null) {
-			upsertCallbackMetric(callback, route, forwarded);
+			recordCallbackContribution(callback, route, forwarded);
 		}
 		boolean waitingForDelivery = forwarded && StringUtils.hasText(route.downstreamCallbackUrl());
 		completeDebug(context.debugExecutionId(), waitingForDelivery ? "WAITING_ASYNC" : "SUCCEEDED",
@@ -360,30 +365,38 @@ public class OcpxPersistenceRepository {
 	private boolean insertCallbackEvent(NormalizedCallbackEvent callback, CallbackContext context, String status,
 			BigDecimal cpaCharge, String dailyLimitResult) {
 		RouteSnapshot route = context.route();
-		int inserted = jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_ocpx_event
-				(id,event_id,parent_event_id,source_direction,event_type,source_event_code,conversion_event_code,media_event_code,
-				 channel_id,advertiser_id,app_link_id,
-				 monitor_id,route_version,occurred_at,received_at,payload_hash,status,callback_ref,amount,amount_raw,
-				 cpa_charge_amount,daily_limit_result,debug_execution_id,is_debug)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-				""", id(), callback.eventId(), context.feedbackEventId(), "UPSTREAM_CALLBACK",
-				callback.eventType().name(), callback.sourceEventCode(), callback.conversionEventCode(),
-				callback.mediaEventCode(), route.channelId(), route.advertiserId(), route.appLinkId(),
-				route.routeId(), route.routeVersion(), Timestamp.from(callback.actionTime().toInstant()),
-				Timestamp.from(OffsetDateTime.now().toInstant()), callback.eventId(), status,
-				context.callbackRef(), callback.amount(), callback.amountRaw(), cpaCharge, dailyLimitResult,
-				context.debugExecutionId(),
-				context.debugExecutionId() == null ? 0 : 1);
+		int inserted = jdbcTemplate.update(
+				"""
+						INSERT IGNORE INTO scx_ocpx_event
+						(id,event_id,parent_event_id,source_direction,event_type,source_event_code,conversion_event_code,media_event_code,
+						 tenant_id,channel_id,advertiser_id,product_id,app_link_id,task_id,media_account_id,operator_user_id,
+						 monitor_id,route_version_id,route_version,dimension_status,occurred_at,received_at,payload_hash,status,
+						 callback_ref,amount,amount_raw,
+						 cpa_charge_amount,daily_limit_result,debug_execution_id,is_debug)
+						VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+						""",
+				id(), callback.eventId(), context.feedbackEventId(), "UPSTREAM_CALLBACK", callback.eventType().name(),
+				callback.sourceEventCode(), callback.conversionEventCode(), callback.mediaEventCode(), route.tenantId(),
+				route.channelId(), route.advertiserId(), route.productId(), route.appLinkId(), route.taskId(),
+				route.mediaAccountId(), route.operatorUserId(), route.routeId(), route.routeVersionId(),
+				route.routeVersion(), hasFrozenDimensions(route) ? "FROZEN" : "UNMAPPED",
+				Timestamp.from(callback.actionTime().toInstant()), Timestamp.from(OffsetDateTime.now().toInstant()),
+				callback.eventId(), status, context.callbackRef(), callback.amount(), callback.amountRaw(), cpaCharge,
+				dailyLimitResult, context.debugExecutionId(), context.debugExecutionId() == null ? 0 : 1);
+		if (inserted == 1) {
+			recordRuntimeCallbackFact(callback, context, status);
+		}
 		return inserted == 1;
 	}
 
 	private void annotateCpaBilling(NormalizedCallbackEvent callback, RouteSnapshot route) {
-		jdbcTemplate.update("""
-				UPDATE scx_ocpx_billing_entry
-				SET channel_id=?,app_link_id=?,monitor_id=?,source_event_code=?,conversion_event_code=?,media_event_code=?
-				WHERE charge_event_id=? AND advertiser_id=? AND mode='CPA'
-				""", route.channelId(), route.appLinkId(), route.routeId(), callback.sourceEventCode(),
+		jdbcTemplate.update(
+				"""
+						UPDATE scx_ocpx_billing_entry
+						SET channel_id=?,app_link_id=?,monitor_id=?,source_event_code=?,conversion_event_code=?,media_event_code=?
+						WHERE charge_event_id=? AND advertiser_id=? AND mode='CPA'
+						""",
+				route.channelId(), route.appLinkId(), route.routeId(), callback.sourceEventCode(),
 				callback.conversionEventCode(), callback.mediaEventCode(), callback.eventId(), route.advertiserId());
 	}
 
@@ -406,19 +419,19 @@ public class OcpxPersistenceRepository {
 			return false;
 		}
 		jdbcTemplate.update("""
-					UPDATE scx_ocpx_protocol_snapshot
-					SET expires_at=GREATEST(expires_at,DATE_ADD(NOW(3),INTERVAL 1 DAY))
-					WHERE feedback_event_id=?
-					""", context.feedbackEventId());
+				UPDATE scx_ocpx_protocol_snapshot
+				SET expires_at=GREATEST(expires_at,DATE_ADD(NOW(3),INTERVAL 1 DAY))
+				WHERE feedback_event_id=?
+				""", context.feedbackEventId());
 		int inserted = jdbcTemplate.update(
-					"""
-							INSERT INTO scx_ocpx_delivery_job
-							(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,debug_execution_id,
-							 create_time,update_time)
-							VALUES (?,?,?,'CALLBACK_DOWNSTREAM',?,'PENDING',0,NOW(3),?,?,NOW(3),NOW(3))
-							""",
-					id(), callback.eventId(), context.feedbackEventId(), route.channelAdapterCode(),
-					context.callbackRef(), context.debugExecutionId());
+				"""
+						INSERT INTO scx_ocpx_delivery_job
+						(id,event_id,source_event_id,direction,adapter_code,status,attempt_count,next_retry_at,callback_ref,debug_execution_id,
+						 create_time,update_time)
+						VALUES (?,?,?,'CALLBACK_DOWNSTREAM',?,'PENDING',0,NOW(3),?,?,NOW(3),NOW(3))
+						""",
+				id(), callback.eventId(), context.feedbackEventId(), route.channelAdapterCode(), context.callbackRef(),
+				context.debugExecutionId());
 		return inserted == 1;
 	}
 
@@ -494,6 +507,7 @@ public class OcpxPersistenceRepository {
 			return;
 		}
 		insertAttempt(job, attempt, "SUCCESS", statusCode, null, audit);
+		recordRuntimeDeliveryFact(job, attempt, "SUCCEEDED", "DELIVERY_SUCCEEDED");
 		if ("CALLBACK_DOWNSTREAM".equals(job.direction()) && job.debugExecutionId() == null) {
 			incrementDeliveryMetric(job.eventId(), "forwarded_conversion_count");
 		}
@@ -525,6 +539,11 @@ public class OcpxPersistenceRepository {
 			return;
 		}
 		insertAttempt(job, attempt, dead ? "DEAD" : "FAILED", statusCode, error, audit);
+		recordRuntimeDeliveryFact(job, attempt, dead ? "DLQ" : "FAILED",
+				dead ? "DELIVERY_ATTEMPTS_EXHAUSTED" : "DELIVERY_RETRY_WAIT");
+		if (dead) {
+			recordRuntimeDeliveryFailure(job, error);
+		}
 		if (dead && job.debugExecutionId() == null) {
 			incrementDeliveryMetric(job.eventId(), "delivery_failure_count");
 		}
@@ -540,6 +559,169 @@ public class OcpxPersistenceRepository {
 				(id,partition_no,stream_record_id,event_id,envelope,reason,status,create_time)
 				VALUES (?,?,?,?,?,?,'PENDING',NOW(3))
 				""", id(), partition, streamRecordId, eventId, envelope, truncate(reason, 1000));
+		recordRuntimeIngressFailure(partition, streamRecordId, eventId, reason);
+	}
+
+	private void recordRuntimeFeedbackFact(FeedbackEnvelope envelope, RouteSnapshot route) {
+		LocalDateTime received = envelope.receivedAt().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
+		LocalDateTime event = envelope.occurredAt().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
+		if (event.isAfter(received)) {
+			event = received;
+		}
+		jdbcTemplate.update(
+				"""
+						INSERT IGNORE INTO scx_adx_runtime_fact
+						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
+						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
+						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
+						 received_time,request_id_hash,correlation_id_hash,external_click_id_hash,idempotency_key_hash,
+						 payload_hash,summary_code,dimension_status,quality_status,create_time)
+						VALUES (?,'FEEDBACK',?,?, 'INGRESS','ACCEPTED','SUCCEEDED',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
+						""",
+				id(), envelope.eventId(), envelope.eventType() == OcpxEventType.CLICK ? "CLICK" : "INTEGRATION",
+				route.tenantId(), route.advertiserId(), route.productId(), route.appLinkId(), route.taskId(),
+				route.channelId(), route.mediaAccountId(), route.operatorUserId(), route.routeId(),
+				route.routeVersionId(), route.routeVersion(), envelope.eventType().name(), route.eventSnapshotVersion(),
+				event, received, protocolCrypto.blindIndex("S10_RUNTIME_EXACT", envelope.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", envelope.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", envelope.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_FACT", "FEEDBACK|" + envelope.eventId()), envelope.payloadHash(),
+				"FEEDBACK_PERSISTED", hasFrozenDimensions(route) ? "FROZEN" : "UNMAPPED",
+				hasFrozenDimensions(route) ? "COMPLETE" : "UNMAPPED");
+	}
+
+	private void recordRuntimeCallbackFact(NormalizedCallbackEvent callback, CallbackContext context, String status) {
+		RouteSnapshot route = context.route();
+		LocalDateTime received = LocalDateTime.now(REPORT_ZONE);
+		LocalDateTime event = callback.actionTime().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
+		if (event.isAfter(received)) {
+			event = received;
+		}
+		jdbcTemplate.update(
+				"""
+						INSERT IGNORE INTO scx_adx_runtime_fact
+						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
+						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
+						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
+						 received_time,request_id_hash,correlation_id_hash,external_click_id_hash,idempotency_key_hash,
+						 payload_hash,summary_code,dimension_status,quality_status,create_time)
+						VALUES (?,'CALLBACK',?,'CONVERSION','INGRESS','ACCEPTED','SUCCEEDED',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(3))
+						""",
+				id(), callback.eventId(), route.tenantId(), route.advertiserId(), route.productId(), route.appLinkId(),
+				route.taskId(), route.channelId(), route.mediaAccountId(), route.operatorUserId(), route.routeId(),
+				route.routeVersionId(), route.routeVersion(), callback.conversionEventCode(),
+				route.eventSnapshotVersion(), event, received,
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", callback.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", context.feedbackEventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", context.feedbackEventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_FACT", "CALLBACK|" + callback.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_PAYLOAD", callback.eventId()),
+				"DEDUCTED".equals(status) ? "CALLBACK_DEDUCTED" : "CALLBACK_PERSISTED",
+				hasFrozenDimensions(route) ? "FROZEN" : "UNMAPPED",
+				hasFrozenDimensions(route) ? "COMPLETE" : "UNMAPPED");
+	}
+
+	private void recordRuntimeDeliveryFact(DeliveryJob job, int attempt, String processingStatus, String summaryCode) {
+		jdbcTemplate.update(
+				"""
+						INSERT IGNORE INTO scx_adx_runtime_fact
+						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
+						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
+						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
+						 received_time,correlation_id_hash,idempotency_key_hash,summary_code,dimension_status,quality_status,create_time)
+						SELECT ?,'DELIVERY',?,'DELIVERY_ATTEMPT',?,'ACCEPTED',?,e.tenant_id,e.advertiser_id,e.product_id,
+						 e.app_link_id,e.task_id,e.channel_id,e.media_account_id,e.operator_user_id,e.monitor_id,
+						 e.route_version_id,e.route_version,e.event_type,rv.event_snapshot_schema_version,
+						 LEAST(e.occurred_at,NOW(3)),NOW(3),?,?,?,e.dimension_status,
+						 IF(e.dimension_status='FROZEN','COMPLETE','UNMAPPED'),NOW(3)
+						FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+						WHERE e.event_id=? LIMIT 1
+						""",
+				id(), job.id() + ":" + attempt, "FEEDBACK_UPSTREAM".equals(job.direction()) ? "UPSTREAM" : "DOWNSTREAM",
+				processingStatus, protocolCrypto.blindIndex("S10_RUNTIME_EXACT", job.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_FACT", "DELIVERY|" + job.id() + "|" + attempt), summaryCode,
+				job.eventId());
+	}
+
+	private void recordRuntimeDeliveryFailure(DeliveryJob job, String error) {
+		String failureId = id();
+		jdbcTemplate.update("""
+				INSERT IGNORE INTO scx_adx_runtime_failure
+				(id,source_fact_id,source_type,source_id,failure_class,error_code,replayable,failure_revision,
+				 tenant_id,advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
+				 route_id,route_version_id,route_version,event_snapshot_schema_version,event_time,received_time,
+				 correlation_id_hash,idempotency_key_hash,payload_hash,summary_hash,dimension_status,create_time)
+				SELECT ?,NULL,'DELIVERY',?,'RETRYABLE','DELIVERY_ATTEMPTS_EXHAUSTED',
+				 IF(rv.id IS NULL,0,1),1,e.tenant_id,e.advertiser_id,e.product_id,e.app_link_id,e.task_id,e.channel_id,
+				 e.media_account_id,e.operator_user_id,e.monitor_id,e.route_version_id,e.route_version,
+				 rv.event_snapshot_schema_version,LEAST(e.occurred_at,NOW(3)),NOW(3),?,?,e.payload_hash,?,
+				 e.dimension_status,NOW(3)
+				FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+				WHERE e.event_id=? LIMIT 1
+				""", failureId, job.id(), protocolCrypto.blindIndex("S10_RUNTIME_EXACT", job.eventId()),
+				protocolCrypto.blindIndex("S10_RUNTIME_FAILURE", "DELIVERY|" + job.id()),
+				protocolCrypto.blindIndex("S10_RUNTIME_SUMMARY", "DELIVERY_ATTEMPTS_EXHAUSTED|" + safeCode(error)),
+				job.eventId());
+	}
+
+	private void recordRuntimeIngressFailure(int partition, String streamRecordId, String eventId, String reason) {
+		String failureClass = classifyFailure(reason);
+		String errorCode = failureCode(reason);
+		String idempotency = protocolCrypto.blindIndex("S10_RUNTIME_FAILURE",
+				"INGRESS|" + partition + "|" + streamRecordId);
+		String summary = protocolCrypto.blindIndex("S10_RUNTIME_SUMMARY", errorCode + "|" + safeCode(reason));
+		int inserted = jdbcTemplate.update("""
+				INSERT IGNORE INTO scx_adx_runtime_failure
+				(id,source_fact_id,source_type,source_id,failure_class,error_code,replayable,failure_revision,
+				 tenant_id,advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
+				 route_id,route_version_id,route_version,event_snapshot_schema_version,event_time,received_time,
+				 correlation_id_hash,idempotency_key_hash,payload_hash,summary_hash,dimension_status,create_time)
+				SELECT ?,NULL,'FEEDBACK',?,?,?,IF(rv.id IS NULL OR ?<>'RETRYABLE',0,1),1,e.tenant_id,e.advertiser_id,
+				 e.product_id,e.app_link_id,e.task_id,e.channel_id,e.media_account_id,e.operator_user_id,e.monitor_id,
+				 e.route_version_id,e.route_version,rv.event_snapshot_schema_version,LEAST(e.occurred_at,NOW(3)),NOW(3),
+				 ?,?,e.payload_hash,?,e.dimension_status,NOW(3)
+				FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+				WHERE e.event_id=? LIMIT 1
+				""", id(), partition + ":" + streamRecordId, failureClass, errorCode, failureClass,
+				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", String.valueOf(eventId)), idempotency, summary, eventId);
+		if (inserted == 0) {
+			jdbcTemplate.update(
+					"""
+							INSERT IGNORE INTO scx_adx_runtime_failure
+							(id,source_type,source_id,failure_class,error_code,replayable,failure_revision,event_time,received_time,
+							 correlation_id_hash,idempotency_key_hash,summary_hash,dimension_status,create_time)
+							VALUES (?,'FEEDBACK',?,?,?,0,1,NOW(3),NOW(3),?,?,?,'UNMAPPED',NOW(3))
+							""",
+					id(), partition + ":" + streamRecordId, failureClass, errorCode,
+					protocolCrypto.blindIndex("S10_RUNTIME_EXACT", String.valueOf(eventId)), idempotency, summary);
+		}
+	}
+
+	private String classifyFailure(String reason) {
+		String upper = String.valueOf(reason).toUpperCase(java.util.Locale.ROOT);
+		if (upper.contains("SIGNATURE") || upper.contains("AUTH"))
+			return "SIGNATURE_FAILED";
+		if (upper.contains("INVALID") || upper.contains("PROTOCOL"))
+			return "PROTOCOL_REJECTED";
+		if (upper.contains("DUPLICATE"))
+			return "DUPLICATE";
+		if (upper.contains("LATE"))
+			return "LATE_ARRIVAL";
+		if (upper.contains("TIMEOUT") || upper.contains("TEMPORARY") || upper.contains("CONNECTION"))
+			return "RETRYABLE";
+		return "NON_RETRYABLE";
+	}
+
+	private String failureCode(String reason) {
+		String code = safeCode(reason);
+		return code == null || code.isBlank() ? "UNKNOWN_FAILURE" : code;
+	}
+
+	private String safeCode(String value) {
+		if (value == null)
+			return null;
+		String code = value.toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9_.-]", "_");
+		return code.substring(0, Math.min(64, code.length()));
 	}
 
 	private void insertAttempt(DeliveryJob job, int attempt, String status, Integer statusCode, String error,
@@ -561,22 +743,33 @@ public class OcpxPersistenceRepository {
 			throw new IllegalArgumentException("unsupported delivery metric");
 		}
 		List<DeliveryMetricTarget> targets = jdbcTemplate.query("""
-				SELECT occurred_at,channel_id,advertiser_id,app_link_id,monitor_id
+				SELECT occurred_at,received_at,tenant_id,channel_id,advertiser_id,product_id,app_link_id,task_id,
+				 media_account_id,operator_user_id,monitor_id,route_version_id,route_version,dimension_status
 				FROM scx_ocpx_event WHERE event_id=?
-				""", (rs, rowNum) -> new DeliveryMetricTarget(rs.getTimestamp(1).toLocalDateTime(), rs.getString(2),
-				rs.getString(3), rs.getString(4), rs.getString(5)), eventId);
+				""",
+				(rs, rowNum) -> new DeliveryMetricTarget(rs.getTimestamp(1).toLocalDateTime(),
+						rs.getTimestamp(2).toLocalDateTime(), rs.getString(3), rs.getString(4), rs.getString(5),
+						rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getString(10),
+						rs.getString(11), rs.getString(12), rs.getLong(13), rs.getString(14)),
+				eventId);
 		if (targets.isEmpty()) {
 			return;
 		}
 		DeliveryMetricTarget target = targets.get(0);
-		LocalDateTime hour = target.occurredAt().truncatedTo(ChronoUnit.HOURS);
+		if (!"FROZEN".equals(target.dimensionStatus())) {
+			return;
+		}
+		String kind = "forwarded_conversion_count".equals(metricColumn) ? "DELIVERY_SUCCESS" : "DELIVERY_FAILURE";
 		jdbcTemplate.update("""
-				INSERT INTO scx_adx_hourly_report
-				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,%s)
-				VALUES (?,?,?,?,?,?,1)
-				ON DUPLICATE KEY UPDATE %s=%s+1
-				""".formatted(metricColumn, metricColumn, metricColumn), id(), hour, target.channelId(),
-				target.advertiserId(), target.appLinkId(), target.monitorId());
+				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
+				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
+				 event_time,received_time,stat_hour,timezone,%s)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Asia/Shanghai',1)
+				""".formatted(metricColumn), id(), eventId, kind, target.tenantId(), target.advertiserId(),
+				target.productId(), target.appLinkId(), target.taskId(), target.channelId(), target.mediaAccountId(),
+				target.operatorUserId(), target.monitorId(), target.routeVersionId(), target.routeVersion(),
+				target.occurredAt(), target.receivedAt(), target.occurredAt().truncatedTo(ChronoUnit.HOURS));
 	}
 
 	private void completeDebug(String executionId, String status, String phase, String message) {
@@ -609,89 +802,91 @@ public class OcpxPersistenceRepository {
 		return MDC.putCloseable("debugExecutionId", StringUtils.hasText(executionId) ? executionId : "-");
 	}
 
-	private void upsertFeedbackMetric(FeedbackEnvelope envelope, RouteSnapshot route, ClickDedupDecision decision,
+	private void recordFeedbackContribution(FeedbackEnvelope envelope, RouteSnapshot route, ClickDedupDecision decision,
 			BigDecimal costAmount) {
-		LocalDateTime hour = envelope.occurredAt()
-			.atZoneSameInstant(REPORT_ZONE)
-			.toLocalDateTime()
-			.truncatedTo(ChronoUnit.HOURS);
-		LogDataProjection projection = new LogDataProjection(hour, route.channelId(), route.advertiserId(),
-				route.appLinkId(), route.routeId(), envelope.eventType() == OcpxEventType.SHOW ? 1 : 0,
-				envelope.eventType() == OcpxEventType.CLICK ? 1 : 0, 0, 0, 0, 0, costAmount, BigDecimal.ZERO);
+		if (!hasFrozenDimensions(route)) {
+			return;
+		}
+		LocalDateTime eventTime = envelope.occurredAt().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
+		LocalDateTime hour = eventTime.truncatedTo(ChronoUnit.HOURS);
 		jdbcTemplate.update("""
-				INSERT INTO scx_adx_hourly_report
-				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,impressions,clicks,
-				 eligible_click_count,deduplicated_click_count,skipped_click_count,classified_click_count,cost_amount)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-				ON DUPLICATE KEY UPDATE impressions=impressions+VALUES(impressions),clicks=clicks+VALUES(clicks),
-				 eligible_click_count=eligible_click_count+VALUES(eligible_click_count),
-				 deduplicated_click_count=deduplicated_click_count+VALUES(deduplicated_click_count),
-				 skipped_click_count=skipped_click_count+VALUES(skipped_click_count),
-				 classified_click_count=classified_click_count+VALUES(classified_click_count),
-				 cost_amount=cost_amount+VALUES(cost_amount)
-				""", id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
-				projection.appLinkId(), projection.monitorId(), projection.impressions(), projection.clicks(),
-				decision.eligible(), decision.deduplicated(), decision.skipped(), decision.classified(),
-				projection.costAmount());
+				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
+				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
+				 event_time,received_time,stat_hour,timezone,impressions,raw_clicks,valid_clicks,duplicate_clicks,
+				 skipped_clicks,cost_amount)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Asia/Shanghai',?,?,?,?,?,?)
+				""", id(), envelope.eventId(), "FEEDBACK", route.tenantId(), route.advertiserId(), route.productId(),
+				route.appLinkId(), route.taskId(), route.channelId(), route.mediaAccountId(), route.operatorUserId(),
+				route.routeId(), route.routeVersionId(), route.routeVersion(), eventTime,
+				envelope.receivedAt().atZoneSameInstant(REPORT_ZONE).toLocalDateTime(), hour,
+				envelope.eventType() == OcpxEventType.SHOW ? 1 : 0, envelope.eventType() == OcpxEventType.CLICK ? 1 : 0,
+				decision.eligible(), decision.deduplicated(), decision.skipped(), costAmount);
 	}
 
-	private void upsertCallbackMetric(NormalizedCallbackEvent callback, RouteSnapshot route, boolean forwarded) {
-		LocalDateTime hour = callback.actionTime()
-			.atZoneSameInstant(REPORT_ZONE)
-			.toLocalDateTime()
-			.truncatedTo(ChronoUnit.HOURS);
-		String eventColumn = metricColumn(callback.eventType());
-		LogDataProjection projection = new LogDataProjection(hour, route.channelId(), route.advertiserId(),
-				route.appLinkId(), route.routeId(), 0, 0, 1, 0, forwarded ? 0 : 1, 0, BigDecimal.ZERO, BigDecimal.ZERO);
+	private void recordCallbackContribution(NormalizedCallbackEvent callback, RouteSnapshot route, boolean forwarded) {
+		if (!hasFrozenDimensions(route)) {
+			return;
+		}
+		LocalDateTime eventTime = callback.actionTime().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
+		LocalDateTime receivedTime = LocalDateTime.now(REPORT_ZONE);
+		LocalDateTime hour = eventTime.truncatedTo(ChronoUnit.HOURS);
+		String eventColumn = contributionMetricColumn(callback.eventType());
 		if (eventColumn == null) {
 			jdbcTemplate.update("""
-					INSERT INTO scx_adx_hourly_report
-					(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,raw_conversion_count,deducted_conversion_count)
-					VALUES (?,?,?,?,?,?,?,?)
-					ON DUPLICATE KEY UPDATE raw_conversion_count=raw_conversion_count+VALUES(raw_conversion_count),
-					 deducted_conversion_count=deducted_conversion_count+VALUES(deducted_conversion_count)
-					""", id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
-					projection.appLinkId(), projection.monitorId(), projection.rawConversions(),
-					projection.deductedConversions());
+					INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+					(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
+					 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
+					 event_time,received_time,stat_hour,timezone,raw_conversion_count,deduction_count,
+					 deducted_conversion_count,event_counts_json)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Asia/Shanghai',1,?,?,JSON_OBJECT('unavailableEvent',1))
+					""", id(), callback.eventId(), "CALLBACK", route.tenantId(), route.advertiserId(),
+					route.productId(), route.appLinkId(), route.taskId(), route.channelId(), route.mediaAccountId(),
+					route.operatorUserId(), route.routeId(), route.routeVersionId(), route.routeVersion(), eventTime,
+					receivedTime, hour, forwarded ? 0 : 1, forwarded ? 0 : 1);
 			return;
 		}
 		String sql = """
-				INSERT INTO scx_adx_hourly_report
-				(id,time_hour,channel_id,advertiser_id,app_link_id,monitor_id,%s,raw_conversion_count,deducted_conversion_count)
-				VALUES (?,?,?,?,?,?,1,?,?)
-				ON DUPLICATE KEY UPDATE %s=%s+1,raw_conversion_count=raw_conversion_count+VALUES(raw_conversion_count),
-				 deducted_conversion_count=deducted_conversion_count+VALUES(deducted_conversion_count)
-				"""
-			.formatted(eventColumn, eventColumn, eventColumn);
-		jdbcTemplate.update(sql, id(), projection.timeBucket(), projection.channelId(), projection.advertiserId(),
-				projection.appLinkId(), projection.monitorId(), projection.rawConversions(),
-				projection.deductedConversions());
+				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
+				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
+				 event_time,received_time,stat_hour,timezone,%s,raw_conversion_count,deduction_count,
+				 deducted_conversion_count)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Asia/Shanghai',1,1,?,?)
+				""".formatted(eventColumn);
+		jdbcTemplate.update(sql, id(), callback.eventId(), "CALLBACK", route.tenantId(), route.advertiserId(),
+				route.productId(), route.appLinkId(), route.taskId(), route.channelId(), route.mediaAccountId(),
+				route.operatorUserId(), route.routeId(), route.routeVersionId(), route.routeVersion(), eventTime,
+				receivedTime, hour, forwarded ? 0 : 1, forwarded ? 0 : 1);
 	}
 
-	private String metricColumn(OcpxEventType eventType) {
+	private String contributionMetricColumn(OcpxEventType eventType) {
 		return switch (eventType) {
-			case ACTIVATE -> "activate_count";
-			case FIRST_ACTIVATION -> "first_activate_count";
-			case EVOKE, RETENTION, FIRST_REACTIVATION -> "evoke_count";
+			case ACTIVATE -> "activation_count";
+			case FIRST_ACTIVATION -> "first_activation_count";
 			case REACTIVATION -> "reactivation_count";
-			case LOGIN -> "login_count";
-			case REGISTER -> "register_count";
-			case NEXT_DAY_RETENTION -> "next_stay_count";
-			case RETENTION_D3 -> "retention_3d_count";
-			case RETENTION_D4 -> "retention_4d_count";
-			case RETENTION_D5 -> "retention_5d_count";
-			case RETENTION_D6 -> "retention_6d_count";
-			case RETENTION_D7 -> "retention_7d_count";
+			case REGISTER -> "registration_count";
+			case NEXT_DAY_RETENTION, RETENTION_D2 -> "retention_d2_count";
+			case RETENTION_D3 -> "retention_d3_count";
+			case RETENTION_D7 -> "retention_d7_count";
 			case PAYMENT -> "payment_count";
-			case CUSTOMER_ACQUISITION -> "acquisition_count";
-			case VISIT -> "visit_count";
-			case AUTHENTICATION -> "authentication_count";
 			case ORDER -> "order_count";
 			case FIRST_ORDER -> "first_order_count";
-			case COMPLETE_ORDER -> "finish_order_count";
-			case RETENTION_D2, VIDEO_COMPLETE_90S, KEY_ACTION, FORM_SUBMIT, KEY_PAGE_VIEW, RECALL, UNKNOWN -> null;
+			case EVOKE, RETENTION, FIRST_REACTIVATION, LOGIN, RETENTION_D4, RETENTION_D5, RETENTION_D6,
+					CUSTOMER_ACQUISITION, VISIT, AUTHENTICATION, COMPLETE_ORDER, VIDEO_COMPLETE_90S, KEY_ACTION,
+					FORM_SUBMIT, KEY_PAGE_VIEW, RECALL, UNKNOWN ->
+				null;
 			case SHOW, CLICK -> throw new IllegalArgumentException("feedback event cannot be aggregated as callback");
 		};
+	}
+
+	private boolean hasFrozenDimensions(RouteSnapshot route) {
+		return StringUtils.hasText(route.tenantId()) && StringUtils.hasText(route.advertiserId())
+				&& StringUtils.hasText(route.productId()) && StringUtils.hasText(route.appLinkId())
+				&& StringUtils.hasText(route.taskId()) && StringUtils.hasText(route.channelId())
+				&& StringUtils.hasText(route.mediaAccountId()) && StringUtils.hasText(route.operatorUserId())
+				&& StringUtils.hasText(route.routeId()) && StringUtils.hasText(route.routeVersionId())
+				&& route.routeVersion() > 0;
 	}
 
 	private String id() {
@@ -714,8 +909,10 @@ public class OcpxPersistenceRepository {
 		return value.length() <= maxLength ? value : value.substring(0, maxLength);
 	}
 
-	private record DeliveryMetricTarget(LocalDateTime occurredAt, String channelId, String advertiserId,
-			String appLinkId, String monitorId) {
+	private record DeliveryMetricTarget(LocalDateTime occurredAt, LocalDateTime receivedAt, String tenantId,
+			String channelId, String advertiserId, String productId, String appLinkId, String taskId,
+			String mediaAccountId, String operatorUserId, String monitorId, String routeVersionId, long routeVersion,
+			String dimensionStatus) {
 	}
 
 }

@@ -41,9 +41,17 @@ CREATE TABLE IF NOT EXISTS scx_adx_channel (
 
 CREATE TABLE IF NOT EXISTS scx_adx_advertiser (
   id VARCHAR(32) NOT NULL,
+  advertiser_code VARCHAR(32) NOT NULL,
   advertiser_name VARCHAR(100) NOT NULL,
+  adapter_version BIGINT NOT NULL DEFAULT 1,
   bid_url VARCHAR(512) NOT NULL,
   secret_key VARCHAR(255) NULL,
+  credential_ref VARCHAR(64) NULL,
+  credential_revision BIGINT NOT NULL DEFAULT 0,
+  current_document_id VARCHAR(32) NULL,
+  document_revision BIGINT NOT NULL DEFAULT 0,
+  create_request_key VARCHAR(64) NULL,
+  create_request_hash CHAR(64) NULL,
   macro_params VARCHAR(1000) NULL,
   account VARCHAR(100) NOT NULL,
   password_hash VARCHAR(100) NOT NULL,
@@ -53,29 +61,141 @@ CREATE TABLE IF NOT EXISTS scx_adx_advertiser (
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_advertiser_code (advertiser_code, active_marker),
   UNIQUE KEY uk_scx_adx_advertiser_name (advertiser_name, active_marker),
   UNIQUE KEY uk_scx_adx_advertiser_account (account, active_marker),
+  UNIQUE KEY uk_scx_adx_advertiser_create_request (create_request_key),
   KEY idx_scx_adx_advertiser_updated (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ADX 广告主';
 
-CREATE TABLE IF NOT EXISTS scx_adx_app_link (
+CREATE TABLE IF NOT EXISTS scx_adx_integration_document (
+  id VARCHAR(32) NOT NULL,
+  owner_type VARCHAR(32) NOT NULL COMMENT 'ADVERTISER',
+  owner_id VARCHAR(32) NOT NULL,
+  document_type VARCHAR(32) NOT NULL,
+  storage_config_id VARCHAR(32) NOT NULL,
+  storage_provider VARCHAR(32) NOT NULL,
+  object_key VARCHAR(1000) NOT NULL,
+  file_name VARCHAR(255) NOT NULL,
+  content_type VARCHAR(128) NOT NULL,
+  file_size BIGINT NOT NULL,
+  sha256 CHAR(64) NOT NULL,
+  document_version BIGINT NOT NULL,
+  scan_status VARCHAR(16) NOT NULL COMMENT 'CLEAN,REJECTED',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE,RETIRED',
+  summary VARCHAR(500) NULL,
+  created_by VARCHAR(100) NOT NULL,
+  retired_by VARCHAR(100) NULL,
+  retired_at DATETIME(3) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_document_version (owner_type,owner_id,document_type,document_version),
+  KEY idx_scx_adx_document_owner (owner_type,owner_id,status,create_time),
+  KEY idx_scx_adx_document_hash (sha256)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Controlled ADX integration-document revisions';
+
+CREATE TABLE IF NOT EXISTS scx_adx_advertiser_credential_revision (
   id VARCHAR(32) NOT NULL,
   advertiser_id VARCHAR(32) NOT NULL,
+  credential_ref VARCHAR(64) NOT NULL,
+  credential_revision BIGINT NOT NULL,
+  secret_ciphertext TEXT NULL COMMENT 'AES-GCM payload encrypted by existing ProtocolCrypto',
+  storage_mode VARCHAR(16) NOT NULL COMMENT 'LEGACY,ENCRYPTED',
+  status VARCHAR(16) NOT NULL COMMENT 'ACTIVE,OVERLAP,RETIRED',
+  overlap_until DATETIME(3) NULL,
+  reason VARCHAR(255) NULL,
+  created_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_advertiser_credential_revision (advertiser_id,credential_revision),
+  UNIQUE KEY uk_scx_adx_advertiser_credential_ref (credential_ref),
+  KEY idx_scx_adx_advertiser_credential_status (advertiser_id,status,overlap_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Write-only encrypted Advertiser credential revisions';
+
+CREATE TABLE IF NOT EXISTS scx_adx_advertiser_change_audit (
+  id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  action VARCHAR(32) NOT NULL,
+  before_config_version BIGINT NOT NULL,
+  after_config_version BIGINT NOT NULL,
+  credential_revision BIGINT NOT NULL,
+  document_revision BIGINT NOT NULL,
+  affected_route_count INT NOT NULL DEFAULT 0,
+  actor VARCHAR(100) NOT NULL,
+  change_summary VARCHAR(500) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_scx_adx_advertiser_audit (advertiser_id,create_time,action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Secret-free Advertiser configuration audit';
+
+CREATE TABLE IF NOT EXISTS scx_adx_app_link (
+  id VARCHAR(32) NOT NULL,
+  biz_code VARCHAR(32) NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  product_id VARCHAR(32) NULL,
+  document_id VARCHAR(32) NULL,
+  document_version BIGINT NOT NULL DEFAULT 0,
   link_platform TINYINT NOT NULL COMMENT '1 Android,2 iOS,3 Android+iOS,4 快应用',
+  link_type VARCHAR(16) NULL,
   link_name VARCHAR(100) NOT NULL,
+  normalized_name VARCHAR(128) NULL,
   link_channel VARCHAR(100) NULL,
-  link_url VARCHAR(1000) NOT NULL,
-  deeplink VARCHAR(1000) NULL,
+  link_url TEXT NOT NULL,
+  link_url_template VARCHAR(5000) NULL,
+  template_host VARCHAR(255) NULL,
+  template_fingerprint CHAR(64) NULL,
+  template_macro_set JSON NULL,
+  redirect_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  deeplink TEXT NULL,
+  deeplink_url VARCHAR(2000) NULL,
+  download_url VARCHAR(2000) NULL,
   link_ext VARCHAR(1000) NULL,
   link_remark VARCHAR(500) NULL,
+  description VARCHAR(500) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'DISABLED',
+  mapping_status VARCHAR(32) NOT NULL DEFAULT 'LEGACY_PENDING_PRODUCT',
+  config_version BIGINT NOT NULL DEFAULT 0,
+  create_request_key VARCHAR(64) NULL,
+  create_request_hash CHAR(64) NULL,
+  archived_by VARCHAR(100) NULL,
+  archived_at DATETIME(3) NULL,
+  create_by VARCHAR(100) NULL,
+  update_by VARCHAR(100) NULL,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
+  current_name_marker TINYINT GENERATED ALWAYS AS (IF(deleted=0 AND status<>'ARCHIVED' AND product_id IS NOT NULL,1,NULL)) STORED,
   active_marker TINYINT GENERATED ALWAYS AS (IF(deleted=0,1,NULL)) STORED,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  UNIQUE KEY uk_scx_adx_link_name (advertiser_id, link_name, active_marker),
-  KEY idx_scx_adx_link_advertiser (advertiser_id, update_time)
+  UNIQUE KEY uk_scx_adx_app_link_name (product_id,normalized_name,current_name_marker),
+  UNIQUE KEY uk_scx_adx_app_link_request (create_request_key),
+  KEY idx_scx_adx_link_advertiser (advertiser_id, update_time),
+  KEY idx_scx_adx_app_link_product (product_id,advertiser_id,deleted),
+  KEY idx_scx_adx_app_link_filter (advertiser_id,product_id,status,mapping_status,update_time),
+  KEY idx_scx_adx_app_link_document (document_id,document_version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ADX 广告主应用链接';
+
+CREATE TABLE IF NOT EXISTS scx_adx_app_link_change_audit (
+  id VARCHAR(32) NOT NULL,
+  app_link_id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  product_id VARCHAR(32) NULL,
+  action VARCHAR(40) NOT NULL,
+  before_config_version BIGINT NOT NULL,
+  after_config_version BIGINT NOT NULL,
+  mapping_status VARCHAR(32) NOT NULL,
+  template_host VARCHAR(255) NULL,
+  template_fingerprint CHAR(64) NULL,
+  affected_route_count INT NOT NULL DEFAULT 0,
+  actor VARCHAR(100) NOT NULL,
+  change_summary VARCHAR(500) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_scx_adx_app_link_audit (app_link_id,create_time,action),
+  KEY idx_scx_adx_app_link_audit_advertiser (advertiser_id,create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='URL-safe AppLink configuration audit';
 
 CREATE TABLE IF NOT EXISTS scx_adx_monitor_link (
   id VARCHAR(32) NOT NULL,
@@ -88,6 +208,12 @@ CREATE TABLE IF NOT EXISTS scx_adx_monitor_link (
   remark VARCHAR(500) NULL,
   show_url VARCHAR(1500) NULL,
   click_url VARCHAR(1500) NULL,
+  republish_required TINYINT(1) NOT NULL DEFAULT 0,
+  republish_reason VARCHAR(255) NULL,
+  published_advertiser_credential_revision BIGINT NOT NULL DEFAULT 0,
+  published_upstream_adapter_version BIGINT NOT NULL DEFAULT 1,
+  published_document_id VARCHAR(32) NULL,
+  published_document_revision BIGINT NOT NULL DEFAULT 0,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
   active_marker TINYINT GENERATED ALWAYS AS (IF(deleted=0,1,NULL)) STORED,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -276,12 +402,6 @@ JOIN sys_menu m ON m.id IN (
   'perm_adx_clue_write','perm_adx_clue_submit')
 WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
 
-INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
-SELECT CONCAT('adx_', LEFT(SHA2(CONCAT(r.id,'|',m.id),256),60)), r.id, m.id
-FROM sys_role r
-JOIN sys_menu m ON m.id IN ('menu_adx_home','menu_adx_report','menu_adx_report_time',
-  'perm_adx_dashboard_read','perm_adx_report_read','perm_adx_report_export')
-WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
 
 INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
 SELECT CONCAT('adx_', LEFT(SHA2(CONCAT('role_advertiser','|',m.id),256),60)), 'role_advertiser', m.id
@@ -492,6 +612,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_adapter (
   adapter_name VARCHAR(100) NOT NULL,
   direction VARCHAR(16) NOT NULL,
   status VARCHAR(16) NOT NULL,
+  capability_revision BIGINT NOT NULL DEFAULT 1,
   capabilities_json JSON NOT NULL,
   create_time DATETIME(3) NOT NULL,
   update_time DATETIME(3) NOT NULL,
@@ -1314,5 +1435,1820 @@ SELECT CONCAT('v80_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
 FROM sys_role r JOIN sys_menu m ON m.id IN ('menu_adx_event','perm_adx_event_write')
 WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
 
+-- V81 current state: explicit ADX object scopes on top of sys_user and Sa-Token RBAC.
+CREATE TABLE IF NOT EXISTS scx_adx_user_scope_revision (
+  user_id VARCHAR(32) NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0,
+  update_by VARCHAR(100) NOT NULL,
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='ADX user scope set optimistic-lock revision';
+
+CREATE TABLE IF NOT EXISTS scx_adx_user_scope (
+  id VARCHAR(32) NOT NULL,
+  user_id VARCHAR(32) NOT NULL,
+  scope_type VARCHAR(32) NOT NULL COMMENT 'ALL,ADVERTISER,CHANNEL,MEDIA_ACCOUNT',
+  scope_id VARCHAR(32) NULL COMMENT 'NULL only for ALL',
+  permission_level VARCHAR(16) NOT NULL COMMENT 'VIEW,OPERATE,MANAGE',
+  valid_from DATETIME(3) NULL,
+  valid_to DATETIME(3) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  version BIGINT NOT NULL,
+  create_by VARCHAR(100) NOT NULL,
+  update_by VARCHAR(100) NOT NULL,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  active_scope_key VARCHAR(80) GENERATED ALWAYS AS (
+    IF(deleted=0,CONCAT(scope_type,':',COALESCE(scope_id,'')),NULL)
+  ) STORED,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_user_scope (user_id,active_scope_key),
+  KEY idx_scx_adx_user_scope_user (user_id,status,valid_to),
+  KEY idx_scx_adx_user_scope_object (scope_type,scope_id,status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Explicit ADX object data scope for sys_user';
+
+INSERT INTO scx_adx_user_scope_revision (user_id,version,update_by,update_time)
+SELECT DISTINCT u.id,1,'V81_MIGRATION',NOW(3)
+FROM sys_user u
+LEFT JOIN sys_user_role ur ON ur.user_id=u.id
+LEFT JOIN sys_role r ON r.id=ur.role_id AND r.del_flag='0'
+WHERE u.del_flag='0' AND (r.role_code='ROLE_ADMIN' OR (u.type='2' AND u.shop_id IS NOT NULL))
+ON DUPLICATE KEY UPDATE version=GREATEST(scx_adx_user_scope_revision.version,1),
+ update_time=scx_adx_user_scope_revision.update_time;
+
+INSERT INTO scx_adx_user_scope
+ (id,user_id,scope_type,scope_id,permission_level,status,version,create_by,update_by,deleted)
+SELECT LEFT(SHA2(CONCAT('V81|ALL|',u.id),256),32),u.id,'ALL',NULL,'MANAGE','ACTIVE',1,
+ 'V81_MIGRATION','V81_MIGRATION',0
+FROM sys_user u
+JOIN scx_adx_user_scope_revision v ON v.user_id=u.id AND v.version=1
+JOIN sys_user_role ur ON ur.user_id=u.id
+JOIN sys_role r ON r.id=ur.role_id
+WHERE u.del_flag='0' AND r.del_flag='0' AND r.role_code='ROLE_ADMIN'
+ON DUPLICATE KEY UPDATE id=scx_adx_user_scope.id;
+
+INSERT INTO scx_adx_user_scope
+ (id,user_id,scope_type,scope_id,permission_level,status,version,create_by,update_by,deleted)
+SELECT LEFT(SHA2(CONCAT('V81|ADVERTISER|',u.id,'|',u.shop_id),256),32),u.id,'ADVERTISER',u.shop_id,
+ 'MANAGE','ACTIVE',1,'V81_MIGRATION','V81_MIGRATION',0
+FROM sys_user u
+JOIN scx_adx_user_scope_revision v ON v.user_id=u.id AND v.version=1
+JOIN scx_adx_advertiser a ON BINARY a.id=BINARY u.shop_id AND a.deleted=0
+WHERE u.del_flag='0' AND u.type='2' AND u.shop_id IS NOT NULL
+ON DUPLICATE KEY UPDATE id=scx_adx_user_scope.id;
+
+INSERT INTO scx_adx_user_scope
+ (id,user_id,scope_type,scope_id,permission_level,status,version,create_by,update_by,deleted)
+SELECT LEFT(SHA2(CONCAT('V81|CHANNEL|',u.id,'|',m.channel_id),256),32),u.id,'CHANNEL',m.channel_id,
+ 'MANAGE','ACTIVE',1,'V81_MIGRATION','V81_MIGRATION',0
+FROM sys_user u
+JOIN scx_adx_user_scope_revision v ON v.user_id=u.id AND v.version=1
+JOIN scx_adx_monitor_link m ON BINARY m.advertiser_id=BINARY u.shop_id AND m.deleted=0
+WHERE u.del_flag='0' AND u.type='2' AND u.shop_id IS NOT NULL
+GROUP BY u.id,m.channel_id
+ON DUPLICATE KEY UPDATE id=scx_adx_user_scope.id;
+
+INSERT INTO sys_menu
+ (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+ ('perm_adx_scope_view','查看ADX对象范围','','menu_system_user',NULL,NULL,'adx:scope:view',80,'1','app_base',NOW(),NOW(),'0'),
+ ('perm_adx_scope_edit','维护ADX对象范围','','menu_system_user',NULL,NULL,'adx:scope:edit',90,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
+ sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v81_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
+FROM sys_role r JOIN sys_menu m ON m.id IN ('perm_adx_scope_view','perm_adx_scope_edit')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+
+-- V82 current state: Advertiser onboarding, write-only credential revisions,
+-- controlled integration-document revisions and explicit republish-required state.
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('perm_adx_advertiser_view','查看广告主','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_add','新增广告主','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_edit','编辑广告主','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_status','变更广告主状态','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:status',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_credential','轮换广告主凭据','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:credential',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_document_view','查看广告主资料','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:document:view',60,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_advertiser_document_edit','维护广告主资料','','menu_adx_advertiser_list',NULL,NULL,'adx:advertiser:document:edit',70,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
+  sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v82_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
+FROM sys_role r
+JOIN sys_menu m ON m.id IN (
+  'perm_adx_advertiser_view','perm_adx_advertiser_add','perm_adx_advertiser_edit',
+  'perm_adx_advertiser_status','perm_adx_advertiser_credential',
+  'perm_adx_advertiser_document_view','perm_adx_advertiser_document_edit'
+)
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v82_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
+FROM sys_role r
+JOIN sys_menu m ON m.id IN (
+  'perm_adx_advertiser_view','perm_adx_advertiser_add','perm_adx_advertiser_edit',
+  'perm_adx_advertiser_document_view','perm_adx_advertiser_document_edit'
+)
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v82_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
+FROM sys_role r
+JOIN sys_menu m ON m.id IN ('perm_adx_advertiser_view','perm_adx_advertiser_document_view')
+WHERE r.role_code IN ('ROLE_ANALYST','ROLE_ADVERTISER') AND r.del_flag='0' AND m.del_flag='0';
+
+-- V83 current state: independent Product aggregate, managed Logo metadata,
+-- default event-policy templates and forward-compatible AppLink/Route slots.
+CREATE TABLE IF NOT EXISTS scx_adx_product_logo_object (
+  id VARCHAR(32) NOT NULL, storage_config_id VARCHAR(32) NOT NULL, storage_provider VARCHAR(32) NOT NULL,
+  object_key VARCHAR(1000) NOT NULL, file_name VARCHAR(255) NOT NULL, content_type VARCHAR(64) NOT NULL,
+  file_size BIGINT NOT NULL, sha256 CHAR(64) NOT NULL, image_width INT NOT NULL, image_height INT NOT NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE', created_by VARCHAR(100) NOT NULL, retired_at DATETIME(3) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), KEY idx_scx_adx_product_logo_status (status,create_time),
+  KEY idx_scx_adx_product_logo_hash (sha256)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Managed Product Logo object metadata';
+
+CREATE TABLE IF NOT EXISTS scx_adx_product (
+  id VARCHAR(32) NOT NULL, advertiser_id VARCHAR(32) NOT NULL, code VARCHAR(64) NOT NULL,
+  name VARCHAR(64) NOT NULL, normalized_name VARCHAR(128) NOT NULL, package_name VARCHAR(255) NULL,
+  logo_object_id VARCHAR(32) NULL, description VARCHAR(500) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE', config_version BIGINT NOT NULL DEFAULT 1,
+  event_policy_revision BIGINT NOT NULL DEFAULT 1, create_request_key VARCHAR(64) NOT NULL,
+  create_request_hash CHAR(64) NOT NULL, archived_by VARCHAR(100) NULL, archived_at DATETIME(3) NULL,
+  create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_product_code (advertiser_id,code),
+  UNIQUE KEY uk_scx_adx_product_name (advertiser_id,normalized_name),
+  UNIQUE KEY uk_scx_adx_product_create_request (create_request_key),
+  KEY idx_scx_adx_product_filter (advertiser_id,status,update_time),
+  KEY idx_scx_adx_product_package (advertiser_id,package_name), KEY idx_scx_adx_product_logo (logo_object_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Independent ADX Product master data';
+
+CREATE TABLE IF NOT EXISTS scx_adx_product_event_policy (
+  id VARCHAR(32) NOT NULL, product_id VARCHAR(32) NOT NULL, event_definition_id VARCHAR(32) NOT NULL,
+  daily_limit INT NOT NULL DEFAULT 0, status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE', version BIGINT NOT NULL DEFAULT 1,
+  create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_product_event (product_id,event_definition_id),
+  KEY idx_scx_adx_product_event_definition (event_definition_id,status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Product default event-policy template, copied at later Task binding';
+
+CREATE TABLE IF NOT EXISTS scx_adx_product_change_audit (
+  id VARCHAR(32) NOT NULL, product_id VARCHAR(32) NOT NULL, advertiser_id VARCHAR(32) NOT NULL,
+  action VARCHAR(32) NOT NULL, before_config_version BIGINT NOT NULL, after_config_version BIGINT NOT NULL,
+  event_policy_revision BIGINT NOT NULL, affected_app_link_count INT NOT NULL DEFAULT 0,
+  affected_route_count INT NOT NULL DEFAULT 0, actor VARCHAR(100) NOT NULL, change_summary VARCHAR(500) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3), PRIMARY KEY (id),
+  KEY idx_scx_adx_product_audit (product_id,create_time,action),
+  KEY idx_scx_adx_product_audit_advertiser (advertiser_id,create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Secret-free Product configuration audit';
+
+DROP PROCEDURE IF EXISTS scx_upgrade_v83_product_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v83_product_contract()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_app_link' AND column_name='product_id') THEN
+    ALTER TABLE scx_adx_app_link ADD COLUMN product_id VARCHAR(32) NULL AFTER advertiser_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_app_link' AND index_name='idx_scx_adx_app_link_product') THEN
+    ALTER TABLE scx_adx_app_link ADD KEY idx_scx_adx_app_link_product (product_id,advertiser_id,deleted);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_product_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_product_id VARCHAR(32) NULL AFTER published_document_revision;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_product_version') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_product_version BIGINT NOT NULL DEFAULT 0 AFTER published_product_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_product_event_policy_revision') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_product_event_policy_revision BIGINT NOT NULL DEFAULT 0 AFTER published_product_version;
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v83_product_contract();
+DROP PROCEDURE scx_upgrade_v83_product_contract;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_product','产品管理','/adx/advertiser/product','menu_adx_advertiser','lucide:package-open','adx/product/index','adx:product:view',20,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_product_view','查看产品','','menu_adx_product',NULL,NULL,'adx:product:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_product_add','新增产品','','menu_adx_product',NULL,NULL,'adx:product:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_product_edit','编辑产品','','menu_adx_product',NULL,NULL,'adx:product:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_product_archive','归档恢复产品','','menu_adx_product',NULL,NULL,'adx:product:archive',40,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+UPDATE sys_menu SET sort=30,update_time=NOW() WHERE id='menu_adx_app_link';
+UPDATE sys_menu SET sort=40,update_time=NOW() WHERE id='menu_adx_deduction';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v83_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_product','perm_adx_product_view','perm_adx_product_add','perm_adx_product_edit','perm_adx_product_archive')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v83_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_product','perm_adx_product_view','perm_adx_product_add','perm_adx_product_edit')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v83_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_product','perm_adx_product_view')
+WHERE r.role_code IN ('ROLE_ANALYST','ROLE_ADVERTISER') AND r.del_flag='0' AND m.del_flag='0';
+
+-- V84 current state: Channel/MediaAccount separation, encrypted external
+-- credential revisions, internal owners and frozen route references.
+CREATE TABLE IF NOT EXISTS scx_adx_media_account (
+  id VARCHAR(32) NOT NULL, channel_id VARCHAR(32) NOT NULL, code VARCHAR(64) NOT NULL,
+  name VARCHAR(64) NOT NULL, normalized_name VARCHAR(128) NOT NULL, document_id VARCHAR(32) NULL,
+  document_version BIGINT NOT NULL DEFAULT 0, description VARCHAR(500) NULL,
+  default_credential_id VARCHAR(32) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'DISABLED' COMMENT 'ACTIVE,DISABLED,PAUSED,ARCHIVED',
+  config_version BIGINT NOT NULL DEFAULT 1, credential_revision BIGINT NOT NULL DEFAULT 0,
+  create_request_key VARCHAR(64) NOT NULL, create_request_hash CHAR(64) NOT NULL,
+  archived_by VARCHAR(100) NULL, archived_at DATETIME(3) NULL,
+  create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  active_name_key VARCHAR(128) GENERATED ALWAYS AS (IF(status<>'ARCHIVED',normalized_name,NULL)) STORED,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_media_account_code (code),
+  UNIQUE KEY uk_scx_adx_media_account_name (channel_id,active_name_key),
+  UNIQUE KEY uk_scx_adx_media_account_request (create_request_key),
+  KEY idx_scx_adx_media_account_filter (channel_id,status,update_time),
+  KEY idx_scx_adx_media_account_document (document_id,document_version),
+  KEY idx_scx_adx_media_account_default_credential (default_credential_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Media business account separated from protocol Channel';
+
+CREATE TABLE IF NOT EXISTS scx_adx_media_credential (
+  id VARCHAR(32) NOT NULL, media_account_id VARCHAR(32) NOT NULL,
+  login_type VARCHAR(16) NOT NULL DEFAULT 'EMAIL', login_identifier_ciphertext TEXT NOT NULL,
+  login_identifier_hash CHAR(64) NOT NULL, masked_identifier VARCHAR(255) NOT NULL,
+  current_credential_ref VARCHAR(64) NOT NULL, current_secret_revision BIGINT NOT NULL,
+  description VARCHAR(500) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING,ACTIVE,DISABLED,REVOKED',
+  version BIGINT NOT NULL DEFAULT 1, last_preflight_status VARCHAR(16) NULL,
+  last_preflight_at DATETIME(3) NULL, create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_media_credential_identifier (media_account_id,login_type,login_identifier_hash),
+  KEY idx_scx_adx_media_credential_status (media_account_id,status,update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='External media credential identity; never a sys_user';
+
+CREATE TABLE IF NOT EXISTS scx_adx_media_credential_revision (
+  id VARCHAR(32) NOT NULL, credential_id VARCHAR(32) NOT NULL, credential_ref VARCHAR(64) NOT NULL,
+  secret_revision BIGINT NOT NULL, secret_ciphertext TEXT NOT NULL,
+  status VARCHAR(16) NOT NULL COMMENT 'ACTIVE,OVERLAP,RETIRED', overlap_until DATETIME(3) NULL,
+  reason VARCHAR(255) NULL, created_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_media_credential_revision (credential_id,secret_revision),
+  UNIQUE KEY uk_scx_adx_media_credential_ref (credential_ref),
+  KEY idx_scx_adx_media_credential_revision_status (credential_id,status,overlap_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Write-only encrypted MediaCredential revisions';
+
+CREATE TABLE IF NOT EXISTS scx_adx_media_account_owner (
+  id VARCHAR(32) NOT NULL, media_account_id VARCHAR(32) NOT NULL, user_id VARCHAR(32) NOT NULL,
+  responsibility VARCHAR(32) NOT NULL DEFAULT 'PRIMARY', status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  version BIGINT NOT NULL DEFAULT 1, create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_media_account_owner (media_account_id,user_id,responsibility),
+  KEY idx_scx_adx_media_account_owner_user (user_id,status,media_account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Internal sys_user responsibility for MediaAccount';
+
+CREATE TABLE IF NOT EXISTS scx_adx_media_account_change_audit (
+  id VARCHAR(32) NOT NULL, media_account_id VARCHAR(32) NOT NULL, action VARCHAR(32) NOT NULL,
+  before_config_version BIGINT NOT NULL, after_config_version BIGINT NOT NULL,
+  credential_revision BIGINT NOT NULL, owner_count INT NOT NULL DEFAULT 0,
+  affected_route_count INT NOT NULL DEFAULT 0, actor VARCHAR(100) NOT NULL,
+  change_summary VARCHAR(500) NOT NULL, create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), KEY idx_scx_adx_media_account_audit (media_account_id,create_time,action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Secret-free MediaAccount configuration audit';
+
+DROP PROCEDURE IF EXISTS scx_upgrade_v84_media_account_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v84_media_account_contract()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='media_account_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN media_account_id VARCHAR(32) NULL AFTER channel_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='media_credential_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN media_credential_id VARCHAR(32) NULL AFTER media_account_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_media_account_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_media_account_id VARCHAR(32) NULL AFTER published_product_event_policy_revision;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_media_account_version') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_media_account_version BIGINT NOT NULL DEFAULT 0 AFTER published_media_account_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_media_account_credential_revision') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_media_account_credential_revision BIGINT NOT NULL DEFAULT 0 AFTER published_media_account_version;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_media_credential_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_media_credential_id VARCHAR(32) NULL AFTER published_media_account_credential_revision;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_media_credential_secret_revision') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_media_credential_secret_revision BIGINT NOT NULL DEFAULT 0 AFTER published_media_credential_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND index_name='idx_scx_adx_monitor_media_account') THEN
+    ALTER TABLE scx_adx_monitor_link ADD KEY idx_scx_adx_monitor_media_account (media_account_id,media_credential_id,route_status,deleted);
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v84_media_account_contract();
+DROP PROCEDURE scx_upgrade_v84_media_account_contract;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_media_account','媒体账号','/adx/channel/media-account','menu_adx_channel','lucide:badge-user','adx/media-account/index','adx:media-account:view',20,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_account_view','查看媒体账号','','menu_adx_media_account',NULL,NULL,'adx:media-account:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_account_add','新增媒体账号','','menu_adx_media_account',NULL,NULL,'adx:media-account:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_account_edit','编辑媒体账号','','menu_adx_media_account',NULL,NULL,'adx:media-account:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_account_status','变更媒体账号状态','','menu_adx_media_account',NULL,NULL,'adx:media-account:status',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_account_archive','归档恢复媒体账号','','menu_adx_media_account',NULL,NULL,'adx:media-account:archive',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_credential_view','查看外部媒体凭据','','menu_adx_media_account',NULL,NULL,'adx:media-account:credential:view',60,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_credential_add','新增外部媒体凭据','','menu_adx_media_account',NULL,NULL,'adx:media-account:credential:add',70,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_credential_edit','编辑外部媒体凭据','','menu_adx_media_account',NULL,NULL,'adx:media-account:credential:edit',80,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_credential_rotate','轮换外部媒体Secret','','menu_adx_media_account',NULL,NULL,'adx:media-account:credential:rotate',90,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_credential_status','变更外部媒体凭据状态','','menu_adx_media_account',NULL,NULL,'adx:media-account:credential:status',100,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_owner_view','查看媒体账号负责人','','menu_adx_media_account',NULL,NULL,'adx:media-account:owner:view',110,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_owner_edit','维护媒体账号负责人','','menu_adx_media_account',NULL,NULL,'adx:media-account:owner:edit',120,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_media_debug','媒体账号配置预检','','menu_adx_media_account',NULL,NULL,'adx:media-account:debug',130,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+UPDATE sys_menu SET sort=30,update_time=NOW() WHERE id='menu_adx_monitor';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v84_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_media_account','perm_adx_media_account_view','perm_adx_media_account_add',
+  'perm_adx_media_account_edit','perm_adx_media_account_status','perm_adx_media_account_archive',
+  'perm_adx_media_credential_view','perm_adx_media_credential_add','perm_adx_media_credential_edit',
+  'perm_adx_media_credential_rotate','perm_adx_media_credential_status','perm_adx_media_owner_view',
+  'perm_adx_media_owner_edit','perm_adx_media_debug')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v84_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_media_account','perm_adx_media_account_view','perm_adx_media_account_add',
+  'perm_adx_media_account_edit','perm_adx_media_account_status','perm_adx_media_credential_view',
+  'perm_adx_media_credential_add','perm_adx_media_credential_edit','perm_adx_media_credential_rotate',
+  'perm_adx_media_owner_view','perm_adx_media_owner_edit','perm_adx_media_debug')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v84_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_media_account','perm_adx_media_account_view')
+WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
+
+-- V85 current state: structured AppLink with explicit legacy mapping review.
+DROP PROCEDURE IF EXISTS scx_upgrade_v85_app_link_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v85_app_link_contract()
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_app_link' AND column_name='link_url' AND data_type<>'text') THEN
+    ALTER TABLE scx_adx_app_link MODIFY COLUMN link_url TEXT NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_app_link' AND column_name='deeplink' AND data_type<>'text') THEN
+    ALTER TABLE scx_adx_app_link MODIFY COLUMN deeplink TEXT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_app_link_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_app_link_id VARCHAR(32) NULL AFTER published_product_event_policy_revision;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_app_link_version') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_app_link_version BIGINT NOT NULL DEFAULT 0 AFTER published_app_link_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_app_link_type') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_app_link_type VARCHAR(16) NULL AFTER published_app_link_version;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_link_url_template') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_link_url_template TEXT NULL AFTER published_app_link_type;
+  ELSEIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_link_url_template' AND data_type<>'text') THEN
+    ALTER TABLE scx_adx_monitor_link MODIFY COLUMN published_link_url_template TEXT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_link_template_host') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_link_template_host VARCHAR(255) NULL AFTER published_link_url_template;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_link_template_fingerprint') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_link_template_fingerprint CHAR(64) NULL AFTER published_link_template_host;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_link_template_macro_set') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_link_template_macro_set JSON NULL AFTER published_link_template_fingerprint;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_redirect_enabled') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_redirect_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER published_link_template_macro_set;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_deeplink_url') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_deeplink_url TEXT NULL AFTER published_redirect_enabled;
+  ELSEIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_deeplink_url' AND data_type<>'text') THEN
+    ALTER TABLE scx_adx_monitor_link MODIFY COLUMN published_deeplink_url TEXT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_download_url') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN published_download_url TEXT NULL AFTER published_deeplink_url;
+  ELSEIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='published_download_url' AND data_type<>'text') THEN
+    ALTER TABLE scx_adx_monitor_link MODIFY COLUMN published_download_url TEXT NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND index_name='idx_scx_adx_monitor_app_link_publish') THEN
+    ALTER TABLE scx_adx_monitor_link ADD KEY idx_scx_adx_monitor_app_link_publish (app_link_id,published_app_link_id,route_status,deleted);
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v85_app_link_contract();
+DROP PROCEDURE scx_upgrade_v85_app_link_contract;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_app_link','链接管理','/adx/advertiser/app-link','menu_adx_advertiser','lucide:link','adx/app-link/index','adx:app-link:view',30,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_view_v85','查看链接','','menu_adx_app_link',NULL,NULL,'adx:app-link:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_add_v85','新增链接','','menu_adx_app_link',NULL,NULL,'adx:app-link:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_edit_v85','编辑及补映射链接','','menu_adx_app_link',NULL,NULL,'adx:app-link:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_status_v85','变更链接状态','','menu_adx_app_link',NULL,NULL,'adx:app-link:status',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_archive_v85','归档恢复链接','','menu_adx_app_link',NULL,NULL,'adx:app-link:archive',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_app_link_validate_v85','校验链接URL','','menu_adx_app_link',NULL,NULL,'adx:app-link:validate',60,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v85_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_app_link','perm_adx_app_link_view_v85','perm_adx_app_link_add_v85',
+  'perm_adx_app_link_edit_v85','perm_adx_app_link_status_v85','perm_adx_app_link_archive_v85','perm_adx_app_link_validate_v85')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v85_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_app_link','perm_adx_app_link_view_v85','perm_adx_app_link_add_v85',
+  'perm_adx_app_link_edit_v85','perm_adx_app_link_status_v85','perm_adx_app_link_validate_v85')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v85_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_app_link','perm_adx_app_link_view_v85')
+WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
+
+-- V86 current state: Task operational aggregate with explicit legacy Monitor mapping.
+CREATE TABLE IF NOT EXISTS scx_adx_task (
+  id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL, biz_code VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL, product_id VARCHAR(32) NOT NULL,
+  click_app_link_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  exposure_app_link_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL,
+  channel_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL, media_account_id VARCHAR(32) NOT NULL,
+  media_credential_id VARCHAR(32) NOT NULL, media_credential_secret_revision BIGINT NOT NULL,
+  operator_user_id VARCHAR(64) NOT NULL, task_name VARCHAR(64) NOT NULL,
+  normalized_name VARCHAR(128) NOT NULL, exposure_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  exposure_as_click TINYINT(1) NOT NULL DEFAULT 0, dedup_window_seconds INT NOT NULL DEFAULT 3600,
+  rta_mode VARCHAR(16) NOT NULL DEFAULT 'OFF', description VARCHAR(500) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT,READY,ARCHIVED; not traffic state',
+  config_version BIGINT NOT NULL DEFAULT 1, republish_required TINYINT(1) NOT NULL DEFAULT 1,
+  republish_reason VARCHAR(255) NOT NULL DEFAULT 'TASK_DRAFT_SAVED',
+  published_task_version BIGINT NOT NULL DEFAULT 0,
+  create_request_key VARCHAR(64) NOT NULL, create_request_hash CHAR(64) NOT NULL,
+  archived_by VARCHAR(100) NULL, archived_at DATETIME(3) NULL,
+  create_by VARCHAR(100) NOT NULL, update_by VARCHAR(100) NOT NULL,
+  current_name_key VARCHAR(128) GENERATED ALWAYS AS (IF(status<>'ARCHIVED',normalized_name,NULL)) STORED,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), UNIQUE KEY uk_scx_adx_task_code (biz_code),
+  UNIQUE KEY uk_scx_adx_task_name (advertiser_id,current_name_key),
+  UNIQUE KEY uk_scx_adx_task_request (create_request_key),
+  KEY idx_scx_adx_task_filter (advertiser_id,channel_id,media_account_id,status,update_time),
+  KEY idx_scx_adx_task_product_link (product_id,click_app_link_id,exposure_app_link_id),
+  KEY idx_scx_adx_task_operator (operator_user_id,status),
+  KEY idx_scx_adx_task_credential (media_credential_id,media_credential_secret_revision),
+  CONSTRAINT fk_scx_adx_task_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_adx_advertiser(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_product FOREIGN KEY (product_id) REFERENCES scx_adx_product(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_click_link FOREIGN KEY (click_app_link_id) REFERENCES scx_adx_app_link(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_exposure_link FOREIGN KEY (exposure_app_link_id) REFERENCES scx_adx_app_link(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_channel FOREIGN KEY (channel_id) REFERENCES scx_adx_channel(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_media_account FOREIGN KEY (media_account_id) REFERENCES scx_adx_media_account(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_media_credential FOREIGN KEY (media_credential_id) REFERENCES scx_adx_media_credential(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_operator FOREIGN KEY (operator_user_id) REFERENCES sys_user(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_task_status CHECK (status IN ('DRAFT','READY','ARCHIVED')),
+  CONSTRAINT ck_scx_adx_task_rta CHECK (rta_mode='OFF'),
+  CONSTRAINT ck_scx_adx_task_dedup CHECK (dedup_window_seconds BETWEEN 0 AND 86400),
+  CONSTRAINT ck_scx_adx_task_exposure CHECK ((exposure_enabled=0 AND exposure_app_link_id IS NULL AND exposure_as_click=0) OR (exposure_enabled=1 AND exposure_app_link_id IS NOT NULL)),
+  CONSTRAINT ck_scx_adx_task_revision CHECK (config_version>=1 AND media_credential_secret_revision>=1 AND published_task_version>=0 AND published_task_version<=config_version),
+  CONSTRAINT ck_scx_adx_task_archive CHECK ((status='ARCHIVED' AND archived_at IS NOT NULL) OR (status<>'ARCHIVED' AND archived_at IS NULL))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='S5 Task draft aggregate; publishing belongs to S7';
+
+CREATE TABLE IF NOT EXISTS scx_adx_task_change_audit (
+  id VARCHAR(32) NOT NULL, task_id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL, channel_id VARCHAR(32) NOT NULL,
+  media_account_id VARCHAR(32) NOT NULL, action VARCHAR(40) NOT NULL,
+  before_config_version BIGINT NOT NULL, after_config_version BIGINT NOT NULL,
+  affected_monitor_count INT NOT NULL DEFAULT 0, actor VARCHAR(100) NOT NULL,
+  change_summary VARCHAR(500) NOT NULL, create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id), KEY idx_scx_adx_task_audit (task_id,create_time,action),
+  KEY idx_scx_adx_task_audit_scope (advertiser_id,channel_id,media_account_id,create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Secret-free Task configuration audit';
+
+DROP PROCEDURE IF EXISTS scx_upgrade_v86_task_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v86_task_contract()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='task_id') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN task_id VARCHAR(32) NULL AFTER id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='task_mapping_status') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN task_mapping_status VARCHAR(32) NOT NULL DEFAULT 'LEGACY_UNMAPPED' AFTER task_id;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='task_route_kind') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN task_route_kind VARCHAR(16) NOT NULL DEFAULT 'LEGACY' AFTER task_mapping_status;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='task_config_revision') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN task_config_revision BIGINT NOT NULL DEFAULT 0 AFTER task_route_kind;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND index_name='idx_scx_adx_monitor_task') THEN
+    ALTER TABLE scx_adx_monitor_link ADD KEY idx_scx_adx_monitor_task (task_id,task_route_kind,route_status,deleted);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND constraint_name='fk_scx_adx_monitor_task') THEN
+    ALTER TABLE scx_adx_monitor_link ADD CONSTRAINT fk_scx_adx_monitor_task FOREIGN KEY (task_id) REFERENCES scx_adx_task(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND constraint_name='ck_scx_adx_monitor_task_mapping') THEN
+    ALTER TABLE scx_adx_monitor_link ADD CONSTRAINT ck_scx_adx_monitor_task_mapping CHECK ((task_id IS NULL AND task_mapping_status='LEGACY_UNMAPPED' AND task_route_kind='LEGACY' AND task_config_revision=0) OR (task_id IS NOT NULL AND task_mapping_status='READY' AND task_route_kind IN ('CLICK','EXPOSURE') AND task_config_revision>=1));
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v86_task_contract();
+DROP PROCEDURE scx_upgrade_v86_task_contract;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_task','任务管理','/adx/task','0','lucide:list-checks','adx/task/index','adx:task:view',40,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_view_v86','查看任务','','menu_adx_task',NULL,NULL,'adx:task:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_add_v86','新增任务草稿','','menu_adx_task',NULL,NULL,'adx:task:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_edit_v86','编辑任务草稿','','menu_adx_task',NULL,NULL,'adx:task:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_status_v86','变更任务就绪状态','','menu_adx_task',NULL,NULL,'adx:task:status',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_archive_v86','归档恢复任务','','menu_adx_task',NULL,NULL,'adx:task:archive',50,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v86_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_task','perm_adx_task_view_v86','perm_adx_task_add_v86','perm_adx_task_edit_v86','perm_adx_task_status_v86','perm_adx_task_archive_v86')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v86_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_task','perm_adx_task_view_v86','perm_adx_task_add_v86','perm_adx_task_edit_v86','perm_adx_task_status_v86')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v86_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_task','perm_adx_task_view_v86')
+WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
+
 -- Empty-database initialization intentionally performs no historical fact backfill.
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- V87 current state: canonical Event model. Kept textually synchronized with
+-- V87__close_event_model_truth.sql for empty-database initialization.
+-- S6 canonical EventDefinition -> ChannelEventMapping -> TaskEventBinding ->
+-- RouteEventSnapshot contract. Forward-only and replay-safe on MySQL 8.x.
+-- Existing V80 rows remain LEGACY_UNMAPPED/LEGACY_V80. No business mapping is
+-- inferred from names, external codes, URLs, or old Monitor relationships.
+
+DROP PROCEDURE IF EXISTS scx_v87_close_event_model;
+DELIMITER $$
+CREATE PROCEDURE scx_v87_close_event_model()
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_event_definition' AND column_name='direction') THEN
+    ALTER TABLE scx_adx_event_definition
+      ADD COLUMN direction VARCHAR(32) NULL AFTER event_name,
+      ADD COLUMN standard_type VARCHAR(64) NULL AFTER direction,
+      ADD COLUMN billing_eligible TINYINT(1) NOT NULL DEFAULT 0 AFTER standard_type,
+      ADD COLUMN subject_type VARCHAR(24) NULL AFTER billing_eligible,
+      ADD COLUMN config_version BIGINT NOT NULL DEFAULT 1 AFTER built_in,
+      ADD COLUMN mapping_state VARCHAR(24) NOT NULL DEFAULT 'LEGACY_UNMAPPED' AFTER config_version,
+      ADD COLUMN create_request_key VARCHAR(64) NULL AFTER mapping_state,
+      ADD COLUMN create_request_hash CHAR(64) NULL AFTER create_request_key,
+      ADD COLUMN archived_at DATETIME(3) NULL AFTER create_request_hash,
+      ADD COLUMN create_by VARCHAR(100) NULL AFTER archived_at,
+      ADD COLUMN update_by VARCHAR(100) NULL AFTER create_by;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_event_definition' AND index_name='uk_scx_adx_event_create_request') THEN
+    ALTER TABLE scx_adx_event_definition ADD UNIQUE KEY uk_scx_adx_event_create_request (create_request_key);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_event_definition' AND index_name='idx_scx_adx_event_canonical') THEN
+    ALTER TABLE scx_adx_event_definition ADD KEY idx_scx_adx_event_canonical (mapping_state,status,direction,standard_type,event_code);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_event_definition' AND constraint_name='ck_scx_adx_event_canonical') THEN
+    ALTER TABLE scx_adx_event_definition ADD CONSTRAINT ck_scx_adx_event_canonical CHECK (
+      (mapping_state='LEGACY_UNMAPPED') OR
+      (mapping_state='CANONICAL' AND category='STANDARD' AND channel_id='' AND
+       direction IS NOT NULL AND standard_type IS NOT NULL AND subject_type IS NOT NULL AND
+       direction IN ('UPSTREAM_CALLBACK','DOWNSTREAM_DELIVERY','BIDIRECTIONAL') AND
+       standard_type REGEXP '^[A-Z][A-Z0-9_]{1,63}$' AND
+       event_code REGEXP '^[A-Z][A-Z0-9_]{1,63}$' AND
+       subject_type IN ('DEVICE','ACCOUNT','ORDER','LEAD') AND
+       status IN ('ACTIVE','DISABLED','ARCHIVED') AND config_version>=1)
+    );
+  END IF;
+
+  ALTER TABLE scx_adx_channel_event_mapping
+    MODIFY upstream_event_id VARCHAR(32) NULL,
+    MODIFY conversion_event_id VARCHAR(32) NULL,
+    MODIFY media_event_id VARCHAR(32) NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND column_name='adapter_code') THEN
+    ALTER TABLE scx_adx_channel_event_mapping
+      ADD COLUMN adapter_code VARCHAR(32) NULL AFTER channel_id,
+      ADD COLUMN external_code VARCHAR(128) NULL AFTER adapter_code,
+      ADD COLUMN direction VARCHAR(32) NULL AFTER external_code,
+      ADD COLUMN event_definition_id VARCHAR(32) NULL AFTER direction,
+      ADD COLUMN parameter_template_code VARCHAR(64) NULL AFTER event_definition_id,
+      ADD COLUMN success_rule_code VARCHAR(32) NULL AFTER parameter_template_code,
+      ADD COLUMN config_version BIGINT NOT NULL DEFAULT 1 AFTER status,
+      ADD COLUMN mapping_state VARCHAR(24) NOT NULL DEFAULT 'LEGACY_UNMAPPED' AFTER config_version,
+      ADD COLUMN create_request_key VARCHAR(64) NULL AFTER mapping_state,
+      ADD COLUMN create_request_hash CHAR(64) NULL AFTER create_request_key,
+      ADD COLUMN archived_at DATETIME(3) NULL AFTER create_request_hash,
+      ADD COLUMN create_by VARCHAR(100) NULL AFTER archived_at,
+      ADD COLUMN update_by VARCHAR(100) NULL AFTER create_by;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND index_name='uk_scx_adx_mapping_external') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD UNIQUE KEY uk_scx_adx_mapping_external (channel_id,adapter_code,direction,external_code);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND index_name='uk_scx_adx_mapping_channel_id') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD UNIQUE KEY uk_scx_adx_mapping_channel_id (id,channel_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND index_name='uk_scx_adx_mapping_request') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD UNIQUE KEY uk_scx_adx_mapping_request (create_request_key);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND index_name='idx_scx_adx_mapping_canonical') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD KEY idx_scx_adx_mapping_canonical (mapping_state,channel_id,adapter_code,direction,status,event_definition_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND constraint_name='fk_scx_adx_mapping_channel_v87') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD CONSTRAINT fk_scx_adx_mapping_channel_v87 FOREIGN KEY (channel_id) REFERENCES scx_adx_channel(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND constraint_name='fk_scx_adx_mapping_adapter_v87') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD CONSTRAINT fk_scx_adx_mapping_adapter_v87 FOREIGN KEY (adapter_code) REFERENCES scx_ocpx_adapter(adapter_code) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND constraint_name='fk_scx_adx_mapping_definition_v87') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD CONSTRAINT fk_scx_adx_mapping_definition_v87 FOREIGN KEY (event_definition_id) REFERENCES scx_adx_event_definition(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_channel_event_mapping' AND constraint_name='ck_scx_adx_mapping_canonical') THEN
+    ALTER TABLE scx_adx_channel_event_mapping ADD CONSTRAINT ck_scx_adx_mapping_canonical CHECK (
+      (mapping_state='LEGACY_UNMAPPED' AND upstream_event_id IS NOT NULL AND conversion_event_id IS NOT NULL AND media_event_id IS NOT NULL) OR
+      (mapping_state='CANONICAL' AND adapter_code IS NOT NULL AND external_code IS NOT NULL AND
+       parameter_template_code IS NOT NULL AND success_rule_code IS NOT NULL AND
+       external_code REGEXP '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$' AND
+       direction IN ('UPSTREAM_CALLBACK','DOWNSTREAM_DELIVERY') AND event_definition_id IS NOT NULL AND
+       parameter_template_code IN ('STANDARD_EVENT_V1','FLAT_EVENT_V1') AND success_rule_code IN ('HTTP_2XX','BODY_CODE_ZERO') AND
+       upstream_event_id IS NULL AND conversion_event_id IS NULL AND media_event_id IS NULL AND
+       status IN ('ACTIVE','DISABLED','ARCHIVED') AND config_version>=1)
+    );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_task' AND index_name='uk_scx_adx_task_channel_id') THEN
+    ALTER TABLE scx_adx_task ADD UNIQUE KEY uk_scx_adx_task_channel_id (id,channel_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND column_name='event_mapping_mode') THEN
+    ALTER TABLE scx_adx_monitor_link ADD COLUMN event_mapping_mode VARCHAR(32) NOT NULL DEFAULT 'LEGACY_UNMAPPED' AFTER event_snapshot_version;
+  END IF;
+  UPDATE scx_adx_monitor_link SET event_mapping_mode='LEGACY_V80_SNAPSHOT'
+    WHERE event_snapshot_version=1 AND event_mapping_mode='LEGACY_UNMAPPED';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_monitor_link' AND constraint_name='ck_scx_adx_monitor_event_mode') THEN
+    ALTER TABLE scx_adx_monitor_link ADD CONSTRAINT ck_scx_adx_monitor_event_mode CHECK (
+      (event_snapshot_version=0 AND event_mapping_mode IN ('LEGACY_UNMAPPED','LEGACY_ADAPTER')) OR
+      (event_snapshot_version=1 AND event_mapping_mode='LEGACY_V80_SNAPSHOT') OR
+      (event_snapshot_version>=2 AND event_mapping_mode='SNAPSHOT')
+    );
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_v87_close_event_model();
+DROP PROCEDURE scx_v87_close_event_model;
+
+CREATE TABLE IF NOT EXISTS scx_adx_task_event_binding (
+  id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  task_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  channel_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  event_definition_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  channel_event_mapping_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  callback_ratio_basis_points INT NOT NULL DEFAULT 10000,
+  limit_value BIGINT NULL COMMENT 'NULL unlimited; 0 rejects every sampled event',
+  limit_window VARCHAR(24) NOT NULL DEFAULT 'NATURAL_DAY',
+  limit_timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
+  over_limit_delivery TINYINT(1) NOT NULL DEFAULT 0,
+  sampling_algorithm VARCHAR(32) NOT NULL DEFAULT 'SHA256_MOD_10000_V1',
+  source_type VARCHAR(24) NOT NULL DEFAULT 'MANUAL',
+  source_id VARCHAR(32) NULL,
+  source_revision BIGINT NOT NULL DEFAULT 0,
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  config_version BIGINT NOT NULL DEFAULT 1,
+  create_by VARCHAR(100) NOT NULL,
+  update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_task_event (task_id,event_definition_id),
+  KEY idx_scx_adx_task_event_mapping (channel_event_mapping_id,status),
+  KEY idx_scx_adx_task_event_channel (channel_id,status),
+  CONSTRAINT fk_scx_adx_task_event_task FOREIGN KEY (task_id,channel_id) REFERENCES scx_adx_task(id,channel_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_event_definition FOREIGN KEY (event_definition_id) REFERENCES scx_adx_event_definition(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_task_event_mapping FOREIGN KEY (channel_event_mapping_id,channel_id) REFERENCES scx_adx_channel_event_mapping(id,channel_id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_task_event_ratio CHECK (callback_ratio_basis_points BETWEEN 0 AND 10000),
+  CONSTRAINT ck_scx_adx_task_event_limit CHECK (limit_value IS NULL OR limit_value>=0),
+  CONSTRAINT ck_scx_adx_task_event_window CHECK (limit_window='NATURAL_DAY' AND limit_timezone='Asia/Shanghai'),
+  CONSTRAINT ck_scx_adx_task_event_sampling CHECK (sampling_algorithm='SHA256_MOD_10000_V1'),
+  CONSTRAINT ck_scx_adx_task_event_source CHECK ((source_type='MANUAL' AND source_id IS NULL AND source_revision=0) OR (source_type='PRODUCT_DEFAULT' AND source_id IS NOT NULL AND source_revision>=1)),
+  CONSTRAINT ck_scx_adx_task_event_status CHECK (status IN ('ACTIVE','DISABLED') AND config_version>=1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='S6 Task event binding draft truth';
+
+CREATE TABLE IF NOT EXISTS scx_adx_event_change_audit (
+  id VARCHAR(32) NOT NULL,
+  object_type VARCHAR(32) NOT NULL,
+  object_id VARCHAR(32) NOT NULL,
+  channel_id VARCHAR(32) NULL,
+  task_id VARCHAR(32) NULL,
+  action VARCHAR(40) NOT NULL,
+  before_version BIGINT NOT NULL,
+  after_version BIGINT NOT NULL,
+  actor VARCHAR(100) NOT NULL,
+  change_summary VARCHAR(500) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_scx_adx_event_audit_object (object_type,object_id,create_time),
+  KEY idx_scx_adx_event_audit_scope (channel_id,task_id,create_time),
+  CONSTRAINT ck_scx_adx_event_audit_type CHECK (object_type IN ('EVENT_DEFINITION','CHANNEL_EVENT_MAPPING','TASK_EVENT_BINDING'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Sensitive-payload-free S6 event configuration audit';
+
+DROP PROCEDURE IF EXISTS scx_v87_close_snapshot_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_v87_close_snapshot_contract()
+BEGIN
+  ALTER TABLE scx_adx_route_event_snapshot
+    MODIFY event_mapping_id VARCHAR(32) NULL,
+    MODIFY upstream_event_code VARCHAR(64) NULL,
+    MODIFY upstream_event_name VARCHAR(100) NULL,
+    MODIFY conversion_event_code VARCHAR(64) NULL,
+    MODIFY conversion_event_name VARCHAR(100) NULL,
+    MODIFY media_event_code VARCHAR(64) NULL,
+    MODIFY media_event_name VARCHAR(100) NULL,
+    MODIFY assessment_unit_price DECIMAL(20,6) NULL,
+    MODIFY daily_limit INT NULL;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND column_name='snapshot_schema_version') THEN
+    ALTER TABLE scx_adx_route_event_snapshot
+      ADD COLUMN snapshot_schema_version INT NOT NULL DEFAULT 1 AFTER route_version,
+      ADD COLUMN snapshot_mode VARCHAR(24) NOT NULL DEFAULT 'LEGACY_V80' AFTER snapshot_schema_version,
+      ADD COLUMN task_id VARCHAR(32) NULL AFTER snapshot_mode,
+      ADD COLUMN task_config_revision BIGINT NULL AFTER task_id,
+      ADD COLUMN task_event_binding_id VARCHAR(32) NULL AFTER task_config_revision,
+      ADD COLUMN task_event_binding_revision BIGINT NULL AFTER task_event_binding_id,
+      ADD COLUMN event_definition_id VARCHAR(32) NULL AFTER task_event_binding_revision,
+      ADD COLUMN event_definition_revision BIGINT NULL AFTER event_definition_id,
+      ADD COLUMN event_mapping_revision BIGINT NULL AFTER event_mapping_id,
+      ADD COLUMN standard_event_code VARCHAR(64) NULL AFTER event_mapping_revision,
+      ADD COLUMN direction VARCHAR(32) NULL AFTER standard_event_code,
+      ADD COLUMN external_event_code VARCHAR(128) NULL AFTER direction,
+      ADD COLUMN parameter_template_code VARCHAR(64) NULL AFTER external_event_code,
+      ADD COLUMN callback_ratio_basis_points INT NULL AFTER parameter_template_code,
+      ADD COLUMN limit_value BIGINT NULL AFTER callback_ratio_basis_points,
+      ADD COLUMN limit_window VARCHAR(24) NULL AFTER limit_value,
+      ADD COLUMN limit_timezone VARCHAR(64) NULL AFTER limit_window,
+      ADD COLUMN over_limit_delivery TINYINT(1) NULL AFTER limit_timezone,
+      ADD COLUMN sampling_algorithm VARCHAR(32) NULL AFTER over_limit_delivery,
+      ADD COLUMN snapshot_fingerprint CHAR(64) NULL AFTER sampling_algorithm;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND index_name='uk_scx_adx_route_event_canonical') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD UNIQUE KEY uk_scx_adx_route_event_canonical (monitor_id,route_version,event_definition_id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND index_name='idx_scx_adx_route_event_task') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD KEY idx_scx_adx_route_event_task (task_id,task_event_binding_id,snapshot_schema_version);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND constraint_name='fk_scx_adx_snapshot_binding_v87') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD CONSTRAINT fk_scx_adx_snapshot_binding_v87 FOREIGN KEY (task_event_binding_id) REFERENCES scx_adx_task_event_binding(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND constraint_name='fk_scx_adx_snapshot_definition_v87') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD CONSTRAINT fk_scx_adx_snapshot_definition_v87 FOREIGN KEY (event_definition_id) REFERENCES scx_adx_event_definition(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.referential_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND constraint_name='fk_scx_adx_snapshot_mapping_v87') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD CONSTRAINT fk_scx_adx_snapshot_mapping_v87 FOREIGN KEY (event_mapping_id) REFERENCES scx_adx_channel_event_mapping(id) ON UPDATE RESTRICT ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_route_event_snapshot' AND constraint_name='ck_scx_adx_snapshot_v87') THEN
+    ALTER TABLE scx_adx_route_event_snapshot ADD CONSTRAINT ck_scx_adx_snapshot_v87 CHECK (
+      (snapshot_schema_version=1 AND snapshot_mode='LEGACY_V80') OR
+      (snapshot_schema_version=2 AND snapshot_mode='CANONICAL' AND task_id IS NOT NULL AND task_config_revision>=1 AND
+       task_event_binding_id IS NOT NULL AND task_event_binding_revision>=1 AND event_definition_id IS NOT NULL AND
+       event_definition_revision>=1 AND event_mapping_id IS NOT NULL AND event_mapping_revision>=1 AND
+       standard_event_code IS NOT NULL AND direction IS NOT NULL AND external_event_code IS NOT NULL AND
+       parameter_template_code IS NOT NULL AND callback_ratio_basis_points IS NOT NULL AND
+       limit_window IS NOT NULL AND limit_timezone IS NOT NULL AND sampling_algorithm IS NOT NULL AND
+       direction='DOWNSTREAM_DELIVERY' AND parameter_template_code IN ('STANDARD_EVENT_V1','FLAT_EVENT_V1') AND
+       callback_ratio_basis_points BETWEEN 0 AND 10000 AND (limit_value IS NULL OR limit_value>=0) AND
+       limit_window='NATURAL_DAY' AND limit_timezone='Asia/Shanghai' AND
+       sampling_algorithm='SHA256_MOD_10000_V1' AND snapshot_fingerprint IS NOT NULL)
+    );
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_v87_close_snapshot_contract();
+DROP PROCEDURE scx_v87_close_snapshot_contract;
+
+DROP TRIGGER IF EXISTS trg_scx_adx_route_event_snapshot_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_route_event_snapshot_no_delete;
+DELIMITER $$
+CREATE TRIGGER trg_scx_adx_route_event_snapshot_no_update BEFORE UPDATE ON scx_adx_route_event_snapshot
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='RouteEventSnapshot is immutable; publish a new version'$$
+CREATE TRIGGER trg_scx_adx_route_event_snapshot_no_delete BEFORE DELETE ON scx_adx_route_event_snapshot
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='RouteEventSnapshot history cannot be deleted'$$
+DELIMITER ;
+
+UPDATE scx_ocpx_adapter
+SET capabilities_json=JSON_SET(capabilities_json,
+  '$.eventParameterTemplates',JSON_ARRAY('STANDARD_EVENT_V1','FLAT_EVENT_V1'),
+  '$.eventMappingDirections',IF(direction='UPSTREAM',JSON_ARRAY('UPSTREAM_CALLBACK'),JSON_ARRAY('DOWNSTREAM_DELIVERY'))),
+  update_time=NOW(3)
+WHERE status='ACTIVE';
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_event','事件字典','/adx/event','menu_ocpx_system','lucide:workflow','adx/event/index','adx:event:view',45,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_view_v87','查看事件定义','','menu_adx_event',NULL,NULL,'adx:event:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_add_v87','新增事件定义','','menu_adx_event',NULL,NULL,'adx:event:add',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_edit_v87','编辑事件定义','','menu_adx_event',NULL,NULL,'adx:event:edit',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_status_v87','变更事件状态','','menu_adx_event',NULL,NULL,'adx:event:status',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_mapping_view_v87','查看渠道事件映射','','menu_adx_event',NULL,NULL,'adx:event-mapping:view',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_mapping_add_v87','新增渠道事件映射','','menu_adx_event',NULL,NULL,'adx:event-mapping:add',60,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_mapping_edit_v87','编辑渠道事件映射','','menu_adx_event',NULL,NULL,'adx:event-mapping:edit',70,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_event_mapping_status_v87','变更渠道事件映射状态','','menu_adx_event',NULL,NULL,'adx:event-mapping:status',80,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_task_event_edit_v87','编辑任务事件绑定','','menu_adx_task',NULL,NULL,'adx:task:event:edit',60,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+UPDATE sys_menu SET del_flag='1',update_time=NOW() WHERE id='perm_adx_event_write';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v87_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_event','perm_adx_event_view_v87','perm_adx_event_add_v87','perm_adx_event_edit_v87',
+  'perm_adx_event_status_v87','perm_adx_event_mapping_view_v87','perm_adx_event_mapping_add_v87',
+  'perm_adx_event_mapping_edit_v87','perm_adx_event_mapping_status_v87','perm_adx_task_event_edit_v87')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v87_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_event','perm_adx_event_view_v87','perm_adx_event_mapping_view_v87','perm_adx_task_event_edit_v87')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v87_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_event','perm_adx_event_view_v87','perm_adx_event_mapping_view_v87')
+WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
+-- S7 immutable MonitorRoute publication, transactional distribution and runtime
+-- acceptance dimensions. Forward-only and replay-safe on MySQL 8.x.
+-- Legacy Monitor rows remain unmapped; this migration never infers a Task,
+-- Product, MediaAccount, event mapping or route code from names or URLs.
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_version (
+  id VARCHAR(32) NOT NULL,
+  monitor_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  task_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  route_version BIGINT NOT NULL,
+  route_kind VARCHAR(16) NOT NULL,
+  route_code_hash CHAR(64) NOT NULL,
+  route_code_ciphertext TEXT NOT NULL,
+  public_template_ciphertext TEXT NOT NULL,
+  route_schema_version INT NOT NULL DEFAULT 3,
+  snapshot_fingerprint CHAR(64) NOT NULL,
+  runtime_snapshot_ciphertext LONGTEXT NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  advertiser_revision BIGINT NOT NULL,
+  product_id VARCHAR(32) NOT NULL,
+  product_revision BIGINT NOT NULL,
+  product_event_policy_revision BIGINT NOT NULL,
+  app_link_id VARCHAR(32) NOT NULL,
+  app_link_revision BIGINT NOT NULL,
+  media_account_id VARCHAR(32) NOT NULL,
+  media_account_revision BIGINT NOT NULL,
+  media_credential_id VARCHAR(32) NOT NULL,
+  media_credential_secret_revision BIGINT NOT NULL,
+  channel_id VARCHAR(32) NOT NULL,
+  channel_adapter_code VARCHAR(32) NOT NULL,
+  channel_adapter_revision BIGINT NOT NULL,
+  task_config_revision BIGINT NOT NULL,
+  event_snapshot_schema_version INT NOT NULL,
+  macro_schema_json JSON NOT NULL,
+  dedup_window_seconds INT NOT NULL,
+  exposure_enabled TINYINT(1) NOT NULL,
+  exposure_as_click TINYINT(1) NOT NULL,
+  rta_mode VARCHAR(16) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'PUBLISHED',
+  published_by VARCHAR(100) NOT NULL,
+  published_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_version (monitor_id,route_version),
+  UNIQUE KEY uk_scx_adx_route_code_hash (route_code_hash),
+  KEY idx_scx_adx_route_version_task (task_id,published_at),
+  KEY idx_scx_adx_route_version_scope (advertiser_id,channel_id,media_account_id,published_at),
+  CONSTRAINT fk_scx_adx_route_version_monitor FOREIGN KEY (monitor_id) REFERENCES scx_adx_monitor_link(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_route_version_task FOREIGN KEY (task_id) REFERENCES scx_adx_task(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_version_core CHECK (
+    route_version>=1 AND route_schema_version=3 AND route_kind IN ('CLICK','EXPOSURE') AND
+    CHAR_LENGTH(route_code_hash)=64 AND CHAR_LENGTH(snapshot_fingerprint)=64 AND
+    advertiser_revision>=1 AND product_revision>=1 AND product_event_policy_revision>=1 AND
+    app_link_revision>=1 AND media_account_revision>=1 AND media_credential_secret_revision>=1 AND
+    channel_adapter_revision>=1 AND task_config_revision>=1 AND event_snapshot_schema_version=2 AND
+    dedup_window_seconds BETWEEN 0 AND 86400 AND rta_mode='OFF' AND status='PUBLISHED' AND
+    ((exposure_enabled=0 AND exposure_as_click=0) OR exposure_enabled=1)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='S7 immutable published route version';
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_runtime_state (
+  id VARCHAR(32) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  monitor_id VARCHAR(32) NOT NULL,
+  route_version BIGINT NOT NULL,
+  acceptance_status VARCHAR(24) NOT NULL DEFAULT 'PENDING_DISTRIBUTION',
+  accept_from DATETIME(3) NULL,
+  accept_until DATETIME(3) NULL,
+  deny_at DATETIME(3) NULL,
+  state_revision BIGINT NOT NULL DEFAULT 1,
+  reason_code VARCHAR(64) NULL,
+  update_by VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_runtime_version (route_version_id),
+  UNIQUE KEY uk_scx_adx_route_runtime_monitor (monitor_id,route_version),
+  KEY idx_scx_adx_route_runtime_accept (acceptance_status,accept_from,accept_until,deny_at),
+  CONSTRAINT fk_scx_adx_route_runtime_version FOREIGN KEY (route_version_id) REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_runtime_state CHECK (
+    acceptance_status IN ('PENDING_DISTRIBUTION','ACTIVE','OVERLAP','SUPERSEDED','DENIED','EXPIRED') AND
+    route_version>=1 AND state_revision>=1 AND
+    (accept_until IS NULL OR accept_from IS NULL OR accept_until>=accept_from)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Mutable audited acceptance state outside immutable route snapshot';
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_publish_record (
+  id VARCHAR(32) NOT NULL,
+  publish_request_id VARCHAR(64) NOT NULL,
+  task_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  monitor_id VARCHAR(32) NOT NULL,
+  expected_task_version BIGINT NOT NULL,
+  check_fingerprint CHAR(64) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  route_version BIGINT NOT NULL,
+  route_bundle_json JSON NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'PUBLISHED',
+  actor VARCHAR(100) NOT NULL,
+  response_fingerprint CHAR(64) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_publish_request (publish_request_id),
+  UNIQUE KEY uk_scx_adx_route_publish_version (route_version_id),
+  KEY idx_scx_adx_route_publish_task (task_id,create_time),
+  CONSTRAINT fk_scx_adx_route_publish_task FOREIGN KEY (task_id) REFERENCES scx_adx_task(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_route_publish_version FOREIGN KEY (route_version_id) REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_publish_record CHECK (
+    publish_request_id REGEXP '^[A-Za-z0-9_-]{16,64}$' AND expected_task_version>=1 AND
+    route_version>=1 AND CHAR_LENGTH(check_fingerprint)=64 AND CHAR_LENGTH(response_fingerprint)=64 AND
+    status='PUBLISHED'
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Idempotent S7 route publication record';
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_distribution (
+  id VARCHAR(32) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  monitor_id VARCHAR(32) NOT NULL,
+  route_version BIGINT NOT NULL,
+  target_group VARCHAR(64) NOT NULL DEFAULT 'DEFAULT',
+  minimum_required_acks INT NOT NULL DEFAULT 1,
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  attempt_count INT NOT NULL DEFAULT 0,
+  next_attempt_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  lease_owner VARCHAR(100) NULL,
+  lease_until DATETIME(3) NULL,
+  last_error_code VARCHAR(64) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_distribution (route_version_id,target_group),
+  KEY idx_scx_adx_route_distribution_claim (status,next_attempt_at,lease_until),
+  CONSTRAINT fk_scx_adx_route_distribution_version FOREIGN KEY (route_version_id) REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_distribution CHECK (
+    route_version>=1 AND minimum_required_acks>=1 AND attempt_count>=0 AND
+    status IN ('PENDING','DISTRIBUTING','ACTIVE','DEGRADED','FAILED')
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='S7 route distribution truth';
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_instance_ack (
+  id VARCHAR(32) NOT NULL,
+  distribution_id VARCHAR(32) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  instance_id VARCHAR(100) NOT NULL,
+  applied_version BIGINT NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  error_code VARCHAR(64) NULL,
+  acked_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_instance_ack (distribution_id,instance_id),
+  KEY idx_scx_adx_route_instance_version (route_version_id,status,acked_at),
+  CONSTRAINT fk_scx_adx_route_ack_distribution FOREIGN KEY (distribution_id) REFERENCES scx_adx_route_distribution(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_route_ack_version FOREIGN KEY (route_version_id) REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_ack CHECK (applied_version>=1 AND status IN ('APPLIED','FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Per-instance applied route version acknowledgement';
+
+CREATE TABLE IF NOT EXISTS scx_adx_route_pause_command (
+  id VARCHAR(32) NOT NULL,
+  pause_request_id VARCHAR(64) NOT NULL,
+  task_id VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  expected_task_version BIGINT NOT NULL,
+  preview_fingerprint CHAR(64) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'DENY_MARKER_WRITTEN',
+  affected_route_count INT NOT NULL,
+  actor VARCHAR(100) NOT NULL,
+  reason_summary VARCHAR(255) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_route_pause_request (pause_request_id),
+  KEY idx_scx_adx_route_pause_task (task_id,create_time),
+  CONSTRAINT fk_scx_adx_route_pause_task FOREIGN KEY (task_id) REFERENCES scx_adx_task(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_route_pause CHECK (
+    pause_request_id REGEXP '^[A-Za-z0-9_-]{16,64}$' AND expected_task_version>=1 AND
+    CHAR_LENGTH(preview_fingerprint)=64 AND affected_route_count>=0 AND status='DENY_MARKER_WRITTEN'
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Idempotent auditable S7 emergency deny command';
+
+DROP PROCEDURE IF EXISTS scx_upgrade_v88_publication_contract;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v88_publication_contract()
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE() AND table_name='scx_adx_task' AND constraint_name='ck_scx_adx_task_status') THEN
+    ALTER TABLE scx_adx_task DROP CHECK ck_scx_adx_task_status;
+  END IF;
+  ALTER TABLE scx_adx_task ADD CONSTRAINT ck_scx_adx_task_status CHECK (status IN ('DRAFT','READY','ACTIVE','PAUSED','ARCHIVED'));
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='scx_ocpx_config_outbox' AND column_name='payload_json') THEN
+    ALTER TABLE scx_ocpx_config_outbox
+      ADD COLUMN payload_json JSON NULL AFTER event_type,
+      ADD COLUMN delivery_status VARCHAR(24) NOT NULL DEFAULT 'PENDING' AFTER published,
+      ADD COLUMN attempt_count INT NOT NULL DEFAULT 0 AFTER delivery_status,
+      ADD COLUMN available_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) AFTER attempt_count,
+      ADD COLUMN lease_owner VARCHAR(100) NULL AFTER available_at,
+      ADD COLUMN lease_until DATETIME(3) NULL AFTER lease_owner,
+      ADD COLUMN last_error_code VARCHAR(64) NULL AFTER lease_until,
+      ADD COLUMN update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) AFTER published_at;
+  END IF;
+  UPDATE scx_ocpx_config_outbox
+  SET delivery_status=IF(published=1,'DELIVERED','PENDING'),
+      available_at=COALESCE(create_time,NOW(3)),attempt_count=GREATEST(attempt_count,0)
+  WHERE delivery_status='PENDING';
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_ocpx_config_outbox' AND index_name='idx_scx_ocpx_config_claim') THEN
+    ALTER TABLE scx_ocpx_config_outbox ADD KEY idx_scx_ocpx_config_claim (delivery_status,available_at,lease_until);
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v88_publication_contract();
+DROP PROCEDURE scx_upgrade_v88_publication_contract;
+
+DROP TRIGGER IF EXISTS trg_scx_adx_route_version_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_route_version_no_delete;
+DELIMITER $$
+CREATE TRIGGER trg_scx_adx_route_version_no_update BEFORE UPDATE ON scx_adx_route_version
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='RouteVersion is immutable; publish a new version'$$
+CREATE TRIGGER trg_scx_adx_route_version_no_delete BEFORE DELETE ON scx_adx_route_version
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='RouteVersion history cannot be deleted'$$
+DELIMITER ;
+
+UPDATE scx_ocpx_adapter
+SET capabilities_json=JSON_SET(capabilities_json,
+  '$.trackingMacroSchemaVersion',1,
+  '$.trackingMacroPairs',JSON_ARRAY(
+    JSON_OBJECT('key','imei','macro','__IMEI__','required',FALSE),
+    JSON_OBJECT('key','imei_md5','macro','__IMEI_MD5__','required',FALSE),
+    JSON_OBJECT('key','oaid','macro','__OAID__','required',FALSE),
+    JSON_OBJECT('key','oaid_md5','macro','__OAID_MD5__','required',FALSE),
+    JSON_OBJECT('key','ip','macro','__IP__','required',FALSE),
+    JSON_OBJECT('key','android_id','macro','__ANDROIDID__','required',FALSE),
+    JSON_OBJECT('key','android_id_md5','macro','__ANDROIDID_MD5__','required',FALSE),
+    JSON_OBJECT('key','aaid','macro','__AAID__','required',FALSE),
+    JSON_OBJECT('key','ua','macro','__UA__','required',FALSE),
+    JSON_OBJECT('key','os','macro','__OS__','required',FALSE),
+    JSON_OBJECT('key','model','macro','__MODEL__','required',FALSE),
+    JSON_OBJECT('key','callback','macro','__CALLBACK__','required',FALSE),
+    JSON_OBJECT('key','clickid','macro','__CLICKID__','required',TRUE),
+    JSON_OBJECT('key','campaign_id','macro','__CAMPAIGNID__','required',FALSE),
+    JSON_OBJECT('key','adgroup_id','macro','__ADGROUPID__','required',FALSE),
+    JSON_OBJECT('key','creative_id','macro','__CREATIVEID__','required',FALSE),
+    JSON_OBJECT('key','advertiser_id','macro','__ADVERTISERID__','required',FALSE)
+  )),
+  capability_revision=capability_revision+1,update_time=NOW(3)
+WHERE direction='DOWNSTREAM' AND status='ACTIVE'
+  AND NOT JSON_CONTAINS_PATH(capabilities_json,'all','$.trackingMacroSchemaVersion','$.trackingMacroPairs');
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('perm_adx_task_publish_v88','发布任务路由','','menu_adx_task',NULL,NULL,'adx:task:publish',70,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_monitor_view_v88','查看路由版本','','menu_adx_task',NULL,NULL,'adx:monitor:view',80,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_monitor_publish_v88','发布路由','','menu_adx_task',NULL,NULL,'adx:monitor:publish',90,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_monitor_copy_v88','复制监测地址','','menu_adx_task',NULL,NULL,'adx:monitor:copy',100,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_monitor_status_v88','停流及恢复发布','','menu_adx_task',NULL,NULL,'adx:monitor:status',110,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
+  sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v88_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('perm_adx_task_publish_v88','perm_adx_monitor_view_v88','perm_adx_monitor_publish_v88',
+  'perm_adx_monitor_copy_v88','perm_adx_monitor_status_v88')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v88_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('perm_adx_task_publish_v88','perm_adx_monitor_view_v88','perm_adx_monitor_publish_v88',
+  'perm_adx_monitor_copy_v88','perm_adx_monitor_status_v88')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+
+-- S8 unified hourly facts and reports. Forward-only and replay-safe on MySQL 8.x.
+-- Existing report/event rows are explicitly UNMAPPED. This migration never infers
+-- Product, Task, MediaAccount, operator or RouteVersion from mutable names or URLs.
+
+DROP PROCEDURE IF EXISTS scx_upgrade_v89_hourly_fact;
+DELIMITER $$
+CREATE PROCEDURE scx_upgrade_v89_hourly_fact()
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE()
+      AND table_name='scx_adx_hourly_report' AND index_name='uk_scx_adx_report_grain') THEN
+    ALTER TABLE scx_adx_hourly_report DROP INDEX uk_scx_adx_report_grain;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE()
+      AND table_name='scx_adx_hourly_report' AND column_name='tenant_id') THEN
+    ALTER TABLE scx_adx_hourly_report
+      ADD COLUMN tenant_id VARCHAR(32) NULL AFTER time_hour,
+      ADD COLUMN stat_date DATE GENERATED ALWAYS AS (DATE(time_hour)) STORED AFTER tenant_id,
+      ADD COLUMN stat_hour TINYINT GENERATED ALWAYS AS (HOUR(time_hour)) STORED AFTER stat_date,
+      ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai' AFTER stat_hour,
+      ADD COLUMN product_id VARCHAR(32) NULL AFTER advertiser_id,
+      ADD COLUMN task_id VARCHAR(32) NULL AFTER app_link_id,
+      ADD COLUMN media_account_id VARCHAR(32) NULL AFTER channel_id,
+      ADD COLUMN operator_user_id VARCHAR(32) NULL AFTER media_account_id,
+      ADD COLUMN route_version_id VARCHAR(32) NULL AFTER monitor_id,
+      ADD COLUMN route_version BIGINT NULL AFTER route_version_id,
+      ADD COLUMN dimension_status VARCHAR(16) NOT NULL DEFAULT 'UNMAPPED' AFTER route_version,
+      ADD COLUMN raw_clicks BIGINT NOT NULL DEFAULT 0 AFTER clicks,
+      ADD COLUMN valid_clicks BIGINT NOT NULL DEFAULT 0 AFTER raw_clicks,
+      ADD COLUMN duplicate_clicks BIGINT NOT NULL DEFAULT 0 AFTER valid_clicks,
+      ADD COLUMN adjustment_count BIGINT NOT NULL DEFAULT 0 AFTER duplicate_clicks,
+      ADD COLUMN deduction_count BIGINT NOT NULL DEFAULT 0 AFTER adjustment_count,
+      ADD COLUMN adjustment_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000 AFTER deduction_count,
+      ADD COLUMN deduction_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000 AFTER adjustment_amount,
+      ADD COLUMN source_watermark DATETIME(3) NULL AFTER deduction_amount,
+      ADD COLUMN as_of DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) AFTER source_watermark,
+      ADD COLUMN finality VARCHAR(16) NOT NULL DEFAULT 'PROVISIONAL' AFTER as_of,
+      ADD COLUMN quality_status VARCHAR(24) NOT NULL DEFAULT 'UNMAPPED' AFTER finality,
+      ADD COLUMN metric_definitions_version VARCHAR(32) NOT NULL DEFAULT 'S8_V1' AFTER quality_status,
+      ADD COLUMN dimension_key CHAR(64) GENERATED ALWAYS AS
+        (SHA2(CONCAT_WS('|',COALESCE(tenant_id,'~'),COALESCE(advertiser_id,'~'),
+          COALESCE(product_id,'~'),COALESCE(app_link_id,'~'),COALESCE(task_id,'~'),
+          COALESCE(channel_id,'~'),COALESCE(media_account_id,'~'),COALESCE(operator_user_id,'~'),
+          COALESCE(monitor_id,'~'),COALESCE(route_version_id,'~'),COALESCE(route_version,-1)),256)) STORED;
+  END IF;
+
+  UPDATE scx_adx_hourly_report
+  SET raw_clicks=clicks,valid_clicks=eligible_click_count,
+      duplicate_clicks=deduplicated_click_count,dimension_status='UNMAPPED',
+      quality_status='UNMAPPED',finality='PROVISIONAL',timezone='Asia/Shanghai',
+      metric_definitions_version='S8_V1',as_of=COALESCE(as_of,update_time,NOW(3))
+  WHERE dimension_status='UNMAPPED';
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.statistics WHERE table_schema=DATABASE()
+      AND table_name='scx_adx_hourly_report' AND index_name='uk_scx_adx_hourly_frozen_grain') THEN
+    ALTER TABLE scx_adx_hourly_report
+      ADD UNIQUE KEY uk_scx_adx_hourly_frozen_grain (time_hour,dimension_key),
+      ADD KEY idx_scx_adx_hourly_time_task (time_hour,task_id,app_link_id),
+      ADD KEY idx_scx_adx_hourly_scope (time_hour,advertiser_id,channel_id,media_account_id),
+      ADD KEY idx_scx_adx_hourly_product (time_hour,product_id,app_link_id),
+      ADD KEY idx_scx_adx_hourly_media (time_hour,media_account_id,channel_id),
+      ADD KEY idx_scx_adx_hourly_freshness (finality,source_watermark,as_of);
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema=DATABASE()
+      AND table_name='scx_adx_hourly_report' AND constraint_name='ck_scx_adx_hourly_v89_dimensions') THEN
+    ALTER TABLE scx_adx_hourly_report
+      ADD CONSTRAINT ck_scx_adx_hourly_v89_dimensions CHECK (
+        timezone='Asia/Shanghai' AND stat_hour BETWEEN 0 AND 23 AND
+        dimension_status IN ('UNMAPPED','FROZEN') AND
+        ((dimension_status='UNMAPPED') OR
+         (tenant_id IS NOT NULL AND product_id IS NOT NULL AND task_id IS NOT NULL AND
+          media_account_id IS NOT NULL AND operator_user_id IS NOT NULL AND
+          route_version_id IS NOT NULL AND route_version>=1)) AND
+        raw_clicks>=0 AND valid_clicks>=0 AND duplicate_clicks>=0 AND
+        adjustment_count>=0 AND deduction_count>=0 AND
+        finality IN ('DELAYED','PROVISIONAL','FINAL') AND
+        quality_status IN ('COMPLETE','PARTIAL','UNMAPPED') AND
+        metric_definitions_version='S8_V1'
+      );
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE()
+      AND table_name='scx_ocpx_event' AND column_name='tenant_id') THEN
+    ALTER TABLE scx_ocpx_event
+      ADD COLUMN tenant_id VARCHAR(32) NULL AFTER event_type,
+      ADD COLUMN product_id VARCHAR(32) NULL AFTER advertiser_id,
+      ADD COLUMN task_id VARCHAR(32) NULL AFTER app_link_id,
+      ADD COLUMN media_account_id VARCHAR(32) NULL AFTER channel_id,
+      ADD COLUMN operator_user_id VARCHAR(32) NULL AFTER media_account_id,
+      ADD COLUMN route_version_id VARCHAR(32) NULL AFTER monitor_id,
+      ADD COLUMN dimension_status VARCHAR(16) NOT NULL DEFAULT 'UNMAPPED' AFTER route_version,
+      ADD KEY idx_scx_ocpx_event_frozen_hour (occurred_at,task_id,route_version_id),
+      ADD KEY idx_scx_ocpx_event_frozen_scope (advertiser_id,channel_id,media_account_id,occurred_at);
+  END IF;
+END$$
+DELIMITER ;
+CALL scx_upgrade_v89_hourly_fact();
+DROP PROCEDURE scx_upgrade_v89_hourly_fact;
+
+CREATE TABLE IF NOT EXISTS scx_adx_hourly_fact_contribution (
+  sequence_no BIGINT NOT NULL AUTO_INCREMENT,
+  id VARCHAR(32) NOT NULL,
+  source_event_id VARCHAR(128) NOT NULL,
+  contribution_kind VARCHAR(32) NOT NULL,
+  tenant_id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  product_id VARCHAR(32) NOT NULL,
+  app_link_id VARCHAR(32) NOT NULL,
+  task_id VARCHAR(32) NOT NULL,
+  channel_id VARCHAR(32) NOT NULL,
+  media_account_id VARCHAR(32) NOT NULL,
+  operator_user_id VARCHAR(32) NOT NULL,
+  monitor_route_id VARCHAR(32) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  route_version BIGINT NOT NULL,
+  event_time DATETIME(3) NOT NULL,
+  received_time DATETIME(3) NOT NULL,
+  stat_hour DATETIME NOT NULL,
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Shanghai',
+  impressions BIGINT NOT NULL DEFAULT 0,
+  raw_clicks BIGINT NOT NULL DEFAULT 0,
+  valid_clicks BIGINT NOT NULL DEFAULT 0,
+  duplicate_clicks BIGINT NOT NULL DEFAULT 0,
+  skipped_clicks BIGINT NOT NULL DEFAULT 0,
+  activation_count BIGINT NOT NULL DEFAULT 0,
+  registration_count BIGINT NOT NULL DEFAULT 0,
+  payment_count BIGINT NOT NULL DEFAULT 0,
+  order_count BIGINT NOT NULL DEFAULT 0,
+  first_activation_count BIGINT NOT NULL DEFAULT 0,
+  first_order_count BIGINT NOT NULL DEFAULT 0,
+  reactivation_count BIGINT NOT NULL DEFAULT 0,
+  retention_d2_count BIGINT NOT NULL DEFAULT 0,
+  retention_d3_count BIGINT NOT NULL DEFAULT 0,
+  retention_d7_count BIGINT NOT NULL DEFAULT 0,
+  raw_conversion_count BIGINT NOT NULL DEFAULT 0,
+  forwarded_conversion_count BIGINT NOT NULL DEFAULT 0,
+  delivery_failure_count BIGINT NOT NULL DEFAULT 0,
+  adjustment_count BIGINT NOT NULL DEFAULT 0,
+  deduction_count BIGINT NOT NULL DEFAULT 0,
+  cost_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000,
+  event_counts_json JSON NULL,
+  aggregated_at DATETIME(3) NULL,
+  aggregate_run_id VARCHAR(32) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (sequence_no),
+  UNIQUE KEY uk_scx_adx_fact_contribution_id (id),
+  UNIQUE KEY uk_scx_adx_fact_contribution_source (source_event_id,contribution_kind),
+  KEY idx_scx_adx_fact_contribution_claim (aggregated_at,sequence_no),
+  KEY idx_scx_adx_fact_contribution_hour (stat_hour,task_id,app_link_id),
+  KEY idx_scx_adx_fact_contribution_scope (advertiser_id,channel_id,media_account_id,stat_hour),
+  CONSTRAINT ck_scx_adx_fact_contribution CHECK (
+    contribution_kind IN ('FEEDBACK','CALLBACK','DELIVERY_SUCCESS','DELIVERY_FAILURE') AND
+    route_version>=1 AND timezone='Asia/Shanghai' AND stat_hour=DATE_FORMAT(event_time,'%Y-%m-%d %H:00:00') AND
+    impressions>=0 AND raw_clicks>=0 AND valid_clicks>=0 AND duplicate_clicks>=0 AND skipped_clicks>=0 AND
+    activation_count>=0 AND registration_count>=0 AND payment_count>=0 AND order_count>=0 AND
+    first_activation_count>=0 AND first_order_count>=0 AND reactivation_count>=0 AND
+    retention_d2_count>=0 AND retention_d3_count>=0 AND retention_d7_count>=0 AND
+    raw_conversion_count>=0 AND forwarded_conversion_count>=0 AND delivery_failure_count>=0 AND
+    adjustment_count>=0 AND deduction_count>=0
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Immutable idempotent S8 source contributions';
+
+CREATE TABLE IF NOT EXISTS scx_adx_hourly_aggregation_cursor (
+  source_name VARCHAR(64) NOT NULL,
+  partition_no INT NOT NULL DEFAULT 0,
+  last_sequence_no BIGINT NOT NULL DEFAULT 0,
+  source_watermark DATETIME(3) NULL,
+  last_run_id VARCHAR(32) NULL,
+  status VARCHAR(16) NOT NULL DEFAULT 'IDLE',
+  lease_owner VARCHAR(100) NULL,
+  lease_until DATETIME(3) NULL,
+  last_error_code VARCHAR(64) NULL,
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (source_name,partition_no),
+  KEY idx_scx_adx_aggregate_cursor_lease (status,lease_until),
+  CONSTRAINT ck_scx_adx_aggregate_cursor CHECK (
+    partition_no>=0 AND last_sequence_no>=0 AND status IN ('IDLE','RUNNING','FAILED')
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='S8 incremental aggregation cursor';
+
+CREATE TABLE IF NOT EXISTS scx_adx_hourly_adjustment (
+  id VARCHAR(32) NOT NULL,
+  source_event_id VARCHAR(128) NOT NULL,
+  source_hourly_fact_id VARCHAR(32) NULL,
+  adjustment_type VARCHAR(16) NOT NULL,
+  metric_code VARCHAR(64) NOT NULL,
+  delta_count BIGINT NOT NULL DEFAULT 0,
+  delta_amount DECIMAL(20,6) NOT NULL DEFAULT 0.000000,
+  reason_code VARCHAR(64) NOT NULL,
+  rule_version BIGINT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  channel_id VARCHAR(32) NOT NULL,
+  media_account_id VARCHAR(32) NOT NULL,
+  task_id VARCHAR(32) NOT NULL,
+  monitor_route_id VARCHAR(32) NOT NULL,
+  route_version_id VARCHAR(32) NOT NULL,
+  stat_hour DATETIME NOT NULL,
+  actor VARCHAR(100) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_hourly_adjustment_source (source_event_id,adjustment_type,metric_code,reason_code),
+  KEY idx_scx_adx_hourly_adjustment_fact (source_hourly_fact_id,create_time),
+  KEY idx_scx_adx_hourly_adjustment_scope (stat_hour,advertiser_id,channel_id,media_account_id),
+  CONSTRAINT fk_scx_adx_hourly_adjustment_fact FOREIGN KEY (source_hourly_fact_id)
+    REFERENCES scx_adx_hourly_report(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_hourly_adjustment CHECK (
+    adjustment_type IN ('ADJUSTMENT','DEDUCTION') AND metric_code REGEXP '^[a-z][A-Za-z0-9]{1,63}$' AND
+    route_version_id<>'' AND reason_code<>''
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Immutable S8 adjustment and deduction facts';
+
+CREATE TABLE IF NOT EXISTS scx_adx_report_export_task (
+  id VARCHAR(32) NOT NULL,
+  user_id VARCHAR(32) NOT NULL,
+  export_type VARCHAR(24) NOT NULL,
+  query_json JSON NOT NULL,
+  query_hash CHAR(64) NOT NULL,
+  scope_json JSON NOT NULL,
+  scope_hash CHAR(64) NOT NULL,
+  idempotency_bucket DATETIME NOT NULL,
+  metric_definitions_version VARCHAR(32) NOT NULL DEFAULT 'S8_V1',
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  attempt_count INT NOT NULL DEFAULT 0,
+  next_attempt_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  lease_owner VARCHAR(100) NULL,
+  lease_until DATETIME(3) NULL,
+  storage_config_id VARCHAR(32) NULL,
+  storage_provider VARCHAR(32) NULL,
+  storage_object_key VARCHAR(1024) NULL,
+  storage_object_url VARCHAR(2048) NULL,
+  file_size BIGINT NULL,
+  row_count BIGINT NULL,
+  expires_at DATETIME(3) NULL,
+  cancelled_at DATETIME(3) NULL,
+  last_error_code VARCHAR(64) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_report_export_idempotency
+    (user_id,scope_hash,query_hash,export_type,idempotency_bucket),
+  KEY idx_scx_adx_report_export_claim (status,next_attempt_at,lease_until),
+  KEY idx_scx_adx_report_export_expiry (status,expires_at),
+  CONSTRAINT ck_scx_adx_report_export CHECK (
+    export_type IN ('STANDARD','DEDUCTION') AND metric_definitions_version='S8_V1' AND
+    status IN ('PENDING','PROCESSING','SUCCEEDED','RETRY_WAIT','FAILED','CANCELLED','EXPIRED') AND
+    attempt_count>=0 AND (file_size IS NULL OR file_size>=0) AND (row_count IS NULL OR row_count>=0)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='S8 asynchronous managed-storage export task';
+
+CREATE TABLE IF NOT EXISTS scx_adx_report_export_audit (
+  id VARCHAR(32) NOT NULL,
+  export_task_id VARCHAR(32) NOT NULL,
+  user_id VARCHAR(32) NOT NULL,
+  action VARCHAR(32) NOT NULL,
+  result VARCHAR(16) NOT NULL,
+  query_hash CHAR(64) NOT NULL,
+  scope_hash CHAR(64) NOT NULL,
+  row_count BIGINT NULL,
+  detail_summary VARCHAR(500) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_scx_adx_report_export_audit_task (export_task_id,create_time),
+  KEY idx_scx_adx_report_export_audit_user (user_id,create_time),
+  CONSTRAINT fk_scx_adx_report_export_audit_task FOREIGN KEY (export_task_id)
+    REFERENCES scx_adx_report_export_task(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_report_export_audit CHECK (
+    action IN ('CREATE','CLAIM','SUCCEED','FAIL','RETRY','DOWNLOAD','CANCEL','EXPIRE','CLEANUP') AND
+    result IN ('SUCCESS','DENIED','FAILED')
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Payload-free S8 export audit';
+
+DROP TRIGGER IF EXISTS trg_scx_adx_hourly_adjustment_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_hourly_adjustment_no_delete;
+DELIMITER $$
+CREATE TRIGGER trg_scx_adx_hourly_adjustment_no_update BEFORE UPDATE ON scx_adx_hourly_adjustment
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Hourly adjustment facts are immutable'$$
+CREATE TRIGGER trg_scx_adx_hourly_adjustment_no_delete BEFORE DELETE ON scx_adx_hourly_adjustment
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Hourly adjustment facts cannot be deleted'$$
+DELIMITER ;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('menu_adx_report_time_v89','数据汇总','/adx/report/time','menu_adx_report','lucide:clock-3','adx/report/index','adx:report:view',10,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_adx_report_product_v89','产品汇总','/adx/report/product','menu_adx_report','lucide:package','adx/report/index','adx:report:view',20,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_adx_report_link_v89','链接汇总','/adx/report/link','menu_adx_report','lucide:link-2','adx/report/index','adx:report:view',30,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_adx_report_task_v89','任务汇总','/adx/report/task','menu_adx_report','lucide:list-checks','adx/report/index','adx:report:view',40,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_adx_report_media_v89','媒体汇总','/adx/report/media','menu_adx_report','lucide:radio-tower','adx/report/index','adx:report:view',50,'0','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_report_view_v89','查看统一报表','','menu_adx_report',NULL,NULL,'adx:report:view',100,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_report_export_v89','创建普通导出','','menu_adx_report',NULL,NULL,'adx:report:export',110,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_report_deduction_export_v89','创建审减导出','','menu_adx_report',NULL,NULL,'adx:report:deduction:export',120,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_report_sensitive_v89','查看敏感指标','','menu_adx_report',NULL,NULL,'adx:report:metric:sensitive',130,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
+  component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
+  application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+UPDATE sys_menu SET del_flag='1',update_time=NOW() WHERE id IN ('menu_adx_report_time','perm_adx_report_read');
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v89_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_report','menu_adx_report_time_v89','menu_adx_report_product_v89',
+  'menu_adx_report_link_v89','menu_adx_report_task_v89','menu_adx_report_media_v89','perm_adx_report_view_v89',
+  'perm_adx_report_export_v89','perm_adx_report_deduction_export_v89','perm_adx_report_sensitive_v89')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v89_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_report','menu_adx_report_time_v89','menu_adx_report_product_v89',
+  'menu_adx_report_link_v89','menu_adx_report_task_v89','menu_adx_report_media_v89','perm_adx_report_view_v89',
+  'perm_adx_report_export_v89')
+WHERE r.role_code='ROLE_OPERATOR' AND r.del_flag='0' AND m.del_flag='0';
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v89_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r
+JOIN sys_menu m ON m.id IN ('menu_adx_report','menu_adx_report_time_v89','menu_adx_report_product_v89',
+  'menu_adx_report_link_v89','menu_adx_report_task_v89','menu_adx_report_media_v89','perm_adx_report_view_v89')
+WHERE r.role_code='ROLE_ANALYST' AND r.del_flag='0' AND m.del_flag='0';
+
+-- S9 Dashboard permission closure. Dashboard facts remain the S8 unified
+-- hourly projection; no Dashboard-specific persistence is introduced.
+SET @s9_dashboard_scope_index_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema=DATABASE() AND table_name='scx_adx_hourly_report'
+    AND index_name='idx_scx_adx_dashboard_scope'
+);
+SET @s9_dashboard_scope_index_ddl := IF(
+  @s9_dashboard_scope_index_exists=0,
+  'ALTER TABLE scx_adx_hourly_report ADD INDEX idx_scx_adx_dashboard_scope (advertiser_id,channel_id,media_account_id,time_hour)',
+  'SELECT 1'
+);
+PREPARE s9_dashboard_scope_index_stmt FROM @s9_dashboard_scope_index_ddl;
+EXECUTE s9_dashboard_scope_index_stmt;
+DEALLOCATE PREPARE s9_dashboard_scope_index_stmt;
+
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('perm_adx_dashboard_view_v90','查看经营总览','','menu_adx_home',NULL,NULL,
+   'adx:dashboard:view',10,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
+  sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v90_',LEFT(SHA2(CONCAT(rm.role_id,'|perm_adx_dashboard_view_v90'),256),55)),
+       rm.role_id,'perm_adx_dashboard_view_v90'
+FROM sys_role_menu rm
+JOIN sys_role r ON r.id=rm.role_id AND r.del_flag='0'
+WHERE rm.menu_id='perm_adx_dashboard_read';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v90_',LEFT(SHA2(CONCAT(r.id,'|perm_adx_dashboard_view_v90'),256),55)),
+       r.id,'perm_adx_dashboard_view_v90'
+FROM sys_role r
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0';
+
+DELETE FROM sys_role_menu WHERE menu_id='perm_adx_dashboard_read';
+UPDATE sys_menu SET del_flag='1',update_time=NOW() WHERE id='perm_adx_dashboard_read';
+
+-- S10 runtime centre and failure compensation closure.
+--
+-- Runtime facts/failures/attempts are append-only. Replay requests are the
+-- recoverable command truth and never contain a raw payload, URL, header,
+-- credential or third-party response body. Legacy OCPX rows are deliberately
+-- not backfilled because their frozen Product/Task/MediaAccount dimensions
+-- cannot be inferred safely.
+
+CREATE TABLE IF NOT EXISTS scx_adx_runtime_fact (
+  sequence_no BIGINT NOT NULL AUTO_INCREMENT,
+  id VARCHAR(32) NOT NULL,
+  source_type VARCHAR(32) NOT NULL,
+  source_id VARCHAR(128) NOT NULL,
+  fact_type VARCHAR(32) NOT NULL,
+  direction VARCHAR(32) NOT NULL,
+  acceptance_status VARCHAR(24) NOT NULL,
+  processing_status VARCHAR(24) NOT NULL,
+  tenant_id VARCHAR(32) NULL,
+  advertiser_id VARCHAR(32) NULL,
+  product_id VARCHAR(32) NULL,
+  app_link_id VARCHAR(32) NULL,
+  task_id VARCHAR(32) NULL,
+  channel_id VARCHAR(32) NULL,
+  media_account_id VARCHAR(32) NULL,
+  operator_user_id VARCHAR(32) NULL,
+  route_id VARCHAR(32) NULL,
+  route_version_id VARCHAR(32) NULL,
+  route_version BIGINT NULL,
+  event_definition_id VARCHAR(32) NULL,
+  event_code VARCHAR(64) NULL,
+  event_snapshot_schema_version INT NULL,
+  event_time DATETIME(3) NOT NULL,
+  received_time DATETIME(3) NOT NULL,
+  request_id_hash CHAR(64) NULL,
+  trace_id VARCHAR(128) NULL,
+  correlation_id_hash CHAR(64) NULL,
+  external_click_id_hash CHAR(64) NULL,
+  media_task_id_hash CHAR(64) NULL,
+  idempotency_key_hash CHAR(64) NOT NULL,
+  payload_hash CHAR(64) NULL,
+  summary_code VARCHAR(64) NOT NULL,
+  dimension_status VARCHAR(16) NOT NULL DEFAULT 'UNMAPPED',
+  quality_status VARCHAR(24) NOT NULL DEFAULT 'UNMAPPED',
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (sequence_no),
+  UNIQUE KEY uk_scx_adx_runtime_fact_id (id),
+  UNIQUE KEY uk_scx_adx_runtime_fact_idempotency (idempotency_key_hash),
+  KEY idx_scx_adx_runtime_fact_time_scope (advertiser_id,channel_id,media_account_id,received_time),
+  KEY idx_scx_adx_runtime_fact_task_time (task_id,received_time,fact_type),
+  KEY idx_scx_adx_runtime_fact_trace (trace_id,received_time),
+  KEY idx_scx_adx_runtime_fact_route (route_version_id,received_time),
+  CONSTRAINT ck_scx_adx_runtime_fact CHECK (
+    source_type IN ('FEEDBACK','CALLBACK','DELIVERY','CONFIG_DISTRIBUTION','REPLAY','LEGACY') AND
+    fact_type IN ('INTEGRATION','CLICK','CONVERSION','DELIVERY_ATTEMPT','CONFIG_APPLY','REPLAY_RESULT') AND
+    direction IN ('INGRESS','UPSTREAM','DOWNSTREAM','INTERNAL') AND
+    acceptance_status IN ('ACCEPTED','REJECTED','DUPLICATE','UNMAPPED') AND
+    processing_status IN ('PENDING','PROCESSING','SUCCEEDED','FAILED','DLQ','ISOLATED') AND
+    dimension_status IN ('FROZEN','UNMAPPED') AND quality_status IN ('COMPLETE','PARTIAL','UNMAPPED') AND
+    CHAR_LENGTH(idempotency_key_hash)=64 AND
+    (payload_hash IS NULL OR CHAR_LENGTH(payload_hash)=64) AND
+    (request_id_hash IS NULL OR CHAR_LENGTH(request_id_hash)=64) AND
+    (correlation_id_hash IS NULL OR CHAR_LENGTH(correlation_id_hash)=64) AND
+    (external_click_id_hash IS NULL OR CHAR_LENGTH(external_click_id_hash)=64) AND
+    (media_task_id_hash IS NULL OR CHAR_LENGTH(media_task_id_hash)=64) AND
+    received_time>=event_time AND
+    ((dimension_status='UNMAPPED') OR
+     (tenant_id IS NOT NULL AND advertiser_id IS NOT NULL AND product_id IS NOT NULL AND
+      app_link_id IS NOT NULL AND task_id IS NOT NULL AND channel_id IS NOT NULL AND
+      media_account_id IS NOT NULL AND operator_user_id IS NOT NULL AND route_id IS NOT NULL AND
+      route_version_id IS NOT NULL AND route_version>=1))
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Append-only S10 sanitized runtime fact index';
+
+CREATE TABLE IF NOT EXISTS scx_adx_runtime_failure (
+  sequence_no BIGINT NOT NULL AUTO_INCREMENT,
+  id VARCHAR(32) NOT NULL,
+  source_fact_id VARCHAR(32) NULL,
+  source_type VARCHAR(32) NOT NULL,
+  source_id VARCHAR(128) NOT NULL,
+  failure_class VARCHAR(32) NOT NULL,
+  error_code VARCHAR(64) NOT NULL,
+  replayable TINYINT(1) NOT NULL DEFAULT 0,
+  failure_revision BIGINT NOT NULL DEFAULT 1,
+  tenant_id VARCHAR(32) NULL,
+  advertiser_id VARCHAR(32) NULL,
+  product_id VARCHAR(32) NULL,
+  app_link_id VARCHAR(32) NULL,
+  task_id VARCHAR(32) NULL,
+  channel_id VARCHAR(32) NULL,
+  media_account_id VARCHAR(32) NULL,
+  operator_user_id VARCHAR(32) NULL,
+  route_id VARCHAR(32) NULL,
+  route_version_id VARCHAR(32) NULL,
+  route_version BIGINT NULL,
+  event_definition_id VARCHAR(32) NULL,
+  event_snapshot_schema_version INT NULL,
+  event_time DATETIME(3) NOT NULL,
+  received_time DATETIME(3) NOT NULL,
+  trace_id VARCHAR(128) NULL,
+  correlation_id_hash CHAR(64) NULL,
+  idempotency_key_hash CHAR(64) NOT NULL,
+  payload_hash CHAR(64) NULL,
+  summary_hash CHAR(64) NOT NULL,
+  dimension_status VARCHAR(16) NOT NULL DEFAULT 'UNMAPPED',
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (sequence_no),
+  UNIQUE KEY uk_scx_adx_runtime_failure_id (id),
+  UNIQUE KEY uk_scx_adx_runtime_failure_source (source_type,source_id,error_code),
+  KEY idx_scx_adx_runtime_failure_dlq (failure_class,replayable,received_time),
+  KEY idx_scx_adx_runtime_failure_scope (advertiser_id,channel_id,media_account_id,received_time),
+  KEY idx_scx_adx_runtime_failure_task (task_id,received_time),
+  CONSTRAINT fk_scx_adx_runtime_failure_fact FOREIGN KEY (source_fact_id)
+    REFERENCES scx_adx_runtime_fact(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_runtime_failure CHECK (
+    source_type IN ('FEEDBACK','CALLBACK','DELIVERY','CONFIG_DISTRIBUTION','LEGACY') AND
+    failure_class IN ('RETRYABLE','NON_RETRYABLE','PROTOCOL_REJECTED','SIGNATURE_FAILED',
+      'SCOPE_REJECTED','DUPLICATE','LATE_ARRIVAL','UNKNOWN') AND
+    failure_revision>=1 AND replayable IN (0,1) AND
+    CHAR_LENGTH(idempotency_key_hash)=64 AND CHAR_LENGTH(summary_hash)=64 AND
+    (payload_hash IS NULL OR CHAR_LENGTH(payload_hash)=64) AND
+    (correlation_id_hash IS NULL OR CHAR_LENGTH(correlation_id_hash)=64) AND
+    received_time>=event_time AND dimension_status IN ('FROZEN','UNMAPPED') AND
+    ((dimension_status='UNMAPPED') OR
+     (tenant_id IS NOT NULL AND advertiser_id IS NOT NULL AND product_id IS NOT NULL AND
+      app_link_id IS NOT NULL AND task_id IS NOT NULL AND channel_id IS NOT NULL AND
+      media_account_id IS NOT NULL AND operator_user_id IS NOT NULL AND route_id IS NOT NULL AND
+      route_version_id IS NOT NULL AND route_version>=1))
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Append-only S10 failure envelope without raw payload';
+
+CREATE TABLE IF NOT EXISTS scx_adx_runtime_replay_request (
+  id VARCHAR(32) NOT NULL,
+  request_id VARCHAR(64) NOT NULL,
+  source_failure_id VARCHAR(32) NOT NULL,
+  expected_failure_revision BIGINT NOT NULL,
+  source_route_version_id VARCHAR(32) NOT NULL,
+  source_route_version BIGINT NOT NULL,
+  command_type VARCHAR(24) NOT NULL DEFAULT 'REPLAY',
+  mode VARCHAR(32) NOT NULL DEFAULT 'ORIGINAL_SNAPSHOT_ONLY',
+  tenant_id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  product_id VARCHAR(32) NOT NULL,
+  app_link_id VARCHAR(32) NOT NULL,
+  task_id VARCHAR(32) NOT NULL,
+  channel_id VARCHAR(32) NOT NULL,
+  media_account_id VARCHAR(32) NOT NULL,
+  operator_user_id VARCHAR(32) NOT NULL,
+  requested_by VARCHAR(100) NOT NULL,
+  reason VARCHAR(500) NOT NULL,
+  ticket VARCHAR(128) NULL,
+  command_fingerprint CHAR(64) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'QUEUED',
+  attempt_count INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  next_attempt_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  lease_owner VARCHAR(100) NULL,
+  lease_until DATETIME(3) NULL,
+  result_fact_id VARCHAR(32) NULL,
+  result_contribution_id VARCHAR(32) NULL,
+  last_error_class VARCHAR(32) NULL,
+  last_error_code VARCHAR(64) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  completed_at DATETIME(3) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_adx_runtime_replay_request (request_id),
+  UNIQUE KEY uk_scx_adx_runtime_replay_fingerprint (command_fingerprint),
+  KEY idx_scx_adx_runtime_replay_claim (status,next_attempt_at,lease_until,tenant_id),
+  KEY idx_scx_adx_runtime_replay_scope (advertiser_id,channel_id,media_account_id,create_time),
+  KEY idx_scx_adx_runtime_replay_task (task_id,create_time),
+  CONSTRAINT fk_scx_adx_runtime_replay_failure FOREIGN KEY (source_failure_id)
+    REFERENCES scx_adx_runtime_failure(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_runtime_replay_route_version FOREIGN KEY (source_route_version_id)
+    REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_runtime_replay_result FOREIGN KEY (result_fact_id)
+    REFERENCES scx_adx_runtime_fact(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_runtime_replay_request CHECK (
+    request_id REGEXP '^[A-Za-z0-9_-]{16,64}$' AND expected_failure_revision>=1 AND
+    source_route_version>=1 AND command_type='REPLAY' AND mode='ORIGINAL_SNAPSHOT_ONLY' AND
+    CHAR_LENGTH(command_fingerprint)=64 AND CHAR_LENGTH(TRIM(reason)) BETWEEN 4 AND 500 AND
+    status IN ('QUEUED','CLAIMED','RETRY_WAIT','SUCCEEDED','TERMINAL','CANCELLED') AND
+    attempt_count BETWEEN 0 AND max_attempts AND max_attempts BETWEEN 1 AND 10 AND
+    (lease_until IS NULL OR lease_owner IS NOT NULL) AND
+    (status<>'SUCCEEDED' OR result_fact_id IS NOT NULL)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Recoverable S10 replay command truth';
+
+CREATE TABLE IF NOT EXISTS scx_adx_runtime_replay_attempt (
+  sequence_no BIGINT NOT NULL AUTO_INCREMENT,
+  id VARCHAR(32) NOT NULL,
+  replay_request_id VARCHAR(32) NOT NULL,
+  attempt_no INT NOT NULL,
+  worker_id_hash CHAR(64) NOT NULL,
+  source_route_version_id VARCHAR(32) NOT NULL,
+  source_event_snapshot_schema_version INT NOT NULL,
+  status VARCHAR(24) NOT NULL,
+  error_class VARCHAR(32) NULL,
+  error_code VARCHAR(64) NULL,
+  result_summary_hash CHAR(64) NULL,
+  started_at DATETIME(3) NOT NULL,
+  finished_at DATETIME(3) NULL,
+  next_retry_at DATETIME(3) NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (sequence_no),
+  UNIQUE KEY uk_scx_adx_runtime_replay_attempt_id (id),
+  UNIQUE KEY uk_scx_adx_runtime_replay_attempt_no (replay_request_id,attempt_no),
+  KEY idx_scx_adx_runtime_replay_attempt_time (started_at,status),
+  CONSTRAINT fk_scx_adx_runtime_replay_attempt_request FOREIGN KEY (replay_request_id)
+    REFERENCES scx_adx_runtime_replay_request(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT fk_scx_adx_runtime_replay_attempt_version FOREIGN KEY (source_route_version_id)
+    REFERENCES scx_adx_route_version(id) ON UPDATE RESTRICT ON DELETE RESTRICT,
+  CONSTRAINT ck_scx_adx_runtime_replay_attempt CHECK (
+    attempt_no>=1 AND CHAR_LENGTH(worker_id_hash)=64 AND source_event_snapshot_schema_version>=1 AND
+    status IN ('STARTED','SUCCEEDED','RETRY_WAIT','TERMINAL') AND
+    (result_summary_hash IS NULL OR CHAR_LENGTH(result_summary_hash)=64) AND
+    (finished_at IS NULL OR finished_at>=started_at)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Append-only S10 replay attempt timeline';
+
+CREATE TABLE IF NOT EXISTS scx_adx_runtime_command_audit (
+  sequence_no BIGINT NOT NULL AUTO_INCREMENT,
+  id VARCHAR(32) NOT NULL,
+  command_type VARCHAR(32) NOT NULL,
+  command_id VARCHAR(32) NULL,
+  source_failure_id VARCHAR(32) NULL,
+  task_id VARCHAR(32) NULL,
+  route_version_id VARCHAR(32) NULL,
+  action VARCHAR(32) NOT NULL,
+  outcome VARCHAR(24) NOT NULL,
+  actor VARCHAR(100) NOT NULL,
+  reason_hash CHAR(64) NULL,
+  trace_id VARCHAR(128) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (sequence_no),
+  UNIQUE KEY uk_scx_adx_runtime_command_audit_id (id),
+  KEY idx_scx_adx_runtime_command_audit_command (command_id,create_time),
+  KEY idx_scx_adx_runtime_command_audit_task (task_id,create_time),
+  CONSTRAINT ck_scx_adx_runtime_command_audit CHECK (
+    command_type IN ('REPLAY','EMERGENCY_STOP') AND
+    action IN ('PREVIEW','CONFIRM','CLAIM','ATTEMPT','COMPLETE','REJECT') AND
+    outcome IN ('PASS','WARN','FAIL','QUEUED','SUCCEEDED','TERMINAL') AND
+    (reason_hash IS NULL OR CHAR_LENGTH(reason_hash)=64)
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='Append-only S10 management command audit';
+
+SET @s10_delivery_attempt_unique_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_delivery_attempt'
+    AND index_name='uk_scx_ocpx_delivery_attempt_no'
+);
+SET @s10_delivery_attempt_unique_ddl := IF(
+  @s10_delivery_attempt_unique_exists=0,
+  'ALTER TABLE scx_ocpx_delivery_attempt ADD UNIQUE KEY uk_scx_ocpx_delivery_attempt_no (job_id,attempt_no)',
+  'SELECT 1'
+);
+PREPARE s10_delivery_attempt_unique_stmt FROM @s10_delivery_attempt_unique_ddl;
+EXECUTE s10_delivery_attempt_unique_stmt;
+DEALLOCATE PREPARE s10_delivery_attempt_unique_stmt;
+
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_fact_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_fact_no_delete;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_failure_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_failure_no_delete;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_replay_attempt_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_replay_attempt_no_delete;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_command_audit_no_update;
+DROP TRIGGER IF EXISTS trg_scx_adx_runtime_command_audit_no_delete;
+DELIMITER $$
+CREATE TRIGGER trg_scx_adx_runtime_fact_no_update BEFORE UPDATE ON scx_adx_runtime_fact
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 runtime facts are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_fact_no_delete BEFORE DELETE ON scx_adx_runtime_fact
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 runtime facts are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_failure_no_update BEFORE UPDATE ON scx_adx_runtime_failure
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 runtime failures are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_failure_no_delete BEFORE DELETE ON scx_adx_runtime_failure
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 runtime failures are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_replay_attempt_no_update BEFORE UPDATE ON scx_adx_runtime_replay_attempt
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 replay attempts are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_replay_attempt_no_delete BEFORE DELETE ON scx_adx_runtime_replay_attempt
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 replay attempts are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_command_audit_no_update BEFORE UPDATE ON scx_adx_runtime_command_audit
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 command audits are immutable'$$
+CREATE TRIGGER trg_scx_adx_runtime_command_audit_no_delete BEFORE DELETE ON scx_adx_runtime_command_audit
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='S10 command audits are immutable'$$
+DELIMITER ;
+
+-- Canonical S10 permissions. Existing legacy grants are copied once before
+-- the old permissions are retired. A later accidental replay cannot restore a
+-- revoked canonical grant because the old role-menu relation no longer exists.
+INSERT INTO sys_menu
+  (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
+VALUES
+  ('perm_adx_runtime_view_v91','查看运行事实','','menu_adx_runtime',NULL,NULL,'adx:runtime:view',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_detail_v91','查看运行详情','','menu_adx_runtime',NULL,NULL,'adx:runtime:detail',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_body_v91','查看受控正文','','menu_adx_runtime',NULL,NULL,'adx:runtime:body',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_export_v91','导出运行事实','','menu_adx_runtime',NULL,NULL,'adx:runtime:export',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_dlq_view_v91','查看失败队列','','menu_adx_runtime',NULL,NULL,'adx:runtime:dlq:view',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_retry_v91','重试失败事实','','menu_adx_runtime',NULL,NULL,'adx:runtime:retry',60,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_replay_v91','补偿重放','','menu_adx_runtime',NULL,NULL,'adx:runtime:replay',70,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_debug_v91','受控运行调试','','menu_adx_runtime',NULL,NULL,'adx:runtime:debug',80,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_adx_runtime_stop_v91','紧急停流','','menu_adx_runtime',NULL,NULL,'adx:runtime:emergency-stop',90,'1','app_base',NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
+  sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v91_',LEFT(SHA2(CONCAT(rm.role_id,'|perm_adx_runtime_view_v91'),256),55)),
+       rm.role_id,'perm_adx_runtime_view_v91'
+FROM sys_role_menu rm JOIN sys_role r ON r.id=rm.role_id AND r.del_flag='0'
+WHERE rm.menu_id='perm_adx_runtime_read';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v91_',LEFT(SHA2(CONCAT(rm.role_id,'|perm_adx_runtime_replay_v91'),256),55)),
+       rm.role_id,'perm_adx_runtime_replay_v91'
+FROM sys_role_menu rm JOIN sys_role r ON r.id=rm.role_id AND r.del_flag='0'
+WHERE rm.menu_id='perm_adx_runtime_replay';
+
+INSERT IGNORE INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('v91_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
+FROM sys_role r JOIN sys_menu m ON m.id IN (
+  'perm_adx_runtime_view_v91','perm_adx_runtime_detail_v91','perm_adx_runtime_body_v91',
+  'perm_adx_runtime_export_v91','perm_adx_runtime_dlq_view_v91','perm_adx_runtime_retry_v91',
+  'perm_adx_runtime_replay_v91','perm_adx_runtime_debug_v91','perm_adx_runtime_stop_v91')
+WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+
+DELETE FROM sys_role_menu WHERE menu_id IN ('perm_adx_runtime_read','perm_adx_runtime_replay');
+UPDATE sys_menu SET del_flag='1',update_time=NOW()
+WHERE id IN ('perm_adx_runtime_read','perm_adx_runtime_replay');

@@ -99,6 +99,34 @@ secure:
       - /ws/**
 
 scx:
+  adx:
+    tracking:
+      public-base-url: https://tracking.invalid
+      publish-check-ttl-seconds: 120
+      address-overlap-seconds: 300
+      minimum-required-acks: 1
+      distribution-worker-enabled: false
+    reporting:
+      default-query-days: 7
+      maximum-query-days: 90
+      maximum-export-days: 366
+      maximum-page-size: 200
+      aggregation-batch-size: 500
+      maximum-export-rows: 100000
+      export-ttl-seconds: 3600
+      dashboard-cache-ttl-seconds: 45
+      aggregation-worker-enabled: false
+      export-worker-enabled: false
+    runtime-center:
+      replay-worker-enabled: false
+      default-span-hours: 1
+      max-span-hours: 168
+      default-page-size: 20
+      max-page-size: 200
+      preview-ttl-seconds: 120
+      max-replay-batch: 100
+      max-replay-attempts: 5
+      lease-seconds: 60
   ocpx:
     partition-count: 64
   api-debug:

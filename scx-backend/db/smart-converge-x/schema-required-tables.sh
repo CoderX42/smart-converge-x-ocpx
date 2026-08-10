@@ -10,9 +10,29 @@ SCX_REQUIRED_TABLES=(
   sys_sms_config sys_sms_send_record sys_social_account sys_storage_config
   sys_user sys_user_role
   scx_adx_channel scx_adx_advertiser scx_adx_app_link
+  scx_adx_app_link_change_audit
   scx_adx_monitor_link scx_adx_deduction_rule scx_adx_hourly_report
   scx_adx_event_definition scx_adx_channel_event_mapping
   scx_adx_monitor_event_binding scx_adx_route_event_snapshot
+  scx_adx_user_scope scx_adx_user_scope_revision
+  scx_adx_integration_document scx_adx_advertiser_credential_revision
+  scx_adx_advertiser_change_audit
+  scx_adx_product scx_adx_product_logo_object
+  scx_adx_product_event_policy scx_adx_product_change_audit
+  scx_adx_media_account scx_adx_media_credential
+  scx_adx_media_credential_revision scx_adx_media_account_owner
+  scx_adx_media_account_change_audit
+  scx_adx_task scx_adx_task_change_audit
+  scx_adx_task_event_binding scx_adx_event_change_audit
+  scx_adx_route_version scx_adx_route_runtime_state
+  scx_adx_route_publish_record scx_adx_route_distribution
+  scx_adx_route_instance_ack scx_adx_route_pause_command
+  scx_adx_hourly_fact_contribution scx_adx_hourly_aggregation_cursor
+  scx_adx_hourly_adjustment scx_adx_report_export_task
+  scx_adx_report_export_audit
+  scx_adx_runtime_fact scx_adx_runtime_failure
+  scx_adx_runtime_replay_request scx_adx_runtime_replay_attempt
+  scx_adx_runtime_command_audit
   scx_api_debug_case scx_api_debug_execution scx_api_debug_execution_log
   scx_api_debug_log_access_audit
   scx_ocpx_adapter scx_ocpx_event scx_ocpx_protocol_snapshot scx_ocpx_callback_ref

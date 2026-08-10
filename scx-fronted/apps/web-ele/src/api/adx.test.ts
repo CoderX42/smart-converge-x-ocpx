@@ -1,32 +1,69 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  archiveAppLink,
+  archiveProduct,
   authorizeApiDebug,
+  changeAdvertiserStatus,
+  changeAppLinkStatus,
+  changeMediaCredentialStatus,
+  completeAppLinkMapping,
+  confirmRuntimeReplay,
+  createAdvertiser,
+  createAppLink,
+  createMediaAccount,
+  createMediaCredential,
+  createProduct,
+  downloadAdvertiserDocument,
   executeApiDebug,
   exportReport,
+  getAccessScopeOptions,
+  getAdvertiserDetail,
+  getAdvertiserDocuments,
   getAdvertiserLedger,
+  getAdvertisers,
   getApiDebugExecutionLogs,
   getApiDebugRecentLogs,
   getApiDebugTargets,
+  getAppLink,
+  getAppLinkDocumentOptions,
+  getAppLinkProductOptions,
+  getAppLinks,
   getCatalog,
   getChannelEventOptions,
-  getDashboardAccountSummary,
+  getDashboardOptions,
   getDashboardSummary,
   getEventDefinitions,
   getEventMappings,
+  getMediaAccount,
+  getMediaAccounts,
+  getMediaCredentials,
   getMonitor,
   getMonitorIntegration,
+  getProduct,
+  getProductAdvertiserOptions,
+  getProductEventOptions,
+  getProducts,
   getReport,
   getReportOptions,
-  getRuntimeDeliveryAttempts,
-  getRuntimeEvents,
-  getRuntimeEventTimeline,
-  getRuntimeIngressAudits,
+  getRuntimeExecution,
+  getRuntimeFacts,
+  getRuntimeFailures,
+  getUserAccessScopeImpact,
+  getUserAccessScopes,
   preflightApiDebug,
+  preflightMediaAccount,
+  previewRuntimeReplay,
   rechargeAdvertiser,
-  saveCatalog,
+  replaceUserAccessScopes,
+  restoreAppLink,
+  rotateAdvertiserCredential,
+  rotateMediaCredential,
   saveEventDefinition,
   saveEventMapping,
+  updateProduct,
+  uploadProductLogo,
+  validateAppLinkUrl,
 } from './adx';
 
 const requestClient = vi.hoisted(() => ({
@@ -48,26 +85,242 @@ describe('aDX API contract', () => {
     });
   });
 
-  it('uses POST for create and PUT for edit', () => {
-    saveCatalog('advertiser', { advertiserName: 'A' });
-    saveCatalog('advertiser', { advertiserName: 'A', id: 'adv-1' });
-    expect(requestClient.post).toHaveBeenCalledWith('/adx/advertisers', {
-      advertiserName: 'A',
+  it('uses the revision-aware advertiser API without a secret read endpoint', () => {
+    const payload = {
+      account: 'account',
+      adapterKey: 'COCO',
+      bidUrl: 'https://example.test/callback',
+      code: 'adv_test',
+      credentialInput: 'write-only-credential',
+      name: 'Advertiser',
+      password: 'password-123',
+      upstreamHostAllowlist: 'example.test',
+    };
+    getAdvertisers({ current: 1, documentConfigured: true, size: 20 });
+    getAdvertiserDetail('adv-1');
+    createAdvertiser(payload, 'create-request-0001');
+    rotateAdvertiserCredential('adv-1', {
+      credentialInput: 'replacement-credential',
+      expectedCredentialRevision: 1,
+      reason: 'scheduled rotation',
     });
-    expect(requestClient.put).toHaveBeenCalledWith('/adx/advertisers/adv-1', {
-      advertiserName: 'A',
-      id: 'adv-1',
+    changeAdvertiserStatus('adv-1', {
+      confirmed: true,
+      expectedVersion: 3,
+      reason: 'ready',
+      status: 'ACTIVE',
     });
+    getAdvertiserDocuments('adv-1');
+    downloadAdvertiserDocument('adv-1', 'doc-1');
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/advertisers', {
+      params: { current: 1, documentConfigured: true, size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/advertisers/adv-1');
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/advertisers',
+      payload,
+      { headers: { 'Idempotency-Key': 'create-request-0001' } },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/credentials:rotate',
+      expect.objectContaining({ expectedCredentialRevision: 1 }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/status',
+      expect.objectContaining({ expectedVersion: 3 }),
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/documents',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/advertisers/adv-1/documents/doc-1/content',
+      { responseReturn: 'body', responseType: 'blob' },
+    );
+  });
+
+  it('uses the scoped revision-aware Product API and managed Logo endpoint', () => {
+    const payload = {
+      advertiserId: 'adv-1',
+      code: 'product_code',
+      eventPolicies: [{ dailyLimit: 0, eventDefinitionId: 'event-1' }],
+      name: 'Product',
+      status: 'ACTIVE' as const,
+    };
+    getProducts({ current: 1, size: 20 });
+    getProduct('product-1');
+    getProductAdvertiserOptions();
+    getProductEventOptions();
+    createProduct(payload, 'product-request-0001');
+    updateProduct('product-1', {
+      eventPolicies: payload.eventPolicies,
+      expectedVersion: 2,
+      name: 'Product v2',
+      status: 'ACTIVE',
+    });
+    archiveProduct('product-1', 3, 'obsolete');
+    const logo = new File(['logo'], 'logo.png', { type: 'image/png' });
+    uploadProductLogo('product-1', 3, logo);
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/products', {
+      params: { current: 1, size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/products/product-1');
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/products/advertiser-options',
+      { params: { keyword: undefined } },
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/products/event-options',
+      { params: { keyword: undefined } },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith('/adx/products', payload, {
+      headers: { 'Idempotency-Key': 'product-request-0001' },
+    });
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/adx/products/product-1',
+      expect.objectContaining({ expectedVersion: 2 }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/products/product-1/archive',
+      { expectedVersion: 3, reason: 'obsolete' },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/products/product-1/logo',
+      expect.any(FormData),
+      { params: { expectedVersion: 3 } },
+    );
+  });
+
+  it('uses revision-aware media accounts and write-only credential endpoints', () => {
+    getMediaAccounts({ current: 1, size: 20 });
+    getMediaAccount('media-1');
+    createMediaAccount(
+      { channelId: 'channel-1', name: 'Media Account' },
+      'media-request-0001',
+    );
+    getMediaCredentials('media-1');
+    createMediaCredential('media-1', {
+      loginIdentifier: 'account@example.invalid',
+      loginType: 'EMAIL',
+      secretInput: 'write-only-secret',
+    });
+    rotateMediaCredential('media-1', 'credential-1', {
+      expectedSecretRevision: 1,
+      reason: 'scheduled rotation',
+      secretInput: 'replacement-secret',
+    });
+    changeMediaCredentialStatus('media-1', 'credential-1', {
+      expectedVersion: 2,
+      status: 'ACTIVE',
+    });
+    preflightMediaAccount('media-1', 4);
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/media-accounts', {
+      params: { current: 1, size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/media-accounts/media-1',
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/media-accounts',
+      { channelId: 'channel-1', name: 'Media Account' },
+      { headers: { 'Idempotency-Key': 'media-request-0001' } },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/media-accounts/media-1/credentials/credential-1:rotate',
+      expect.objectContaining({ expectedSecretRevision: 1 }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/media-accounts/media-1/connectivity:check',
+      { expectedVersion: 4 },
+    );
+  });
+
+  it('uses the structured AppLink API without fetching or exposing full stored URLs', () => {
+    const linkInput = {
+      deeplinkUrl: 'https://deeplink.example.invalid/open',
+      documentId: 'document-1',
+      downloadUrl: 'https://download.example.invalid/app',
+      linkName: 'Primary link',
+      linkType: 'ANDROID' as const,
+      linkUrlTemplate:
+        'https://landing.example.invalid/open?click_id={click_id}',
+      productId: 'product-1',
+      redirectEnabled: true,
+    };
+
+    getAppLinks({ current: 1, mappingStatus: 'READY', size: 20 });
+    getAppLink('link-1');
+    getAppLinkProductOptions({ keyword: 'Product' });
+    getAppLinkDocumentOptions('product-1');
+    createAppLink(linkInput, 'link-request-0001');
+    completeAppLinkMapping('legacy-link-1', {
+      ...linkInput,
+      expectedVersion: 1,
+    });
+    changeAppLinkStatus('link-1', 2, 'DISABLED', 'maintenance');
+    archiveAppLink('link-1', 3, 'obsolete');
+    restoreAppLink('link-1', 4, 'restore');
+    validateAppLinkUrl({
+      kind: 'TEMPLATE',
+      linkType: 'ANDROID',
+      url: linkInput.linkUrlTemplate,
+    });
+
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/app-links', {
+      params: { current: 1, mappingStatus: 'READY', size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/app-links/link-1');
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/app-links/product-options',
+      { params: { keyword: 'Product' } },
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/app-links/document-options',
+      { params: { productId: 'product-1' } },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links',
+      linkInput,
+      { headers: { 'Idempotency-Key': 'link-request-0001' } },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links/legacy-link-1/mapping:complete',
+      expect.objectContaining({ expectedVersion: 1, productId: 'product-1' }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links/link-1/status',
+      expect.objectContaining({ expectedVersion: 2, status: 'DISABLED' }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links/link-1/archive',
+      { expectedVersion: 3, reason: 'obsolete' },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links/link-1/restore',
+      { expectedVersion: 4, reason: 'restore' },
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/app-links/url:validate',
+      expect.objectContaining({ kind: 'TEMPLATE' }),
+    );
   });
 
   it('keeps report filters and idempotent recharge connected to backend contracts', () => {
-    getReport({ granularity: 'DATE', startDate: '2026-08-01' });
+    const reportQuery = {
+      endDate: '2026-08-07',
+      grain: 'DAY' as const,
+      groupBy: 'TIME' as const,
+      startDate: '2026-08-01',
+    };
+    getReport(reportQuery);
     getReportOptions();
-    exportReport({ granularity: 'HOUR' });
+    exportReport({ ...reportQuery, grain: 'HOUR' });
     rechargeAdvertiser('adv-1', 100, 'recharge_20260807_0001');
     getAdvertiserLedger('adv-1', { current: 1, size: 20 });
     expect(requestClient.get).toHaveBeenCalledWith('/adx/reports/hourly', {
-      params: { granularity: 'DATE', startDate: '2026-08-01' },
+      params: reportQuery,
     });
     expect(requestClient.get).toHaveBeenCalledWith('/adx/report-options');
     expect(requestClient.post).toHaveBeenCalledWith(
@@ -81,51 +334,59 @@ describe('aDX API contract', () => {
       '/adx/advertisers/adv-1/ledger',
       { params: { current: 1, size: 20 } },
     );
-    expect(requestClient.get).toHaveBeenCalledWith(
-      '/adx/reports/hourly/export',
-      {
-        params: { granularity: 'HOUR' },
-        responseReturn: 'body',
-        responseType: 'blob',
-      },
-    );
+    expect(requestClient.post).toHaveBeenCalledWith('/adx/reports/exports', {
+      ...reportQuery,
+      grain: 'HOUR',
+    });
   });
 
-  it('sends the same effect filters to typed dashboard and protected account summaries', () => {
+  it('uses one typed Dashboard summary and its scope-filtered options', () => {
     const filters = {
       advertiserId: 'adv-1',
       endDate: '2026-08-09',
       startDate: '2026-08-01',
     };
     getDashboardSummary(filters);
-    getDashboardAccountSummary(filters);
+    getDashboardOptions();
     expect(requestClient.get).toHaveBeenCalledWith('/adx/dashboard/summary', {
       params: filters,
     });
-    expect(requestClient.get).toHaveBeenCalledWith(
-      '/adx/dashboard/account-summary',
-      { params: filters },
-    );
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/dashboard/options');
   });
 
-  it('connects event, timeline, attempt and ingress audit runtime views', () => {
-    getRuntimeEvents({ current: 1, eventType: 'CLICK', size: 20 });
-    getRuntimeEventTimeline('event-row-1');
-    getRuntimeDeliveryAttempts('delivery-1');
-    getRuntimeIngressAudits({ resultStatus: 'AUTH_REJECTED' });
+  it('connects sanitized facts, DLQ, timeline and two-stage replay', () => {
+    getRuntimeFacts({ current: 1, factType: 'CLICK', size: 20 });
+    getRuntimeFailures({ failureClass: 'RETRYABLE' });
+    getRuntimeExecution('fact-1');
+    previewRuntimeReplay({
+      expectedFailureRevision: 3,
+      failureId: 'failure-1',
+    });
+    confirmRuntimeReplay({
+      confirmed: true,
+      expectedFailureRevision: 3,
+      failureId: 'failure-1',
+      previewToken: 'signed-preview',
+      reason: 'approved compensation',
+      requestId: 'request_1234567890',
+    });
 
-    expect(requestClient.get).toHaveBeenCalledWith('/adx/runtime/events', {
-      params: { current: 1, eventType: 'CLICK', size: 20 },
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/runtime/facts', {
+      params: { current: 1, factType: 'CLICK', size: 20 },
+    });
+    expect(requestClient.get).toHaveBeenCalledWith('/adx/runtime/dlq', {
+      params: { failureClass: 'RETRYABLE' },
     });
     expect(requestClient.get).toHaveBeenCalledWith(
-      '/adx/runtime/events/event-row-1/timeline',
+      '/adx/runtime/executions/fact-1',
     );
-    expect(requestClient.get).toHaveBeenCalledWith(
-      '/adx/runtime/deliveries/delivery-1/attempts',
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/runtime/replays:preview',
+      { expectedFailureRevision: 3, failureId: 'failure-1' },
     );
-    expect(requestClient.get).toHaveBeenCalledWith(
-      '/adx/runtime/ingress-audits',
-      { params: { resultStatus: 'AUTH_REJECTED' } },
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/adx/runtime/replays',
+      expect.objectContaining({ requestId: 'request_1234567890' }),
     );
   });
 
@@ -238,6 +499,42 @@ describe('aDX API contract', () => {
           level: 'ERROR',
           source: 'ENGINE',
         },
+      },
+    );
+  });
+
+  it('uses a versioned whole-set contract for user object scopes', () => {
+    getUserAccessScopes('user-1');
+    getUserAccessScopeImpact('user-1');
+    getAccessScopeOptions();
+    replaceUserAccessScopes('user-1', 3, [
+      {
+        permissionLevel: 'VIEW',
+        scopeId: 'channel-1',
+        scopeType: 'CHANNEL',
+      },
+    ]);
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1/impact',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/adx/access-scopes/options',
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/adx/access-scopes/users/user-1',
+      {
+        scopes: [
+          {
+            permissionLevel: 'VIEW',
+            scopeId: 'channel-1',
+            scopeType: 'CHANNEL',
+          },
+        ],
+        version: 3,
       },
     );
   });

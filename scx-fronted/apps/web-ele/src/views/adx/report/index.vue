@@ -1,31 +1,119 @@
 <script lang="ts" setup>
 import type {
-  Advertiser,
-  AppLink,
-  Channel,
-  MonitorLink,
-  ReportRow,
+  ReportExportTask,
+  UnifiedReportMetricCode,
+  UnifiedReportOptions,
+  UnifiedReportQuery,
+  UnifiedReportRecord,
 } from '#/api/adx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+
+import { useAccess } from '@boot/access';
 
 import dayjs from 'dayjs';
 import { ElMessage } from 'element-plus';
 
-import { exportReport, getReport, getReportOptions } from '#/api/adx';
+import {
+  cancelReportExport,
+  downloadReportExport,
+  exportDeductionReport,
+  exportReport,
+  getReport,
+  getReportExport,
+  getUnifiedReportOptions,
+} from '#/api/adx';
 
-defineOptions({ name: 'AdxTimeReport' });
+import {
+  formatReportMetric,
+  reportEmptyKind,
+  reportGroupBy,
+} from './report-model';
 
+defineOptions({ name: 'AdxUnifiedReport' });
+
+type MetricColumn = {
+  code: UnifiedReportMetricCode;
+  label: string;
+  minWidth: number;
+  ratio?: boolean;
+  sensitive?: boolean;
+};
+
+const route = useRoute();
+const { hasAccessByCodes } = useAccess();
+const canViewSensitiveMetrics = computed(() =>
+  hasAccessByCodes(['adx:report:metric:sensitive']),
+);
+const loading = ref(false);
+const optionsLoading = ref(false);
+const rows = ref<UnifiedReportRecord[]>([]);
+const total = ref(0);
 const current = ref(1);
 const size = ref(20);
-const total = ref(0);
-const loading = ref(false);
-const exporting = ref(false);
-const rows = ref<ReportRow[]>([]);
-const channels = ref<Channel[]>([]);
-const advertisers = ref<Advertiser[]>([]);
-const appLinks = ref<AppLink[]>([]);
-const monitors = ref<MonitorLink[]>([]);
+const asOf = ref<string>();
+const freshness = ref<'DELAYED' | 'FINAL' | 'PROVISIONAL'>('FINAL');
+const errorMessage = ref('');
+const traceId = ref('');
+const forbidden = ref(false);
+const firstRequestDone = ref(false);
+const filterTouched = ref(false);
+const pageSummary = ref<Record<string, { status: string; value?: number }>>({});
+const querySummary = ref<Record<string, { status: string; value?: number }>>(
+  {},
+);
+const metricVersion = ref('S8_V1');
+const exportTask = ref<ReportExportTask>();
+const exportDialogOpen = ref(false);
+const exportBusy = ref(false);
+const options = reactive<UnifiedReportOptions>({
+  advertisers: [],
+  appLinks: [],
+  channels: [],
+  mediaAccounts: [],
+  products: [],
+  tasks: [],
+});
+
+const allColumns: MetricColumn[] = [
+  { code: 'impressions', label: '曝光', minWidth: 108 },
+  { code: 'rawClicks', label: '原始点击', minWidth: 112 },
+  { code: 'validClicks', label: '有效点击', minWidth: 112 },
+  { code: 'duplicateClicks', label: '重复点击', minWidth: 112 },
+  { code: 'activations', label: '激活', minWidth: 96 },
+  { code: 'registrations', label: '注册', minWidth: 96 },
+  { code: 'payments', label: '付费', minWidth: 96 },
+  { code: 'orders', label: '订单', minWidth: 96 },
+  {
+    code: 'activationRate',
+    label: '激活率',
+    minWidth: 104,
+    ratio: true,
+  },
+  {
+    code: 'registrationRate',
+    label: '注册率',
+    minWidth: 104,
+    ratio: true,
+  },
+  { code: 'paymentRate', label: '付费率', minWidth: 104, ratio: true },
+  {
+    code: 'costAmount',
+    label: '消耗',
+    minWidth: 120,
+    sensitive: true,
+  },
+];
+
+const visibleCodes = ref<UnifiedReportMetricCode[]>(
+  allColumns.filter((item) => !item.sensitive).map((item) => item.code),
+);
+
+const availableColumns = computed(() =>
+  allColumns.filter((item) => !item.sensitive || canViewSensitiveMetrics.value),
+);
+
 const filters = reactive({
   advertiserId: '',
   appLinkId: '',
@@ -34,88 +122,121 @@ const filters = reactive({
     dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
     dayjs().format('YYYY-MM-DD'),
   ] as [string, string],
-  granularity: 'DATE',
-  monitorId: '',
+  grain: 'DAY' as 'DAY' | 'HOUR',
+  mediaAccountId: '',
+  mediaLevel: 'ACCOUNT' as 'ACCOUNT' | 'CHANNEL',
+  productId: '',
+  taskId: '',
 });
 
-const metrics: Array<{
-  label: string;
-  minWidth?: number;
-  prop: keyof ReportRow;
-}> = [
-  { label: '时间', minWidth: 140, prop: 'timeBucket' },
-  { label: '渠道名称', minWidth: 140, prop: 'channelName' },
-  { label: '监测链接', minWidth: 160, prop: 'monitorName' },
-  { label: '广告主', minWidth: 140, prop: 'advertiserName' },
-  { label: '应用链接', minWidth: 160, prop: 'appLinkName' },
-  { label: '扣量比例', minWidth: 110, prop: 'deductionRatio' },
-  { label: '展示数', minWidth: 110, prop: 'impressions' },
-  { label: '点击数', minWidth: 110, prop: 'clicks' },
-  { label: '有效点击', minWidth: 110, prop: 'eligibleClickCount' },
-  { label: '重复点击', minWidth: 110, prop: 'deduplicatedClickCount' },
-  { label: '跳过去重', minWidth: 110, prop: 'skippedClickCount' },
-  { label: '已分类点击', minWidth: 120, prop: 'classifiedClickCount' },
-  { label: '点击率', minWidth: 100, prop: 'clickRate' },
-  { label: '消耗', minWidth: 120, prop: 'costAmount' },
-  { label: '原始转化', minWidth: 110, prop: 'rawConversionCount' },
-  { label: '实际回传', minWidth: 110, prop: 'forwardedConversionCount' },
-  { label: '扣除转化', minWidth: 110, prop: 'deductedConversionCount' },
-  { label: '投递失败', minWidth: 110, prop: 'deliveryFailureCount' },
-  { label: '激活', minWidth: 90, prop: 'activateCount' },
-  { label: '激活率', minWidth: 100, prop: 'activateRate' },
-  { label: '首活', minWidth: 90, prop: 'firstActivateCount' },
-  { label: '首活率', minWidth: 100, prop: 'firstActivateRate' },
-  { label: '拉活', minWidth: 90, prop: 'reactivationCount' },
-  { label: '拉活率', minWidth: 100, prop: 'reactivationRate' },
-  { label: '唤起', minWidth: 90, prop: 'evokeCount' },
-  { label: '登录', minWidth: 90, prop: 'loginCount' },
-  { label: '注册', minWidth: 90, prop: 'registerCount' },
-  { label: '付费', minWidth: 90, prop: 'paymentCount' },
-  { label: '获客', minWidth: 90, prop: 'acquisitionCount' },
-  { label: '次留', minWidth: 90, prop: 'nextStayCount' },
-  { label: '三留', minWidth: 90, prop: 'retention3dCount' },
-  { label: '四留', minWidth: 90, prop: 'retention4dCount' },
-  { label: '五留', minWidth: 90, prop: 'retention5dCount' },
-  { label: '六留', minWidth: 90, prop: 'retention6dCount' },
-  { label: '七留', minWidth: 90, prop: 'retention7dCount' },
-  { label: '访问', minWidth: 90, prop: 'visitCount' },
-  { label: '认证', minWidth: 90, prop: 'authenticationCount' },
-  { label: '下单', minWidth: 90, prop: 'orderCount' },
-  { label: '首单', minWidth: 90, prop: 'firstOrderCount' },
-  { label: '完单', minWidth: 90, prop: 'finishOrderCount' },
-];
+const groupBy = computed<UnifiedReportQuery['groupBy']>(() => {
+  return reportGroupBy(route.path);
+});
 
-function query() {
+const title = computed(
+  () =>
+    ({
+      LINK: '链接汇总',
+      MEDIA: '媒体汇总',
+      PRODUCT: '产品汇总',
+      TASK: '任务汇总',
+      TIME: '数据汇总',
+    })[groupBy.value],
+);
+
+const visibleColumns = computed(() =>
+  availableColumns.value.filter((item) =>
+    visibleCodes.value.includes(item.code),
+  ),
+);
+
+const emptyKind = computed(() => {
+  return reportEmptyKind({
+    filterTouched: filterTouched.value,
+    firstRequestDone: firstRequestDone.value,
+    loading: loading.value,
+    rowCount: rows.value.length,
+  });
+});
+
+function payload(): UnifiedReportQuery {
   return {
     advertiserId: filters.advertiserId || undefined,
     appLinkId: filters.appLinkId || undefined,
     channelId: filters.channelId || undefined,
     current: current.value,
-    endDate: filters.dates?.[1],
-    granularity: filters.granularity,
-    monitorId: filters.monitorId || undefined,
+    direction: 'DESC',
+    endDate: filters.dates[1],
+    grain: filters.grain,
+    groupBy: groupBy.value,
+    mediaAccountId: filters.mediaAccountId || undefined,
+    mediaLevel: filters.mediaLevel,
+    metrics: visibleCodes.value,
+    productId: filters.productId || undefined,
     size: size.value,
-    startDate: filters.dates?.[0],
+    sort: 'dimension',
+    startDate: filters.dates[0],
+    taskId: filters.taskId || undefined,
   };
+}
+
+function dimensionValue(row: UnifiedReportRecord, key: string) {
+  const value = row.dimensions[key];
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function errorDetails(error: any) {
+  const status = Number(error?.response?.status || error?.status || 0);
+  forbidden.value = status === 403;
+  errorMessage.value =
+    error?.response?.data?.msg ||
+    error?.data?.msg ||
+    error?.message ||
+    '报表加载失败';
+  traceId.value =
+    error?.response?.headers?.['x-trace-id'] ||
+    error?.response?.data?.traceId ||
+    '';
 }
 
 async function load() {
   loading.value = true;
+  errorMessage.value = '';
+  forbidden.value = false;
   try {
-    const result = await getReport(query());
+    const result = await getReport(payload());
     rows.value = result.records;
     total.value = result.total;
+    asOf.value = result.asOf;
+    freshness.value = result.freshnessStatus;
+    pageSummary.value = result.pageSummary.metrics;
+    querySummary.value = result.querySummary.metrics;
+    metricVersion.value = result.metricDefinitionsVersion;
+  } catch (error) {
+    rows.value = [];
+    total.value = 0;
+    errorDetails(error);
   } finally {
     loading.value = false;
+    firstRequestDone.value = true;
   }
 }
 
 async function loadOptions() {
-  const result = await getReportOptions();
-  channels.value = result.channels;
-  advertisers.value = result.advertisers;
-  appLinks.value = result.appLinks;
-  monitors.value = result.monitors;
+  optionsLoading.value = true;
+  try {
+    Object.assign(options, await getUnifiedReportOptions());
+  } catch (error) {
+    errorDetails(error);
+  } finally {
+    optionsLoading.value = false;
+  }
+}
+
+function search() {
+  filterTouched.value = true;
+  current.value = 1;
+  load();
 }
 
 function reset() {
@@ -127,255 +248,429 @@ function reset() {
       dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
       dayjs().format('YYYY-MM-DD'),
     ],
-    granularity: 'DATE',
-    monitorId: '',
+    grain: 'DAY',
+    mediaAccountId: '',
+    mediaLevel: 'ACCOUNT',
+    productId: '',
+    taskId: '',
   });
+  filterTouched.value = false;
   current.value = 1;
   load();
 }
 
-function display(row: ReportRow, prop: keyof ReportRow) {
-  const value = row[prop] as any;
-  if (
-    prop === 'clickRate' ||
-    prop === 'activateRate' ||
-    prop === 'firstActivateRate' ||
-    prop === 'reactivationRate'
-  )
-    return value === null || value === undefined
-      ? '暂无有效点击口径'
-      : `${Number(value).toFixed(2)}%`;
-  if (prop === 'deductionRatio')
-    return `${(Number(value || 0) * 100).toFixed(2)}%`;
-  if (prop === 'costAmount') {
-    return Number(value || 0).toLocaleString('zh-CN', {
-      minimumFractionDigits: 2,
-      style: 'currency',
-      currency: 'CNY',
-    });
-  }
-  return value ?? '—';
+function display(value: null | number | undefined, column: MetricColumn) {
+  return formatReportMetric(value, column.code);
 }
 
-async function download() {
-  exporting.value = true;
+function summaryValue(
+  summary: Record<string, { status: string; value?: number }>,
+  column: MetricColumn,
+) {
+  return display(summary[column.code]?.value, column);
+}
+
+async function createExport(deduction = false) {
+  exportBusy.value = true;
   try {
-    const payload = await exportReport(query());
-    const blob = payload instanceof Blob ? payload : new Blob([payload as any]);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `时段报表-${dayjs().format('YYYYMMDD-HHmmss')}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(url);
-    ElMessage.success('报表已下载');
+    exportTask.value = deduction
+      ? await exportDeductionReport(payload())
+      : await exportReport(payload());
+    exportDialogOpen.value = true;
+    ElMessage.success('已创建异步导出任务；页面不会同步生成或下载文件');
   } finally {
-    exporting.value = false;
+    exportBusy.value = false;
   }
 }
 
-onMounted(async () => {
-  await Promise.all([load(), loadOptions()]);
-});
+async function refreshExport() {
+  if (!exportTask.value) return;
+  exportTask.value = await getReportExport(exportTask.value.id);
+}
+
+async function cancelExport() {
+  if (!exportTask.value) return;
+  exportTask.value = await cancelReportExport(exportTask.value.id);
+  ElMessage.success('导出任务已取消');
+}
+
+async function downloadExport() {
+  if (!exportTask.value || exportTask.value.status !== 'SUCCEEDED') return;
+  const blob = await downloadReportExport(exportTask.value.id);
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `scx-report-${exportTask.value.id}.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+watch(
+  () => route.path,
+  () => {
+    current.value = 1;
+    filterTouched.value = false;
+    load();
+  },
+);
+
+onMounted(() => Promise.all([loadOptions(), load()]));
 </script>
 
 <template>
-  <div class="report-page">
-    <header>
-      <div>
-        <p class="eyebrow">ADX · REPORT CENTER</p>
-        <h1>时段报表</h1>
-        <p>按小时、日期、月份或年份汇总渠道与广告主效果数据。</p>
-      </div>
-      <el-button
-        v-access:code="'adx:report:export'"
-        :loading="exporting"
-        @click="download"
-      >
-        下载报表
-      </el-button>
-    </header>
-
-    <el-card shadow="never" class="filter-card">
-      <el-form :inline="true" label-position="top">
-        <el-form-item label="显示类型">
-          <el-select v-model="filters.granularity">
-            <el-option label="按小时" value="HOUR" />
-            <el-option label="按日期" value="DATE" />
-            <el-option label="按月份" value="MONTH" />
-            <el-option label="按年份" value="YEAR" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="渠道">
-          <el-select v-model="filters.channelId" clearable filterable>
-            <el-option
-              v-for="item in channels"
-              :key="item.id"
-              :label="item.channelName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="监测链接">
-          <el-select v-model="filters.monitorId" clearable filterable>
-            <el-option
-              v-for="item in monitors"
-              :key="item.id"
-              :label="item.monitorName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="广告主">
-          <el-select v-model="filters.advertiserId" clearable filterable>
-            <el-option
-              v-for="item in advertisers"
-              :key="item.id"
-              :label="item.advertiserName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="广告主应用链接">
-          <el-select v-model="filters.appLinkId" clearable filterable>
-            <el-option
-              v-for="item in appLinks"
-              :key="item.id"
-              :label="item.linkName"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="日期范围">
-          <el-date-picker
-            v-model="filters.dates"
-            end-placeholder="结束日期"
-            range-separator="至"
-            start-placeholder="开始日期"
-            type="daterange"
-            value-format="YYYY-MM-DD"
-          />
-        </el-form-item>
-        <el-form-item class="actions" label=" ">
-          <el-button type="primary" :loading="loading" @click="load"
-            >查询</el-button
+  <div class="p-5">
+    <el-card class="mb-4" shadow="never">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-primary m-0 text-xs font-semibold tracking-widest">
+            ADX · UNIFIED HOURLY FACT · {{ metricVersion }}
+          </p>
+          <h2 class="mb-0 mt-2 text-xl font-semibold">{{ title }}</h2>
+          <p class="mb-0 mt-2 text-sm text-gray-500">
+            五个视图读取同一冻结事实与指标字典；历史归属不回读可变主数据。
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <el-dropdown trigger="click">
+            <el-button>列设置</el-button>
+            <template #dropdown>
+              <el-dropdown-menu class="p-3">
+                <el-checkbox-group v-model="visibleCodes" class="grid gap-2">
+                  <el-checkbox
+                    v-for="column in availableColumns"
+                    :key="column.code"
+                    :label="column.code"
+                  >
+                    {{ column.label }}
+                    <span v-if="column.sensitive" class="text-xs text-gray-400">
+                      · 敏感权限
+                    </span>
+                  </el-checkbox>
+                </el-checkbox-group>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button
+            v-access:code="'adx:report:deduction:export'"
+            :loading="exportBusy"
+            @click="createExport(true)"
           >
-          <el-button @click="reset">重置</el-button>
-        </el-form-item>
+            审减导出
+          </el-button>
+          <el-button
+            v-access:code="'adx:report:export'"
+            :loading="exportBusy"
+            type="primary"
+            @click="createExport(false)"
+          >
+            异步导出
+          </el-button>
+        </div>
+      </div>
+    </el-card>
+
+    <el-card class="mb-4" shadow="never">
+      <el-form label-position="top" @submit.prevent="search">
+        <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <el-form-item label="粒度">
+            <el-select v-model="filters.grain">
+              <el-option label="小时" value="HOUR" />
+              <el-option label="日期" value="DAY" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="groupBy === 'MEDIA'" label="媒体层级">
+            <el-select v-model="filters.mediaLevel">
+              <el-option label="媒体账号" value="ACCOUNT" />
+              <el-option label="渠道" value="CHANNEL" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="广告主">
+            <el-select
+              v-model="filters.advertiserId"
+              clearable
+              filterable
+              :loading="optionsLoading"
+            >
+              <el-option
+                v-for="item in options.advertisers"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="产品">
+            <el-select v-model="filters.productId" clearable filterable>
+              <el-option
+                v-for="item in options.products"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="AppLink">
+            <el-select v-model="filters.appLinkId" clearable filterable>
+              <el-option
+                v-for="item in options.appLinks"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="Task">
+            <el-select v-model="filters.taskId" clearable filterable>
+              <el-option
+                v-for="item in options.tasks"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="渠道">
+            <el-select v-model="filters.channelId" clearable filterable>
+              <el-option
+                v-for="item in options.channels"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="媒体账号">
+            <el-select v-model="filters.mediaAccountId" clearable filterable>
+              <el-option
+                v-for="item in options.mediaAccounts"
+                :key="item.id"
+                :label="item.label"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item class="xl:col-span-2" label="日期范围（Asia/Shanghai）">
+            <el-date-picker
+              v-model="filters.dates"
+              end-placeholder="结束日期"
+              range-separator="至"
+              start-placeholder="开始日期"
+              type="daterange"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+          <el-form-item label=" ">
+            <div class="flex gap-2">
+              <el-button :loading="loading" type="primary" @click="search">
+                查询
+              </el-button>
+              <el-button @click="reset">重置</el-button>
+            </div>
+          </el-form-item>
+        </div>
       </el-form>
     </el-card>
 
-    <el-card shadow="never" class="table-card">
-      <el-table
-        v-loading="loading"
-        :data="rows"
-        border
-        height="calc(100vh - 410px)"
-      >
-        <el-table-column
-          v-for="column in metrics"
-          :key="column.prop"
-          :label="column.label"
-          :min-width="column.minWidth"
-          :prop="column.prop"
-          show-overflow-tooltip
-        >
-          <template #default="{ row }">{{
-            display(row, column.prop)
-          }}</template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
-        v-model:current-page="current"
-        v-model:page-size="size"
-        :page-sizes="[20, 50, 100]"
-        :total="total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @current-change="load"
-        @size-change="load"
+    <el-alert
+      v-if="freshness !== 'FINAL' && !errorMessage"
+      class="mb-4"
+      :closable="false"
+      show-icon
+      :title="
+        freshness === 'DELAYED'
+          ? '数据延迟：水位尚未覆盖所选范围'
+          : '临时口径：晚到事实仍可能更新原小时'
+      "
+      :type="freshness === 'DELAYED' ? 'warning' : 'info'"
+    />
+
+    <el-card shadow="never">
+      <el-result
+        v-if="forbidden"
+        icon="warning"
+        sub-title="需要 adx:report:view 与 Advertiser、Channel、MediaAccount 对象范围交集"
+        title="无权查看报表"
       />
+      <el-result
+        v-else-if="errorMessage"
+        icon="error"
+        :sub-title="
+          traceId ? `${errorMessage} · traceId ${traceId}` : errorMessage
+        "
+        title="报表加载失败"
+      >
+        <template #extra
+          ><el-button @click="load">重新加载</el-button></template
+        >
+      </el-result>
+      <el-empty
+        v-else-if="emptyKind === 'INITIAL'"
+        description="当前还没有统一小时事实；不会显示样例数值"
+      />
+      <el-empty
+        v-else-if="emptyKind === 'FILTER'"
+        description="没有符合当前筛选的事实"
+      >
+        <el-button @click="reset">清空筛选</el-button>
+      </el-empty>
+      <template v-else>
+        <div
+          class="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500"
+        >
+          <span>时区 Asia/Shanghai · asOf {{ asOf || '—' }}</span>
+          <el-tag
+            :type="
+              freshness === 'FINAL'
+                ? 'success'
+                : freshness === 'DELAYED'
+                  ? 'warning'
+                  : 'info'
+            "
+          >
+            {{ freshness }}
+          </el-tag>
+        </div>
+        <el-table
+          v-loading="loading"
+          :data="rows"
+          border
+          height="calc(100vh - 500px)"
+          row-key="dimensionKey"
+        >
+          <el-table-column fixed label="日期/小时" min-width="170">
+            <template #default="{ row }">
+              <div class="font-medium">
+                {{ dimensionValue(row, 'bucket') }}
+              </div>
+              <div class="mt-1 text-xs text-gray-400">
+                {{ row.dimensionType }} · {{ row.qualityStatus }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="groupBy !== 'TIME'"
+            fixed
+            label="冻结对象 ID"
+            min-width="190"
+          >
+            <template #default="{ row }">
+              {{ dimensionValue(row, 'objectId') }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-for="column in visibleColumns"
+            :key="column.code"
+            :label="column.label"
+            :min-width="column.minWidth"
+          >
+            <template #default="{ row }">
+              {{ display(row.metrics[column.code]?.value, column) }}
+            </template>
+          </el-table-column>
+          <template #append>
+            <div class="summary-grid">
+              <span class="font-medium">{{ '当前页汇总' }}</span>
+              <span v-for="column in visibleColumns" :key="column.code">
+                {{ summaryValue(pageSummary, column) }}
+              </span>
+            </div>
+          </template>
+        </el-table>
+        <div class="mt-3 rounded bg-gray-50 px-4 py-3 text-sm">
+          <span class="font-medium">筛选范围全量汇总：</span>
+          <span
+            v-for="column in visibleColumns"
+            :key="column.code"
+            class="ml-4 whitespace-nowrap"
+          >
+            {{ column.label }} {{ summaryValue(querySummary, column) }}
+          </span>
+        </div>
+        <div class="mt-4 flex justify-end">
+          <el-pagination
+            v-model:current-page="current"
+            v-model:page-size="size"
+            background
+            layout="total, sizes, prev, pager, next"
+            :page-sizes="[20, 50, 100, 200]"
+            :total="total"
+            @current-change="load"
+            @size-change="search"
+          />
+        </div>
+      </template>
     </el-card>
+
+    <el-dialog v-model="exportDialogOpen" title="异步导出任务" width="520px">
+      <el-descriptions v-if="exportTask" :column="1" border>
+        <el-descriptions-item label="任务 ID">{{
+          exportTask.id
+        }}</el-descriptions-item>
+        <el-descriptions-item label="类型">{{
+          exportTask.type
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{
+          exportTask.status
+        }}</el-descriptions-item>
+        <el-descriptions-item label="过期时间">
+          {{ exportTask.expiresAt || '生成后开始计算' }}
+        </el-descriptions-item>
+        <el-descriptions-item v-if="exportTask.errorCode" label="错误码">
+          {{ exportTask.errorCode }}
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-alert
+        class="mt-3"
+        :closable="false"
+        show-icon
+        title="下载会再次校验权限与对象范围；过期文件返回 410"
+        type="info"
+      />
+      <template #footer>
+        <el-button @click="refreshExport">刷新状态</el-button>
+        <el-button
+          v-if="
+            exportTask &&
+            ['FAILED', 'PENDING', 'RETRY_WAIT'].includes(exportTask.status)
+          "
+          type="warning"
+          @click="cancelExport"
+        >
+          取消任务
+        </el-button>
+        <el-button
+          :disabled="exportTask?.status !== 'SUCCEEDED'"
+          type="primary"
+          @click="downloadExport"
+        >
+          再鉴权下载
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.report-page {
-  min-height: 100%;
-  padding: 20px;
-  background: #f5f7fa;
+.summary-grid {
+  display: grid;
+  grid-template-columns: 210px repeat(
+      var(--metric-count, 12),
+      minmax(96px, 1fr)
+    );
+  gap: 12px;
+  min-width: 1400px;
+  padding: 12px;
+  color: #344054;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
 }
 
-header {
-  display: flex;
-  gap: 20px;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-header h1 {
-  margin: 2px 0 6px;
-  font-size: 24px;
-  font-weight: 650;
-  color: #172033;
-}
-
-header p {
-  margin: 0;
-  color: #667085;
-}
-
-.eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  color: #2563eb !important;
-  letter-spacing: 0.14em;
-}
-
-.filter-card,
-.table-card {
-  border-color: #e6eaf0;
-}
-
-.filter-card {
-  margin-bottom: 14px;
-}
-
-.filter-card :deep(.el-form-item) {
+:deep(.el-form-item) {
   margin-bottom: 0;
 }
 
-.filter-card :deep(.el-select) {
-  width: 170px;
-}
-
-.filter-card :deep(.el-date-editor) {
-  width: 250px;
-}
-
-.table-card :deep(.el-card__body) {
-  padding-top: 14px;
-}
-
-.el-pagination {
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-
-@media (max-width: 768px) {
-  .report-page {
-    padding: 12px;
-  }
-
-  header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filter-card :deep(.el-form-item),
-  .filter-card :deep(.el-select),
-  .filter-card :deep(.el-date-editor) {
-    width: 100%;
-  }
+:deep(.el-select),
+:deep(.el-date-editor) {
+  width: 100%;
 }
 </style>

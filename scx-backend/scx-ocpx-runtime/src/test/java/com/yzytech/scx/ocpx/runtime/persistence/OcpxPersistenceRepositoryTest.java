@@ -48,7 +48,7 @@ class OcpxPersistenceRepositoryTest {
 	void setUp() throws Exception {
 		OcpxRuntimeProperties properties = new OcpxRuntimeProperties();
 		repository = new OcpxPersistenceRepository(jdbcTemplate, objectMapper, protocolCrypto, properties, billingPort);
-		when(protocolCrypto.decrypt("encrypted-route")).thenReturn(objectMapper.writeValueAsString(route()));
+		when(protocolCrypto.decrypt("encrypted-route")).thenReturn(objectMapper.writeValueAsString(frozenRoute()));
 		when(jdbcTemplate.update(any(String.class), any(Object[].class))).thenReturn(1);
 		when(billingPort.charge(any(), any(), any(), eq("CNY"), eq("CPA")))
 			.thenReturn(new BillingPort.BillingResult("POSTED", "FREE_EVENT", BigDecimal.TEN));
@@ -73,9 +73,12 @@ class OcpxPersistenceRepositoryTest {
 		repository.persistFeedbackBatch(List.of(envelope()));
 
 		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
-		verify(jdbcTemplate).update(contains("cost_amount=cost_amount+VALUES(cost_amount)"), any(Object[].class));
-		verify(jdbcTemplate).update(contains("eligible_click_count=eligible_click_count+VALUES(eligible_click_count)"),
-				any(Object[].class));
+		ArgumentCaptor<Object[]> contribution = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_adx_hourly_fact_contribution"),
+				contribution.capture());
+		assertThat(contribution.getValue()[19]).isEqualTo(1L);
+		assertThat(contribution.getValue()[20]).isEqualTo(0L);
+		assertThat(contribution.getValue()[22]).isEqualTo(new BigDecimal("1.250000"));
 	}
 
 	@Test
@@ -98,13 +101,14 @@ class OcpxPersistenceRepositoryTest {
 		verify(jdbcTemplate).update(contains("status='DEDUPLICATED'"), eq("click-1"));
 		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
 		verify(jdbcTemplate, never()).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
-		ArgumentCaptor<Object[]> metricArguments = ArgumentCaptor.forClass(Object[].class);
-		verify(jdbcTemplate).update(contains("classified_click_count=classified_click_count+VALUES"),
-				metricArguments.capture());
-		assertThat(metricArguments.getValue()[8]).isEqualTo(0L);
-		assertThat(metricArguments.getValue()[9]).isEqualTo(1L);
-		assertThat(metricArguments.getValue()[10]).isEqualTo(0L);
-		assertThat(metricArguments.getValue()[11]).isEqualTo(1L);
+		ArgumentCaptor<Object[]> contribution = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_adx_hourly_fact_contribution"),
+				contribution.capture());
+		assertThat(contribution.getValue()[18]).isEqualTo(1);
+		assertThat(contribution.getValue()[19]).isEqualTo(0L);
+		assertThat(contribution.getValue()[20]).isEqualTo(1L);
+		assertThat(contribution.getValue()[21]).isEqualTo(0L);
+		assertThat(contribution.getValue()[22]).isEqualTo(BigDecimal.ZERO);
 	}
 
 	@Test
@@ -112,7 +116,7 @@ class OcpxPersistenceRepositoryTest {
 		OffsetDateTime now = OffsetDateTime.parse("2026-08-08T07:14:20Z");
 		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("callback-1", "click-1", "callback-ref",
 				OcpxEventType.ACTIVATE, now, null, null);
-		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", frozenRoute(), new FeedbackReqV1());
 
 		repository.persistCallback(callback, context, false, "NO_RULE");
 
@@ -132,9 +136,38 @@ class OcpxPersistenceRepositoryTest {
 	}
 
 	@Test
+	void runtimeFactProjectionHasOneValueForEverySqlPlaceholder() {
+		when(billingPort.charge("click-1", "advertiser-1", new BigDecimal("1.250000"), "CNY", "CPC"))
+			.thenReturn(new BillingPort.BillingResult("POSTED", "CLICK_CHARGED", new BigDecimal("8.750000")));
+		repository.persistFeedbackBatch(List.of(envelope()));
+		OffsetDateTime now = OffsetDateTime.parse("2026-08-08T07:14:20Z");
+		repository.persistCallback(
+				new NormalizedCallbackEvent("callback-1", "click-1", "callback-ref", OcpxEventType.ACTIVATE, now, null,
+						null),
+				new CallbackContext("callback-ref", "click-1", frozenRoute(), new FeedbackReqV1()), false, "NO_RULE");
+
+		ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).update(sqlCaptor.capture(), argumentsCaptor.capture());
+		List<Integer> runtimeFactInserts = java.util.stream.IntStream.range(0, sqlCaptor.getAllValues().size())
+			.filter(index -> sqlCaptor.getAllValues().get(index).contains("INSERT IGNORE INTO scx_adx_runtime_fact"))
+			.boxed()
+			.toList();
+		assertThat(runtimeFactInserts).isNotEmpty();
+		for (Integer index : runtimeFactInserts) {
+			long placeholders = sqlCaptor.getAllValues()
+				.get(index)
+				.chars()
+				.filter(character -> character == '?')
+				.count();
+			assertThat(argumentsCaptor.getAllValues().get(index)).hasSize((int) placeholders);
+		}
+	}
+
+	@Test
 	void callbackMetricsKeepFirstActivationReactivationAndRetentionDaysIndependent() {
 		OffsetDateTime now = OffsetDateTime.parse("2026-08-08T07:14:20Z");
-		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", frozenRoute(), new FeedbackReqV1());
 
 		repository.persistCallback(new NormalizedCallbackEvent("first-activate-1", "click-1", "callback-ref",
 				OcpxEventType.FIRST_ACTIVATION, now, null, null), context, true, "NO_RULE");
@@ -143,22 +176,22 @@ class OcpxPersistenceRepositoryTest {
 		repository.persistCallback(new NormalizedCallbackEvent("retention-d7-1", "click-1", "callback-ref",
 				OcpxEventType.RETENTION_D7, now, null, null), context, true, "NO_RULE");
 
-		verify(jdbcTemplate).update(contains("first_activate_count"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("first_activation_count"), any(Object[].class));
 		verify(jdbcTemplate).update(contains("reactivation_count"), any(Object[].class));
-		verify(jdbcTemplate).update(contains("retention_7d_count"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("retention_d7_count"), any(Object[].class));
 	}
 
 	@Test
 	void callbackAggregationUsesShanghaiNaturalHour() {
 		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
-		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
+		CallbackContext context = new CallbackContext("callback-ref", "click-1", frozenRoute(), new FeedbackReqV1());
 
 		repository.persistCallback(new NormalizedCallbackEvent("activate-boundary", "click-1", "callback-ref",
 				OcpxEventType.ACTIVATE, actionTime, null, null), context, true, "NO_RULE");
 
 		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
-		verify(jdbcTemplate).update(contains("activate_count"), arguments.capture());
-		assertThat(arguments.getValue()[1]).isEqualTo(java.time.LocalDateTime.parse("2026-08-09T01:00:00"));
+		verify(jdbcTemplate).update(contains("activation_count"), arguments.capture());
+		assertThat(arguments.getValue()[16]).isEqualTo(java.time.LocalDateTime.parse("2026-08-09T01:00:00"));
 	}
 
 	@Test
@@ -168,8 +201,10 @@ class OcpxPersistenceRepositoryTest {
 		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
 				new FeedbackReqV1(), "debug-execution-1");
 
-		repository.persistCallback(new NormalizedCallbackEvent("debug-activate", "click-1", "callback-ref",
-				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping),
+		repository.persistCallback(
+				new NormalizedCallbackEvent("debug-activate", "click-1", "callback-ref", OcpxEventType.ACTIVATE,
+						actionTime, null, null)
+					.mapped("click-1", OcpxEventType.ACTIVATE, eventMapping),
 				context, true, "NO_RULE");
 
 		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_adx_hourly_report"), any(Object[].class));
@@ -184,7 +219,8 @@ class OcpxPersistenceRepositoryTest {
 		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
 		RouteEventSnapshot eventMapping = eventMapping(10);
 		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("mapped-activate", "click-1", "callback-ref",
-				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
+				OcpxEventType.ACTIVATE, actionTime, null, null)
+			.mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
 		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
 				new FeedbackReqV1());
 
@@ -204,7 +240,8 @@ class OcpxPersistenceRepositoryTest {
 		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
 		RouteEventSnapshot eventMapping = eventMapping(10);
 		NormalizedCallbackEvent callback = new NormalizedCallbackEvent("limited-activate", "click-1", "callback-ref",
-				OcpxEventType.ACTIVATE, actionTime, null, null).mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
+				OcpxEventType.ACTIVATE, actionTime, null, null)
+			.mapped("click-1", OcpxEventType.ACTIVATE, eventMapping);
 		CallbackContext context = new CallbackContext("callback-ref", "click-1", versionedRoute(eventMapping),
 				new FeedbackReqV1());
 
@@ -221,10 +258,9 @@ class OcpxPersistenceRepositoryTest {
 		OffsetDateTime actionTime = OffsetDateTime.parse("2026-08-08T17:30:00Z");
 		CallbackContext context = new CallbackContext("callback-ref", "click-1", route(), new FeedbackReqV1());
 
-		OcpxPersistenceRepository.CallbackPersistenceResult result = repository.persistCallback(
-				new NormalizedCallbackEvent("legacy-activate", "click-1", "callback-ref", OcpxEventType.ACTIVATE,
-						actionTime, null, null),
-				context, true, "NO_RULE");
+		OcpxPersistenceRepository.CallbackPersistenceResult result = repository
+			.persistCallback(new NormalizedCallbackEvent("legacy-activate", "click-1", "callback-ref",
+					OcpxEventType.ACTIVATE, actionTime, null, null), context, true, "NO_RULE");
 
 		assertThat(result.status()).isEqualTo("ACCEPTED");
 		verify(billingPort, never()).charge(any(), any(), any(), eq("CNY"), eq("CPA"));
@@ -238,8 +274,8 @@ class OcpxPersistenceRepositoryTest {
 
 		repository.markDeliveryFailure(job, 500, "downstream unavailable");
 
-		verify(jdbcTemplate).update(contains("SET status=?"), eq("DEAD"), eq(5), eq(600L),
-				eq("downstream unavailable"), eq("job-1"), any());
+		verify(jdbcTemplate).update(contains("SET status=?"), eq("DEAD"), eq(5), eq(600L), eq("downstream unavailable"),
+				eq("job-1"), any());
 		verify(jdbcTemplate, never()).update(contains("scx_ocpx_billing_entry"), any(Object[].class));
 		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
 	}
@@ -256,9 +292,14 @@ class OcpxPersistenceRepositoryTest {
 				null, "https://downstream.example/callback", new BigDecimal("1.250000"), BigDecimal.ONE, "OFF", "CPC");
 	}
 
+	private RouteSnapshot frozenRoute() {
+		return route().withFactDimensions("SCX", "product-1", "task-1", "media-account-1", "operator-1",
+				"route-version-1");
+	}
+
 	private RouteEventSnapshot eventMapping(int dailyLimit) {
-		return new RouteEventSnapshot("mapping-1", "ACTIVATE", "激活", "ACTIVATE", "激活", "MEDIA_ACTIVATE",
-				"媒体激活", new BigDecimal("2.500000"), dailyLimit);
+		return new RouteEventSnapshot("mapping-1", "ACTIVATE", "激活", "ACTIVATE", "激活", "MEDIA_ACTIVATE", "媒体激活",
+				new BigDecimal("2.500000"), dailyLimit);
 	}
 
 	private RouteSnapshot versionedRoute(RouteEventSnapshot eventMapping) {
@@ -268,7 +309,8 @@ class OcpxPersistenceRepositoryTest {
 				route.channelSecret(), route.advertiserId(), route.appLinkId(), route.upstreamAdapterCode(),
 				route.upstreamSecret(), route.bidUrl(), route.upstreamRequiredMacros(), route.downstreamCallbackUrl(),
 				route.unitPrice(), route.deductionRatio(), route.rtaMode(), route.billingMode(),
-				route.clickDedupWindowSeconds(), List.of(eventMapping));
+				route.clickDedupWindowSeconds(), List.of(eventMapping))
+			.withFactDimensions("SCX", "product-1", "task-1", "media-account-1", "operator-1", "route-version-1");
 	}
 
 }

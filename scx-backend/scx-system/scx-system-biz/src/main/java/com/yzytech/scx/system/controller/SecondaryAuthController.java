@@ -55,7 +55,7 @@ public class SecondaryAuthController {
 			return Result.fail("密码错误");
 		}
 		// 比对成功，为当前会话打开二级认证，有效期为120秒
-		StpUtil.openSafe(86400);
+		StpUtil.openSafe(120);
 		return Result.success();
 	}
 

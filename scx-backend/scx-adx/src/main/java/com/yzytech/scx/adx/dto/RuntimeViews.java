@@ -1,7 +1,7 @@
 package com.yzytech.scx.adx.dto;
 
 import java.time.LocalDateTime;
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 
 public final class RuntimeViews {
@@ -9,38 +9,48 @@ public final class RuntimeViews {
 	private RuntimeViews() {
 	}
 
-	public record Overview(long pendingDeliveries, long retryDeliveries, long deadDeliveries, long successfulDeliveries,
-			long ingressDlq, long feedbackStreamPending, Map<String, Long> byDirection) {
+	public record Overview(long accepted, long succeeded, long failed, long dlq, long replayQueued,
+			long replayTerminal, String replayWorkerStatus, LocalDateTime asOf, String freshnessStatus,
+			String traceId, Map<String, Long> byFactType, Map<String, Long> byFailureClass) {
 	}
 
-	public record Delivery(String id, String eventId, String sourceEventId, String direction, String adapterCode,
-			String status, Integer attemptCount, LocalDateTime nextRetryAt, String lastError, LocalDateTime createTime,
-			LocalDateTime updateTime) {
+	public record PageResult<T>(List<T> records, long total, long current, long size, LocalDateTime asOf,
+			String freshnessStatus, String traceId, List<String> qualityFlags) {
 	}
 
-	public record IngressDlq(String id, Integer partitionNo, String streamRecordId, String eventId, String reason,
-			String status, LocalDateTime createTime, LocalDateTime replayedAt) {
+	public record Fact(String id, String factType, String direction, String acceptanceStatus, String processingStatus,
+			String advertiserId, String productId, String appLinkId, String taskId, String channelId,
+			String mediaAccountId, String operatorUserId, String routeId, String routeVersionId, Long routeVersion,
+			String eventCode, String traceId, String requestIdMasked, String correlationIdMasked,
+			String externalClickIdMasked, String mediaTaskIdMasked, String summaryCode, String dimensionStatus,
+			String qualityStatus, LocalDateTime eventTime, LocalDateTime receivedTime, boolean hasBody) {
 	}
 
-	public record Event(String id, String eventId, String parentEventId, String direction, String eventType,
-			String sourceEventCode, String conversionEventCode, String mediaEventCode, String channelId,
-			String channelName, String advertiserId, String advertiserName, String monitorId, String monitorName,
-			String status, BigDecimal amount, String amountRaw, BigDecimal cpaChargeAmount, String dailyLimitResult,
-			LocalDateTime occurredAt, LocalDateTime receivedAt) {
+	public record Failure(String id, String sourceFactId, String sourceType, String failureClass, String errorCode,
+			boolean replayable, long failureRevision, String taskId, String advertiserId, String channelId,
+			String mediaAccountId, String routeId, String routeVersionId, Long routeVersion, String traceId,
+			String summaryFingerprint, String dimensionStatus, LocalDateTime eventTime, LocalDateTime receivedTime,
+			boolean hasBody) {
 	}
 
-	public record TimelineItem(String stage, String status, String referenceId, String detail,
-			LocalDateTime occurredAt) {
+	public record Timeline(String executionId, Fact fact, Failure failure, List<Attempt> attempts,
+			List<ReplayStatus> replays, String traceId) {
 	}
 
-	public record DeliveryAttempt(String id, String jobId, Integer attemptNo, String status, Integer httpStatus,
-			String errorMessage, String requestMethod, String targetHost, String targetPath, String requestSummary,
-			String responseExcerpt, Long durationMs, LocalDateTime createTime) {
+	public record Attempt(String id, int attemptNo, String status, String errorClass, String errorCode,
+			String summaryFingerprint, LocalDateTime startedAt, LocalDateTime finishedAt, LocalDateTime nextRetryAt) {
 	}
 
-	public record IngressAudit(String id, String requestId, String channelCode, String eventId, String routeReference,
-			String resultStatus, Integer httpStatus, String reason, String payloadHash, String clientId,
-			String keyVersion, String remoteIpMasked, Long durationMs, LocalDateTime createTime) {
+	public record ReplayPreview(String failureId, long failureRevision, String taskId, String routeVersionId,
+			long routeVersion, String failureClass, String errorCode, boolean replayable, String mode,
+			String externalEffect, String billingEffect, String workerStatus, LocalDateTime expiresAt,
+			String previewToken, String traceId, List<String> blockers) {
+	}
+
+	public record ReplayStatus(String requestId, String commandId, String failureId, String taskId,
+			String routeVersionId, long routeVersion, String mode, String status, int attemptCount, int maxAttempts,
+			String lastErrorClass, String lastErrorCode, LocalDateTime nextAttemptAt, LocalDateTime leaseUntil,
+			LocalDateTime createTime, LocalDateTime completedAt, String workerStatus) {
 	}
 
 }

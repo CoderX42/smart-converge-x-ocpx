@@ -70,12 +70,17 @@ public class CallbackIngressService {
 	private NormalizedCallbackEvent mapEvent(NormalizedCallbackEvent parsed, CallbackContext context) {
 		String rawCode = parsed.sourceEventCode();
 		if (context.route().eventSnapshotVersion() == 0) {
+			if (!"LEGACY_ADAPTER".equals(context.route().eventMappingMode())) {
+				throw new OcpxException(HttpStatus.UNPROCESSABLE_ENTITY,
+						"route has no event snapshot; explicit legacy adapter mode is required");
+			}
 			String legacyCode = parsed.eventType().name();
 			RouteEventSnapshot legacyMapping = new RouteEventSnapshot("LEGACY", legacyCode, legacyCode, legacyCode,
 					legacyCode, legacyCode, legacyCode, BigDecimal.ZERO, 0);
 			return parsed.mapped(context.feedbackEventId(), parsed.eventType(), legacyMapping);
 		}
-		RouteEventSnapshot mapping = context.route().eventMappings()
+		RouteEventSnapshot mapping = context.route()
+			.eventMappings()
 			.stream()
 			.filter(item -> item.upstreamEventCode().equalsIgnoreCase(rawCode)
 					|| item.upstreamEventCode().equalsIgnoreCase(parsed.eventType().name()))

@@ -27,7 +27,7 @@
 18. Coco 联调时阅读 [Coco v1.1 正式协议与 Apifox 联调](Coco-v1.1正式协议与Apifox联调.md)。
 19. 开工和交接时使用 [Agent 与交付模板](templates/README.md)。
 
-当前工作树中仍不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页和数据字典；`adr/` 已包含 Accepted ADR-001/002，MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则，也不得绕过 Accepted ADR。
+当前工作树中仍不存在旧导航曾引用的 00–22 专题文档、Backlog、状态页和数据字典；`adr/` 已包含 Accepted ADR-001/002，以及不具决策效力的 Proposed/Not Accepted ADR-003 与 RFC-001，MVP 契约已补充在 `contracts/`。Agent 不得根据已删除文件的标题臆造规则，也不得把 Proposed 文件当成 Accepted 决策或绕过 Accepted ADR。
 
 ## 2. 当前有效文档
 
@@ -41,6 +41,8 @@
 | [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md) | 旧系统核心流程、SCX 覆盖矩阵、接口映射和专用适配器边界 | 基础流程基线；不表示全部旧媒体/DSP 私有协议已兼容 |
 | [ADR-001 独立数据面](adr/ADR-001-OCPX双向转发独立数据面.md) | 管理面与高并发数据面拆分决策 | Accepted |
 | [ADR-002 接口调试与双端日志](adr/ADR-002-系统内置接口调试与双端日志.md) | 已接入链路、自定义 HTTPS、一次性授权、调试关联与双端有界日志 | Accepted；V76 源码实现，目标环境与真实链路验收待执行 |
+| [ADR-003 RTA 主动决策解锁门禁](adr/ADR-003-RTA主动决策解锁门禁.md) | S11 协议、安全、隐私、容量、Secret、事实、UAT 与分阶段门禁签署清单 | **Proposed / Not Accepted**；不解除 Blocked，不授权 ACTIVE、外呼、shadow 或 UAT |
+| [RFC-001 DP 供应商协议与安全门禁](adr/RFC-001-DP供应商协议与安全门禁.md) | 淘宝/京东协议待件、SSRF、隐私、幂等、调试隔离、费用、对账与 UAT 签署清单 | **Proposed / Not Accepted**；不解除 Blocked，不授权菜单、Adapter、convert、外呼或 UAT |
 | [OCPX 下游渠道 API 接入文档](OCPX下游渠道API接入文档.md) | 可交付给下游研发的 Feedback、Callback、签名、幂等、重试和 UAT 规范 | Contract v1；实际域名、渠道编码、路由和密钥单独安全交付 |
 | [OCPX 上游广告主适配器开发指南](OCPX上游广告主适配器开发指南.md) | 新增 Coco 类上游的协议确认、SPI 实现、注册、测试与灰度流程 | 研发规范；第三方正式协议和真实 UAT 决定生产成功语义 |
 | [MVP 开发规划](MVP开发规划.md) | MVP 范围、Agent 合同、架构/数据方案、任务队列、验收与开放决策 | Accepted；第 15 节默认方案已接受 |

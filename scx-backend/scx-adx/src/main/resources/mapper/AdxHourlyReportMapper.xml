@@ -74,62 +74,22 @@
     <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
     <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
     <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND r.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND r.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedChannelIds != null">AND 1=0</when>
+    </choose>
     GROUP BY <include refid="timeBucket"/>, r.channel_id, r.monitor_id, r.advertiser_id, r.app_link_id
     ORDER BY <include refid="timeBucket"/> DESC, MAX(c.channel_name), MAX(a.advertiser_name)
-  </select>
-
-  <select id="dashboardDaily" resultType="com.yzytech.scx.adx.dto.DashboardDailyRow">
-    SELECT
-      DATE(r.time_hour) AS report_date,
-      SUM(r.impressions) AS impressions,
-      SUM(r.clicks) AS clicks,
-      SUM(r.eligible_click_count) AS eligible_clicks,
-      SUM(r.deduplicated_click_count) AS deduplicated_clicks,
-      SUM(r.skipped_click_count) AS skipped_clicks,
-      SUM(r.classified_click_count) AS classified_clicks,
-      SUM(r.cost_amount) AS cost_amount,
-      SUM(r.activate_count) AS activates,
-      SUM(r.first_activate_count) AS first_activations,
-      SUM(r.reactivation_count) AS reactivations,
-      SUM(r.register_count) AS registrations,
-      SUM(r.payment_count) AS payments,
-      SUM(r.next_stay_count) AS retention_d2,
-      SUM(r.retention_3d_count) AS retention_d3,
-      SUM(r.retention_4d_count) AS retention_d4,
-      SUM(r.retention_5d_count) AS retention_d5,
-      SUM(r.retention_6d_count) AS retention_d6,
-      SUM(r.retention_7d_count) AS retention_d7,
-      SUM(r.raw_conversion_count) AS raw_conversions,
-      SUM(r.forwarded_conversion_count) AS forwarded_conversions,
-      SUM(r.deducted_conversion_count) AS deducted_conversions,
-      SUM(r.delivery_failure_count) AS delivery_failures,
-      MAX(r.update_time) AS data_updated_at
-    FROM scx_adx_hourly_report r
-    WHERE r.time_hour &gt;= #{start} AND r.time_hour &lt; #{end}
-    <if test="channelId != null and channelId != ''">AND r.channel_id = #{channelId}</if>
-    <if test="advertiserId != null and advertiserId != ''">AND r.advertiser_id = #{advertiserId}</if>
-    <if test="appLinkId != null and appLinkId != ''">AND r.app_link_id = #{appLinkId}</if>
-    <if test="monitorId != null and monitorId != ''">AND r.monitor_id = #{monitorId}</if>
-    GROUP BY DATE(r.time_hour)
-    ORDER BY report_date
-  </select>
-
-  <select id="dashboardCoverage" resultType="com.yzytech.scx.adx.dto.DashboardCoverageRow">
-    SELECT COUNT(DISTINCT CASE WHEN c.status='ACTIVE' THEN c.id END) AS active_channels,
-           COUNT(DISTINCT CASE WHEN a.status='ACTIVE' THEN a.id END) AS active_advertisers,
-           COUNT(DISTINCT l.id) AS active_app_links,
-           SUM(m.route_status='PUBLISHED') AS published_routes,
-           SUM(m.route_status='DRAFT') AS draft_routes,
-           SUM(m.route_status NOT IN ('PUBLISHED','DRAFT')) AS abnormal_routes
-    FROM scx_adx_monitor_link m
-    JOIN scx_adx_channel c ON c.id=m.channel_id AND c.deleted=0
-    JOIN scx_adx_advertiser a ON a.id=m.advertiser_id AND a.deleted=0
-    JOIN scx_adx_app_link l ON l.id=m.app_link_id AND l.deleted=0
-    WHERE m.deleted=0
-    <if test="channelId != null and channelId != ''">AND m.channel_id = #{channelId}</if>
-    <if test="advertiserId != null and advertiserId != ''">AND m.advertiser_id = #{advertiserId}</if>
-    <if test="appLinkId != null and appLinkId != ''">AND m.app_link_id = #{appLinkId}</if>
-    <if test="monitorId != null and monitorId != ''">AND m.id = #{monitorId}</if>
   </select>
 
   <select id="accountSummary" resultType="java.util.HashMap">
@@ -137,6 +97,13 @@
       (SELECT COALESCE(SUM(a.balance),0) FROM scx_adx_advertiser a
        WHERE a.deleted=0
        <if test="advertiserId != null and advertiserId != ''">AND a.id = #{advertiserId}</if>
+       <choose>
+         <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+           AND a.id IN
+           <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+         </when>
+         <when test="allowedAdvertiserIds != null">AND 1=0</when>
+       </choose>
       ) AS totalBalance,
       COALESCE(SUM(CASE WHEN b.mode='RECHARGE' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS rechargeAmount,
       COALESCE(SUM(CASE WHEN b.mode='CPC' AND b.status='POSTED' THEN b.amount ELSE 0 END),0) AS cpcSpend,
@@ -147,6 +114,20 @@
     WHERE b.create_time &gt;= #{start} AND b.create_time &lt; #{end}
     AND b.debug_execution_id IS NULL
     <if test="advertiserId != null and advertiserId != ''">AND b.advertiser_id = #{advertiserId}</if>
+    <choose>
+      <when test="allowedAdvertiserIds != null and allowedAdvertiserIds.size() > 0">
+        AND b.advertiser_id IN
+        <foreach collection="allowedAdvertiserIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+      </when>
+      <when test="allowedAdvertiserIds != null">AND 1=0</when>
+    </choose>
+    <choose>
+      <when test="allowedChannelIds != null and allowedChannelIds.size() > 0">
+        AND (b.mode='RECHARGE' OR b.channel_id IN
+        <foreach collection="allowedChannelIds" item="id" open="(" separator="," close=")">#{id}</foreach>)
+      </when>
+      <when test="allowedChannelIds != null">AND b.mode='RECHARGE'</when>
+    </choose>
     AND (b.mode='RECHARGE' OR (b.mode='CPA' AND b.status='REJECTED'
       <if test="channelId != null and channelId != ''">AND b.channel_id = #{channelId}</if>
       <if test="appLinkId != null and appLinkId != ''">AND b.app_link_id = #{appLinkId}</if>

@@ -30,8 +30,8 @@ class CallbackIngressServiceTest {
 
 	@Test
 	void mapsRawUpstreamCodeThroughTheClickTimePublishedSnapshot() {
-		RouteEventSnapshot mapping = new RouteEventSnapshot("mapping-1", "PARTNER_REGISTER", "合作方注册", "REGISTER",
-				"注册", "MEDIA_SIGN_UP", "媒体注册", new BigDecimal("3.250000"), 20);
+		RouteEventSnapshot mapping = new RouteEventSnapshot("mapping-1", "PARTNER_REGISTER", "合作方注册", "REGISTER", "注册",
+				"MEDIA_SIGN_UP", "媒体注册", new BigDecimal("3.250000"), 20);
 		NormalizedCallbackEvent raw = event(OcpxEventType.UNKNOWN).withSourceEventCode("partner_register");
 		CallbackContext context = context(versionedRoute(List.of(mapping)));
 
@@ -48,14 +48,15 @@ class CallbackIngressServiceTest {
 	void rejectsUnmappedEventForANewPublishedRouteVersion() {
 		CallbackContext context = context(versionedRoute(List.of()));
 
-		assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "mapEvent", event(OcpxEventType.ACTIVATE),
-				context)).isInstanceOfSatisfying(OcpxException.class,
+		assertThatThrownBy(
+				() -> ReflectionTestUtils.invokeMethod(service, "mapEvent", event(OcpxEventType.ACTIVATE), context))
+			.isInstanceOfSatisfying(OcpxException.class,
 					error -> assertThat(error.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
 	}
 
 	@Test
-	void acceptsLegacySnapshotWithoutIntroducingCpaSemantics() {
-		CallbackContext context = context(legacyRoute());
+	void acceptsOnlyExplicitLegacyAdapterWithoutIntroducingCpaSemantics() {
+		CallbackContext context = context(legacyRoute().withLegacyEventAdapter());
 
 		NormalizedCallbackEvent mapped = ReflectionTestUtils.invokeMethod(service, "mapEvent",
 				event(OcpxEventType.ACTIVATE), context);
@@ -63,6 +64,17 @@ class CallbackIngressServiceTest {
 		assertThat(mapped.mediaEventCode()).isEqualTo("ACTIVATE");
 		assertThat(mapped.assessmentUnitPrice()).isZero();
 		assertThat(context.route().eventSnapshotVersion()).isZero();
+		assertThat(context.route().eventMappingMode()).isEqualTo("LEGACY_ADAPTER");
+	}
+
+	@Test
+	void isolatesLegacyRouteWithoutAnExplicitAdapterInsteadOfGuessingEventType() {
+		CallbackContext context = context(legacyRoute());
+
+		assertThatThrownBy(
+				() -> ReflectionTestUtils.invokeMethod(service, "mapEvent", event(OcpxEventType.ACTIVATE), context))
+			.isInstanceOfSatisfying(OcpxException.class,
+					error -> assertThat(error.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
 	}
 
 	private NormalizedCallbackEvent event(OcpxEventType type) {
@@ -76,9 +88,8 @@ class CallbackIngressServiceTest {
 
 	private RouteSnapshot legacyRoute() {
 		return new RouteSnapshot("monitor-1", "biz-1", 1, "channel-1", "channel", "STANDARD", "HMAC", 1,
-				"channel-secret", "advertiser-1", "app-1", "TEMPLATE_GET", null,
-				"https://upstream.example/feedback", null, "https://downstream.example/callback", BigDecimal.ONE,
-				BigDecimal.ONE, "OFF", "CPC");
+				"channel-secret", "advertiser-1", "app-1", "TEMPLATE_GET", null, "https://upstream.example/feedback",
+				null, "https://downstream.example/callback", BigDecimal.ONE, BigDecimal.ONE, "OFF", "CPC");
 	}
 
 	private RouteSnapshot versionedRoute(List<RouteEventSnapshot> mappings) {

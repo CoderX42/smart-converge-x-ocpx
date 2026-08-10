@@ -8,11 +8,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.yzytech.scx.adx.entity.AdxAdvertiser;
+import com.yzytech.scx.adx.entity.AdxAppLink;
 import com.yzytech.scx.adx.entity.AdxChannel;
 import com.yzytech.scx.adx.entity.AdxMonitorLink;
+import com.yzytech.scx.adx.entity.AdxProduct;
+import com.yzytech.scx.adx.entity.AdxMediaAccount;
+import com.yzytech.scx.adx.entity.AdxMediaCredential;
 import com.yzytech.scx.adx.mapper.AdxAdvertiserMapper;
+import com.yzytech.scx.adx.mapper.AdxAppLinkMapper;
 import com.yzytech.scx.adx.mapper.AdxChannelMapper;
 import com.yzytech.scx.adx.mapper.AdxMonitorLinkMapper;
+import com.yzytech.scx.adx.mapper.AdxProductMapper;
+import com.yzytech.scx.adx.mapper.AdxMediaAccountMapper;
+import com.yzytech.scx.adx.mapper.AdxMediaCredentialMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -27,14 +35,36 @@ class AdxRoutePublishServiceTest {
 
 	private final AdxAdvertiserMapper advertiserMapper = mock(AdxAdvertiserMapper.class);
 
+	private final AdxAppLinkMapper appLinkMapper = mock(AdxAppLinkMapper.class);
+
+	private final AdxProductMapper productMapper = mock(AdxProductMapper.class);
+
+	private final AdxMediaAccountMapper mediaAccountMapper = mock(AdxMediaAccountMapper.class);
+
+	private final AdxMediaCredentialMapper mediaCredentialMapper = mock(AdxMediaCredentialMapper.class);
+
 	private final AdxConfigChangeService configChangeService = mock(AdxConfigChangeService.class);
 
 	private final AdxAdapterService adapterService = mock(AdxAdapterService.class);
 
 	private final AdxEventService eventService = mock(AdxEventService.class);
 
+	private final AdxAccessScope accessScope = mock(AdxAccessScope.class);
+
+	private final AdxUrlPolicy urlPolicy = new AdxUrlPolicy();
+
 	private final AdxRoutePublishService service = new AdxRoutePublishService(monitorMapper, channelMapper,
-			advertiserMapper, configChangeService, adapterService, eventService);
+			advertiserMapper, appLinkMapper, productMapper, mediaAccountMapper, mediaCredentialMapper,
+			configChangeService, adapterService, eventService, accessScope, urlPolicy);
+
+	@Test
+	void blocksTaskBoundMonitorFromTheLegacyPublishPath() {
+		Fixture fixture = fixture();
+		fixture.monitor().setTaskId("task-1");
+		stub(fixture);
+
+		assertThatThrownBy(() -> service.publish("monitor-1")).hasMessageContaining("REQUIRES_S7");
+	}
 
 	@Test
 	void rejectsRoutesWithoutHmac() {
@@ -81,8 +111,99 @@ class AdxRoutePublishServiceTest {
 
 		assertThat(result).containsEntry("routeStatus", "PUBLISHED").containsEntry("configVersion", 5L);
 		assertThat(fixture.monitor().getClickDedupWindowSeconds()).isEqualTo(3600);
+		assertThat(fixture.monitor().getPublishedAdvertiserCredentialRevision()).isEqualTo(4L);
+		assertThat(fixture.monitor().getPublishedUpstreamAdapterVersion()).isEqualTo(7L);
+		assertThat(fixture.monitor().getPublishedDocumentId()).isEqualTo("document-2");
+		assertThat(fixture.monitor().getPublishedDocumentRevision()).isEqualTo(2L);
+		assertThat(fixture.monitor().getRepublishRequired()).isFalse();
 		verify(monitorMapper).updateById(fixture.monitor());
 		verify(configChangeService).enqueueMonitor("monitor-1", 5L, "ROUTE_PUBLISHED");
+	}
+
+	@Test
+	void freezesLinkedProductAndEventPolicyRevisionsWithoutRuntimeLookup() {
+		Fixture fixture = fixture();
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/click?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		fixture.product().setConfigVersion(6L);
+		fixture.product().setEventPolicyRevision(3L);
+		stub(fixture);
+
+		service.publish("monitor-1");
+
+		assertThat(fixture.monitor().getPublishedProductId()).isEqualTo("product-1");
+		assertThat(fixture.monitor().getPublishedProductVersion()).isEqualTo(6L);
+		assertThat(fixture.monitor().getPublishedProductEventPolicyRevision()).isEqualTo(3L);
+		assertThat(fixture.monitor().getPublishedAppLinkId()).isEqualTo("app-link-1");
+		assertThat(fixture.monitor().getPublishedAppLinkVersion()).isEqualTo(9L);
+		assertThat(fixture.monitor().getPublishedAppLinkType()).isEqualTo("ANDROID");
+		assertThat(fixture.monitor().getPublishedLinkUrlTemplate()).isEqualTo(fixture.appLink().getLinkUrlTemplate());
+		assertThat(fixture.monitor().getPublishedLinkTemplateFingerprint())
+			.isEqualTo(fixture.appLink().getTemplateFingerprint());
+		assertThat(fixture.monitor().getPublishedRedirectEnabled()).isTrue();
+	}
+
+	@Test
+	void rejectsLegacyAppLinkWithoutAnExplicitProductMapping() {
+		Fixture fixture = fixture();
+		fixture.appLink().setProductId(null);
+		fixture.appLink().setMappingStatus("LEGACY_PENDING_PRODUCT");
+		stub(fixture);
+
+		assertThatThrownBy(() -> service.publish("monitor-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("Product 映射");
+	}
+
+	@Test
+	void freezesExplicitMediaAccountAndCredentialRevisions() {
+		Fixture fixture = fixture();
+		fixture.monitor().setMediaAccountId("media-1");
+		fixture.monitor().setMediaCredentialId("credential-2");
+		fixture.monitor().setDownstreamCallbackUrl("https://1.1.1.1/callback");
+		fixture.channel().setCallbackHostAllowlist("1.1.1.1");
+		fixture.advertiser().setBidUrl("https://8.8.8.8/click?callback=__CALLBACK__");
+		fixture.advertiser().setUpstreamHostAllowlist("8.8.8.8");
+		AdxMediaAccount account = new AdxMediaAccount();
+		account.setId("media-1");
+		account.setChannelId("channel-1");
+		account.setStatus("ACTIVE");
+		account.setConfigVersion(8L);
+		account.setCredentialRevision(5L);
+		AdxMediaCredential credential = new AdxMediaCredential();
+		credential.setId("credential-2");
+		credential.setMediaAccountId("media-1");
+		credential.setStatus("ACTIVE");
+		credential.setCurrentSecretRevision(3L);
+		when(mediaAccountMapper.selectById("media-1")).thenReturn(account);
+		when(mediaCredentialMapper.selectById("credential-2")).thenReturn(credential);
+		stub(fixture);
+
+		service.publish("monitor-1");
+
+		assertThat(fixture.monitor().getPublishedMediaAccountId()).isEqualTo("media-1");
+		assertThat(fixture.monitor().getPublishedMediaAccountVersion()).isEqualTo(8L);
+		assertThat(fixture.monitor().getPublishedMediaAccountCredentialRevision()).isEqualTo(5L);
+		assertThat(fixture.monitor().getPublishedMediaCredentialId()).isEqualTo("credential-2");
+		assertThat(fixture.monitor().getPublishedMediaCredentialSecretRevision()).isEqualTo(3L);
+		verify(accessScope).require(AdxAccessScope.ScopeType.MEDIA_ACCOUNT, "media-1",
+				AdxAccessScope.PermissionLevel.OPERATE);
+	}
+
+	@Test
+	void rejectsMediaAccountFromAnotherChannel() {
+		Fixture fixture = fixture();
+		fixture.monitor().setMediaAccountId("media-1");
+		AdxMediaAccount account = new AdxMediaAccount();
+		account.setId("media-1");
+		account.setChannelId("channel-other");
+		account.setStatus("ACTIVE");
+		when(mediaAccountMapper.selectById("media-1")).thenReturn(account);
+		stub(fixture);
+
+		assertThatThrownBy(() -> service.publish("monitor-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("渠道不一致");
 	}
 
 	@Test
@@ -182,6 +303,8 @@ class AdxRoutePublishServiceTest {
 		when(monitorMapper.selectOne(any())).thenReturn(fixture.monitor());
 		when(channelMapper.selectById("channel-1")).thenReturn(fixture.channel());
 		when(advertiserMapper.selectById("advertiser-1")).thenReturn(fixture.advertiser());
+		when(appLinkMapper.selectById("app-link-1")).thenReturn(fixture.appLink());
+		when(productMapper.selectById("product-1")).thenReturn(fixture.product());
 	}
 
 	private AdxAdapterService.PublishedAdapter upstream(String code) {
@@ -208,6 +331,7 @@ class AdxRoutePublishServiceTest {
 		monitor.setId("monitor-1");
 		monitor.setChannelId("channel-1");
 		monitor.setAdvertiserId("advertiser-1");
+		monitor.setAppLinkId("app-link-1");
 		monitor.setRtaMode("OFF");
 		monitor.setBillingMode("OFF");
 		AdxChannel channel = new AdxChannel();
@@ -220,13 +344,40 @@ class AdxRoutePublishServiceTest {
 		AdxAdvertiser advertiser = new AdxAdvertiser();
 		advertiser.setId("advertiser-1");
 		advertiser.setAdapterCode("COCO");
+		advertiser.setAdapterVersion(7L);
+		advertiser.setCredentialRevision(4L);
+		advertiser.setCurrentDocumentId("document-2");
+		advertiser.setDocumentRevision(2L);
 		advertiser.setStatus("ACTIVE");
 		advertiser.setBidUrl("https://coco.example/click?callback=__CALLBACK__");
 		advertiser.setUpstreamHostAllowlist("coco.example");
-		return new Fixture(monitor, channel, advertiser);
+		AdxUrlPolicy.Result checked = urlPolicy.validate("https://8.8.4.4/link?clickid=__CLICKID__");
+		AdxAppLink appLink = new AdxAppLink();
+		appLink.setId("app-link-1");
+		appLink.setAdvertiserId("advertiser-1");
+		appLink.setProductId("product-1");
+		appLink.setMappingStatus("READY");
+		appLink.setStatus("ACTIVE");
+		appLink.setLinkType("ANDROID");
+		appLink.setConfigVersion(9L);
+		appLink.setLinkUrlTemplate(checked.normalizedUrl());
+		appLink.setTemplateHost(checked.host());
+		appLink.setTemplateFingerprint(checked.fingerprint());
+		appLink.setTemplateMacroSet("[\"__CLICKID__\"]");
+		appLink.setRedirectEnabled(true);
+		appLink.setDeeplinkUrl("https://8.8.4.4/open");
+		appLink.setDownloadUrl("https://8.8.4.4/download");
+		AdxProduct product = new AdxProduct();
+		product.setId("product-1");
+		product.setAdvertiserId("advertiser-1");
+		product.setStatus("ACTIVE");
+		product.setConfigVersion(5L);
+		product.setEventPolicyRevision(2L);
+		return new Fixture(monitor, channel, advertiser, appLink, product);
 	}
 
-	private record Fixture(AdxMonitorLink monitor, AdxChannel channel, AdxAdvertiser advertiser) {
+	private record Fixture(AdxMonitorLink monitor, AdxChannel channel, AdxAdvertiser advertiser, AdxAppLink appLink,
+			AdxProduct product) {
 	}
 
 }
