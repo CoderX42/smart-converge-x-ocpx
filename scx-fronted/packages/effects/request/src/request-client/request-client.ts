@@ -69,6 +69,16 @@ class RequestClient {
     );
     this.instance = axios.create(requestConfig);
 
+    // The instance default is JSON, but Axios serializes FormData to JSON when that
+    // header is left in place. Clear it so the active adapter can add the multipart
+    // boundary and preserve the actual file bytes.
+    this.instance.interceptors.request.use((config) => {
+      if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        config.headers.delete('Content-Type');
+      }
+      return config;
+    });
+
     bindMethods(this);
 
     // 实例化拦截器管理器

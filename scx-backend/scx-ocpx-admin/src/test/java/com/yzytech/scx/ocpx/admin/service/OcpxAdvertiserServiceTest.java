@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -227,6 +229,40 @@ class OcpxAdvertiserServiceTest {
 				new AdvertiserRequests.Update("测试广告主", null, null, null, null, 5L)))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("先禁用");
+	}
+
+	@Test
+	void uploadPersistsSystemManagedStorageReference() throws Exception {
+		when(advertiserMapper.selectById("advertiser-1")).thenReturn(advertiser(1L, 0L));
+		byte[] content = "safe-document".getBytes();
+		ManagedStorageObject stored = new ManagedStorageObject("storage-1", "oss",
+				"configured-dir/advertisers/protocol.pdf", "https://bucket.example/configured-dir/protocol.pdf");
+		when(storageUploadService.uploadManaged(any(), eq("protocol.pdf"), eq("application/pdf"),
+				eq((long) content.length)))
+			.thenReturn(stored);
+		when(documentMapper.insert(any(OcpxIntegrationDocument.class))).thenAnswer(invocation -> {
+			((OcpxIntegrationDocument) invocation.getArgument(0)).setId("document-1");
+			return 1;
+		});
+		MockMultipartFile file = new MockMultipartFile("file", "protocol.pdf", "application/pdf", content);
+
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			security.when(SecurityUtils::getUserName).thenReturn("operator");
+			AdvertiserViews.Document result = service.uploadDocument("advertiser-1", "PROTOCOL", "v1", file);
+
+			assertThat(result.id()).isEqualTo("document-1");
+			assertThat(result.fileName()).isEqualTo("protocol.pdf");
+		}
+
+		ArgumentCaptor<InputStream> uploadedContent = ArgumentCaptor.forClass(InputStream.class);
+		verify(storageUploadService).uploadManaged(uploadedContent.capture(), eq("protocol.pdf"), eq("application/pdf"),
+				eq((long) content.length));
+		assertThat(uploadedContent.getValue().readAllBytes()).isEqualTo(content);
+		ArgumentCaptor<OcpxIntegrationDocument> document = ArgumentCaptor.forClass(OcpxIntegrationDocument.class);
+		verify(documentMapper).insert(document.capture());
+		assertThat(document.getValue().getStorageConfigId()).isEqualTo("storage-1");
+		assertThat(document.getValue().getStorageProvider()).isEqualTo("oss");
+		assertThat(document.getValue().getObjectKey()).isEqualTo("configured-dir/advertisers/protocol.pdf");
 	}
 
 	@Test

@@ -33,6 +33,26 @@ describe('requestClient', () => {
     expect(response.data).toEqual(mockData);
   });
 
+  it('should preserve FormData on a direct POST request', async () => {
+    const formData = new FormData();
+    formData.append('documentType', 'PROTOCOL');
+    formData.append(
+      'file',
+      new File(['file contents'], 'protocol.txt', { type: 'text/plain' }),
+    );
+    mock.onPost('/test/form-data').reply((config) => {
+      const contentType = String(config.headers?.get('Content-Type') || '');
+      return config.data instanceof FormData &&
+        !contentType.includes('application/json')
+        ? [200, { data: 'file uploaded' }]
+        : [400, { error: 'FormData was serialized' }];
+    });
+
+    const response = await requestClient.post('/test/form-data', formData);
+
+    expect(response.data).toEqual({ data: 'file uploaded' });
+  });
+
   it('should successfully make a PUT request', async () => {
     const putData = { key: 'updatedValue' };
     const mockData = { data: 'updated response' };
