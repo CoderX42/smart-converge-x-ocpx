@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCX 宝塔运行态检查与 Nginx 管理入口；Java 进程始终由宝塔 Java 项目管理器管理。
+# SCX 宝塔运行态检查与管理入口；Java 生命周期通过宝塔项目管理能力操作。
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,14 +10,22 @@ bt_init_paths
 
 usage() {
   cat <<'EOF'
-用法：bash scripts/bt-deploy/02-manage.sh <status|health|engine-health|nginx-test|nginx-reload|logs>
+用法：bash scripts/bt-deploy/02-manage.sh <命令> [选项]
 
   status        显示构建产物、当前提交和本机健康检查
   health        请求 http://127.0.0.1:9999/boot/actuator/health
   engine-health 请求 http://127.0.0.1:10000/ocpx/actuator/health
+  restart       通过宝塔依次重启 scx-boot 与 scx-ocpx-engine，并等待健康检查
+  boot-restart  仅通过宝塔重启 scx-boot
+  engine-restart 仅通过宝塔重启 scx-ocpx-engine
   nginx-test    校验 Nginx 配置
   nginx-reload  先校验再重载 Nginx（需要服务器相应权限）
   logs          输出宝塔日志目录位置，不读取或打印敏感配置
+
+重启选项：
+  --boot-project <name>   宝塔管理端项目名（默认 scx-boot）
+  --engine-project <name> 宝塔引擎项目名（默认 scx-ocpx-engine）
+  --timeout <seconds>     每个项目等待新 PID 和健康检查的秒数（默认 180）
 EOF
 }
 
@@ -58,7 +66,25 @@ nginx_test() {
   bt_ok 'Nginx 配置校验通过。'
 }
 
-case "${1:-status}" in
+manage_command="${1:-status}"
+[[ $# -eq 0 ]] || shift
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --boot-project)
+      [[ $# -ge 2 ]] || bt_die '--boot-project 缺少项目名'
+      SCX_BT_BOOT_PROJECT="$2"; shift 2 ;;
+    --engine-project)
+      [[ $# -ge 2 ]] || bt_die '--engine-project 缺少项目名'
+      SCX_BT_ENGINE_PROJECT="$2"; shift 2 ;;
+    --timeout)
+      [[ $# -ge 2 ]] || bt_die '--timeout 缺少秒数'
+      SCX_RESTART_TIMEOUT="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) bt_die "未知管理参数：$1" ;;
+  esac
+done
+
+case "$manage_command" in
   status)
     bt_assert_repository
     bt_log "源码提交：$(git -C "${SCX_HOME}" rev-parse --short HEAD) $(git -C "${SCX_HOME}" log -1 --pretty=%s)"
@@ -84,6 +110,19 @@ case "${1:-status}" in
     ;;
   health) health ;;
   engine-health) engine_health ;;
+  restart) bt_restart_scx_java ;;
+  boot-restart)
+    bt_restart_java_project \
+      '管理端 scx-boot' "$SCX_BT_BOOT_PROJECT" \
+      "${SCX_BUILD_DIR}/backend/scx-boot.jar" \
+      'http://127.0.0.1:9999/boot/actuator/health'
+    ;;
+  engine-restart)
+    bt_restart_java_project \
+      '数据面 scx-ocpx-engine' "$SCX_BT_ENGINE_PROJECT" \
+      "${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar" \
+      'http://127.0.0.1:10000/ocpx/actuator/health'
+    ;;
   nginx-test) nginx_test ;;
   nginx-reload)
     nginx_test
@@ -101,5 +140,5 @@ case "${1:-status}" in
     bt_log "后端运行态检查：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh health"
     ;;
   -h|--help) usage ;;
-  *) usage >&2; bt_die "未知管理命令：$1" ;;
+  *) usage >&2; bt_die "未知管理命令：$manage_command" ;;
 esac

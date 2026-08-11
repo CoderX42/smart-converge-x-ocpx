@@ -38,7 +38,12 @@ bt_init_paths() {
   # Keep the old variable name working for existing Baota shell environments.
   SCX_WEB_ROOT="${SCX_WEB_ROOT:-${SCX_BAOTA_SITE_ROOT:-/www/wwwroot/scx}}"
   SCX_LOG_DIR="${SCX_LOG_DIR:-/www/wwwlogs/scx}"
+  SCX_BT_BOOT_PROJECT="${SCX_BT_BOOT_PROJECT:-scx-boot}"
+  SCX_BT_ENGINE_PROJECT="${SCX_BT_ENGINE_PROJECT:-scx-ocpx-engine}"
+  SCX_RESTART_TIMEOUT="${SCX_RESTART_TIMEOUT:-180}"
+  SCX_BAOTA_RESTART_SCRIPT="${SCX_BAOTA_RESTART_SCRIPT:-/www/server/panel/script/restart_project.py}"
   export SCX_HOME SCX_BRANCH SCX_BUILD_DIR SCX_BACKUP_DIR SCX_BACKUP_KEEP SCX_WEB_ROOT SCX_LOG_DIR
+  export SCX_BT_BOOT_PROJECT SCX_BT_ENGINE_PROJECT SCX_RESTART_TIMEOUT SCX_BAOTA_RESTART_SCRIPT
 }
 
 bt_assert_repository() {
@@ -104,12 +109,114 @@ bt_prune_backups() {
   done < <(find "$backup_dir" -mindepth 1 -maxdepth 1 -type d -print | sort -r)
 }
 
+bt_validate_project_name() {
+  local project_name="$1"
+  [[ "$project_name" =~ ^[A-Za-z0-9._-]+$ ]] \
+    || bt_die "宝塔 Java 项目名不安全或为空：${project_name:-<empty>}"
+}
+
+bt_baota_python() {
+  if command -v btpython >/dev/null 2>&1; then
+    command -v btpython
+  elif [[ -x /www/server/panel/pyenv/bin/python3 ]]; then
+    printf '%s\n' /www/server/panel/pyenv/bin/python3
+  elif [[ -x /www/server/panel/pyenv/bin/python ]]; then
+    printf '%s\n' /www/server/panel/pyenv/bin/python
+  else
+    return 1
+  fi
+}
+
+bt_find_jar_pids() {
+  local jar_path="$1" cmdline_file process_cmdline pid
+  [[ -d /proc ]] || return 0
+
+  for cmdline_file in /proc/[0-9]*/cmdline; do
+    [[ -r "$cmdline_file" ]] || continue
+    process_cmdline="$(tr '\0' ' ' < "$cmdline_file" 2>/dev/null || true)"
+    [[ "$process_cmdline" == *"$jar_path"* ]] || continue
+    pid="${cmdline_file#/proc/}"
+    printf '%s\n' "${pid%/cmdline}"
+  done
+}
+
+bt_get_single_jar_pid() {
+  local jar_path="$1" component="$2" pid_list pid_count
+  pid_list="$(bt_find_jar_pids "$jar_path" | sed '/^$/d')"
+  [[ -n "$pid_list" ]] || return 0
+
+  pid_count="$(printf '%s\n' "$pid_list" | wc -l | tr -d '[:space:]')"
+  [[ "$pid_count" == '1' ]] \
+    || bt_die "${component} 检测到 ${pid_count} 个使用目标 JAR 的进程，拒绝自动重启：${pid_list//$'\n'/,}"
+  printf '%s\n' "$pid_list"
+}
+
+bt_wait_for_restarted_health() {
+  local component="$1" jar_path="$2" old_pid="$3" health_url="$4" timeout="$5"
+  local started_at now current_pid response
+  started_at="$(date +%s)"
+
+  while true; do
+    current_pid="$(bt_get_single_jar_pid "$jar_path" "$component")"
+    if [[ -n "$current_pid" && ( -z "$old_pid" || "$current_pid" != "$old_pid" ) ]]; then
+      if response="$(curl --fail --silent --show-error --max-time 10 "$health_url" 2>/dev/null)"; then
+        bt_ok "${component} 已由宝塔重启：PID ${current_pid}，健康检查 ${response}"
+        return 0
+      fi
+    fi
+
+    now="$(date +%s)"
+    if (( now - started_at >= timeout )); then
+      bt_die "${component} 重启后 ${timeout}s 内未出现新进程并通过健康检查；请到宝塔 Java 项目管理器查看项目日志。"
+    fi
+    sleep 2
+  done
+}
+
+bt_restart_java_project() {
+  local component="$1" project_name="$2" jar_path="$3" health_url="$4"
+  local panel_python old_pid restart_output
+
+  bt_validate_project_name "$project_name"
+  [[ "$SCX_RESTART_TIMEOUT" =~ ^[1-9][0-9]*$ ]] \
+    || bt_die "SCX_RESTART_TIMEOUT 必须为正整数：${SCX_RESTART_TIMEOUT}"
+  [[ -f "$jar_path" ]] || bt_die "${component} 目标 JAR 不存在：${jar_path}"
+  [[ -f "$SCX_BAOTA_RESTART_SCRIPT" ]] \
+    || bt_die "未找到宝塔项目重启入口：${SCX_BAOTA_RESTART_SCRIPT}；请先升级/修复宝塔面板，或使用 --no-restart。"
+  panel_python="$(bt_baota_python)" \
+    || bt_die '未找到宝塔 Python 运行时（btpython 或 panel/pyenv/bin/python）。'
+  bt_require_command curl
+
+  old_pid="$(bt_get_single_jar_pid "$jar_path" "$component")"
+  bt_log "通过宝塔 Java 项目管理器重启 ${component}：${project_name}（旧 PID：${old_pid:-未运行}）"
+  if ! restart_output="$("$panel_python" "$SCX_BAOTA_RESTART_SCRIPT" java "$project_name" 2>&1)"; then
+    [[ -z "$restart_output" ]] || printf '%s\n' "$restart_output" >&2
+    bt_die "宝塔重启 ${component} 命令执行失败。"
+  fi
+  [[ -z "$restart_output" ]] || printf '%s\n' "$restart_output"
+  if printf '%s\n' "$restart_output" | grep -Eiq 'failed|error|失败|不存在|does not exist'; then
+    bt_die "宝塔未能重启 ${component}；请核对项目名 ${project_name} 和宝塔项目配置。"
+  fi
+
+  bt_wait_for_restarted_health "$component" "$jar_path" "$old_pid" "$health_url" "$SCX_RESTART_TIMEOUT"
+}
+
+bt_restart_scx_java() {
+  bt_restart_java_project \
+    '管理端 scx-boot' "$SCX_BT_BOOT_PROJECT" \
+    "${SCX_BUILD_DIR}/backend/scx-boot.jar" \
+    'http://127.0.0.1:9999/boot/actuator/health'
+  bt_restart_java_project \
+    '数据面 scx-ocpx-engine' "$SCX_BT_ENGINE_PROJECT" \
+    "${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar" \
+    'http://127.0.0.1:10000/ocpx/actuator/health'
+}
+
 bt_print_baota_restart_hint() {
   cat <<EOF
 后端 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-boot.jar
 引擎 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar
-请在宝塔「Java 项目管理器」中重启对应 SCX 项目；本脚本不会绕过宝塔直接管理 Java 进程。
-重启管理端后执行：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh health
-重启引擎端后执行：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh engine-health
+使用宝塔项目管理能力重启并验证：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh restart
+日常一键发布入口会自动完成上述重启；如项目名不同，请设置 SCX_BT_BOOT_PROJECT / SCX_BT_ENGINE_PROJECT。
 EOF
 }

@@ -153,4 +153,6 @@ esac
 git -C "${SCX_HOME}" rev-parse HEAD > "${SCX_BACKUP_DIR}/${release_id}/source-commit.txt"
 bt_prune_backups
 bt_ok "打包部署流程完成：备份位于 ${SCX_BACKUP_DIR}/${release_id}"
-if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then bt_print_baota_restart_hint; fi
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
+  [[ "${SCX_SUPPRESS_RESTART_HINT:-0}" == '1' ]] || bt_print_baota_restart_hint
+fi
