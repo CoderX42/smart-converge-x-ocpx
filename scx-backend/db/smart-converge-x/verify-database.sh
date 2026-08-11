@@ -59,6 +59,31 @@ if [[ "$admin_count" -ne 1 ]]; then
   exit 1
 fi
 
+retired_namespace="$(printf '%s%s' 'a' 'dx')"
+legacy_namespace_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${MYSQL_DATABASE}' AND table_name LIKE 'scx_${retired_namespace}_%') + (SELECT COUNT(*) FROM sys_menu WHERE id LIKE 'menu_${retired_namespace}_%' OR id LIKE 'perm_${retired_namespace}_%' OR parent_id LIKE 'menu_${retired_namespace}_%' OR parent_id LIKE 'perm_${retired_namespace}_%' OR path LIKE '/${retired_namespace}%' OR component LIKE '${retired_namespace}/%' OR permission LIKE '${retired_namespace}:%');")"
+
+if [[ "$legacy_namespace_count" -ne 0 ]]; then
+  echo "Database verification failed: retired table or menu namespace remains." >&2
+  exit 1
+fi
+
+dangling_ocpx_role_menu_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM sys_role_menu rm LEFT JOIN sys_menu m ON m.id=rm.menu_id WHERE (rm.menu_id LIKE 'menu_ocpx_%' OR rm.menu_id LIKE 'perm_ocpx_%') AND m.id IS NULL;")"
+
+if [[ "$dangling_ocpx_role_menu_count" -ne 0 ]]; then
+  echo "Database verification failed: dangling OCPX role-menu assignments found." >&2
+  exit 1
+fi
+
+admin_ocpx_menu_gap_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM sys_role r JOIN sys_menu m ON m.del_flag='0' AND (m.id LIKE 'menu_ocpx_%' OR m.id LIKE 'perm_ocpx_%' OR m.path LIKE '/ocpx%' OR m.permission LIKE 'ocpx:%') LEFT JOIN sys_role_menu rm ON rm.role_id=r.id AND rm.menu_id=m.id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND rm.id IS NULL;")"
+
+if [[ "$admin_ocpx_menu_gap_count" -ne 0 ]]; then
+  echo "Database verification failed: administrator OCPX menu grants are incomplete." >&2
+  exit 1
+fi
+
 system_menu_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
   --execute="SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' AND ((id='menu_ocpx_system' AND name='系统管理') OR (parent_id='menu_ocpx_system' AND id IN ('menu_system_user','menu_role','menu_menu','menu_dept','menu_dict','menu_storage','menu_log','menu_login_log','menu_ocpx_event')));")"
 

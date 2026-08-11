@@ -23,10 +23,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -81,7 +83,8 @@ public class OcpxReportController {
 	@SaCheckPermission("ocpx:report:view")
 	public Result<UnifiedReportViews.Page> summary(String grain, String groupBy, String mediaLevel, String channelId,
 			String advertiserId, String productId, String appLinkId, String taskId, String mediaAccountId,
-			java.util.List<String> metrics, String sort, String direction, Long current, Long size,
+			@RequestParam(name = "metrics[]", required = false) List<String> metrics, String sort, String direction,
+			Long current, Long size,
 			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
 			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
 		try {
