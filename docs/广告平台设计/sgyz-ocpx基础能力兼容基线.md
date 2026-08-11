@@ -19,7 +19,7 @@
 
 | `sgyz-ocpx` 基础能力 | SCX 实现 | 当前边界 |
 |---|---|---|
-| 广告主、渠道、应用链接、监测关系 | `scx-adx` 管理面 CRUD 与发布路由 | 已实现；只有 `PUBLISHED` 路由进入数据面 |
+| 广告主、渠道、应用链接、监测关系 | `scx-ocpx-admin` 管理面 CRUD 与发布路由 | 已实现；只有 `PUBLISHED` 路由进入数据面 |
 | 展示/点击接入 | 标准 HMAC `FeedbackReqV1` POST | 已实现；不直接兼容旧媒体无签名 GET 路径 |
 | 展示/点击去重 | Redis Lua 幂等 + MySQL 唯一事实 | 已实现；比旧 Redis Hash 单层去重更可靠 |
 | 高频缓冲与落库 | 64 分区 Redis Stream、Consumer Group、Pending/XAUTOCLAIM、DLQ | 已实现；目标容量仍需独立压测 |

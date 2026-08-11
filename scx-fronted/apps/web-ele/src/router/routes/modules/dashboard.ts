@@ -1,6 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-// The dashboard is delivered by the permission-backed ADX menu. Keep the old
+// The dashboard is delivered by the permission-backed OCPX menu. Keep the old
 // template URL as a hidden redirect so bookmarks and historical entry links do
 // not fall through to the global 404 page.
 const routes: RouteRecordRaw[] = [
@@ -13,7 +13,7 @@ const routes: RouteRecordRaw[] = [
     },
     name: 'LegacyAnalyticsRedirect',
     path: '/analytics',
-    redirect: '/adx/dashboard',
+    redirect: '/ocpx/dashboard',
   },
 ];
 

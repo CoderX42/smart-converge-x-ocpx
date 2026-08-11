@@ -74,7 +74,7 @@ class OcpxPersistenceRepositoryTest {
 
 		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 		ArgumentCaptor<Object[]> contribution = ArgumentCaptor.forClass(Object[].class);
-		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_adx_hourly_fact_contribution"),
+		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution"),
 				contribution.capture());
 		assertThat(contribution.getValue()[19]).isEqualTo(1L);
 		assertThat(contribution.getValue()[20]).isEqualTo(0L);
@@ -102,7 +102,7 @@ class OcpxPersistenceRepositoryTest {
 		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
 		verify(jdbcTemplate, never()).update(contains("INSERT IGNORE INTO scx_ocpx_delivery_job"), any(Object[].class));
 		ArgumentCaptor<Object[]> contribution = ArgumentCaptor.forClass(Object[].class);
-		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_adx_hourly_fact_contribution"),
+		verify(jdbcTemplate).update(contains("INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution"),
 				contribution.capture());
 		assertThat(contribution.getValue()[18]).isEqualTo(1);
 		assertThat(contribution.getValue()[19]).isEqualTo(0L);
@@ -150,7 +150,7 @@ class OcpxPersistenceRepositoryTest {
 		ArgumentCaptor<Object[]> argumentsCaptor = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).update(sqlCaptor.capture(), argumentsCaptor.capture());
 		List<Integer> runtimeFactInserts = java.util.stream.IntStream.range(0, sqlCaptor.getAllValues().size())
-			.filter(index -> sqlCaptor.getAllValues().get(index).contains("INSERT IGNORE INTO scx_adx_runtime_fact"))
+			.filter(index -> sqlCaptor.getAllValues().get(index).contains("INSERT IGNORE INTO scx_ocpx_runtime_fact"))
 			.boxed()
 			.toList();
 		assertThat(runtimeFactInserts).isNotEmpty();
@@ -207,7 +207,7 @@ class OcpxPersistenceRepositoryTest {
 					.mapped("click-1", OcpxEventType.ACTIVATE, eventMapping),
 				context, true, "NO_RULE");
 
-		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_adx_hourly_report"), any(Object[].class));
+		verify(jdbcTemplate, never()).update(contains("INSERT INTO scx_ocpx_hourly_report"), any(Object[].class));
 		verify(jdbcTemplate, never()).update(contains("scx_ocpx_event_daily_quota"), any(Object[].class));
 		verify(billingPort, never()).charge(any(), any(), any(), eq("CNY"), eq("CPA"));
 	}

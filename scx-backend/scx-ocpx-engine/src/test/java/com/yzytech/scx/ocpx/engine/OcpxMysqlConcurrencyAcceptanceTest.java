@@ -60,7 +60,7 @@ class OcpxMysqlConcurrencyAcceptanceTest {
 		BigDecimal assessmentPrice = new BigDecimal("0.500000");
 
 		jdbc.update("""
-				INSERT INTO scx_adx_advertiser
+				INSERT INTO scx_ocpx_advertiser
 				(id,advertiser_name,adapter_code,bid_url,account,password_hash,balance,status,config_version,deleted)
 				VALUES (?,?, 'COCO','https://example.com/callback',?,?,?,'ACTIVE',1,0)
 				""", advertiserId, "IT advertiser " + suffix, "it_account_" + suffix, "not-a-real-password",
@@ -114,7 +114,7 @@ class OcpxMysqlConcurrencyAcceptanceTest {
 			BigDecimal posted = jdbc.queryForObject(
 					"SELECT COALESCE(SUM(amount),0) FROM scx_ocpx_billing_entry WHERE mode='CPA' AND status='POSTED' AND charge_event_id LIKE ?",
 					BigDecimal.class, eventPrefix + "%");
-			BigDecimal balance = jdbc.queryForObject("SELECT balance FROM scx_adx_advertiser WHERE id=?",
+			BigDecimal balance = jdbc.queryForObject("SELECT balance FROM scx_ocpx_advertiser WHERE id=?",
 					BigDecimal.class, advertiserId);
 			assertThat(posted).isEqualByComparingTo("5.000000");
 			assertThat(initialBalance.subtract(balance)).isEqualByComparingTo(posted);
@@ -125,9 +125,9 @@ class OcpxMysqlConcurrencyAcceptanceTest {
 			jdbc.update("DELETE FROM scx_ocpx_deduction_decision WHERE callback_event_id LIKE ?", eventPrefix + "%");
 			jdbc.update("DELETE FROM scx_ocpx_event WHERE event_id LIKE ?", eventPrefix + "%");
 			jdbc.update("DELETE FROM scx_ocpx_billing_entry WHERE charge_event_id LIKE ?", eventPrefix + "%");
-			jdbc.update("DELETE FROM scx_adx_hourly_report WHERE monitor_id=?", monitorId);
+			jdbc.update("DELETE FROM scx_ocpx_hourly_report WHERE monitor_id=?", monitorId);
 			jdbc.update("DELETE FROM scx_ocpx_event_daily_quota WHERE monitor_id=?", monitorId);
-			jdbc.update("DELETE FROM scx_adx_advertiser WHERE id=?", advertiserId);
+			jdbc.update("DELETE FROM scx_ocpx_advertiser WHERE id=?", advertiserId);
 		}
 	}
 

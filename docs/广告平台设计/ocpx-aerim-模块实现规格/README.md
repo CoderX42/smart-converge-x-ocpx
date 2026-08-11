@@ -4,7 +4,7 @@
 > 观察日期：2026-08-09（Asia/Shanghai）
 > 参考目标：`https://ocpx.aerim.cn`
 > 账号范围：本轮授权账号当前可见菜单；凭证、人员与业务数据均不入库、不入图
-> 交付性质：现场观察 + SCX 实现草案；不覆盖 ADX 基线、Accepted ADR 或正式契约
+> 交付性质：现场观察 + SCX 实现草案；不覆盖 OCPX 基线、Accepted ADR 或正式契约
 
 ## 1. 用途与边界
 
@@ -55,17 +55,17 @@
 
 | 模块 | 参考面 | SCX 可复用 | 主要缺口 | 目标状态 |
 |---|---|---|---|---|
-| 登录/全局框架 | 登录、菜单、账号菜单、分页 | `scx-auth`、`scx-system`、服务端菜单路由 | ADX 对象数据范围与页面级异常态统一 | 可实施 |
+| 登录/全局框架 | 登录、菜单、账号菜单、分页 | `scx-auth`、`scx-system`、服务端菜单路由 | OCPX 对象数据范围与页面级异常态统一 | 可实施 |
 | 仪表盘 | 5 个指标卡、趋势 | 统一小时事实与报表服务 | 目标指标口径、同比基准、权限过滤 | 报表后实施 |
-| 广告主 | 由链接/任务筛选间接可见 | `AdxAdvertiser`、适配器、密钥治理 | 接入资料对象存储引用和能力声明 | 可实施 |
+| 广告主 | 由链接/任务筛选间接可见 | `OcpxAdvertiser`、适配器、密钥治理 | 接入资料对象存储引用和能力声明 | 可实施 |
 | 产品 | 产品列表、抽屉、事件限量 | 无独立产品聚合 | Product 表、归属、版本、事件策略 | 优先实施 |
-| 链接 | 链接列表与条件表单 | `AdxAppLink` | `productId`、下载/跳转/归档结构化 | 产品后实施 |
-| 媒体 | 媒体渠道、渠道用户邮箱/密码、账户数量 | `AdxChannel`、Adapter、`sys_user` | `MediaAccount`、外部 `MediaCredential`、内部负责人/对象范围分层 | 产品并行实施 |
-| 任务/路由 | 两行筛选、点击/曝光/去重、事件比例/限额/超量、监测地址、联调/点击/转化、三类报表入口 | `AdxMonitorLink`、发布服务、Outbox | `Task` 运营聚合、宏契约、冻结依赖版本、保存与发布分离 | 链接/媒体后实施 |
+| 链接 | 链接列表与条件表单 | `OcpxAppLink` | `productId`、下载/跳转/归档结构化 | 产品后实施 |
+| 媒体 | 媒体渠道、渠道用户邮箱/密码、账户数量 | `OcpxChannel`、Adapter、`sys_user` | `MediaAccount`、外部 `MediaCredential`、内部负责人/对象范围分层 | 产品并行实施 |
+| 任务/路由 | 两行筛选、点击/曝光/去重、事件比例/限额/超量、监测地址、联调/点击/转化、三类报表入口 | `OcpxMonitorLink`、发布服务、Outbox | `Task` 运营聚合、宏契约、冻结依赖版本、保存与发布分离 | 链接/媒体后实施 |
 | 事件 | 产品/链接事件映射 | 当前工作树存在事件定义/映射/快照在研代码 | 主线评审、契约稳定、迁移确认 | 先收口现有在研工作 |
 | RTA | 列表、全局配置、新增/编辑、日报/时报六列统计 | `RtaDecisionPort` 接口边界 | Accepted ADR 当前要求 OFF；参考新增默认开启与密钥回显均不得照搬 | Blocked |
 | 报表 | 数据/产品/链接/任务/媒体汇总 | 小时事实、报表接口 | 新维度、统一分组、口径字典 | 路由链路后实施 |
-| 用户权限 | 用户、重置、禁用、个人中心 | `scx-system` / Sa-Token | ADX 对象范围关联 | 可与主数据并行 |
+| 用户权限 | 用户、重置、禁用、个人中心 | `scx-system` / Sa-Token | OCPX 对象范围关联 | 可与主数据并行 |
 | DP | 淘宝/京东页签 | 无正式产品边界 | 协议、所有权、隐私、SSRF、幂等 RFC | Blocked |
 | 运行中心 | 运行审计、DLQ、调试工作台 | 独立 OCPX 数据面、ADR-001/002 | 新维度观测与安全补偿操作 | 随路由扩展 |
 
@@ -94,8 +94,8 @@ DP：供应商协议与安全 RFC 接受后独立实施
 
 ## 6. 通用实现约定
 
-- 前端：新业务页放在 `scx-fronted/apps/web-ele/src/views/adx/`；继续使用服务端菜单与权限驱动路由。API 按 `product/link/media/task/rta/report/dp` 拆分，同时保留现有 `adx.ts` 兼容导出。
-- 后端：管理面归 `scx-adx`，身份与菜单归 `scx-auth/scx-system`，高并发机器流量归 `scx-ocpx-contract/runtime/engine`；不按页面新建 Maven 模块。
+- 前端：新业务页放在 `scx-fronted/apps/web-ele/src/views/ocpx/`；继续使用服务端菜单与权限驱动路由。API 按 `product/link/media/task/rta/report/dp` 拆分，同时保留现有 `ocpx.ts` 兼容导出。
+- 后端：管理面归 `scx-ocpx-admin`，身份与菜单归 `scx-auth/scx-system`，高并发机器流量归 `scx-ocpx-contract/runtime/engine`；不按页面新建 Maven 模块。
 - API：管理端统一 `Result<T>`，列表统一 `page/current/size/total/records`；创建接口支持 `Idempotency-Key`，更新接口携带 `version` 或 `If-Match`；冲突返回 `409`。
 - 数据：MySQL 是主数据、版本、Outbox 和最终事实的记录系统；Redis 仅作可靠队列、幂等、短期计数、缓存和配置失效通知。
 - 发布：运行依赖必须经过 `DRAFT → 校验 → 不可变快照 → PUBLISHED → Outbox → 数据面热更新`；未发布配置不得承载流量。

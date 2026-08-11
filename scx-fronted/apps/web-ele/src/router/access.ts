@@ -15,11 +15,11 @@ import { $t } from '#/locales';
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 async function generateAccess(options: GenerateMenuAndRoutesOptions) {
-  // Only the compact ADX loop and shared system pages are resolvable. Retired
+  // Only the compact OCPX loop and shared system pages are resolvable. Retired
   // advertising domains cannot be revived by a stale database menu entry.
   const pageMap: ComponentRecordType = import.meta.glob([
     '../views/_core/**/*.vue',
-    '../views/adx/**/*.vue',
+    '../views/ocpx/**/*.vue',
     '../views/system/**/*.vue',
   ]);
 

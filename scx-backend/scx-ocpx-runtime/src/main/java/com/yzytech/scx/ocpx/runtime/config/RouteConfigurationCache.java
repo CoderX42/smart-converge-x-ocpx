@@ -47,7 +47,7 @@ public class RouteConfigurationCache implements MessageListener {
 		if (routeCode == null || !routeCode.matches("^[A-Za-z0-9_-]{40,64}$")) {
 			throw new OcpxException(HttpStatus.NOT_FOUND, "published route not found");
 		}
-		String hash = protocolCrypto.blindIndex("ADX_ROUTE_CODE", routeCode);
+		String hash = protocolCrypto.blindIndex("OCPX_ROUTE_CODE", routeCode);
 		if (hash == null || hash.isBlank()) {
 			throw new OcpxException(HttpStatus.NOT_FOUND, "published route not found");
 		}

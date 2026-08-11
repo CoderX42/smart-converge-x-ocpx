@@ -66,7 +66,7 @@ class RouteConfigurationRepositoryTest {
 		assertThatThrownBy(() -> repository.decodeSnapshot("tampered-ciphertext"))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessage("immutable route snapshot cannot be decoded")
-			.hasRootCauseMessage("ADX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF");
+			.hasRootCauseMessage("OCPX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF");
 	}
 
 }

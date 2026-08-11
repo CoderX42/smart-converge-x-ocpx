@@ -1,4 +1,4 @@
-import type { AccessScope } from '#/api/adx';
+import type { AccessScope } from '#/api/ocpx';
 
 export type ScopeValidation = { message?: string; valid: boolean };
 

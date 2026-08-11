@@ -4,7 +4,7 @@ import type {
   AccessScopeImpact,
   AccessScopeOptions,
   AccessScopeType,
-} from '#/api/adx';
+} from '#/api/ocpx';
 
 import { computed, ref } from 'vue';
 
@@ -18,7 +18,7 @@ import {
   getUserAccessScopeImpact,
   getUserAccessScopes,
   replaceUserAccessScopes,
-} from '#/api/adx';
+} from '#/api/ocpx';
 
 import { normalizedScopes, validateScopes } from './access-scope-model';
 
@@ -37,7 +37,7 @@ const baseline = ref('');
 let loadSequence = 0;
 
 const { hasAccessByCodes } = useAccess();
-const canEditFunction = computed(() => hasAccessByCodes(['adx:scope:edit']));
+const canEditFunction = computed(() => hasAccessByCodes(['ocpx:scope:edit']));
 const editable = computed(
   () => options.value?.allManageable === true && canEditFunction.value,
 );
@@ -50,7 +50,7 @@ const typeOptions: Array<{
   label: string;
   value: AccessScopeType;
 }> = [
-  { label: '全部 ADX 对象', value: 'ALL' },
+  { label: '全部 OCPX 对象', value: 'ALL' },
   { label: '广告主', value: 'ADVERTISER' },
   { label: '渠道', value: 'CHANNEL' },
   { label: '媒体账号', value: 'MEDIA_ACCOUNT' },
@@ -147,7 +147,7 @@ async function save() {
     version.value = result.version;
     scopes.value = result.scopes.map((scope) => ({ ...scope }));
     resetBaseline();
-    ElMessage.success('ADX 对象范围已更新');
+    ElMessage.success('OCPX 对象范围已更新');
     try {
       impact.value = await getUserAccessScopeImpact(user.value.id);
     } catch {
@@ -194,7 +194,7 @@ defineExpose({ init });
     v-model="visible"
     :before-close="beforeClose"
     :close-on-click-modal="!saving"
-    :title="`${user?.username || '用户'} · ADX 对象范围`"
+    :title="`${user?.username || '用户'} · OCPX 对象范围`"
     class="scope-drawer"
     size="760px"
   >
@@ -259,7 +259,7 @@ defineExpose({ init });
             <p>版本 {{ version }} · 时间区间左闭右开</p>
           </div>
           <el-button
-            v-access:code="'adx:scope:edit'"
+            v-access:code="'ocpx:scope:edit'"
             :disabled="!editable"
             :icon="Plus"
             @click="addScope"
@@ -270,7 +270,7 @@ defineExpose({ init });
 
         <el-empty
           v-if="scopes.length === 0"
-          description="未配置任何 ADX 对象，保存后该用户将无法访问 ADX 业务数据"
+          description="未配置任何 OCPX 对象，保存后该用户将无法访问 OCPX 业务数据"
         />
 
         <div v-else class="scope-list">
@@ -369,7 +369,7 @@ defineExpose({ init });
         <div>
           <el-button :disabled="saving" @click="close">关闭</el-button>
           <el-button
-            v-access:code="'adx:scope:edit'"
+            v-access:code="'ocpx:scope:edit'"
             :disabled="!editable || !dirty || loading"
             :loading="saving"
             type="primary"

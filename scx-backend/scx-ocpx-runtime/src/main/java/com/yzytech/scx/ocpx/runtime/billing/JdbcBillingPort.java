@@ -86,7 +86,7 @@ public class JdbcBillingPort implements BillingPort {
 		}
 		BigDecimal balanceAfter = balanceBefore.subtract(amount);
 		int updated = jdbcTemplate.update("""
-				UPDATE scx_adx_advertiser SET balance=?,update_time=NOW(3) WHERE id=? AND deleted=0
+				UPDATE scx_ocpx_advertiser SET balance=?,update_time=NOW(3) WHERE id=? AND deleted=0
 				""", balanceAfter, advertiserId);
 		if (updated != 1) {
 			throw new IllegalStateException("advertiser balance update failed");
@@ -104,7 +104,7 @@ public class JdbcBillingPort implements BillingPort {
 
 	private BigDecimal lockBalance(String advertiserId) {
 		List<BigDecimal> balances = jdbcTemplate.query("""
-				SELECT balance FROM scx_adx_advertiser WHERE id=? AND deleted=0 FOR UPDATE
+				SELECT balance FROM scx_ocpx_advertiser WHERE id=? AND deleted=0 FOR UPDATE
 				""", (rs, rowNum) -> rs.getBigDecimal(1), advertiserId);
 		if (balances.isEmpty()) {
 			throw new IllegalArgumentException("advertiser does not exist");

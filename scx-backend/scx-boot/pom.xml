@@ -33,7 +33,7 @@
         </dependency>
         <dependency>
             <groupId>com.scx</groupId>
-            <artifactId>scx-adx</artifactId>
+            <artifactId>scx-ocpx-admin</artifactId>
         </dependency>
 
         <!--        代码生成-->

@@ -310,11 +310,11 @@ initPage();
                   <ElButton
                     link
                     type="primary"
-                    v-access:code="'adx:scope:view'"
+                    v-access:code="'ocpx:scope:view'"
                     @click="showAccessScope(scope.row)"
                     :icon="Operation"
                   >
-                    ADX范围
+                    OCPX范围
                   </ElButton>
                   <ElButton
                     link

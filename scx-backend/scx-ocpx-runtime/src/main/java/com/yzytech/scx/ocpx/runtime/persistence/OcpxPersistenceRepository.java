@@ -570,7 +570,7 @@ public class OcpxPersistenceRepository {
 		}
 		jdbcTemplate.update(
 				"""
-						INSERT IGNORE INTO scx_adx_runtime_fact
+						INSERT IGNORE INTO scx_ocpx_runtime_fact
 						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
 						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
 						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
@@ -599,7 +599,7 @@ public class OcpxPersistenceRepository {
 		}
 		jdbcTemplate.update(
 				"""
-						INSERT IGNORE INTO scx_adx_runtime_fact
+						INSERT IGNORE INTO scx_ocpx_runtime_fact
 						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
 						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
 						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
@@ -624,7 +624,7 @@ public class OcpxPersistenceRepository {
 	private void recordRuntimeDeliveryFact(DeliveryJob job, int attempt, String processingStatus, String summaryCode) {
 		jdbcTemplate.update(
 				"""
-						INSERT IGNORE INTO scx_adx_runtime_fact
+						INSERT IGNORE INTO scx_ocpx_runtime_fact
 						(id,source_type,source_id,fact_type,direction,acceptance_status,processing_status,tenant_id,
 						 advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
 						 route_id,route_version_id,route_version,event_code,event_snapshot_schema_version,event_time,
@@ -634,7 +634,7 @@ public class OcpxPersistenceRepository {
 						 e.route_version_id,e.route_version,e.event_type,rv.event_snapshot_schema_version,
 						 LEAST(e.occurred_at,NOW(3)),NOW(3),?,?,?,e.dimension_status,
 						 IF(e.dimension_status='FROZEN','COMPLETE','UNMAPPED'),NOW(3)
-						FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+						FROM scx_ocpx_event e LEFT JOIN scx_ocpx_route_version rv ON rv.id=e.route_version_id
 						WHERE e.event_id=? LIMIT 1
 						""",
 				id(), job.id() + ":" + attempt, "FEEDBACK_UPSTREAM".equals(job.direction()) ? "UPSTREAM" : "DOWNSTREAM",
@@ -646,7 +646,7 @@ public class OcpxPersistenceRepository {
 	private void recordRuntimeDeliveryFailure(DeliveryJob job, String error) {
 		String failureId = id();
 		jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_adx_runtime_failure
+				INSERT IGNORE INTO scx_ocpx_runtime_failure
 				(id,source_fact_id,source_type,source_id,failure_class,error_code,replayable,failure_revision,
 				 tenant_id,advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
 				 route_id,route_version_id,route_version,event_snapshot_schema_version,event_time,received_time,
@@ -656,7 +656,7 @@ public class OcpxPersistenceRepository {
 				 e.media_account_id,e.operator_user_id,e.monitor_id,e.route_version_id,e.route_version,
 				 rv.event_snapshot_schema_version,LEAST(e.occurred_at,NOW(3)),NOW(3),?,?,e.payload_hash,?,
 				 e.dimension_status,NOW(3)
-				FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+				FROM scx_ocpx_event e LEFT JOIN scx_ocpx_route_version rv ON rv.id=e.route_version_id
 				WHERE e.event_id=? LIMIT 1
 				""", failureId, job.id(), protocolCrypto.blindIndex("S10_RUNTIME_EXACT", job.eventId()),
 				protocolCrypto.blindIndex("S10_RUNTIME_FAILURE", "DELIVERY|" + job.id()),
@@ -671,7 +671,7 @@ public class OcpxPersistenceRepository {
 				"INGRESS|" + partition + "|" + streamRecordId);
 		String summary = protocolCrypto.blindIndex("S10_RUNTIME_SUMMARY", errorCode + "|" + safeCode(reason));
 		int inserted = jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_adx_runtime_failure
+				INSERT IGNORE INTO scx_ocpx_runtime_failure
 				(id,source_fact_id,source_type,source_id,failure_class,error_code,replayable,failure_revision,
 				 tenant_id,advertiser_id,product_id,app_link_id,task_id,channel_id,media_account_id,operator_user_id,
 				 route_id,route_version_id,route_version,event_snapshot_schema_version,event_time,received_time,
@@ -680,14 +680,14 @@ public class OcpxPersistenceRepository {
 				 e.product_id,e.app_link_id,e.task_id,e.channel_id,e.media_account_id,e.operator_user_id,e.monitor_id,
 				 e.route_version_id,e.route_version,rv.event_snapshot_schema_version,LEAST(e.occurred_at,NOW(3)),NOW(3),
 				 ?,?,e.payload_hash,?,e.dimension_status,NOW(3)
-				FROM scx_ocpx_event e LEFT JOIN scx_adx_route_version rv ON rv.id=e.route_version_id
+				FROM scx_ocpx_event e LEFT JOIN scx_ocpx_route_version rv ON rv.id=e.route_version_id
 				WHERE e.event_id=? LIMIT 1
 				""", id(), partition + ":" + streamRecordId, failureClass, errorCode, failureClass,
 				protocolCrypto.blindIndex("S10_RUNTIME_EXACT", String.valueOf(eventId)), idempotency, summary, eventId);
 		if (inserted == 0) {
 			jdbcTemplate.update(
 					"""
-							INSERT IGNORE INTO scx_adx_runtime_failure
+							INSERT IGNORE INTO scx_ocpx_runtime_failure
 							(id,source_type,source_id,failure_class,error_code,replayable,failure_revision,event_time,received_time,
 							 correlation_id_hash,idempotency_key_hash,summary_hash,dimension_status,create_time)
 							VALUES (?,'FEEDBACK',?,?,?,0,1,NOW(3),NOW(3),?,?,?,'UNMAPPED',NOW(3))
@@ -761,7 +761,7 @@ public class OcpxPersistenceRepository {
 		}
 		String kind = "forwarded_conversion_count".equals(metricColumn) ? "DELIVERY_SUCCESS" : "DELIVERY_FAILURE";
 		jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution
 				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
 				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
 				 event_time,received_time,stat_hour,timezone,%s)
@@ -810,7 +810,7 @@ public class OcpxPersistenceRepository {
 		LocalDateTime eventTime = envelope.occurredAt().atZoneSameInstant(REPORT_ZONE).toLocalDateTime();
 		LocalDateTime hour = eventTime.truncatedTo(ChronoUnit.HOURS);
 		jdbcTemplate.update("""
-				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution
 				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
 				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
 				 event_time,received_time,stat_hour,timezone,impressions,raw_clicks,valid_clicks,duplicate_clicks,
@@ -834,7 +834,7 @@ public class OcpxPersistenceRepository {
 		String eventColumn = contributionMetricColumn(callback.eventType());
 		if (eventColumn == null) {
 			jdbcTemplate.update("""
-					INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+					INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution
 					(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
 					 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
 					 event_time,received_time,stat_hour,timezone,raw_conversion_count,deduction_count,
@@ -847,7 +847,7 @@ public class OcpxPersistenceRepository {
 			return;
 		}
 		String sql = """
-				INSERT IGNORE INTO scx_adx_hourly_fact_contribution
+				INSERT IGNORE INTO scx_ocpx_hourly_fact_contribution
 				(id,source_event_id,contribution_kind,tenant_id,advertiser_id,product_id,app_link_id,task_id,
 				 channel_id,media_account_id,operator_user_id,monitor_route_id,route_version_id,route_version,
 				 event_time,received_time,stat_hour,timezone,%s,raw_conversion_count,deduction_count,

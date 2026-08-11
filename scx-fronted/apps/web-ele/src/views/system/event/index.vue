@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { Channel, EventDefinition, EventMapping } from '#/api/adx';
+import type { Channel, EventDefinition, EventMapping } from '#/api/ocpx';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -17,7 +17,7 @@ import {
   getEventMappings,
   saveEventDefinition,
   saveEventMapping,
-} from '#/api/adx';
+} from '#/api/ocpx';
 
 defineOptions({ name: 'SystemEventManagement' });
 
@@ -377,7 +377,7 @@ onMounted(async () => {
         <el-button @click="resetFilters">重置</el-button>
         <span class="toolbar__spacer"></span>
         <el-button
-          v-access:code="'adx:event:write'"
+          v-access:code="'ocpx:event:write'"
           type="primary"
           :disabled="needsChannel && !channelId"
           @click="activeTab === 'dictionary' ? openDefinition() : openMapping()"
@@ -426,7 +426,7 @@ onMounted(async () => {
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="{ row }">
             <el-button
-              v-access:code="'adx:event:write'"
+              v-access:code="'ocpx:event:write'"
               link
               type="primary"
               @click="openDefinition(row)"
@@ -434,7 +434,7 @@ onMounted(async () => {
               编辑
             </el-button>
             <el-button
-              v-access:code="'adx:event:write'"
+              v-access:code="'ocpx:event:write'"
               :aria-label="`停用事件 ${row.eventName}`"
               link
               type="danger"
@@ -479,7 +479,7 @@ onMounted(async () => {
         <el-table-column fixed="right" label="操作" width="150">
           <template #default="{ row }">
             <el-button
-              v-access:code="'adx:event:write'"
+              v-access:code="'ocpx:event:write'"
               link
               type="primary"
               @click="openMapping(row)"
@@ -487,7 +487,7 @@ onMounted(async () => {
               编辑
             </el-button>
             <el-button
-              v-access:code="'adx:event:write'"
+              v-access:code="'ocpx:event:write'"
               :aria-label="`停用映射 ${row.upstreamEventName}`"
               link
               type="danger"

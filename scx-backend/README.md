@@ -1,6 +1,6 @@
 # SCX Backend
 
-`scx-backend` 是 Smart Converge X 的 Java 广告服务管理后端，基于 Java 17、Spring Boot 3.x、MyBatis-Plus 和 MySQL 8.x，采用单体多模块结构。运行产品面收敛为认证授权、账号/角色管理与精简 ADX 业务闭环。
+`scx-backend` 是 Smart Converge X 的 Java 广告服务管理后端，基于 Java 17、Spring Boot 3.x、MyBatis-Plus 和 MySQL 8.x，采用单体多模块结构。运行产品面收敛为认证授权、账号/角色管理与精简 OCPX 业务闭环。
 
 ## 模块结构
 
@@ -9,7 +9,7 @@
 | `scx-auth` | 登录、验证码和令牌认证 |
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
-| `scx-adx` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、充值/点击账务和时段报表 |
+| `scx-ocpx-admin` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、充值/点击账务和时段报表 |
 | `scx-ocpx-contract` / `scx-ocpx-runtime` | 双向协议、适配器 SPI、可靠投递和 CPC 点击计费 |
 | `scx-ocpx-engine` | 独立 OCPX 引擎端，端口 10000、上下文 `/ocpx` |
 | `scx-visual/scx-generator` | 代码生成 |

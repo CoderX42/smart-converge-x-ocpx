@@ -5,7 +5,7 @@
 - 关联需求/ADR/Backlog：S12、[12 DP 转换工具](../ocpx-aerim-模块实现规格/12-DP转换工具.md)、ADR-002
 - 评审人：产品 / 安全 / 架构 / 淘宝供应商 / 京东供应商 / 运维；具体人员均为 `TBD / Decision required`
 
-> **不解锁声明：本文件只是供应商与安全决策准备，不是 Accepted RFC/ADR，不解除 S12 Blocked。不得据此新增生产菜单、DP Adapter、任意 URL 代理、真实 convert、调试器代跑、供应商 UAT 或任何外呼。当前 `/adx/tools/dp/convert` 必须继续固定返回 Blocked。**
+> **不解锁声明：本文件只是供应商与安全决策准备，不是 Accepted RFC/ADR，不解除 S12 Blocked。不得据此新增生产菜单、DP Adapter、任意 URL 代理、真实 convert、调试器代跑、供应商 UAT 或任何外呼。当前 `/ocpx/tools/dp/convert` 必须继续固定返回 Blocked。**
 
 ## 问题与目标
 

@@ -10,7 +10,7 @@
         <module>scx-auth</module>
         <module>scx-common</module>
         <module>scx-system</module>
-        <module>scx-adx</module>
+        <module>scx-ocpx-admin</module>
         <module>scx-ocpx-contract</module>
         <module>scx-ocpx-runtime</module>
         <module>scx-ocpx-engine</module>
@@ -95,7 +95,7 @@
         <dependencies>
             <dependency>
                 <groupId>com.scx</groupId>
-                <artifactId>scx-adx</artifactId>
+                <artifactId>scx-ocpx-admin</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -47,4 +47,4 @@ mvn -pl scx-ocpx-runtime -am test
 make contract-check
 ```
 
-本模块当前仍与管理面共享 MySQL/Redis。修改表、队列键、路由快照、账务或报表写入时，必须同步检查 `scx-adx`、前向迁移和运行中心，不得形成未声明的双写语义。
+本模块当前仍与管理面共享 MySQL/Redis。修改表、队列键、路由快照、账务或报表写入时，必须同步检查 `scx-ocpx-admin`、前向迁移和运行中心，不得形成未声明的双写语义。

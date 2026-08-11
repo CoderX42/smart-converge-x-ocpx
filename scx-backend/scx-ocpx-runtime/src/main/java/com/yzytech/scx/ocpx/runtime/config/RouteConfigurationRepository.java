@@ -17,10 +17,10 @@ public class RouteConfigurationRepository {
 
 	private static final String ACTIVE_ROUTE_SELECT = """
 			SELECT v.route_code_hash,v.runtime_snapshot_ciphertext,m.biz_id
-			FROM scx_adx_route_version v
-			JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
-			JOIN scx_adx_route_distribution d ON d.route_version_id=v.id AND d.target_group='DEFAULT'
-			JOIN scx_adx_monitor_link m ON m.id=v.monitor_id
+			FROM scx_ocpx_route_version v
+			JOIN scx_ocpx_route_runtime_state s ON s.route_version_id=v.id
+			JOIN scx_ocpx_route_distribution d ON d.route_version_id=v.id AND d.target_group='DEFAULT'
+			JOIN scx_ocpx_monitor_link m ON m.id=v.monitor_id
 			WHERE v.status='PUBLISHED' AND d.status IN ('ACTIVE','DEGRADED')
 			 AND s.deny_at IS NULL
 			 AND ((s.acceptance_status='ACTIVE' AND (s.accept_from IS NULL OR s.accept_from<=NOW(3)))
@@ -50,7 +50,7 @@ public class RouteConfigurationRepository {
 	}
 
 	public Optional<RouteSnapshot> findByRouteCode(String routeCode) {
-		String hash = protocolCrypto.blindIndex("ADX_ROUTE_CODE", routeCode);
+		String hash = protocolCrypto.blindIndex("OCPX_ROUTE_CODE", routeCode);
 		return jdbcTemplate.query(ACTIVE_ROUTE_SELECT + " AND v.route_code_hash=? LIMIT 1", this::mapRoute, hash)
 			.stream()
 			.map(PublishedRoute::route)
@@ -69,9 +69,9 @@ public class RouteConfigurationRepository {
 		int boundedLimit = Math.max(1, Math.min(limit, 100));
 		return jdbcTemplate.query("""
 				SELECT d.id,v.id,v.route_version
-				FROM scx_adx_route_distribution d
-				JOIN scx_adx_route_version v ON v.id=d.route_version_id
-				JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+				FROM scx_ocpx_route_distribution d
+				JOIN scx_ocpx_route_version v ON v.id=d.route_version_id
+				JOIN scx_ocpx_route_runtime_state s ON s.route_version_id=v.id
 				WHERE v.status='PUBLISHED' AND d.target_group='DEFAULT'
 				 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
 				 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL
@@ -84,9 +84,9 @@ public class RouteConfigurationRepository {
 		return jdbcTemplate
 			.query("""
 					SELECT d.id,v.id,v.route_version
-					FROM scx_adx_route_distribution d
-					JOIN scx_adx_route_version v ON v.id=d.route_version_id
-					JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+					FROM scx_ocpx_route_distribution d
+					JOIN scx_ocpx_route_version v ON v.id=d.route_version_id
+					JOIN scx_ocpx_route_runtime_state s ON s.route_version_id=v.id
 					WHERE v.id=? AND v.route_version=? AND v.status='PUBLISHED' AND d.target_group='DEFAULT'
 					 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
 					 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL
@@ -100,9 +100,9 @@ public class RouteConfigurationRepository {
 	public RouteSnapshot validateDistributableSnapshot(DistributableRoute candidate) {
 		List<RouteSnapshot> snapshots = jdbcTemplate.query("""
 				SELECT v.runtime_snapshot_ciphertext
-				FROM scx_adx_route_distribution d
-				JOIN scx_adx_route_version v ON v.id=d.route_version_id
-				JOIN scx_adx_route_runtime_state s ON s.route_version_id=v.id
+				FROM scx_ocpx_route_distribution d
+				JOIN scx_ocpx_route_version v ON v.id=d.route_version_id
+				JOIN scx_ocpx_route_runtime_state s ON s.route_version_id=v.id
 				WHERE d.id=? AND v.id=? AND v.route_version=? AND v.status='PUBLISHED'
 				 AND d.status IN ('PENDING','DISTRIBUTING','DEGRADED')
 				 AND s.acceptance_status='PENDING_DISTRIBUTION' AND s.deny_at IS NULL

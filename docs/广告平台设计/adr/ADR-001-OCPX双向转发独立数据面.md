@@ -8,7 +8,7 @@
 
 ## 背景
 
-现有 `scx-boot/scx-adx` 是管理面单体，主要处理后台配置、查询、权限与报表，不适合直接承担 20,000 accepted feedback QPS 的机器流量。历史 OCPX 模块和契约已退出当前构建，不能视为可复用运行能力。
+现有 `scx-boot/scx-ocpx-admin` 是管理面单体，主要处理后台配置、查询、权限与报表，不适合直接承担 20,000 accepted feedback QPS 的机器流量。历史 OCPX 模块和契约已退出当前构建，不能视为可复用运行能力。
 
 ## 决策
 

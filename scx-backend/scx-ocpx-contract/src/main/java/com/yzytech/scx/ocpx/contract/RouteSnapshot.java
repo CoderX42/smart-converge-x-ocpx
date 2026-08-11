@@ -13,7 +13,7 @@ public record RouteSnapshot(String routeId, String bizId, long routeVersion, Str
 
 	public RouteSnapshot {
 		if (!"OFF".equals(rtaMode)) {
-			throw new IllegalArgumentException("ADX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF");
+			throw new IllegalArgumentException("OCPX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF");
 		}
 		eventMappings = eventMappings == null ? List.of() : List.copyOf(eventMappings);
 		eventSnapshotVersion = Math.max(eventSnapshotVersion, 0);

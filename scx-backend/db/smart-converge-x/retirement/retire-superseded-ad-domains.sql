@@ -1,6 +1,6 @@
 -- Manual physical retirement of the superseded advertising domains.
 -- Apply only after the normal database backup/preview gate. The application no longer
--- contains code that reads these tables; system, payment and ADX replacement tables stay.
+-- contains code that reads these tables; system, payment and OCPX replacement tables stay.
 
 SET @SCX_OLD_FOREIGN_KEY_CHECKS = @@FOREIGN_KEY_CHECKS;
 SET FOREIGN_KEY_CHECKS = 0;

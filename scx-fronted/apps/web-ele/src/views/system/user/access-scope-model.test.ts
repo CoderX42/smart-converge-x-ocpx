@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizedScopes, validateScopes } from './access-scope-model';
 
-describe('aDX access scope model', () => {
+describe('ocpx access scope model', () => {
   it('normalizes ALL without an object id', () => {
     expect(
       normalizedScopes([

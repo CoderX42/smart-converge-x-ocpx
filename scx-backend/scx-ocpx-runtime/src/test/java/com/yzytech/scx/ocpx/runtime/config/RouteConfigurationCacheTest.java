@@ -25,7 +25,7 @@ class RouteConfigurationCacheTest {
 			.thenReturn(List.of(new RouteConfigurationRepository.PublishedRoute(route, "biz", "hash",
 					"https://destination.test/click?clickid=__CLICKID__",
 					"{\"pairs\":[{\"key\":\"clickid\",\"macro\":\"__CLICKID__\",\"required\":true}]}")));
-		when(crypto.blindIndex("ADX_ROUTE_CODE", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO12")).thenReturn("hash");
+		when(crypto.blindIndex("OCPX_ROUTE_CODE", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO12")).thenReturn("hash");
 		RouteConfigurationCache cache = new RouteConfigurationCache(repository, crypto);
 		cache.reloadAll();
 

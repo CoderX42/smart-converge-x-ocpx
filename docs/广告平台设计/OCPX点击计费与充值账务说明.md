@@ -2,16 +2,16 @@
 
 ## 1. 已实现范围
 
-SCX 使用 `scx_adx_advertiser.balance` 保存广告主可用余额，使用 `scx_ocpx_billing_entry` 保存不可变流水。当前支持：
+SCX 使用 `scx_ocpx_advertiser.balance` 保存广告主可用余额，使用 `scx_ocpx_billing_entry` 保存不可变流水。当前支持：
 
 - 后台充值：管理员/运营人员在广告主列表填写金额，前端生成 16–64 位 `requestId`。
 - 充值幂等：账务唯一键为 `RECHARGE:{advertiserId}:{requestId}`，请求重试返回首次结果。
 - 点击审计：`AUDIT_ONLY` 为每个首次落库 CLICK 写 `RECORDED` 流水，不修改余额。
 - 真实 CPC：`CPC` 以 CLICK `event_id` 为唯一扣费键，按发布路由快照中的 `unit_price` 扣除 CNY 余额。
 - 余额不足：写 `REJECTED/INSUFFICIENT_BALANCE` 流水，不修改余额，不创建该点击的上游投递任务。
-- 账务查询：`GET /boot/adx/advertisers/{id}/ledger`，管理端“账务”弹窗展示金额、状态、账前/账后余额和操作人。
+- 账务查询：`GET /boot/ocpx/advertisers/{id}/ledger`，管理端“账务”弹窗展示金额、状态、账前/账后余额和操作人。
 
-充值权限为 `adx:account:recharge`，流水查询权限为 `adx:account:read`。V72 默认授予 `ROLE_ADMIN` 和 `ROLE_OPERATOR`；原 `adx:advertiser:write` 不再隐含资金操作权限。
+充值权限为 `ocpx:account:recharge`，流水查询权限为 `ocpx:account:read`。V72 默认授予 `ROLE_ADMIN` 和 `ROLE_OPERATOR`；原 `ocpx:advertiser:write` 不再隐含资金操作权限。
 
 ## 2. 原子性与幂等
 

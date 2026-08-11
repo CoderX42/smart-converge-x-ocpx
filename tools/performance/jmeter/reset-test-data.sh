@@ -13,5 +13,5 @@ DELETE FROM scx_ocpx_click_dedup_state;
 DELETE FROM scx_ocpx_ingress_dlq;
 DELETE FROM scx_ocpx_ingress_audit;
 DELETE FROM scx_ocpx_event;
-DELETE FROM scx_adx_hourly_report;
+DELETE FROM scx_ocpx_hourly_report;
 SQL

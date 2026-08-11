@@ -8,7 +8,7 @@ import { defineOverridesPreferences } from '@boot/preferences';
 export const overridesPreferences = defineOverridesPreferences({
   // overrides
   app: {
-    defaultHomePath: '/adx/dashboard',
+    defaultHomePath: '/ocpx/dashboard',
     name: import.meta.env.VITE_APP_TITLE,
   },
 });

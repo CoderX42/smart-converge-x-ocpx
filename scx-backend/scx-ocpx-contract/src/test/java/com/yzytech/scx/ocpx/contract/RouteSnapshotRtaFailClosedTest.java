@@ -14,7 +14,7 @@ class RouteSnapshotRtaFailClosedTest {
 		assertEquals("OFF", route("OFF").rtaMode());
 
 		IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> route("ACTIVE"));
-		assertEquals("ADX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF", error.getMessage());
+		assertEquals("OCPX_RTA_BLOCKED_BY_ADR: route snapshot RTA mode must be OFF", error.getMessage());
 	}
 
 	private RouteSnapshot route(String rtaMode) {
