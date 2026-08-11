@@ -29,6 +29,7 @@ import {
 } from '#/api/ocpx';
 import { createClientRequestId } from '#/utils/request-id';
 
+import AutoCodeInput from '../_components/auto-code-input.vue';
 import {
   compatibleDefinitions,
   resolveEventPageState,
@@ -158,6 +159,7 @@ const saving = ref(false);
 const conflict = ref('');
 const formError = ref('');
 const savedSnapshot = ref('');
+const codeGenerationKey = ref('');
 const formRef = ref<FormInstance>();
 const definitionForm = reactive<DefinitionEditor>({
   billingEligible: false,
@@ -200,6 +202,7 @@ function openCreate(kind: 'definition' | 'mapping') {
   conflict.value = '';
   formError.value = '';
   if (kind === 'definition') {
+    codeGenerationKey.value = createClientRequestId();
     Object.assign(definitionForm, {
       billingEligible: false,
       code: '',
@@ -214,6 +217,7 @@ function openCreate(kind: 'definition' | 'mapping') {
       version: undefined,
     });
   } else {
+    codeGenerationKey.value = '';
     Object.assign(mappingForm, {
       adapterCode: '',
       channelId: '',
@@ -742,10 +746,12 @@ onMounted(load);
         <template v-if="editorKind === 'definition'">
           <div class="grid gap-3 md:grid-cols-2">
             <el-form-item label="标准 code" prop="code">
-              <el-input
+              <AutoCodeInput
                 v-model="definitionForm.code"
                 :disabled="Boolean(definitionForm.id)"
-                maxlength="64"
+                :generation-key="definitionForm.id ? '' : codeGenerationKey"
+                :maxlength="64"
+                resource-type="EVENT"
               />
               <div class="mt-1 text-xs text-gray-500">
                 有已发布引用时始终不可修改；编辑接口不接收 code

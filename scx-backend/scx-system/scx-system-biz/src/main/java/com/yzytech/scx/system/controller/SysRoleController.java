@@ -52,15 +52,21 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:get")
 	@GetMapping("/list")
 	public Result<List<SysRole>> getList(SysRole sysRole) {
-		return Result.success(
-				sysRoleService.list(Wrappers.query(sysRole).lambda().select(SysRole::getRoleName, SysRole::getId)));
+		return Result.success(sysRoleService.list(Wrappers.query(sysRole)
+			.lambda()
+			.and(role -> role.isNull(SysRole::getType).or().ne(SysRole::getType, "2"))
+			.select(SysRole::getRoleName, SysRole::getId)));
 	}
 
 	@Operation(summary = "角色查询")
 	@SaCheckPermission("system:sysrole:get")
 	@GetMapping("/{id}")
 	public Result getById(@PathVariable String id) {
-		return Result.success(sysRoleService.getById(id));
+		SysRole role = sysRoleService.getById(id);
+		if (isManaged(role)) {
+			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中查看或编辑");
+		}
+		return Result.success(role);
 	}
 
 	@Operation(summary = "角色新增")
@@ -68,6 +74,9 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:add")
 	@PostMapping
 	public Result add(@RequestBody SysRole sysRole) {
+		if ("2".equals(sysRole.getType())) {
+			return Result.fail("系统托管角色只能由广告主账号授权流程创建");
+		}
 		if (sysRoleService.checkRole(new SysRole(null, sysRole.getRoleCode()))) {
 			return Result.fail("角色编码已存在");
 		}
@@ -82,6 +91,9 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:edit")
 	@PutMapping
 	public Result edit(@RequestBody SysRole sysRole) {
+		if (isManaged(sysRoleService.getById(sysRole.getId())) || "2".equals(sysRole.getType())) {
+			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中编辑");
+		}
 		if (sysRoleService.checkRole(new SysRole(sysRole.getId(), sysRole.getRoleName(), null))) {
 			return Result.fail("角色名称已存在");
 		}
@@ -92,6 +104,9 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:del")
 	@DeleteMapping("/{id}")
 	public Result edit(@PathVariable String id) {
+		if (isManaged(sysRoleService.getById(id))) {
+			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中删除");
+		}
 		long count = sysUserRoleService.count(Wrappers.<SysUserRole>lambdaQuery().eq(SysUserRole::getRoleId, id));
 		if (count > 0) {
 			return Result.fail("该角色已被用户绑定，不可删除");
@@ -105,7 +120,14 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:update")
 	@PostMapping("/role/menu")
 	public Result saveRoleMenu(@RequestBody SysRoleMenuDTO request) {
+		if (isManaged(sysRoleService.getById(request.getRoleId()))) {
+			return Result.fail("系统托管的广告主专属角色菜单只能由广告主账号授权流程维护");
+		}
 		return Result.success(sysRoleMenuService.saveRoleMenu(request));
+	}
+
+	private boolean isManaged(SysRole role) {
+		return role != null && "2".equals(role.getType());
 	}
 
 }

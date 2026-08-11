@@ -29,6 +29,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -107,6 +109,19 @@ public class SysUserController {
 		if (ArrayUtil.isEmpty(sysUser.getRoles())) {
 			return Result.fail("角色不能为空");
 		}
+		SysUser persisted = sysUserService.getById(sysUser.getId());
+		if (persisted == null) {
+			return Result.fail("用户不存在或已删除");
+		}
+		if ("2".equals(persisted.getType())) {
+			List<String> currentRoleIds = sysRoleService.findRoleIdsByUserId(persisted.getId());
+			if (!new HashSet<>(currentRoleIds).equals(new HashSet<>(sysUser.getRoles()))) {
+				return Result.fail("广告主账号角色请在广告主管理的账号授权中维护");
+			}
+			sysUser.setUsername(persisted.getUsername());
+			sysUser.setType(persisted.getType());
+			sysUser.setShopId(persisted.getShopId());
+		}
 		return Result.success(sysUserService.updateUser(sysUser));
 	}
 
@@ -119,6 +134,9 @@ public class SysUserController {
 		SysUser sysUser = sysUserService.getById(id);
 		if (ObjectUtil.isNull(sysUser)) {
 			return Result.fail("用户不存在或已删除");
+		}
+		if ("2".equals(sysUser.getType())) {
+			return Result.fail("广告主绑定账号不可在通用用户管理中删除");
 		}
 		// 查询管理员角色
 		SysRole sysRole = sysRoleService

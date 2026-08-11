@@ -105,7 +105,7 @@ export type Channel = CatalogRecord & {
 };
 
 export type Advertiser = CatalogRecord & {
-  adapterKey: string;
+  adapterKey?: string;
   adapterVersion: number;
   advertiserName: string;
   balance: number;
@@ -115,6 +115,7 @@ export type Advertiser = CatalogRecord & {
   credentialConfigured: boolean;
   credentialRevision: number;
   documentRevision: number;
+  integrationConfigured: boolean;
   maskedBidUrl?: string;
   republishRequired: boolean;
   status: 'ACTIVE' | 'DISABLED';
@@ -122,7 +123,7 @@ export type Advertiser = CatalogRecord & {
 
 export type AdvertiserDetail = CatalogRecord & {
   accountMasked: string;
-  adapterKey: string;
+  adapterKey?: string;
   adapterVersion: number;
   advertiserName: string;
   balance: number;
@@ -133,6 +134,7 @@ export type AdvertiserDetail = CatalogRecord & {
   credentialRevision: number;
   currentDocumentId?: string;
   documentRevision: number;
+  integrationConfigured: boolean;
   macroParams?: string;
   republishRequiredCount: number;
   status: 'ACTIVE' | 'DISABLED';
@@ -167,24 +169,66 @@ export type AdvertiserDocument = {
 
 export type AdvertiserCreateInput = {
   account: string;
-  adapterKey: string;
-  bidUrl?: string;
   code: string;
-  credentialInput?: string;
-  macroParams?: string;
+  extraMenuIds: string[];
+  integration?: {
+    adapterKey: string;
+    bidUrl?: string;
+    credentialInput?: string;
+    macroParams?: string;
+    upstreamHostAllowlist?: string;
+  };
   name: string;
   password: string;
-  upstreamHostAllowlist?: string;
+  roleIds: string[];
 };
 
 export type AdvertiserUpdateInput = {
-  adapterKey: string;
+  adapterKey?: string;
   bidUrl?: string;
   expectedVersion: number;
   macroParams?: string;
   name: string;
   upstreamHostAllowlist?: string;
 };
+
+export type AdvertiserAuthorizationRole = {
+  code: string;
+  id: string;
+  menuIds: string[];
+  name: string;
+};
+
+export type AdvertiserAuthorizationMenu = {
+  children: AdvertiserAuthorizationMenu[];
+  grantable: boolean;
+  id: string;
+  name: string;
+  parentId?: string;
+  permission?: string;
+  type: string;
+};
+
+export type AdvertiserAuthorizationOptions = {
+  mandatoryRole: AdvertiserAuthorizationRole;
+  menuTree: AdvertiserAuthorizationMenu[];
+  sharedRoles: AdvertiserAuthorizationRole[];
+};
+
+export type AdvertiserAuthorizationDetail = {
+  accountMasked: string;
+  advertiserId: string;
+  effectiveMenuIds: string[];
+  extraMenuIds: string[];
+  grantVersion: number;
+  inheritedMenuIds: string[];
+  mandatoryRole: AdvertiserAuthorizationRole;
+  roleIds: string[];
+  userId: string;
+};
+
+export type OcpxBusinessCodeResource =
+  'ADVERTISER' | 'CHANNEL' | 'EVENT' | 'PRODUCT';
 
 export type AccountEntry = {
   advertiserId: string;
@@ -856,6 +900,41 @@ export function getAdvertiserAdapterCapabilities() {
   return requestClient.get<AdvertiserAdapterCapability[]>(
     '/ocpx/advertisers/adapter-capabilities',
   );
+}
+
+export function getAdvertiserAuthorizationOptions() {
+  return requestClient.get<AdvertiserAuthorizationOptions>(
+    '/ocpx/advertisers/login-authorization/options',
+  );
+}
+
+export function getAdvertiserAuthorization(id: string) {
+  return requestClient.get<AdvertiserAuthorizationDetail>(
+    `/ocpx/advertisers/${id}/login-authorization`,
+  );
+}
+
+export function updateAdvertiserAuthorization(
+  id: string,
+  data: {
+    expectedGrantVersion: number;
+    extraMenuIds: string[];
+    roleIds: string[];
+  },
+) {
+  return requestClient.put<AdvertiserAuthorizationDetail>(
+    `/ocpx/advertisers/${id}/login-authorization`,
+    data,
+  );
+}
+
+export function generateOcpxBusinessCode(
+  resourceType: OcpxBusinessCodeResource,
+) {
+  return requestClient.post<{
+    code: string;
+    resourceType: OcpxBusinessCodeResource;
+  }>('/ocpx/business-codes/generate', { resourceType });
 }
 
 export function createAdvertiser(

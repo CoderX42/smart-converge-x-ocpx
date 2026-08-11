@@ -20,16 +20,29 @@ export function resolveAdvertiserEmptyState(input: {
 }
 
 export function buildAdvertiserCreatePayload(form: Record<string, unknown>) {
+  const hasIntegration = [
+    form.adapterKey,
+    form.bidUrl,
+    form.credentialInput,
+    form.macroParams,
+    form.upstreamHostAllowlist,
+  ].some((value) => Boolean(String(value || '').trim()));
   return {
     account: String(form.account || '').trim(),
-    adapterKey: String(form.adapterKey || '').trim(),
-    bidUrl: optional(form.bidUrl),
     code: String(form.code || '').trim(),
-    credentialInput: optional(form.credentialInput),
-    macroParams: optional(form.macroParams),
+    extraMenuIds: stringArray(form.extraMenuIds),
+    integration: hasIntegration
+      ? {
+          adapterKey: String(form.adapterKey || '').trim(),
+          bidUrl: optional(form.bidUrl),
+          credentialInput: optional(form.credentialInput),
+          macroParams: optional(form.macroParams),
+          upstreamHostAllowlist: optional(form.upstreamHostAllowlist),
+        }
+      : undefined,
     name: String(form.advertiserName || '').trim(),
     password: String(form.password || ''),
-    upstreamHostAllowlist: optional(form.upstreamHostAllowlist),
+    roleIds: stringArray(form.roleIds),
   } satisfies AdvertiserCreateInput;
 }
 
@@ -58,4 +71,13 @@ export function editorSnapshot(form: Record<string, unknown>) {
 function optional(value: unknown) {
   const normalized = String(value || '').trim();
   return normalized || undefined;
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value
+        .map(String)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
 }

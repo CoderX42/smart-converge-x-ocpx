@@ -54,9 +54,9 @@ describe('advertiser management model', () => {
       password: 'password-123',
       upstreamHostAllowlist: 'example.test',
     };
-    expect(buildAdvertiserCreatePayload(form).credentialInput).toBe(
-      'write-only-value',
-    );
+    expect(
+      buildAdvertiserCreatePayload(form).integration?.credentialInput,
+    ).toBe('write-only-value');
     const update = buildAdvertiserUpdatePayload(form, {
       accountMasked: 'a***t',
       adapterKey: 'COCO',
@@ -70,6 +70,7 @@ describe('advertiser management model', () => {
       credentialRevision: 2,
       documentRevision: 0,
       id: 'adv-1',
+      integrationConfigured: true,
       republishRequiredCount: 0,
       status: 'DISABLED',
       updateTime: '2026-08-10T00:00:00',
@@ -79,5 +80,18 @@ describe('advertiser management model', () => {
     expect(update.expectedVersion).toBe(4);
     expect(editorSnapshot(form)).not.toContain('write-only-value');
     expect(editorSnapshot(form)).not.toContain('password-123');
+  });
+
+  it('omits the optional integration block for minimum onboarding', () => {
+    expect(
+      buildAdvertiserCreatePayload({
+        account: 'advertiser-login',
+        advertiserName: '广告主',
+        code: 'adv_0123456789abcdef',
+        extraMenuIds: [],
+        password: 'password-123',
+        roleIds: [],
+      }).integration,
+    ).toBeUndefined();
   });
 });

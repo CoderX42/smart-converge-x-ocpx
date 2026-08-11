@@ -40,6 +40,7 @@ import {
 } from '#/api/ocpx';
 import { createClientRequestId } from '#/utils/request-id';
 
+import AutoCodeInput from '../_components/auto-code-input.vue';
 import {
   buildProductCreatePayload,
   buildProductUpdatePayload,
@@ -92,6 +93,7 @@ const editorLoading = ref(false);
 const saving = ref(false);
 const editing = ref<ProductDetail>();
 const idempotencyKey = ref('');
+const codeGenerationKey = ref('');
 const savedSnapshot = ref('');
 const conflictMessage = ref('');
 const policyError = ref('');
@@ -208,6 +210,7 @@ function openCreate() {
   }
   resetEditor();
   idempotencyKey.value = createClientRequestId();
+  codeGenerationKey.value = idempotencyKey.value;
   savedSnapshot.value = productEditorSnapshot(form);
   editorOpen.value = true;
 }
@@ -651,10 +654,12 @@ onMounted(async () => {
               </el-select>
             </el-form-item>
             <el-form-item label="产品编码" prop="code">
-              <el-input
+              <AutoCodeInput
                 v-model="form.code"
                 :disabled="Boolean(editing)"
-                maxlength="64"
+                :generation-key="editing ? '' : codeGenerationKey"
+                :maxlength="64"
+                resource-type="PRODUCT"
               />
             </el-form-item>
             <el-form-item label="产品名称" prop="name">

@@ -17,18 +17,15 @@ import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxIntegrationDocumentMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorLinkMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxSystemUserMapper;
-import com.yzytech.scx.ocpx.admin.mapper.OcpxSystemUserRoleMapper;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.common.security.util.SecurityUtils;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import com.yzytech.scx.system.api.dto.ManagedStorageObject;
 import com.yzytech.scx.system.api.entity.SysUser;
-import com.yzytech.scx.system.api.entity.SysUserRole;
 import com.yzytech.scx.system.api.service.StorageUploadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -52,10 +49,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OcpxAdvertiserService {
 
-	private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
-
-	private static final String ADVERTISER_ROLE_ID = "role_advertiser";
-
 	private static final long MAX_DOCUMENT_BYTES = 10L * 1024 * 1024;
 
 	private static final Set<String> DOCUMENT_TYPES = Set.of("INTEGRATION_GUIDE", "PROTOCOL", "EVENT_MAPPING",
@@ -76,11 +69,9 @@ public class OcpxAdvertiserService {
 
 	private final OcpxSystemUserMapper systemUserMapper;
 
-	private final OcpxSystemUserRoleMapper systemUserRoleMapper;
-
 	private final OcpxAccessScope accessScope;
 
-	private final OcpxUserScopeService userScopeService;
+	private final OcpxAdvertiserAuthorizationService authorizationService;
 
 	private final OcpxConfigChangeService configChangeService;
 
@@ -136,27 +127,30 @@ public class OcpxAdvertiserService {
 			return detailView(existing);
 		}
 
-		String adapterCode = normalizeAdapter(request.adapterKey());
-		AdvertiserViews.AdapterCapability capability = adapterService.requireAdvertiserCapability(adapterCode);
-		String bidUrl = validateBidUrl(request.bidUrl(), request.upstreamHostAllowlist(), capability.requiresBidUrl());
+		AdvertiserRequests.Integration integration = request.integration();
+		String adapterCode = integration == null ? null : normalizeAdapter(integration.adapterKey());
+		AdvertiserViews.AdapterCapability capability = integration == null ? null
+				: adapterService.requireAdvertiserCapability(adapterCode);
+		String bidUrl = integration == null ? null
+				: validateBidUrl(integration.bidUrl(), integration.upstreamHostAllowlist(), capability.requiresBidUrl());
 		ensureUnique(null, request.name(), request.code(), request.account());
 
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
 		advertiser.setAdvertiserCode(request.code().trim());
 		advertiser.setAdvertiserName(request.name().trim());
 		advertiser.setAdapterCode(adapterCode);
-		advertiser.setAdapterVersion(capability.version());
+		advertiser.setAdapterVersion(capability == null ? 0L : capability.version());
 		advertiser.setBidUrl(bidUrl);
-		advertiser.setMacroParams(trimToNull(request.macroParams()));
-		advertiser.setUpstreamHostAllowlist(normalizeAllowlist(request.upstreamHostAllowlist()));
+		advertiser.setMacroParams(integration == null ? null : trimToNull(integration.macroParams()));
+		advertiser.setUpstreamHostAllowlist(
+				integration == null ? null : trimToNull(normalizeAllowlist(integration.upstreamHostAllowlist())));
 		advertiser.setAccount(request.account().trim());
-		advertiser.setPasswordHash(PASSWORD_ENCODER.encode(request.password()));
+		advertiser.setPasswordHash(null);
 		advertiser.setBalance(BigDecimal.ZERO);
 		advertiser.setStatus("DISABLED");
 		advertiser.setConfigVersion(1L);
 		advertiser.setCredentialRevision(0L);
 		advertiser.setDocumentRevision(0L);
-		advertiser.setAdapterVersion(capability.version());
 		advertiser.setCreateRequestKey(requestKey);
 		advertiser.setCreateRequestHash(requestHash);
 		try {
@@ -171,12 +165,12 @@ public class OcpxAdvertiserService {
 			throw conflict("广告主名称、编码、账号或幂等键已被占用");
 		}
 
-		if (StringUtils.hasText(request.credentialInput())) {
-			createCredential(advertiser, 1L, request.credentialInput(), "初始凭据", "ACTIVE", null);
+		if (integration != null && StringUtils.hasText(integration.credentialInput())) {
+			createCredential(advertiser, 1L, integration.credentialInput(), "初始凭据", "ACTIVE", null);
 			advertiser.setCredentialRevision(1L);
 			advertiserMapper.updateById(advertiser);
 		}
-		syncAdvertiserLogin(advertiser);
+		authorizationService.provision(advertiser, request.password(), request.roleIds(), request.extraMenuIds());
 		audit(advertiser, "CREATE", 0L, "已创建广告主，默认禁用", 0);
 		return detailView(advertiser);
 	}
@@ -188,19 +182,30 @@ public class OcpxAdvertiserService {
 		if (before != request.expectedVersion()) {
 			throw conflict("广告主配置已被其他操作修改，请刷新后重试");
 		}
-		String adapterCode = normalizeAdapter(request.adapterKey());
-		AdvertiserViews.AdapterCapability capability = adapterService.requireAdvertiserCapability(adapterCode);
-		String bidUrl = validateBidUrl(request.bidUrl(), request.upstreamHostAllowlist(), capability.requiresBidUrl());
+		boolean integrationConfigured = hasIntegrationInput(request.adapterKey(), request.bidUrl(), request.macroParams(),
+				request.upstreamHostAllowlist());
+		if ("ACTIVE".equals(advertiser.getStatus()) && !integrationConfigured) {
+			throw new IllegalArgumentException("启用中的广告主不能清空接入配置，请先禁用");
+		}
+		if (integrationConfigured && !StringUtils.hasText(request.adapterKey())) {
+			throw new IllegalArgumentException("填写接入配置时必须选择上游 Adapter");
+		}
+		String adapterCode = integrationConfigured ? normalizeAdapter(request.adapterKey()) : null;
+		AdvertiserViews.AdapterCapability capability = integrationConfigured
+				? adapterService.requireAdvertiserCapability(adapterCode) : null;
+		String bidUrl = integrationConfigured
+				? validateBidUrl(request.bidUrl(), request.upstreamHostAllowlist(), capability.requiresBidUrl()) : null;
 		ensureUnique(advertiser.getId(), request.name(), advertiser.getAdvertiserCode(), advertiser.getAccount());
 		advertiser.setAdvertiserName(request.name().trim());
 		advertiser.setAdapterCode(adapterCode);
-		advertiser.setAdapterVersion(capability.version());
+		advertiser.setAdapterVersion(capability == null ? 0L : capability.version());
 		advertiser.setBidUrl(bidUrl);
 		advertiser.setMacroParams(trimToNull(request.macroParams()));
-		advertiser.setUpstreamHostAllowlist(normalizeAllowlist(request.upstreamHostAllowlist()));
+		advertiser.setUpstreamHostAllowlist(integrationConfigured
+				? trimToNull(normalizeAllowlist(request.upstreamHostAllowlist())) : null);
 		advertiser.setConfigVersion(before + 1);
 		advertiserMapper.updateById(advertiser);
-		syncAdvertiserLogin(advertiser);
+		authorizationService.syncProfile(advertiser);
 		int routes = configChangeService.advertiserChanged(id, "广告主接入地址或适配器已变更");
 		audit(advertiser, "UPDATE", before, "已更新非敏感接入配置", routes);
 		return detailView(advertiser);
@@ -264,6 +269,9 @@ public class OcpxAdvertiserService {
 			return new AdvertiserViews.Mutation(id, before, republishRequiredCount(id));
 		}
 		if ("ACTIVE".equals(request.status())) {
+			if (!integrationConfigured(advertiser)) {
+				throw new IllegalArgumentException("广告主接入配置未完成，禁止启用或发布");
+			}
 			AdvertiserViews.AdapterCapability capability = adapterService
 				.requireAdvertiserCapability(advertiser.getAdapterCode());
 			validateBidUrl(advertiser.getBidUrl(), advertiser.getUpstreamHostAllowlist(), capability.requiresBidUrl());
@@ -454,37 +462,6 @@ public class OcpxAdvertiserService {
 		advertiser.setCredentialRef(credential.getCredentialRef());
 	}
 
-	private void syncAdvertiserLogin(OcpxAdvertiser advertiser) {
-		SysUser user = systemUserMapper.selectOne(
-				Wrappers.<SysUser>lambdaQuery().eq(SysUser::getShopId, advertiser.getId()).eq(SysUser::getType, "2"));
-		boolean create = user == null;
-		if (create) {
-			user = new SysUser();
-			user.setType("2");
-			user.setShopId(advertiser.getId());
-			user.setStatus("0");
-			user.setDelFlag("0");
-		}
-		user.setUsername(advertiser.getAccount());
-		user.setNickname(advertiser.getAdvertiserName());
-		user.setPassword(advertiser.getPasswordHash());
-		if (create) {
-			systemUserMapper.insert(user);
-		}
-		else {
-			systemUserMapper.updateById(user);
-		}
-		if (systemUserRoleMapper.selectCount(Wrappers.<SysUserRole>lambdaQuery()
-			.eq(SysUserRole::getUserId, user.getId())
-			.eq(SysUserRole::getRoleId, ADVERTISER_ROLE_ID)) == 0) {
-			SysUserRole role = new SysUserRole();
-			role.setUserId(user.getId());
-			role.setRoleId(ADVERTISER_ROLE_ID);
-			systemUserRoleMapper.insert(role);
-		}
-		userScopeService.ensureAdvertiserScope(user.getId(), advertiser.getId());
-	}
-
 	private void ensureUnique(String id, String name, String code, String account) {
 		if (advertiserMapper.selectCount(Wrappers.<OcpxAdvertiser>lambdaQuery()
 			.and(query -> query.eq(OcpxAdvertiser::getAdvertiserName, name.trim())
@@ -555,7 +532,8 @@ public class OcpxAdvertiserService {
 				maskBidUrl(advertiser.getBidUrl()), credentialConfigured(advertiser),
 				number(advertiser.getCredentialRevision()), number(advertiser.getDocumentRevision()), advertiser.getBalance(),
 				advertiser.getBalance() != null && advertiser.getBalance().signum() > 0 ? "AVAILABLE" : "EMPTY",
-				advertiser.getStatus(), version(advertiser), routes > 0, advertiser.getUpdateTime());
+				advertiser.getStatus(), version(advertiser), routes > 0, integrationConfigured(advertiser),
+				advertiser.getUpdateTime());
 	}
 
 	private AdvertiserViews.Detail detailView(OcpxAdvertiser advertiser) {
@@ -565,7 +543,8 @@ public class OcpxAdvertiserService {
 				maskAccount(advertiser.getAccount()), credentialConfigured(advertiser),
 				number(advertiser.getCredentialRevision()), advertiser.getCurrentDocumentId(),
 				number(advertiser.getDocumentRevision()), advertiser.getBalance(), advertiser.getStatus(),
-				version(advertiser), republishRequiredCount(advertiser.getId()), advertiser.getCreateTime(),
+				version(advertiser), republishRequiredCount(advertiser.getId()), integrationConfigured(advertiser),
+				advertiser.getCreateTime(),
 				advertiser.getUpdateTime());
 	}
 
@@ -610,10 +589,29 @@ public class OcpxAdvertiserService {
 	}
 
 	private String createRequestHash(AdvertiserRequests.Create request) {
-		return sha256(String.join("|", request.name().trim(), request.code().trim(),
-				normalizeAdapter(request.adapterKey()), String.valueOf(request.bidUrl()), String.valueOf(request.macroParams()),
-				normalizeAllowlist(request.upstreamHostAllowlist()), request.account().trim(),
-				String.valueOf(StringUtils.hasText(request.credentialInput()))).getBytes(StandardCharsets.UTF_8));
+		AdvertiserRequests.Integration integration = request.integration();
+		String adapter = integration == null ? "" : normalizeAdapter(integration.adapterKey());
+		return sha256(String.join("|", request.name().trim(), request.code().trim(), adapter,
+				String.valueOf(integration == null ? null : integration.bidUrl()),
+				String.valueOf(integration == null ? null : integration.macroParams()),
+				integration == null ? "" : normalizeAllowlist(integration.upstreamHostAllowlist()), request.account().trim(),
+				String.join(",", normalized(request.roleIds())), String.join(",", normalized(request.extraMenuIds())),
+				String.valueOf(integration != null && StringUtils.hasText(integration.credentialInput())))
+			.getBytes(StandardCharsets.UTF_8));
+	}
+
+	private boolean integrationConfigured(OcpxAdvertiser advertiser) {
+		return StringUtils.hasText(advertiser.getAdapterCode()) && number(advertiser.getAdapterVersion()) > 0;
+	}
+
+	private boolean hasIntegrationInput(String adapterKey, String bidUrl, String macroParams, String allowlist) {
+		return StringUtils.hasText(adapterKey) || StringUtils.hasText(bidUrl) || StringUtils.hasText(macroParams)
+				|| StringUtils.hasText(allowlist);
+	}
+
+	private List<String> normalized(List<String> values) {
+		return values == null ? List.of()
+				: values.stream().filter(StringUtils::hasText).map(String::trim).distinct().sorted().toList();
 	}
 
 	private String safeFileName(String value) {

@@ -4,12 +4,15 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.exception.NotSafeException;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yzytech.scx.ocpx.admin.dto.AdvertiserAuthorizationRequests;
+import com.yzytech.scx.ocpx.admin.dto.AdvertiserAuthorizationViews;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.admin.dto.CatalogRequests;
 import com.yzytech.scx.ocpx.admin.dto.CatalogViews;
 import com.yzytech.scx.ocpx.admin.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.admin.service.OcpxAccountService;
+import com.yzytech.scx.ocpx.admin.service.OcpxAdvertiserAuthorizationService;
 import com.yzytech.scx.ocpx.admin.service.OcpxAdvertiserService;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
@@ -50,6 +53,8 @@ public class OcpxAdvertiserController {
 
 	private final OcpxAccountService accountService;
 
+	private final OcpxAdvertiserAuthorizationService authorizationService;
+
 	@GetMapping
 	@SaCheckPermission("ocpx:advertiser:view")
 	public Result<IPage<AdvertiserViews.ListItem>> list(Page<OcpxAdvertiser> page, String keyword, String adapterKey,
@@ -61,6 +66,26 @@ public class OcpxAdvertiserController {
 	@SaCheckPermission("ocpx:advertiser:view")
 	public Result<List<AdvertiserViews.AdapterCapability>> adapterCapabilities() {
 		return Result.success(advertiserService.adapters());
+	}
+
+	@GetMapping("/login-authorization/options")
+	@SaCheckPermission("ocpx:advertiser:grant")
+	public Result<AdvertiserAuthorizationViews.Options> loginAuthorizationOptions() {
+		return call(authorizationService::options);
+	}
+
+	@GetMapping("/{id}/login-authorization")
+	@SaCheckPermission("ocpx:advertiser:grant")
+	public Result<AdvertiserAuthorizationViews.Detail> loginAuthorization(@PathVariable String id) {
+		return call(() -> authorizationService.detail(id));
+	}
+
+	@PutMapping("/{id}/login-authorization")
+	@SaCheckPermission("ocpx:advertiser:grant")
+	@SysLog("修改广告主账号授权")
+	public Result<AdvertiserAuthorizationViews.Detail> updateLoginAuthorization(@PathVariable String id,
+			@Valid @RequestBody AdvertiserAuthorizationRequests.Update request) {
+		return call(() -> authorizationService.update(id, request));
 	}
 
 	@GetMapping("/{id}")

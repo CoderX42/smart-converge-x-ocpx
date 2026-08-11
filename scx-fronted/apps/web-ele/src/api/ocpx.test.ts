@@ -17,7 +17,10 @@ import {
   downloadAdvertiserDocument,
   executeApiDebug,
   exportReport,
+  generateOcpxBusinessCode,
   getAccessScopeOptions,
+  getAdvertiserAuthorization,
+  getAdvertiserAuthorizationOptions,
   getAdvertiserDetail,
   getAdvertiserDocuments,
   getAdvertiserLedger,
@@ -61,6 +64,7 @@ import {
   rotateMediaCredential,
   saveEventDefinition,
   saveEventMapping,
+  updateAdvertiserAuthorization,
   updateProduct,
   uploadProductLogo,
   validateAppLinkUrl,
@@ -88,13 +92,17 @@ describe('ocpx API contract', () => {
   it('uses the revision-aware advertiser API without a secret read endpoint', () => {
     const payload = {
       account: 'account',
-      adapterKey: 'COCO',
-      bidUrl: 'https://example.test/callback',
       code: 'adv_test',
-      credentialInput: 'write-only-credential',
+      extraMenuIds: ['perm_ocpx_report_view'],
+      integration: {
+        adapterKey: 'COCO',
+        bidUrl: 'https://example.test/callback',
+        credentialInput: 'write-only-credential',
+        upstreamHostAllowlist: 'example.test',
+      },
       name: 'Advertiser',
       password: 'password-123',
-      upstreamHostAllowlist: 'example.test',
+      roleIds: ['role_analyst'],
     };
     getAdvertisers({ current: 1, documentConfigured: true, size: 20 });
     getAdvertiserDetail('adv-1');
@@ -136,6 +144,32 @@ describe('ocpx API contract', () => {
     expect(requestClient.get).toHaveBeenCalledWith(
       '/ocpx/advertisers/adv-1/documents/doc-1/content',
       { responseReturn: 'body', responseType: 'blob' },
+    );
+  });
+
+  it('uses dedicated advertiser authorization and business-code endpoints', () => {
+    getAdvertiserAuthorizationOptions();
+    getAdvertiserAuthorization('adv-1');
+    updateAdvertiserAuthorization('adv-1', {
+      expectedGrantVersion: 4,
+      extraMenuIds: ['perm_ocpx_report_view'],
+      roleIds: ['role_analyst'],
+    });
+    generateOcpxBusinessCode('ADVERTISER');
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/ocpx/advertisers/login-authorization/options',
+    );
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/ocpx/advertisers/adv-1/login-authorization',
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/ocpx/advertisers/adv-1/login-authorization',
+      expect.objectContaining({ expectedGrantVersion: 4 }),
+    );
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/ocpx/business-codes/generate',
+      { resourceType: 'ADVERTISER' },
     );
   });
 

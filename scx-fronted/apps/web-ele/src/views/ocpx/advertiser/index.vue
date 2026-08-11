@@ -5,11 +5,14 @@ import type {
   AccountEntry,
   Advertiser,
   AdvertiserAdapterCapability,
+  AdvertiserAuthorizationDetail,
+  AdvertiserAuthorizationMenu,
+  AdvertiserAuthorizationOptions,
   AdvertiserDetail,
   AdvertiserDocument,
 } from '#/api/ocpx';
 
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
 import { useAccess } from '@boot/access';
 
@@ -30,6 +33,8 @@ import {
   createAdvertiser,
   downloadAdvertiserDocument,
   getAdvertiserAdapterCapabilities,
+  getAdvertiserAuthorization,
+  getAdvertiserAuthorizationOptions,
   getAdvertiserDetail,
   getAdvertiserDocuments,
   getAdvertiserLedger,
@@ -40,10 +45,12 @@ import {
   secondaryAuthenticate,
   setCurrentAdvertiserDocument,
   updateAdvertiser,
+  updateAdvertiserAuthorization,
   uploadAdvertiserDocument,
 } from '#/api/ocpx';
 import { createClientRequestId } from '#/utils/request-id';
 
+import AutoCodeInput from '../_components/auto-code-input.vue';
 import {
   buildAdvertiserCreatePayload,
   buildAdvertiserUpdatePayload,
@@ -69,6 +76,7 @@ const canEditDocuments = computed(() =>
 );
 const canRecharge = computed(() => hasAccessByCodes(['ocpx:account:recharge']));
 const canViewLedger = computed(() => hasAccessByCodes(['ocpx:account:read']));
+const canGrant = computed(() => hasAccessByCodes(['ocpx:advertiser:grant']));
 
 const filters = reactive({
   adapterKey: '',
@@ -100,7 +108,12 @@ const saving = ref(false);
 const conflictMessage = ref('');
 const editing = ref<AdvertiserDetail>();
 const idempotencyKey = ref('');
+const codeGenerationKey = ref('');
 const savedSnapshot = ref('');
+const advancedSections = ref<string[]>([]);
+const authorizationOptions = ref<AdvertiserAuthorizationOptions>();
+const authorizationLoading = ref(false);
+const createMenuTreeRef = ref<any>();
 const formRef = ref<FormInstance>();
 const form = reactive({
   account: '',
@@ -109,8 +122,10 @@ const form = reactive({
   bidUrl: '',
   code: '',
   credentialInput: '',
+  extraMenuIds: [] as string[],
   macroParams: '',
   password: '',
+  roleIds: [] as string[],
   upstreamHostAllowlist: '',
 });
 
@@ -119,12 +134,21 @@ const rules: FormRules = {
     { max: 100, message: '账号不能超过 100 个字符', trigger: 'blur' },
     { message: '请输入登录账号', required: true, trigger: 'blur' },
   ],
-  adapterKey: [{ message: '请选择上游 Adapter', required: true }],
   advertiserName: [
     { max: 64, message: '名称不能超过 64 个字符', trigger: 'blur' },
     { message: '请输入广告主名称', required: true, trigger: 'blur' },
   ],
-  bidUrl: [{ message: '请输入上游 HTTPS 地址', required: true }],
+  bidUrl: [
+    {
+      validator: (_rule, value, callback) => {
+        if (selectedCapability.value?.requiresBidUrl && !String(value || '')) {
+          callback(new Error('当前 Adapter 要求填写上游 HTTPS 地址'));
+          return;
+        }
+        callback();
+      },
+    },
+  ],
   code: [
     {
       message: '编码为 2–32 位小写字母、数字、下划线或连字符',
@@ -138,12 +162,71 @@ const rules: FormRules = {
     { message: '请输入初始登录密码', required: true, trigger: 'blur' },
   ],
   upstreamHostAllowlist: [
-    { message: '请输入上游域名白名单', required: true, trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (form.bidUrl && !String(value || '').trim()) {
+          callback(new Error('填写上游地址时必须配置域名白名单'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
   ],
 };
 
 const selectedCapability = computed(() =>
   capabilities.value.find((item) => item.adapterKey === form.adapterKey),
+);
+
+const createInheritedMenuIds = computed(() => {
+  const inherited = new Set(
+    authorizationOptions.value?.mandatoryRole.menuIds || [],
+  );
+  for (const role of authorizationOptions.value?.sharedRoles || []) {
+    if (form.roleIds.includes(role.id)) {
+      role.menuIds.forEach((id) => inherited.add(id));
+    }
+  }
+  return inherited;
+});
+
+const createMenuTree = computed(() =>
+  disableInheritedMenus(
+    authorizationOptions.value?.menuTree || [],
+    createInheritedMenuIds.value,
+  ),
+);
+
+const grantOpen = ref(false);
+const grantLoading = ref(false);
+const grantSaving = ref(false);
+const grantConflict = ref('');
+const grantTarget = ref<Advertiser>();
+const grantDetail = ref<AdvertiserAuthorizationDetail>();
+const grantMenuTreeRef = ref<any>();
+const grantForm = reactive({
+  extraMenuIds: [] as string[],
+  roleIds: [] as string[],
+});
+
+const grantInheritedMenuIds = computed(() => {
+  const inherited = new Set(
+    authorizationOptions.value?.mandatoryRole.menuIds || [],
+  );
+  for (const role of authorizationOptions.value?.sharedRoles || []) {
+    if (grantForm.roleIds.includes(role.id)) {
+      role.menuIds.forEach((id) => inherited.add(id));
+    }
+  }
+  return inherited;
+});
+
+const grantMenuTree = computed(() =>
+  disableInheritedMenus(
+    authorizationOptions.value?.menuTree || [],
+    grantInheritedMenuIds.value,
+  ),
 );
 
 const credentialOpen = ref(false);
@@ -178,6 +261,47 @@ const ledgerRows = ref<AccountEntry[]>([]);
 async function loadCapabilities() {
   if (!canView.value) return;
   capabilities.value = await getAdvertiserAdapterCapabilities();
+}
+
+async function loadAuthorizationOptions() {
+  if (!canGrant.value || authorizationOptions.value) return;
+  authorizationLoading.value = true;
+  try {
+    authorizationOptions.value = await getAdvertiserAuthorizationOptions();
+  } finally {
+    authorizationLoading.value = false;
+  }
+}
+
+function disableInheritedMenus(
+  nodes: AdvertiserAuthorizationMenu[],
+  inherited: Set<string>,
+): Array<AdvertiserAuthorizationMenu & { disabled: boolean }> {
+  return nodes.map((node) => ({
+    ...node,
+    children: disableInheritedMenus(node.children || [], inherited),
+    disabled: inherited.has(node.id) || !node.grantable,
+  }));
+}
+
+function checkedMenuIds(tree: any, inherited: Set<string>) {
+  return (tree?.getCheckedKeys(false) || [])
+    .map(String)
+    .filter((id: string) => !inherited.has(id));
+}
+
+function captureCreateMenus() {
+  form.extraMenuIds = checkedMenuIds(
+    createMenuTreeRef.value,
+    createInheritedMenuIds.value,
+  );
+}
+
+function captureGrantMenus() {
+  grantForm.extraMenuIds = checkedMenuIds(
+    grantMenuTreeRef.value,
+    grantInheritedMenuIds.value,
+  );
 }
 
 async function load() {
@@ -227,22 +351,27 @@ function resetEditor() {
   conflictMessage.value = '';
   Object.assign(form, {
     account: '',
-    adapterKey: capabilities.value[0]?.adapterKey || '',
+    adapterKey: '',
     advertiserName: '',
     bidUrl: '',
     code: '',
     credentialInput: '',
+    extraMenuIds: [],
     macroParams: '',
     password: '',
+    roleIds: [],
     upstreamHostAllowlist: '',
   });
+  advancedSections.value = [];
 }
 
-function openCreate() {
+async function openCreate() {
   resetEditor();
   idempotencyKey.value = createClientRequestId();
+  codeGenerationKey.value = idempotencyKey.value;
   savedSnapshot.value = editorSnapshot(form);
   editorOpen.value = true;
+  await loadAuthorizationOptions();
 }
 
 function clearEditorSensitive() {
@@ -259,20 +388,73 @@ async function openEdit(row: Advertiser) {
     editing.value = detail;
     Object.assign(form, {
       account: detail.accountMasked,
-      adapterKey: detail.adapterKey,
+      adapterKey: detail.adapterKey || '',
       advertiserName: detail.advertiserName,
       bidUrl: detail.bidUrl || '',
       code: detail.code,
       credentialInput: '',
+      extraMenuIds: [],
       macroParams: detail.macroParams || '',
       password: '',
+      roleIds: [],
       upstreamHostAllowlist: detail.upstreamHostAllowlist || '',
     });
+    advancedSections.value = ['integration'];
     savedSnapshot.value = editorSnapshot(form);
   } catch {
     editorOpen.value = false;
   } finally {
     editorLoading.value = false;
+  }
+}
+
+async function openGrant(row: Advertiser) {
+  grantOpen.value = true;
+  grantLoading.value = true;
+  grantConflict.value = '';
+  grantTarget.value = row;
+  try {
+    await loadAuthorizationOptions();
+    grantDetail.value = await getAdvertiserAuthorization(row.id);
+    grantForm.roleIds = [...grantDetail.value.roleIds];
+    grantForm.extraMenuIds = [...grantDetail.value.extraMenuIds];
+    await nextTick();
+    grantMenuTreeRef.value?.setCheckedKeys([
+      ...grantInheritedMenuIds.value,
+      ...grantForm.extraMenuIds,
+    ]);
+  } catch {
+    grantOpen.value = false;
+  } finally {
+    grantLoading.value = false;
+  }
+}
+
+async function saveGrant() {
+  if (!grantTarget.value || !grantDetail.value) return;
+  captureGrantMenus();
+  grantSaving.value = true;
+  grantConflict.value = '';
+  try {
+    grantDetail.value = await updateAdvertiserAuthorization(
+      grantTarget.value.id,
+      {
+        expectedGrantVersion: grantDetail.value.grantVersion,
+        extraMenuIds: grantForm.extraMenuIds,
+        roleIds: grantForm.roleIds,
+      },
+    );
+    grantOpen.value = false;
+    ElMessage.success('账号授权已更新，账号现有会话已失效，请重新登录');
+  } catch (error: any) {
+    if (
+      error?.response?.status === 409 ||
+      error?.response?.data?.code === 409
+    ) {
+      grantConflict.value = '授权已被其他操作修改，请关闭后重新打开。';
+    }
+  } finally {
+    grantSaving.value = false;
   }
 }
 
@@ -293,6 +475,7 @@ async function beforeEditorClose(done: () => void) {
 
 async function saveAdvertiser() {
   if (!(await formRef.value?.validate())) return;
+  if (!editing.value && canGrant.value) captureCreateMenus();
   saving.value = true;
   conflictMessage.value = '';
   try {
@@ -539,7 +722,11 @@ function formatBytes(value: number) {
 
 onMounted(async () => {
   if (!canView.value) return;
-  await Promise.all([loadCapabilities(), load()]);
+  await Promise.all([
+    loadCapabilities(),
+    load(),
+    canGrant.value ? loadAuthorizationOptions() : Promise.resolve(),
+  ]);
 });
 </script>
 
@@ -624,8 +811,11 @@ onMounted(async () => {
           </el-table-column>
           <el-table-column label="Adapter" min-width="145">
             <template #default="{ row }">
-              {{ row.adapterKey }}
-              <span class="muted">v{{ row.adapterVersion }}</span>
+              <template v-if="row.integrationConfigured">
+                {{ row.adapterKey }}
+                <span class="muted">v{{ row.adapterVersion }}</span>
+              </template>
+              <el-tag v-else size="small" type="warning">待配置</el-tag>
             </template>
           </el-table-column>
           <el-table-column
@@ -679,7 +869,7 @@ onMounted(async () => {
             </template>
           </el-table-column>
           <el-table-column label="更新时间" min-width="170" prop="updateTime" />
-          <el-table-column fixed="right" label="操作" width="370">
+          <el-table-column fixed="right" label="操作" width="430">
             <template #default="{ row }">
               <el-button
                 v-if="canEdit"
@@ -695,6 +885,13 @@ onMounted(async () => {
                 link
                 @click="openDocuments(row)"
                 >资料</el-button
+              >
+              <el-button
+                v-if="canGrant"
+                link
+                type="primary"
+                @click="openGrant(row)"
+                >账号授权</el-button
               >
               <el-button
                 v-if="canCredential"
@@ -764,7 +961,7 @@ onMounted(async () => {
       :before-close="beforeEditorClose"
       :close-on-click-modal="false"
       :title="editing ? '编辑广告主' : '新增广告主'"
-      size="620px"
+      size="720px"
       @closed="clearEditorSensitive"
     >
       <div v-loading="editorLoading">
@@ -787,50 +984,26 @@ onMounted(async () => {
           :rules="rules"
           label-position="top"
         >
-          <div class="form-grid">
-            <el-form-item label="广告主名称" prop="advertiserName">
-              <el-input v-model="form.advertiserName" maxlength="64" />
-            </el-form-item>
-            <el-form-item label="广告主编码" prop="code">
-              <el-input
-                v-model="form.code"
-                :disabled="Boolean(editing)"
-                maxlength="32"
-              />
-            </el-form-item>
-          </div>
-          <el-form-item label="上游 Adapter" prop="adapterKey">
-            <el-select v-model="form.adapterKey" class="full-width">
-              <el-option
-                v-for="adapter in capabilities"
-                :key="adapter.adapterKey"
-                :label="`${adapter.adapterName} · capability v${adapter.version}`"
-                :value="adapter.adapterKey"
-              />
-            </el-select>
-            <span v-if="selectedCapability" class="field-hint">
-              鉴权：{{
-                selectedCapability.authTypes.join(' / ') || '未声明'
-              }}；超时上限：{{ selectedCapability.maxTimeoutMs || '—' }}ms
-            </span>
-          </el-form-item>
-          <el-form-item label="上游 HTTPS 地址" prop="bidUrl">
-            <el-input
-              v-model="form.bidUrl"
-              placeholder="https://partner.example/callback"
-            />
-          </el-form-item>
-          <el-form-item label="上游域名白名单" prop="upstreamHostAllowlist">
-            <el-input
-              v-model="form.upstreamHostAllowlist"
-              placeholder="partner.example，多个域名用逗号分隔"
-            />
-          </el-form-item>
-          <el-form-item label="必填宏声明">
-            <el-input v-model="form.macroParams" :rows="3" type="textarea" />
-          </el-form-item>
-          <template v-if="!editing">
+          <section class="form-section">
+            <div class="section-heading">
+              <strong>基础信息</strong>
+              <span>创建后广告主业务状态保持禁用。</span>
+            </div>
             <div class="form-grid">
+              <el-form-item label="广告主名称" prop="advertiserName">
+                <el-input v-model="form.advertiserName" maxlength="64" />
+              </el-form-item>
+              <el-form-item label="广告主编码" prop="code">
+                <AutoCodeInput
+                  v-model="form.code"
+                  :disabled="Boolean(editing)"
+                  :generation-key="editing ? '' : codeGenerationKey"
+                  :maxlength="32"
+                  resource-type="ADVERTISER"
+                />
+              </el-form-item>
+            </div>
+            <div v-if="!editing" class="form-grid">
               <el-form-item label="登录账号" prop="account">
                 <el-input v-model="form.account" maxlength="100" />
               </el-form-item>
@@ -842,17 +1015,128 @@ onMounted(async () => {
                 />
               </el-form-item>
             </div>
-            <el-form-item label="初始凭据（可选）">
-              <el-input
-                v-model="form.credentialInput"
-                autocomplete="new-password"
-                placeholder="只写；提交后不会回显"
-                show-password
-                type="password"
-              />
-            </el-form-item>
-          </template>
-          <el-descriptions v-else :column="2" border>
+          </section>
+
+          <section v-if="!editing" class="form-section">
+            <div class="section-heading">
+              <strong>账号授权</strong>
+              <span>固定绑定广告主角色；共享角色与额外菜单取权限并集。</span>
+            </div>
+            <el-alert
+              :closable="false"
+              class="drawer-alert"
+              :title="`固定角色：${authorizationOptions?.mandatoryRole.name || '广告主'}`"
+              type="info"
+            />
+            <template v-if="canGrant">
+              <el-form-item label="共享 OCPX 角色">
+                <el-select
+                  v-model="form.roleIds"
+                  class="full-width"
+                  :loading="authorizationLoading"
+                  multiple
+                  placeholder="可选，仅显示安全的 OCPX 角色"
+                >
+                  <el-option
+                    v-for="role in authorizationOptions?.sharedRoles || []"
+                    :key="role.id"
+                    :label="role.name"
+                    :value="role.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="账号专属增补菜单">
+                <el-tree
+                  :key="form.roleIds.join(',')"
+                  ref="createMenuTreeRef"
+                  check-on-click-node
+                  check-strictly
+                  :data="createMenuTree"
+                  :default-checked-keys="[
+                    ...createInheritedMenuIds,
+                    ...form.extraMenuIds,
+                  ]"
+                  default-expand-all
+                  node-key="id"
+                  show-checkbox
+                  @check="captureCreateMenus"
+                >
+                  <template #default="{ data }">
+                    <span>{{ data.name }}</span>
+                    <span v-if="data.disabled" class="tree-inherited">
+                      {{ data.grantable ? '已继承' : '仅用于父级导航' }}
+                    </span>
+                  </template>
+                </el-tree>
+              </el-form-item>
+            </template>
+            <p v-else class="field-hint">
+              当前账号无授权管理权限，将仅绑定固定广告主角色。
+            </p>
+          </section>
+
+          <section class="form-section">
+            <div class="section-heading">
+              <strong>接入配置</strong>
+              <span>可稍后补充；未完成时禁止启用或发布。</span>
+            </div>
+            <el-collapse v-model="advancedSections">
+              <el-collapse-item name="integration" title="展开接入配置（可选）">
+                <el-form-item label="上游 Adapter" prop="adapterKey">
+                  <el-select
+                    v-model="form.adapterKey"
+                    class="full-width"
+                    clearable
+                  >
+                    <el-option
+                      v-for="adapter in capabilities"
+                      :key="adapter.adapterKey"
+                      :label="`${adapter.adapterName} · capability v${adapter.version}`"
+                      :value="adapter.adapterKey"
+                    />
+                  </el-select>
+                  <span v-if="selectedCapability" class="field-hint">
+                    鉴权：{{
+                      selectedCapability.authTypes.join(' / ') || '未声明'
+                    }}；超时上限：{{ selectedCapability.maxTimeoutMs || '—' }}ms
+                  </span>
+                </el-form-item>
+                <el-form-item label="上游 HTTPS 地址" prop="bidUrl">
+                  <el-input
+                    v-model="form.bidUrl"
+                    placeholder="https://partner.example/callback"
+                  />
+                </el-form-item>
+                <el-form-item
+                  label="上游域名白名单"
+                  prop="upstreamHostAllowlist"
+                >
+                  <el-input
+                    v-model="form.upstreamHostAllowlist"
+                    placeholder="partner.example，多个域名用逗号分隔"
+                  />
+                </el-form-item>
+                <el-form-item label="必填宏声明">
+                  <el-input
+                    v-model="form.macroParams"
+                    :rows="3"
+                    type="textarea"
+                  />
+                </el-form-item>
+                <el-form-item v-if="!editing" label="初始上游凭据（可选）">
+                  <el-input
+                    v-model="form.credentialInput"
+                    autocomplete="new-password"
+                    placeholder="只写；提交后不会回显"
+                    show-password
+                    type="password"
+                  />
+                </el-form-item>
+              </el-collapse-item>
+            </el-collapse>
+          </section>
+
+          <el-descriptions v-if="editing" :column="2" border>
             <el-descriptions-item label="登录账号">{{
               editing.accountMasked
             }}</el-descriptions-item>
@@ -873,6 +1157,83 @@ onMounted(async () => {
         >
       </template>
     </el-drawer>
+
+    <el-dialog
+      v-model="grantOpen"
+      :close-on-click-modal="false"
+      title="广告主账号授权"
+      width="760px"
+    >
+      <div v-loading="grantLoading">
+        <el-alert
+          v-if="grantConflict"
+          :closable="false"
+          class="drawer-alert"
+          :title="grantConflict"
+          type="warning"
+        />
+        <el-alert
+          :closable="false"
+          class="drawer-alert"
+          :title="`账号 ${grantDetail?.accountMasked || '—'} 固定绑定广告主角色；保存后该账号现有会话会失效。`"
+          type="info"
+        />
+        <el-form label-position="top">
+          <el-form-item label="共享 OCPX 角色">
+            <el-select
+              v-model="grantForm.roleIds"
+              class="full-width"
+              multiple
+              placeholder="可选，仅显示安全的 OCPX 角色"
+            >
+              <el-option
+                v-for="role in authorizationOptions?.sharedRoles || []"
+                :key="role.id"
+                :label="`${role.name} · ${role.code}`"
+                :value="role.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="账号专属增补菜单">
+            <el-tree
+              :key="grantForm.roleIds.join(',')"
+              ref="grantMenuTreeRef"
+              check-on-click-node
+              check-strictly
+              :data="grantMenuTree"
+              :default-checked-keys="[
+                ...grantInheritedMenuIds,
+                ...grantForm.extraMenuIds,
+              ]"
+              default-expand-all
+              node-key="id"
+              show-checkbox
+              @check="captureGrantMenus"
+            >
+              <template #default="{ data }">
+                <span>{{ data.name }}</span>
+                <span v-if="data.disabled" class="tree-inherited">
+                  {{ data.grantable ? '已继承' : '仅用于父级导航' }}
+                </span>
+              </template>
+            </el-tree>
+          </el-form-item>
+        </el-form>
+        <p class="field-hint">
+          继承菜单不可取消；额外菜单由系统专属隐藏角色承载，服务端会自动补齐父级菜单。
+        </p>
+      </div>
+      <template #footer>
+        <el-button @click="grantOpen = false">取消</el-button>
+        <el-button
+          :disabled="Boolean(grantConflict)"
+          :loading="grantSaving"
+          type="primary"
+          @click="saveGrant"
+          >保存授权</el-button
+        >
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="credentialOpen"
@@ -1196,6 +1557,36 @@ onMounted(async () => {
 
 .drawer-alert {
   margin-bottom: 18px;
+}
+
+.form-section {
+  padding: 16px;
+  margin-bottom: 16px;
+  background: #fff;
+  border: 1px solid #e4e9f2;
+  border-radius: 10px;
+}
+
+.section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.section-heading strong {
+  font-size: 15px;
+  color: #253047;
+}
+
+.section-heading span,
+.tree-inherited {
+  font-size: 12px;
+  color: #8791a5;
+}
+
+.tree-inherited {
+  margin-left: 8px;
 }
 
 .form-grid {

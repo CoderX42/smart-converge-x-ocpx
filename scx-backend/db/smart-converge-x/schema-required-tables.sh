@@ -16,7 +16,7 @@ SCX_REQUIRED_TABLES=(
   scx_ocpx_monitor_event_binding scx_ocpx_route_event_snapshot
   scx_ocpx_user_scope scx_ocpx_user_scope_revision
   scx_ocpx_integration_document scx_ocpx_advertiser_credential_revision
-  scx_ocpx_advertiser_change_audit
+  scx_ocpx_advertiser_change_audit scx_ocpx_advertiser_login_binding
   scx_ocpx_product scx_ocpx_product_logo_object
   scx_ocpx_product_event_policy scx_ocpx_product_change_audit
   scx_ocpx_media_account scx_ocpx_media_credential

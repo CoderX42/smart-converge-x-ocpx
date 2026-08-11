@@ -176,6 +176,36 @@ if [[ "$invalid_credential_revision_count" -ne 0 ]]; then
   exit 1
 fi
 
+advertiser_login_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_advertiser_login_binding' AND column_name IN ('advertiser_id','user_id','managed_role_id','grant_version','create_by','update_by','create_time','update_time');"
+)"
+advertiser_login_index_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_advertiser_login_binding' AND index_name IN ('PRIMARY','uk_scx_ocpx_advertiser_login_user','uk_scx_ocpx_advertiser_login_managed_role');"
+)"
+advertiser_optional_integration_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_advertiser' AND ((column_name IN ('adapter_code','bid_url','password_hash') AND is_nullable='YES') OR (column_name='adapter_version' AND column_default='0'));"
+)"
+advertiser_login_binding_gap_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_ocpx_advertiser a LEFT JOIN scx_ocpx_advertiser_login_binding b ON BINARY b.advertiser_id=BINARY a.id LEFT JOIN sys_user u ON BINARY u.id=BINARY b.user_id WHERE a.deleted=0 AND (b.advertiser_id IS NULL OR u.id IS NULL OR u.del_flag<>'0' OR u.type<>'2' OR BINARY u.shop_id<>BINARY a.id OR b.grant_version<1);"
+)"
+advertiser_login_ambiguous_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM (SELECT a.id FROM scx_ocpx_advertiser a LEFT JOIN sys_user u ON BINARY u.shop_id=BINARY a.id AND u.type='2' AND u.del_flag='0' WHERE a.deleted=0 GROUP BY a.id HAVING COUNT(u.id)<>1) x;"
+)"
+advertiser_login_contract_violation_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+	--execute="SELECT (SELECT COUNT(*) FROM scx_ocpx_advertiser_login_binding b LEFT JOIN scx_ocpx_advertiser a ON BINARY a.id=BINARY b.advertiser_id LEFT JOIN sys_user u ON BINARY u.id=BINARY b.user_id WHERE a.id IS NULL OR u.id IS NULL) + (SELECT COUNT(*) FROM scx_ocpx_advertiser_login_binding b LEFT JOIN sys_role r ON BINARY r.id=BINARY b.managed_role_id WHERE b.managed_role_id IS NOT NULL AND (r.id IS NULL OR r.del_flag<>'0' OR r.type<>'2' OR r.role_code NOT LIKE 'ROLE_ADV_EXTRA\\_%' OR BINARY r.shop_id<>BINARY b.advertiser_id)) + (SELECT COUNT(*) FROM scx_ocpx_advertiser_login_binding b LEFT JOIN sys_user_role ur ON BINARY ur.user_id=BINARY b.user_id AND ur.role_id='role_advertiser' WHERE ur.id IS NULL) + (SELECT COUNT(*) FROM scx_ocpx_advertiser_login_binding b LEFT JOIN scx_ocpx_user_scope s ON BINARY s.user_id=BINARY b.user_id AND s.deleted=0 AND s.status='ACTIVE' AND s.scope_type='ADVERTISER' AND BINARY s.scope_id=BINARY b.advertiser_id AND s.permission_level='MANAGE' WHERE s.id IS NULL) + (SELECT COUNT(*) FROM scx_ocpx_advertiser_login_binding b JOIN sys_role_menu rm ON BINARY rm.role_id=BINARY b.managed_role_id JOIN sys_menu m ON BINARY m.id=BINARY rm.menu_id WHERE m.del_flag<>'0' OR m.permission LIKE 'system:%' OR m.permission LIKE 'ocpx:scope:%' OR m.permission='ocpx:advertiser:grant' OR (m.permission IS NOT NULL AND m.permission<>'' AND m.permission NOT LIKE 'ocpx:%'));"
+)"
+advertiser_grant_admin_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(DISTINCT r.id) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission='ocpx:advertiser:grant';"
+)"
+advertiser_grant_non_admin_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM sys_role r JOIN sys_role_menu rm ON rm.role_id=r.id JOIN sys_menu m ON m.id=rm.menu_id WHERE r.role_code<>'ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.permission='ocpx:advertiser:grant';"
+)"
+
+if [[ "$advertiser_login_column_count" -ne 8 || "$advertiser_login_index_count" -ne 3 || "$advertiser_optional_integration_column_count" -ne 4 || "$advertiser_login_binding_gap_count" -ne 0 || "$advertiser_login_ambiguous_count" -ne 0 || "$advertiser_login_contract_violation_count" -ne 0 || "$advertiser_grant_admin_count" -ne 1 || "$advertiser_grant_non_admin_count" -ne 0 ]]; then
+  echo "Database verification failed: Advertiser login binding or authorization contract is incomplete." >&2
+  exit 1
+fi
+
 product_master_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
   --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND ((table_name='scx_ocpx_product' AND column_name IN ('advertiser_id','code','name','normalized_name','package_name','logo_object_id','description','status','config_version','event_policy_revision','create_request_key','create_request_hash','archived_by','archived_at','create_by','update_by')) OR (table_name='scx_ocpx_product_logo_object' AND column_name IN ('storage_config_id','storage_provider','object_key','file_name','content_type','file_size','sha256','image_width','image_height','status')) OR (table_name='scx_ocpx_product_event_policy' AND column_name IN ('product_id','event_definition_id','daily_limit','status','version','update_by')) OR (table_name='scx_ocpx_product_change_audit' AND column_name IN ('product_id','advertiser_id','action','before_config_version','after_config_version','event_policy_revision','affected_route_count')) OR (table_name='scx_ocpx_app_link' AND column_name='product_id') OR (table_name='scx_ocpx_monitor_link' AND column_name IN ('published_product_id','published_product_version','published_product_event_policy_revision')));"
 )"

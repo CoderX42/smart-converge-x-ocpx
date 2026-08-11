@@ -12,13 +12,14 @@ public final class AdvertiserViews {
 	public record ListItem(String id, String advertiserName, String code, String adapterKey, Long adapterVersion,
 			String maskedBidUrl, boolean credentialConfigured, Long credentialRevision, Long documentRevision,
 			BigDecimal balance, String balanceStatus, String status, Long configVersion, boolean republishRequired,
-			LocalDateTime updateTime) {
+			boolean integrationConfigured, LocalDateTime updateTime) {
 	}
 
 	public record Detail(String id, String advertiserName, String code, String adapterKey, Long adapterVersion, String bidUrl,
 			String macroParams, String upstreamHostAllowlist, String accountMasked, boolean credentialConfigured,
 			Long credentialRevision, String currentDocumentId, Long documentRevision, BigDecimal balance, String status,
-			Long configVersion, int republishRequiredCount, LocalDateTime createTime, LocalDateTime updateTime) {
+			Long configVersion, int republishRequiredCount, boolean integrationConfigured, LocalDateTime createTime,
+			LocalDateTime updateTime) {
 	}
 
 	public record CredentialState(boolean configured, Long revision, LocalDateTime overlapUntil,

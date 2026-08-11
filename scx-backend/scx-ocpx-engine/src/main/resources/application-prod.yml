@@ -22,7 +22,7 @@ spring:
 scx:
   ocpx:
     debug-execution-enabled: true
-    public-base-url: http://42.81.102.181/ocpx
+    public-base-url: https://ocpx.zhongsenyuedong.cn/ocpx
     # public-base-url: https://ocpx.example.com/ocpx
     replica-acks-required: 1
     allow-http: false

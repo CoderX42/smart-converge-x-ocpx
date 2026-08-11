@@ -33,6 +33,7 @@ import {
 } from '#/api/ocpx';
 import { createClientRequestId } from '#/utils/request-id';
 
+import AutoCodeInput from './auto-code-input.vue';
 import {
   appendChannelMacros,
   CHANNEL_MACRO_OPTIONS,
@@ -82,6 +83,7 @@ const eventOptions = ref<EventOption[]>([]);
 const eventOptionsLoading = ref(false);
 const eventBindingErrors = ref<Record<number, string>>({});
 const editorSnapshot = ref('');
+const codeGenerationKey = ref('');
 const lastChannelId = ref('');
 const { copy: copyToClipboard } = useClipboard({ legacy: true });
 
@@ -342,6 +344,8 @@ function resetForm() {
 
 async function openEditor(row?: Row) {
   resetForm();
+  codeGenerationKey.value =
+    !row && props.kind === 'channel' ? createClientRequestId() : '';
   if (row && props.kind === 'monitor') {
     Object.assign(form, await getMonitor(row.id));
   } else if (row) {
@@ -753,9 +757,12 @@ onMounted(async () => {
       <el-form ref="formRef" :model="form" :rules="rules" label-width="118px">
         <template v-if="kind === 'channel'">
           <el-form-item label="渠道编码" prop="channelCode">
-            <el-input
+            <AutoCodeInput
               v-model="form.channelCode"
-              placeholder="例如 toutiao_main"
+              :disabled="Boolean(form.id)"
+              :generation-key="codeGenerationKey"
+              :maxlength="32"
+              resource-type="CHANNEL"
             />
           </el-form-item>
           <el-form-item label="渠道名称" prop="channelName">

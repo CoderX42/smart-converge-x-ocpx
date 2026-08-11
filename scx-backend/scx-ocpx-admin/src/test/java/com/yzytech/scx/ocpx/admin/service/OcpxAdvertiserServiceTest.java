@@ -13,11 +13,9 @@ import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxIntegrationDocumentMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorLinkMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxSystemUserMapper;
-import com.yzytech.scx.ocpx.admin.mapper.OcpxSystemUserRoleMapper;
 import com.yzytech.scx.common.security.util.SecurityUtils;
 import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import com.yzytech.scx.system.api.dto.ManagedStorageObject;
-import com.yzytech.scx.system.api.entity.SysUser;
 import com.yzytech.scx.system.api.service.StorageUploadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,11 +52,10 @@ class OcpxAdvertiserServiceTest {
 
 	private final OcpxSystemUserMapper systemUserMapper = mock(OcpxSystemUserMapper.class);
 
-	private final OcpxSystemUserRoleMapper systemUserRoleMapper = mock(OcpxSystemUserRoleMapper.class);
-
 	private final OcpxAccessScope accessScope = mock(OcpxAccessScope.class);
 
-	private final OcpxUserScopeService userScopeService = mock(OcpxUserScopeService.class);
+	private final OcpxAdvertiserAuthorizationService authorizationService = mock(
+			OcpxAdvertiserAuthorizationService.class);
 
 	private final OcpxConfigChangeService configChangeService = mock(OcpxConfigChangeService.class);
 
@@ -73,7 +70,7 @@ class OcpxAdvertiserServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new OcpxAdvertiserService(advertiserMapper, credentialMapper, documentMapper, auditMapper, monitorMapper,
-				systemUserMapper, systemUserRoleMapper, accessScope, userScopeService, configChangeService, adapterService,
+				systemUserMapper, accessScope, authorizationService, configChangeService, adapterService,
 				protocolCrypto, storageUploadService);
 		when(adapterService.requireAdvertiserCapability("COCO")).thenReturn(new AdvertiserViews.AdapterCapability("COCO",
 				"Coco", 3L, true, true, List.of("NONE"), List.of("CLICK"), 3000));
@@ -98,19 +95,14 @@ class OcpxAdvertiserServiceTest {
 	void createEncryptsCredentialAndNeverWritesLegacyPlaintext() {
 		when(advertiserMapper.selectCount(any())).thenReturn(0L);
 		when(systemUserMapper.selectCount(any())).thenReturn(0L);
-		when(systemUserRoleMapper.selectCount(any())).thenReturn(0L);
 		when(protocolCrypto.encrypt("initial-credential-value")).thenReturn("encrypted-value");
 		when(advertiserMapper.insert(any(OcpxAdvertiser.class))).thenAnswer(invocation -> {
 			((OcpxAdvertiser) invocation.getArgument(0)).setId("advertiser-1");
 			return 1;
 		});
-		when(systemUserMapper.insert(any(SysUser.class))).thenAnswer(invocation -> {
-			((SysUser) invocation.getArgument(0)).setId("user-1");
-			return 1;
-		});
-		AdvertiserRequests.Create request = new AdvertiserRequests.Create("测试广告主", "adv_test", "COCO",
-				"https://api.example.test/callback", null, "api.example.test", "adv-account", "password-123",
-				"initial-credential-value");
+		AdvertiserRequests.Create request = new AdvertiserRequests.Create("测试广告主", "adv_test", "adv-account",
+				"password-123", List.of(), List.of(), new AdvertiserRequests.Integration("COCO",
+						"https://api.example.test/callback", null, "api.example.test", "initial-credential-value"));
 
 		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
 			security.when(SecurityUtils::getUserName).thenReturn("operator");
@@ -129,9 +121,48 @@ class OcpxAdvertiserServiceTest {
 		verify(credentialMapper).insert(credential.capture());
 		assertThat(credential.getValue().getSecretCiphertext()).isEqualTo("encrypted-value");
 		assertThat(credential.getValue().getStorageMode()).isEqualTo("ENCRYPTED");
-		verify(userScopeService).ensureAdvertiserScope("user-1", "advertiser-1");
+		verify(authorizationService).provision(advertiser.getValue(), "password-123", List.of(), List.of());
 		assertThat(Arrays.stream(AdvertiserViews.Detail.class.getRecordComponents()).map(component -> component.getName()))
 			.doesNotContain("secretKey", "credentialInput", "credentialRef", "secretCiphertext");
+	}
+
+	@Test
+	void minimumCreateKeepsIntegrationPendingAndDelegatesAtomicAccountProvisioning() {
+		when(advertiserMapper.selectCount(any())).thenReturn(0L);
+		when(systemUserMapper.selectCount(any())).thenReturn(0L);
+		when(advertiserMapper.insert(any(OcpxAdvertiser.class))).thenAnswer(invocation -> {
+			((OcpxAdvertiser) invocation.getArgument(0)).setId("advertiser-1");
+			return 1;
+		});
+		AdvertiserRequests.Create request = new AdvertiserRequests.Create("最小广告主", "adv_minimum",
+				"minimum-account", "password-123", List.of(), List.of(), null);
+
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			security.when(SecurityUtils::getUserName).thenReturn("operator");
+			AdvertiserViews.Detail result = service.create("create-request-minimum", request);
+
+			assertThat(result.integrationConfigured()).isFalse();
+			assertThat(result.adapterKey()).isNull();
+			assertThat(result.status()).isEqualTo("DISABLED");
+		}
+
+		ArgumentCaptor<OcpxAdvertiser> captured = ArgumentCaptor.forClass(OcpxAdvertiser.class);
+		verify(advertiserMapper).insert(captured.capture());
+		assertThat(captured.getValue().getPasswordHash()).isNull();
+		verify(authorizationService).provision(captured.getValue(), "password-123", List.of(), List.of());
+	}
+
+	@Test
+	void unconfiguredAdvertiserCannotBeEnabled() {
+		OcpxAdvertiser advertiser = advertiser(1L, 0L);
+		advertiser.setAdapterCode(null);
+		advertiser.setBidUrl(null);
+		when(advertiserMapper.selectOne(any())).thenReturn(advertiser);
+
+		assertThatThrownBy(() -> service.changeStatus("advertiser-1",
+				new AdvertiserRequests.ChangeStatus("ACTIVE", 1L, "ready", true)))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("接入配置未完成");
 	}
 
 	@Test
@@ -184,6 +215,18 @@ class OcpxAdvertiserServiceTest {
 				"https://api.example.test/callback", null, "api.example.test", 4L)))
 			.isInstanceOf(com.yzytech.scx.common.security.handler.BootBusinessException.class)
 			.hasMessageContaining("刷新");
+	}
+
+	@Test
+	void activeAdvertiserCannotClearIntegrationConfiguration() {
+		OcpxAdvertiser advertiser = advertiser(5L, 0L);
+		advertiser.setStatus("ACTIVE");
+		when(advertiserMapper.selectOne(any())).thenReturn(advertiser);
+
+		assertThatThrownBy(() -> service.update("advertiser-1",
+				new AdvertiserRequests.Update("测试广告主", null, null, null, null, 5L)))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("先禁用");
 	}
 
 	@Test
