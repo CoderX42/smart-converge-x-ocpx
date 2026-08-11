@@ -10,7 +10,6 @@ import type {
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
-import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 import { EchartsUI, useEcharts } from '@boot/plugins/echarts';
 
@@ -21,7 +20,6 @@ import { getDashboardOptions, getDashboardSummary } from '#/api/ocpx';
 import { shanghaiDate } from '#/utils/report-date';
 
 import {
-  availableMetricDefinitions,
   buildDashboardTrendSeries,
   comparisonTone,
   dashboardEmptyKind,
@@ -39,11 +37,6 @@ type RankingSection = {
   section?: DashboardSection<DashboardRanking>;
   title: string;
 };
-
-const { hasAccessByCodes } = useAccess();
-const canViewSensitive = computed(() =>
-  hasAccessByCodes(['ocpx:report:metric:sensitive']),
-);
 
 const loading = ref(false);
 const refreshing = ref(false);
@@ -84,9 +77,6 @@ const filters = reactive(defaultFilters());
 
 const cards = computed(() => summary.value?.cards.data || []);
 const trendPoints = computed(() => summary.value?.trend.data || []);
-const metricDefinitions = computed(() =>
-  availableMetricDefinitions(summary.value, canViewSensitive.value),
-);
 const emptyKind = computed(() =>
   dashboardEmptyKind({
     filterTouched: filterTouched.value,
@@ -224,6 +214,18 @@ function freshnessType(value?: string) {
   return 'info';
 }
 
+function freshnessLabel(value?: string) {
+  if (value === 'FINAL') return '数据已更新';
+  if (value === 'DELAYED') return '数据延迟';
+  return '数据汇总中';
+}
+
+function metricStatusLabel(value?: string) {
+  if (value === 'AVAILABLE') return '数据可用';
+  if (value === 'ZERO_DENOMINATOR') return '暂无可计算数据';
+  return '暂无数据';
+}
+
 function compactNumber(value: unknown) {
   const number = Number(value || 0);
   if (Math.abs(number) >= 100_000_000)
@@ -328,7 +330,7 @@ onMounted(() => Promise.all([loadOptions(), load()]));
             effect="plain"
             :type="freshnessType(summary.freshnessStatus)"
           >
-            {{ summary.freshnessStatus }}
+            {{ freshnessLabel(summary.freshnessStatus) }}
           </el-tag>
           <el-button
             aria-label="刷新经营总览"
@@ -443,8 +445,8 @@ onMounted(() => Promise.all([loadOptions(), load()]));
         show-icon
         :title="
           summary.freshnessStatus === 'DELAYED'
-            ? '数据延迟：当前水位尚未覆盖完整查询范围，不标记为最终数据。'
-            : '临时口径：晚到事实仍可能回补原小时。'
+            ? '数据更新存在延迟，近期数据可能尚未完整，请稍后刷新。'
+            : '所选范围仍在汇总，结果可能随后续回补更新。'
         "
         :type="summary.freshnessStatus === 'DELAYED' ? 'warning' : 'info'"
       />
@@ -505,9 +507,9 @@ onMounted(() => Promise.all([loadOptions(), load()]));
                 <template #content>
                   分子 {{ card.current.numerator ?? '—' }} · 分母
                   {{ card.current.denominator ?? '—' }} ·
-                  {{ card.current.status }}
+                  {{ metricStatusLabel(card.current.status) }}
                 </template>
-                <span class="metric-status">{{ card.current.status }}</span>
+                <span class="metric-status">指标说明</span>
               </el-tooltip>
             </div>
             <strong>{{ metricValue(card) }}</strong>
@@ -536,31 +538,10 @@ onMounted(() => Promise.all([loadOptions(), load()]));
           />
         </section>
 
-        <section v-if="summary" class="evidence-strip">
-          <span>asOf {{ summary.asOf || '—' }}</span>
-          <span>{{ summary.timezone }}</span>
-          <span>指标 {{ summary.metricDefinitionsVersion }}</span>
-          <span>数据范围版本 {{ summary.scopeRevision }}</span>
-          <span>{{
-            summary.cacheHit ? '范围水位缓存命中' : '统一事实实时查询'
-          }}</span>
-          <span>AVAILABLE {{ metricDefinitions.length }}</span>
-        </section>
-
         <el-card class="trend-card" shadow="never" v-loading="refreshing">
           <template #header>
             <div class="section-heading">
-              <div>
-                <h2>经营趋势</h2>
-                <p>DAY + TIME；缺失比率保持为 --，不连接虚假点。</p>
-              </div>
-              <el-tag
-                v-if="summary?.trend.status"
-                effect="plain"
-                :type="summary.trend.status === 'READY' ? 'success' : 'info'"
-              >
-                {{ summary.trend.status }}
-              </el-tag>
+              <h2>经营趋势</h2>
             </div>
           </template>
           <el-skeleton v-if="loading && !summary" animated :rows="8" />
@@ -592,9 +573,6 @@ onMounted(() => Promise.all([loadOptions(), load()]));
             <template #header>
               <div class="section-heading compact">
                 <h2>{{ ranking.title }}</h2>
-                <el-tag v-if="ranking.section" effect="plain">
-                  {{ ranking.section.status }}
-                </el-tag>
               </div>
             </template>
             <el-skeleton v-if="loading && !summary" animated :rows="6" />
@@ -626,7 +604,6 @@ onMounted(() => Promise.all([loadOptions(), load()]));
                       <span
                         >激活率 {{ rankingMetric(row, 'activationRate') }}</span
                       >
-                      <span>{{ row.finalityStatus }}</span>
                     </div>
                   </div>
                 </div>
@@ -804,17 +781,6 @@ onMounted(() => Promise.all([loadOptions(), load()]));
   grid-column: 1 / -1;
 }
 
-.evidence-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: var(--dash-muted);
-  border: 1px dashed var(--dash-border);
-  border-radius: 7px;
-}
-
 .section-heading {
   gap: 16px;
   justify-content: space-between;
@@ -823,12 +789,6 @@ onMounted(() => Promise.all([loadOptions(), load()]));
 .section-heading h2 {
   margin: 0;
   font-size: 16px;
-}
-
-.section-heading p {
-  margin: 5px 0 0;
-  font-size: 12px;
-  color: var(--dash-muted);
 }
 
 .section-heading.compact h2 {
