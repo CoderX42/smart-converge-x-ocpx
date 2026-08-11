@@ -24,6 +24,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -270,14 +271,55 @@ class OcpxPersistenceRepositoryTest {
 	@Test
 	void deadDownstreamDeliveryKeepsPostedCpaLedgerUntouched() {
 		DeliveryJob job = new DeliveryJob("job-1", "callback-1", "click-1", "CALLBACK_DOWNSTREAM", "STANDARD",
-				"callback-ref", 4);
+				"callback-ref", 4, null, "lease-1");
 
 		repository.markDeliveryFailure(job, 500, "downstream unavailable");
 
 		verify(jdbcTemplate).update(contains("SET status=?"), eq("DEAD"), eq(5), eq(600L), eq("downstream unavailable"),
-				eq("job-1"), any());
+				eq("job-1"), eq("lease-1"), eq(4));
 		verify(jdbcTemplate, never()).update(contains("scx_ocpx_billing_entry"), any(Object[].class));
 		verify(billingPort, never()).charge(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void deliveryClaimsUseUniqueFencingTokens() {
+		DeliveryJob first = new DeliveryJob("job-1", "event-1", "source-1", "FEEDBACK_UPSTREAM", "STANDARD",
+				"callback-1", 0);
+		DeliveryJob second = new DeliveryJob("job-2", "event-2", "source-2", "FEEDBACK_UPSTREAM", "STANDARD",
+				"callback-2", 2);
+		when(jdbcTemplate.query(contains("FOR UPDATE SKIP LOCKED"),
+				org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<DeliveryJob>>any(),
+				eq("FEEDBACK_UPSTREAM"), eq(100)))
+			.thenReturn(List.of(first, second));
+
+		List<DeliveryJob> claimed = repository.claimDeliveryJobs(100, "FEEDBACK_UPSTREAM");
+
+		assertThat(claimed).hasSize(2);
+		assertThat(claimed).allSatisfy(job -> assertThat(job.leaseToken()).isNotBlank());
+		assertThat(claimed.get(0).leaseToken()).isNotEqualTo(claimed.get(1).leaseToken());
+		verify(jdbcTemplate).update(contains("attempt_count=?"), eq(claimed.get(0).leaseToken()), eq("job-1"), eq(0));
+		verify(jdbcTemplate).update(contains("attempt_count=?"), eq(claimed.get(1).leaseToken()), eq("job-2"), eq(2));
+	}
+
+	@Test
+	void deliveryCompletionUsesClaimTokenAndExpectedAttemptCount() {
+		DeliveryJob job = new DeliveryJob("job-1", "event-1", "source-1", "FEEDBACK_UPSTREAM", "STANDARD",
+				"callback-1", 2, null, "claim-token");
+
+		repository.markDeliverySuccess(job, 200);
+
+		verify(jdbcTemplate).update(contains("AND attempt_count=?"), eq(3), eq("job-1"), eq("claim-token"), eq(2));
+	}
+
+	@Test
+	void unclaimedDeliveryCannotWriteAResult() {
+		DeliveryJob job = new DeliveryJob("job-1", "event-1", "source-1", "FEEDBACK_UPSTREAM", "STANDARD",
+				"callback-1", 0);
+
+		assertThatThrownBy(() -> repository.markDeliverySuccess(job, 200))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("claim lease token");
+		verify(jdbcTemplate, never()).update(contains("SET status='SUCCESS'"), any(Object[].class));
 	}
 
 	private FeedbackEnvelope envelope() {

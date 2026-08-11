@@ -704,11 +704,13 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_delivery_attempt (
   id VARCHAR(32) NOT NULL,
   job_id VARCHAR(32) NOT NULL,
   attempt_no INT NOT NULL,
+  original_attempt_no INT NULL COMMENT 'Original sequence before forward integrity repair',
   status VARCHAR(16) NOT NULL,
   http_status INT NULL,
   error_message VARCHAR(1000) NULL,
   create_time DATETIME(3) NOT NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uk_scx_ocpx_delivery_attempt_no (job_id,attempt_no),
   KEY idx_scx_ocpx_attempt_job (job_id,attempt_no),
   KEY idx_scx_ocpx_attempt_time (create_time,status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Outbound delivery attempt audit';

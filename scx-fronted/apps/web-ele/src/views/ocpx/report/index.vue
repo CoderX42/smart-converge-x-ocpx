@@ -63,7 +63,6 @@ const pageSummary = ref<Record<string, { status: string; value?: number }>>({});
 const querySummary = ref<Record<string, { status: string; value?: number }>>(
   {},
 );
-const metricVersion = ref('S8_V1');
 const exportTask = ref<ReportExportTask>();
 const exportDialogOpen = ref(false);
 const exportBusy = ref(false);
@@ -211,7 +210,6 @@ async function load() {
     freshness.value = result.freshnessStatus;
     pageSummary.value = result.pageSummary.metrics;
     querySummary.value = result.querySummary.metrics;
-    metricVersion.value = result.metricDefinitionsVersion;
   } catch (error) {
     rows.value = [];
     total.value = 0;
@@ -322,12 +320,9 @@ onMounted(() => Promise.all([loadOptions(), load()]));
     <el-card class="mb-4" shadow="never">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-primary m-0 text-xs font-semibold tracking-widest">
-            OCPX · UNIFIED HOURLY FACT · {{ metricVersion }}
-          </p>
-          <h2 class="mb-0 mt-2 text-xl font-semibold">{{ title }}</h2>
+          <h2 class="m-0 text-xl font-semibold">{{ title }}</h2>
           <p class="mb-0 mt-2 text-sm text-gray-500">
-            五个视图读取同一冻结事实与指标字典；历史归属不回读可变主数据。
+            按时间、产品、链接、任务和媒体查看效果数据，支持筛选、列设置和异步导出。
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -550,7 +545,7 @@ onMounted(() => Promise.all([loadOptions(), load()]));
           <el-table-column
             v-if="groupBy !== 'TIME'"
             fixed
-            label="冻结对象 ID"
+            label="对象 ID"
             min-width="190"
           >
             <template #default="{ row }">

@@ -392,7 +392,7 @@ async function rotateCredential() {
     });
     credentialOpen.value = false;
     ElMessage.success(
-      `凭据已轮换至 revision ${result.revision}，Secret 不会再次显示`,
+      `凭据已轮换至版本 ${result.revision}，凭据内容不会再次显示`,
     );
     await load();
   } finally {
@@ -554,10 +554,9 @@ onMounted(async () => {
     <template v-else>
       <header class="page-heading">
         <div>
-          <p class="eyebrow">OCPX · 上游接入</p>
           <h1>广告主管理</h1>
           <p class="subtitle">
-            接入配置、凭据与资料独立修订；变更只标记依赖路由待重发。
+            集中维护广告主接入配置、凭据和资料；配置变更后请重新发布受影响的任务。
           </p>
         </div>
         <el-button
@@ -641,7 +640,7 @@ onMounted(async () => {
               >
                 {{
                   row.credentialConfigured
-                    ? `revision ${row.credentialRevision}`
+                    ? `版本 ${row.credentialRevision}`
                     : '未配置'
                 }}
               </el-tag>
@@ -858,7 +857,7 @@ onMounted(async () => {
             }}</el-descriptions-item>
             <el-descriptions-item label="凭据">{{
               editing.credentialConfigured
-                ? `已配置 · revision ${editing.credentialRevision}`
+                ? `已配置 · 版本 ${editing.credentialRevision}`
                 : '未配置'
             }}</el-descriptions-item>
           </el-descriptions>
@@ -1116,15 +1115,6 @@ onMounted(async () => {
   font-size: 26px;
   line-height: 1.2;
   color: #172033;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #3568d4;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
 }
 
 .subtitle,

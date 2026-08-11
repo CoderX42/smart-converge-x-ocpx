@@ -569,6 +569,22 @@ s10_unique_index_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
   --execute="SELECT COUNT(DISTINCT CONCAT(table_name,':',index_name)) FROM information_schema.statistics WHERE table_schema='${MYSQL_DATABASE}' AND non_unique=0 AND CONCAT(table_name,':',index_name) IN ('scx_ocpx_delivery_attempt:uk_scx_ocpx_delivery_attempt_no','scx_ocpx_runtime_fact:uk_scx_ocpx_runtime_fact_idempotency','scx_ocpx_runtime_failure:uk_scx_ocpx_runtime_failure_source','scx_ocpx_runtime_replay_request:uk_scx_ocpx_runtime_replay_request','scx_ocpx_runtime_replay_request:uk_scx_ocpx_runtime_replay_fingerprint','scx_ocpx_runtime_replay_attempt:uk_scx_ocpx_runtime_replay_attempt_no');"
 )"
 
+s10_delivery_attempt_unique_columns="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COALESCE(GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ','),'') FROM information_schema.statistics WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_delivery_attempt' AND index_name='uk_scx_ocpx_delivery_attempt_no' AND non_unique=0;"
+)"
+
+s10_delivery_attempt_repair_column_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
+  --execute="SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_delivery_attempt' AND column_name='original_attempt_no';"
+)"
+
+s10_duplicate_delivery_attempt_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM (SELECT job_id,attempt_no FROM scx_ocpx_delivery_attempt GROUP BY job_id,attempt_no HAVING COUNT(*)>1) duplicate_attempt;"
+)"
+
+s10_delivery_attempt_count_mismatch="$(mysql "${mysql_args[@]}" --batch --skip-column-names "$MYSQL_DATABASE" \
+  --execute="SELECT COUNT(*) FROM scx_ocpx_delivery_job job_row JOIN (SELECT job_id,MAX(attempt_no) max_attempt_no FROM scx_ocpx_delivery_attempt GROUP BY job_id) attempt_row ON attempt_row.job_id=job_row.id WHERE job_row.attempt_count<>attempt_row.max_attempt_no;"
+)"
+
 s10_scope_index_columns="$(mysql "${mysql_args[@]}" --batch --skip-column-names \
   --execute="SELECT COALESCE(GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ','),'') FROM information_schema.statistics WHERE table_schema='${MYSQL_DATABASE}' AND table_name='scx_ocpx_runtime_fact' AND index_name='idx_scx_ocpx_runtime_fact_time_scope';"
 )"
@@ -593,7 +609,7 @@ s10_invalid_replay_count="$(mysql "${mysql_args[@]}" --batch --skip-column-names
   --execute="SELECT COUNT(*) FROM scx_ocpx_runtime_replay_request WHERE mode<>'ORIGINAL_SNAPSHOT_ONLY' OR command_type<>'REPLAY' OR expected_failure_revision<1 OR source_route_version<1 OR status NOT IN ('QUEUED','CLAIMED','RETRY_WAIT','SUCCEEDED','TERMINAL','CANCELLED') OR attempt_count<0 OR attempt_count>max_attempts OR max_attempts NOT BETWEEN 1 AND 10;"
 )"
 
-if [[ "$s10_table_count" -ne 5 || "$s10_trigger_count" -ne 8 || "$s10_unique_index_count" -ne 6 || "$s10_scope_index_columns" != "advertiser_id,channel_id,media_account_id,received_time" || "$s10_admin_permission_count" -ne 9 || "$s10_legacy_runtime_grant_count" -ne 0 || "$s10_invalid_fact_count" -ne 0 || "$s10_invalid_failure_count" -ne 0 || "$s10_invalid_replay_count" -ne 0 ]]; then
+if [[ "$s10_table_count" -ne 5 || "$s10_trigger_count" -ne 8 || "$s10_unique_index_count" -ne 6 || "$s10_delivery_attempt_unique_columns" != "job_id,attempt_no" || "$s10_delivery_attempt_repair_column_count" -ne 1 || "$s10_duplicate_delivery_attempt_count" -ne 0 || "$s10_delivery_attempt_count_mismatch" -ne 0 || "$s10_scope_index_columns" != "advertiser_id,channel_id,media_account_id,received_time" || "$s10_admin_permission_count" -ne 9 || "$s10_legacy_runtime_grant_count" -ne 0 || "$s10_invalid_fact_count" -ne 0 || "$s10_invalid_failure_count" -ne 0 || "$s10_invalid_replay_count" -ne 0 ]]; then
   echo "Database verification failed: S10 runtime facts, compensation truth or permissions are incomplete." >&2
   exit 1
 fi

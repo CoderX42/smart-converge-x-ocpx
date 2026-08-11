@@ -636,7 +636,7 @@ async function confirmPublish() {
   } catch (error: any) {
     publicationConflict.value = isConflict(error);
     publicationError.value = publicationConflict.value
-      ? '任务或依赖 revision 已变化，检查结果已过期，请重新检查'
+      ? '任务或关联配置版本已变化，检查结果已过期，请重新检查'
       : errorText(error);
   } finally {
     publishing.value = false;
@@ -752,8 +752,7 @@ onMounted(async () => {
             <h2 class="m-0 text-lg font-semibold">任务管理</h2>
           </div>
           <p class="mb-0 mt-2 max-w-4xl text-sm text-gray-500">
-            统一配置主数据与事件绑定，并通过发布检查、不可变版本和实例 ACK
-            管理运行状态。保存仍只形成草稿；联调、点击和转化入口只读冻结运行事实，补偿必须在运行中心完成两阶段确认。
+            维护任务、链接、媒体账号与事件配置；保存后可执行发布检查，并在详情中查看运行状态。
           </p>
         </div>
         <el-button v-if="canAdd" type="primary" @click="openCreate">
@@ -766,7 +765,7 @@ onMounted(async () => {
       class="mb-4"
       :closable="false"
       show-icon
-      title="S7 安全边界：PUBLISHED 仅表示管理事务完成；只有实例 ACK 达标才显示 ACTIVE"
+      title="发布完成后需等待运行实例确认，确认完成后状态才会变为“运行中”。"
       type="info"
     />
 
@@ -1138,14 +1137,14 @@ onMounted(async () => {
 
         <section v-if="canViewRoutes">
           <div class="mb-2 flex items-center justify-between">
-            <h3 class="m-0 text-base font-semibold">分发与实例证据</h3>
+            <h3 class="m-0 text-base font-semibold">发布状态</h3>
             <el-tag :type="routeDistribution?.active ? 'success' : 'warning'">{{
               routeDistribution?.overallStatus || 'NONE'
             }}</el-tag>
           </div>
           <el-descriptions :column="3" border size="small">
             <el-descriptions-item label="门槛">
-              {{ routeDistribution?.minimumRequiredAcks || 0 }} ACK
+              需 {{ routeDistribution?.minimumRequiredAcks || 0 }} 个实例确认
             </el-descriptions-item>
             <el-descriptions-item label="已应用">
               {{ routeDistribution?.appliedCount || 0 }}
@@ -1157,19 +1156,19 @@ onMounted(async () => {
           <el-table
             class="mt-3"
             :data="routeDistribution?.instances || []"
-            empty-text="尚无实例 ACK；PUBLISHED 不等于 ACTIVE"
+            empty-text="尚无实例确认，任务暂未运行"
             size="small"
           >
             <el-table-column label="实例" min-width="150" prop="instanceId" />
             <el-table-column label="应用版本" prop="appliedVersion" />
             <el-table-column label="状态" prop="status" />
             <el-table-column label="错误码" prop="errorCode" />
-            <el-table-column label="ACK 时间" min-width="170" prop="ackedAt" />
+            <el-table-column label="确认时间" min-width="170" prop="ackedAt" />
           </el-table>
         </section>
 
         <section v-if="canViewRoutes">
-          <h3 class="mb-2 text-base font-semibold">不可变版本历史</h3>
+          <h3 class="mb-2 text-base font-semibold">发布版本历史</h3>
           <el-table
             :data="routeVersions"
             empty-text="尚无发布版本"
@@ -1327,7 +1326,7 @@ onMounted(async () => {
             <el-form-item label="大点击">
               <el-switch v-model="form.exposureAsClick" />
               <span class="ml-3 text-sm text-gray-500"
-                >仅记录配置，S5 不产生事件</span
+                >仅保存配置，不会立即产生事件</span
               >
             </el-form-item>
           </div>
@@ -1362,12 +1361,12 @@ onMounted(async () => {
                 <el-option
                   v-for="item in editorCredentials"
                   :key="item.id"
-                  :label="`${item.label} · rev ${item.secretRevision}`"
+                  :label="`${item.label} · 版本 ${item.secretRevision}`"
                   :value="item.id"
                 />
               </el-select>
               <div v-if="selectedCredential" class="mt-1 text-xs text-gray-500">
-                保存时冻结 secret revision
+                保存时记录凭据版本
                 {{ selectedCredential.secretRevision }}，不回显凭据内容
               </div>
             </el-form-item>
@@ -1394,7 +1393,7 @@ onMounted(async () => {
             class="mb-3"
             :closable="false"
             show-icon
-            title="S6 只保存 TaskEventBinding 草稿并标记待重发；不会发布 RouteEventSnapshot、写 Outbox 或发送 Callback"
+            title="事件绑定随任务草稿保存；发布任务后才会进入运行配置。"
             type="info"
           />
           <el-alert

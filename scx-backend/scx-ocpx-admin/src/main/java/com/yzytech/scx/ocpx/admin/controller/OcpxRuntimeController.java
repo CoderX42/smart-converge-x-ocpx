@@ -11,6 +11,7 @@ import com.yzytech.scx.ocpx.admin.service.OcpxTaskRoutePublicationService;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,8 +23,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.Callable;
+import java.util.UUID;
 
 /** S10 sanitized runtime facts, DLQ and controlled compensation API. */
+@Slf4j
 @RestController
 @RequestMapping("/ocpx/runtime")
 public class OcpxRuntimeController {
@@ -159,7 +162,10 @@ public class OcpxRuntimeController {
 			return Result.fail(error.getMessage());
 		}
 		catch (Exception error) {
-			return Result.fail("操作失败");
+			String traceId = UUID.randomUUID().toString();
+			log.error("OCPX runtime operation failed traceId={} errorType={}", traceId,
+					error.getClass().getSimpleName(), error);
+			return Result.fail("运行请求失败，请联系管理员并提供 traceId=" + traceId);
 		}
 	}
 

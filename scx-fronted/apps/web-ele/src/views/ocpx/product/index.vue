@@ -430,11 +430,9 @@ onMounted(async () => {
     <template v-else>
       <header class="page-heading">
         <div>
-          <p class="eyebrow">OCPX · MASTER DATA</p>
           <h1>产品管理</h1>
           <p class="subtitle">
-            产品归属于广告主；事件策略是后续任务绑定模板，发布后按 revision
-            冻结。
+            维护广告主所属产品及事件策略，供链接和任务配置使用。
           </p>
         </div>
         <el-button
@@ -824,14 +822,6 @@ onMounted(async () => {
   font-size: 26px;
   line-height: 1.2;
   color: #172033;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #3568d4;
-  letter-spacing: 0.12em;
 }
 
 .subtitle,

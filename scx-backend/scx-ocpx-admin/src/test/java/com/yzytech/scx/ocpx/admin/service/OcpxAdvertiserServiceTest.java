@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.admin.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.admin.entity.OcpxAdvertiser;
@@ -26,6 +27,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -76,6 +78,20 @@ class OcpxAdvertiserServiceTest {
 		when(adapterService.requireAdvertiserCapability("COCO")).thenReturn(new AdvertiserViews.AdapterCapability("COCO",
 				"Coco", 3L, true, true, List.of("NONE"), List.of("CLICK"), 3000));
 		when(monitorMapper.selectCount(any())).thenReturn(0L);
+	}
+
+	@Test
+	void listAllowsMissingOptionalAdapterFilter() {
+		when(accessScope.current()).thenReturn(
+				new OcpxAccessScope.Snapshot(1L, OcpxAccessScope.PermissionLevel.MANAGE, Map.of()));
+		Page<OcpxAdvertiser> selected = new Page<>(1, 500);
+		selected.setRecords(List.of());
+		when(advertiserMapper.selectPage(any(), any())).thenReturn(selected);
+
+		var result = service.list(new Page<>(1, 500), null, null, null, null);
+
+		assertThat(result.getRecords()).isEmpty();
+		verify(advertiserMapper).selectPage(any(), any());
 	}
 
 	@Test

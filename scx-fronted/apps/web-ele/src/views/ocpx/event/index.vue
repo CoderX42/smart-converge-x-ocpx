@@ -444,8 +444,7 @@ onMounted(load);
       <div>
         <h2 class="text-xl font-semibold">事件字典与渠道映射</h2>
         <p class="mt-1 text-sm text-gray-500">
-          EventDefinition → ChannelEventMapping → TaskEventBinding →
-          RouteEventSnapshot
+          统一维护标准事件、渠道事件映射与发布引用关系。
         </p>
       </div>
       <div class="flex gap-2">
@@ -463,7 +462,7 @@ onMounted(load);
         >
           <el-icon><Plus /></el-icon>新增渠道映射
         </el-button>
-        <el-tooltip content="正式发布、Outbox 与实例分发属于 S7">
+        <el-tooltip content="事件配置由任务发布流程统一生效">
           <el-button disabled>发布配置</el-button>
         </el-tooltip>
       </div>
@@ -473,7 +472,7 @@ onMounted(load);
       class="mb-4"
       :closable="false"
       show-icon
-      title="S6 仅收口事件配置真相、不可变快照合同和本地纯函数；不会访问第三方、发送 Callback、计费或重放"
+      title="此页面仅维护事件定义和渠道映射，不会直接触发回调、计费或补偿操作。"
       type="info"
     />
 
@@ -679,8 +678,8 @@ onMounted(load);
             >
               <div class="font-medium">{{ row.name }} · {{ row.code }}</div>
               <div class="text-sm text-gray-500">
-                Product 默认 {{ row.references.productDefaultCount }}，Task 草稿
-                {{ row.references.taskBindingCount }}，冻结快照
+                产品默认 {{ row.references.productDefaultCount }}，任务草稿
+                {{ row.references.taskBindingCount }}，已发布引用
                 {{ row.references.publishedSnapshotCount }}
               </div>
             </div>
@@ -700,8 +699,8 @@ onMounted(load);
                 {{ row.channelName }} · {{ row.externalCode }}
               </div>
               <div class="text-sm text-gray-500">
-                Task 草稿 {{ row.references.taskBindingCount }}，冻结快照
-                {{ row.references.publishedSnapshotCount }}；旧快照不可修改
+                任务草稿 {{ row.references.taskBindingCount }}，已发布引用
+                {{ row.references.publishedSnapshotCount }}；已发布配置不可修改
               </div>
             </div>
           </el-card>

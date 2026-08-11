@@ -96,6 +96,7 @@ public class OcpxAdvertiserService {
 
 	public IPage<AdvertiserViews.ListItem> list(Page<OcpxAdvertiser> page, String keyword, String adapterKey,
 			String status, Boolean documentConfigured) {
+		String normalizedAdapter = StringUtils.hasText(adapterKey) ? normalizeAdapter(adapterKey) : null;
 		OcpxAccessScope.Restriction restriction = accessScope.current()
 			.restriction(OcpxAccessScope.ScopeType.ADVERTISER, OcpxAccessScope.PermissionLevel.VIEW);
 		if (!restriction.unrestricted() && restriction.ids().isEmpty()) {
@@ -109,7 +110,7 @@ public class OcpxAdvertiserService {
 					.and(StringUtils.hasText(keyword), query -> query.like(OcpxAdvertiser::getAdvertiserName, keyword)
 						.or()
 						.like(OcpxAdvertiser::getAdvertiserCode, keyword))
-					.eq(StringUtils.hasText(adapterKey), OcpxAdvertiser::getAdapterCode, normalizeAdapter(adapterKey))
+					.eq(normalizedAdapter != null, OcpxAdvertiser::getAdapterCode, normalizedAdapter)
 					.eq(StringUtils.hasText(status), OcpxAdvertiser::getStatus, status)
 					.isNotNull(Boolean.TRUE.equals(documentConfigured), OcpxAdvertiser::getCurrentDocumentId)
 					.isNull(Boolean.FALSE.equals(documentConfigured), OcpxAdvertiser::getCurrentDocumentId)

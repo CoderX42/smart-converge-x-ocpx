@@ -26,7 +26,10 @@ import {
   secondaryAuthenticate,
 } from '#/api/ocpx';
 
-import { canConfirmRuntimeReplay } from './runtime-model';
+import {
+  canConfirmRuntimeReplay,
+  resolveRuntimeRequestError,
+} from './runtime-model';
 
 defineOptions({ name: 'OcpxRuntimeCenter' });
 
@@ -158,15 +161,14 @@ async function load() {
       factRows.value = page.records as RuntimeFact[];
       failureRows.value = [];
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     factRows.value = [];
     failureRows.value = [];
     total.value = 0;
-    forbidden.value = error?.response?.status === 403 || error?.status === 403;
-    traceId.value = error?.response?.data?.traceId || error?.traceId || '';
-    errorMessage.value = forbidden.value
-      ? ''
-      : error?.message || '运行事实加载失败';
+    const requestError = resolveRuntimeRequestError(error);
+    forbidden.value = requestError.forbidden;
+    traceId.value = requestError.traceId;
+    errorMessage.value = forbidden.value ? '' : requestError.message;
   } finally {
     loading.value = false;
     initialized.value = true;
@@ -299,7 +301,7 @@ onMounted(load);
       <div>
         <h1>运行中心</h1>
         <p>
-          查看冻结范围内的接入、点击、转化与失败事实。正文、设备原值、签名和凭据不会在此返回。
+          查看当前授权范围内的接入、点击、转化与失败记录。正文、设备原值、签名和凭据不会在此返回。
         </p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="load">
@@ -498,7 +500,7 @@ onMounted(load);
         <el-table-column prop="failureClass" label="失败分类" min-width="165" />
         <el-table-column prop="errorCode" label="错误 code" min-width="200" />
         <el-table-column prop="taskId" label="Task" min-width="160" />
-        <el-table-column label="原冻结版本" min-width="180">
+        <el-table-column label="原发布版本" min-width="180">
           <template #default="{ row }">
             {{ row.routeVersionId || 'UNMAPPED' }} / v{{
               row.routeVersion || '—'
@@ -619,7 +621,7 @@ onMounted(load);
           <el-descriptions-item label="原失败">
             {{ replayPreview.failureClass }} / {{ replayPreview.errorCode }}
           </el-descriptions-item>
-          <el-descriptions-item label="冻结版本">
+          <el-descriptions-item label="发布版本">
             {{ replayPreview.routeVersionId }} / v{{
               replayPreview.routeVersion
             }}

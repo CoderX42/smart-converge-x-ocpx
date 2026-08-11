@@ -42,3 +42,35 @@ export function canConfirmRuntimeReplay(input: {
 export function runtimeValueIsMasked(value?: string) {
   return !value || value.endsWith('…');
 }
+
+interface RuntimeRequestError {
+  message?: string;
+  response?: {
+    data?: {
+      msg?: string;
+      traceId?: string;
+    };
+    status?: number;
+  };
+  status?: number;
+  traceId?: string;
+}
+
+export function resolveRuntimeRequestError(error: unknown) {
+  const requestError = error as RuntimeRequestError;
+  const message =
+    requestError?.response?.data?.msg ||
+    requestError?.message ||
+    '运行事实加载失败';
+  const messageTraceId = message.match(/traceId=([0-9a-f-]{36})/i)?.[1];
+  return {
+    forbidden:
+      requestError?.response?.status === 403 || requestError?.status === 403,
+    message,
+    traceId:
+      requestError?.response?.data?.traceId ||
+      requestError?.traceId ||
+      messageTraceId ||
+      '',
+  };
+}

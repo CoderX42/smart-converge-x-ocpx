@@ -619,10 +619,9 @@ onMounted(async () => {
     <template v-else>
       <header class="page-heading">
         <div>
-          <p class="eyebrow">OCPX · MEDIA OPERATIONS</p>
           <h1>媒体账号</h1>
           <p class="subtitle">
-            Channel 是协议目录，媒体账号是业务账号；凭据修订只写、不可回显。
+            按渠道维护媒体业务账号和凭据；凭据只写、不可回显。
           </p>
         </div>
         <el-button
@@ -639,7 +638,7 @@ onMounted(async () => {
         class="boundary-alert"
         :closable="false"
         show-icon
-        title="连接检查仅做配置预检，不发起任何真实媒体网络请求；真实连通性仍待第三方 UAT。"
+        title="连接检查仅校验当前配置，不会请求媒体平台。"
         type="info"
       />
 
@@ -706,7 +705,7 @@ onMounted(async () => {
           <el-table-column label="凭据" width="130">
             <template #default="{ row }">
               {{ row.activeCredentialCount }}/{{ row.credentialCount }} 启用
-              <small>revision {{ row.credentialRevision }}</small>
+              <small>版本 {{ row.credentialRevision }}</small>
             </template>
           </el-table-column>
           <el-table-column label="负责人" width="90" prop="ownerCount" />
@@ -952,9 +951,7 @@ onMounted(async () => {
               type="warning"
             />
             <div class="section-toolbar">
-              <span
-                >账号 credential revision {{ detail.credentialRevision }}</span
-              >
+              <span>账号凭据版本 {{ detail.credentialRevision }}</span>
               <el-button
                 v-if="canCredentialAdd"
                 :icon="Plus"

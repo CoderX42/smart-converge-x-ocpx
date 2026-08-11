@@ -517,8 +517,7 @@ onMounted(async () => {
             <h2 class="m-0 text-lg font-semibold">链接管理</h2>
           </div>
           <p class="mb-0 mt-2 max-w-3xl text-sm text-gray-500">
-            AppLink 明确归属 Product，并冻结资料版本、链接类型和规范化 URL。
-            页面不会打开、探测或复制完整目标地址。
+            维护产品所属的跳转或下载链接。出于安全考虑，列表不展示或复制完整目标地址。
           </p>
         </div>
         <el-button v-if="canAdd" type="primary" @click="openCreate">
@@ -819,7 +818,7 @@ onMounted(async () => {
                 disabled
               />
             </el-form-item>
-            <el-form-item label="接入资料 revision" prop="documentId">
+            <el-form-item label="接入资料版本" prop="documentId">
               <el-select
                 v-model="form.documentId"
                 :loading="documentsLoading"

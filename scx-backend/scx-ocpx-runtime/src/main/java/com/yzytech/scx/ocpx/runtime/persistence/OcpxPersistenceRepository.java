@@ -51,8 +51,6 @@ public class OcpxPersistenceRepository {
 
 	private final BillingPort billingPort;
 
-	private final String leaseOwner = UUID.randomUUID().toString();
-
 	public OcpxPersistenceRepository(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper,
 			ProtocolCrypto protocolCrypto, OcpxRuntimeProperties properties, BillingPort billingPort) {
 		this.jdbcTemplate = jdbcTemplate;
@@ -449,16 +447,21 @@ public class OcpxPersistenceRepository {
 				LIMIT ? FOR UPDATE SKIP LOCKED
 				""", (rs, rowNum) -> new DeliveryJob(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
 				rs.getString(5), rs.getString(6), rs.getInt(7), rs.getString(8)), direction, limit);
+		List<DeliveryJob> claimedJobs = new ArrayList<>(jobs.size());
 		for (DeliveryJob job : jobs) {
-			jdbcTemplate.update(
+			String leaseToken = UUID.randomUUID().toString();
+			int updated = jdbcTemplate.update(
 					"""
 							UPDATE scx_ocpx_delivery_job
 							SET status='PROCESSING',lease_owner=?,lease_until=DATE_ADD(NOW(3),INTERVAL 60 SECOND),update_time=NOW(3)
-							WHERE id=?
+							WHERE id=? AND status IN ('PENDING','RETRY') AND attempt_count=?
 							""",
-					leaseOwner, job.id());
+					leaseToken, job.id(), job.attemptCount());
+			if (updated == 1) {
+				claimedJobs.add(job.claimedWith(leaseToken));
+			}
 		}
-		return jobs;
+		return claimedJobs;
 	}
 
 	public DeliveryContext loadDeliveryContext(DeliveryJob job) {
@@ -495,14 +498,15 @@ public class OcpxPersistenceRepository {
 
 	@Transactional
 	public void markDeliverySuccess(DeliveryJob job, int statusCode, DeliveryAttemptAudit audit) {
+		String leaseToken = requireLeaseToken(job);
 		int attempt = job.attemptCount() + 1;
 		int updated = jdbcTemplate.update(
 				"""
 						UPDATE scx_ocpx_delivery_job
 						SET status='SUCCESS',attempt_count=?,lease_owner=NULL,lease_until=NULL,last_error=NULL,update_time=NOW(3)
-						WHERE id=? AND status='PROCESSING' AND lease_owner=?
+						WHERE id=? AND status='PROCESSING' AND lease_owner=? AND attempt_count=?
 						""",
-				attempt, job.id(), leaseOwner);
+				attempt, job.id(), leaseToken, job.attemptCount());
 		if (updated == 0) {
 			return;
 		}
@@ -521,6 +525,7 @@ public class OcpxPersistenceRepository {
 
 	@Transactional
 	public void markDeliveryFailure(DeliveryJob job, Integer statusCode, String error, DeliveryAttemptAudit audit) {
+		String leaseToken = requireLeaseToken(job);
 		int attempt = job.attemptCount() + 1;
 		boolean dead = attempt >= properties.getMaxDeliveryAttempts();
 		long delaySeconds = switch (attempt) {
@@ -533,8 +538,9 @@ public class OcpxPersistenceRepository {
 				UPDATE scx_ocpx_delivery_job
 				SET status=?,attempt_count=?,next_retry_at=DATE_ADD(NOW(3),INTERVAL ? SECOND),
 				    lease_owner=NULL,lease_until=NULL,last_error=?,update_time=NOW(3)
-				WHERE id=? AND status='PROCESSING' AND lease_owner=?
-				""", dead ? "DEAD" : "RETRY", attempt, delaySeconds, truncate(error, 1000), job.id(), leaseOwner);
+				WHERE id=? AND status='PROCESSING' AND lease_owner=? AND attempt_count=?
+				""", dead ? "DEAD" : "RETRY", attempt, delaySeconds, truncate(error, 1000), job.id(), leaseToken,
+				job.attemptCount());
 		if (updated == 0) {
 			return;
 		}
@@ -736,6 +742,13 @@ public class OcpxPersistenceRepository {
 				id(), job.id(), job.debugExecutionId(), attempt, status, statusCode, truncate(error, 1000),
 				audit.requestMethod(), audit.targetHost(), truncate(audit.targetPath(), 1000),
 				truncate(audit.requestSummary(), 4000), truncate(audit.responseExcerpt(), 2000), audit.durationMs());
+	}
+
+	private String requireLeaseToken(DeliveryJob job) {
+		if (!StringUtils.hasText(job.leaseToken())) {
+			throw new IllegalArgumentException("delivery job is missing its claim lease token");
+		}
+		return job.leaseToken();
 	}
 
 	private void incrementDeliveryMetric(String eventId, String metricColumn) {

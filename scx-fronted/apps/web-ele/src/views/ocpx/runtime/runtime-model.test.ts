@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canConfirmRuntimeReplay,
   resolveRuntimePageState,
+  resolveRuntimeRequestError,
   runtimeValueIsMasked,
 } from './runtime-model';
 
@@ -77,5 +78,23 @@ describe('runtime center state model', () => {
     expect(runtimeValueIsMasked(undefined)).toBe(true);
     expect(runtimeValueIsMasked('9fd4c3a1…')).toBe(true);
     expect(runtimeValueIsMasked('full-device-value')).toBe(false);
+  });
+
+  it('keeps the server message and extracts its runtime trace id', () => {
+    const result = resolveRuntimeRequestError({
+      response: {
+        data: {
+          msg: '运行请求失败，请联系管理员并提供 traceId=2d9b7c53-bb9d-41e8-b90d-8ad3eafad00a',
+        },
+        status: 500,
+      },
+    });
+
+    expect(result).toEqual({
+      forbidden: false,
+      message:
+        '运行请求失败，请联系管理员并提供 traceId=2d9b7c53-bb9d-41e8-b90d-8ad3eafad00a',
+      traceId: '2d9b7c53-bb9d-41e8-b90d-8ad3eafad00a',
+    });
   });
 });

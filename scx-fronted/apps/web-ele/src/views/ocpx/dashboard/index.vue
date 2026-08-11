@@ -317,10 +317,9 @@ onMounted(() => Promise.all([loadOptions(), load()]));
     <div class="dashboard-page">
       <section class="dashboard-hero">
         <div>
-          <p class="dashboard-eyebrow">OCPX · UNIFIED OPERATING VIEW</p>
           <h1>经营总览</h1>
           <p class="dashboard-intro">
-            卡片、趋势与排行共享 S8 冻结小时事实、指标版本和对象范围快照。
+            汇总展示点击、转化趋势与对象排行，数据按当前账号可见范围统计。
           </p>
         </div>
         <div class="hero-actions">
@@ -541,7 +540,7 @@ onMounted(() => Promise.all([loadOptions(), load()]));
           <span>asOf {{ summary.asOf || '—' }}</span>
           <span>{{ summary.timezone }}</span>
           <span>指标 {{ summary.metricDefinitionsVersion }}</span>
-          <span>范围 revision {{ summary.scopeRevision }}</span>
+          <span>数据范围版本 {{ summary.scopeRevision }}</span>
           <span>{{
             summary.cacheHit ? '范围水位缓存命中' : '统一事实实时查询'
           }}</span>
@@ -612,7 +611,7 @@ onMounted(() => Promise.all([loadOptions(), load()]));
                   <span class="ranking-index">{{ index + 1 }}</span>
                   <div class="ranking-main">
                     <div class="ranking-label">
-                      <span>冻结对象 {{ row.objectId }}</span>
+                      <span>对象 {{ row.objectId }}</span>
                       <strong>{{ rankingMetric(row, 'validClicks') }}</strong>
                     </div>
                     <div class="ranking-track">
@@ -669,16 +668,8 @@ onMounted(() => Promise.all([loadOptions(), load()]));
   padding: 6px 2px 2px;
 }
 
-.dashboard-eyebrow {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-  letter-spacing: 0.16em;
-}
-
 .dashboard-hero h1 {
-  margin: 8px 0 0;
+  margin: 0;
   font-size: 26px;
   font-weight: 650;
   letter-spacing: -0.02em;
