@@ -1,10 +1,10 @@
 SHELL := /bin/bash
 
-.PHONY: db-init db-migrate mvp-db-migrate backend-build backend-test backend-run-dev ocpx-engine-build ocpx-engine-test ocpx-engine-run-dev frontend-build frontend-check contract-check naming-check db-verify
+.PHONY: db-init db-migrate mvp-db-migrate backend-build backend-test backend-run-dev ocpx-engine-build ocpx-engine-test ocpx-engine-run-dev frontend-build frontend-check contract-check naming-check schema-ledger-check db-verify
 
 # The application uses externally managed MySQL, Redis and RocketMQ services.
 # Export the SCX_* and MYSQL_* variables from the deployment environment first.
-db-init:
+db-init: schema-ledger-check
 	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
 	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
 	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
@@ -14,10 +14,10 @@ db-migrate: db-init
 
 mvp-db-migrate: db-migrate
 
-backend-build:
+backend-build: schema-ledger-check
 	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am -DskipTests package
 
-backend-test:
+backend-test: schema-ledger-check
 	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am test
 
 backend-run-dev:
@@ -44,7 +44,10 @@ contract-check:
 naming-check:
 	bash ./tools/quality/check-no-adx-naming.sh
 
-db-verify:
+schema-ledger-check:
+	bash ./tools/quality/check-no-schema-migration-ledger.sh
+
+db-verify: schema-ledger-check
 	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
 	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
 	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)

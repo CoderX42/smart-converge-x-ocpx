@@ -238,14 +238,14 @@ Go/No-Go: Source/Local Gate only；Target/UAT/Production No-Go
 ```text
 Slice: S10 运行中心与失败补偿
 Source/branch/commit: 当前 detached HEAD 隔离 worktree；累计 S0-S10 未暂存、未提交、未推送
-Migration state: V91/current schema/required tables/verifier/contract 已同步；2026-08-11 目标只读核对确认运行表结构存在且匹配，但账本仅到 V48，不能反推 V81-V93 已按序执行
+Database state: V91/current schema/required tables/verifier/contract 已同步；2026-08-11 目标只读核对确认运行表结构存在且匹配；已退役的数据库迁移账本不参与状态判断
 API contract state: runtime overview/facts/clicks/conversions/DLQ/timeline、固定 Task integration facts、replay preview/confirm/status；emergency stop 复用 S7
 Frontend state: Element Plus 运行中心四页签 + attempt timeline + replay preview/confirm；Task 行联调/点击/转化三类只读抽屉
 Permission/object-scope evidence: canonical runtime 权限分离；列表/total/详情/options/command 全部按 Advertiser∧Channel∧MediaAccount/Task scope 重新求交
 Worker state: replay worker 字面量默认关闭，默认 processor unavailable；HTTP confirm 只排队，不直接外发
 Privacy state: DTO/log 只含掩码/摘要/hash；无原始 credential/header/callback body/完整手机号/IP/deviceId/签名/第三方敏感响应
 Runtime/UAT/production evidence: 目标只读确认三张运行表 0 行、辅助表/触发器齐全且 overview 聚合 SQL 可执行；无真实 replay/stop/callback/计费/第三方访问
-Open blockers: 迁移账本与目标结构对账、修复包发布复测、历史 UNMAPPED 质量、真实实例恢复与规模性能、多角色浏览器、协议/隐私批准后的正文/导出策略、第三方 UAT
+Open blockers: 全库真实结构/约束/种子对账、修复包发布复测、历史 UNMAPPED 质量、真实实例恢复与规模性能、多角色浏览器、协议/隐私批准后的正文/导出策略、第三方 UAT
 Go/No-Go: Source/Local Gate + Target read-only schema evidence；Target runtime/UAT/Production No-Go
 ```
 

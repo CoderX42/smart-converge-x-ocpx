@@ -41,7 +41,6 @@ SCX_REQUIRED_TABLES=(
   scx_ocpx_billing_entry scx_ocpx_ingress_audit
   scx_ocpx_click_dedup_state scx_ocpx_click_dedup_decision
   scx_ocpx_event_daily_quota
-  scx_schema_migration
 )
 
 SCX_XXL_JOB_TABLES=(
@@ -49,4 +48,18 @@ SCX_XXL_JOB_TABLES=(
   xxl_job_log_report xxl_job_logglue xxl_job_registry xxl_job_user
 )
 
-SCX_ALLOWED_TABLES=("${SCX_REQUIRED_TABLES[@]}" "${SCX_XXL_JOB_TABLES[@]}")
+# Retired tables may remain in an upgraded database until a separately
+# authorized cleanup. They are neither required nor queried by SCX.
+SCX_OPTIONAL_RETIRED_TABLES=(
+  scx_schema_migration
+)
+
+SCX_EXPECTED_TABLES=(
+  "${SCX_REQUIRED_TABLES[@]}"
+  "${SCX_XXL_JOB_TABLES[@]}"
+)
+
+SCX_ALLOWED_TABLES=(
+  "${SCX_EXPECTED_TABLES[@]}"
+  "${SCX_OPTIONAL_RETIRED_TABLES[@]}"
+)

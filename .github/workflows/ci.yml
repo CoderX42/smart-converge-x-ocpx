@@ -44,5 +44,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate contracts
         run: bash ./tools/quality/check-contracts.sh
+      - name: Reject retired schema ledger usage
+        run: bash ./tools/quality/check-no-schema-migration-ledger.sh
       - name: Scan repository for secrets
         uses: gitleaks/gitleaks-action@v2

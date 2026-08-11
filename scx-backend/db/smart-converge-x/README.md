@@ -13,6 +13,10 @@ database. Historical V1-V78 migrations are not replayed.
 4. `../../scx-boot/src/main/resources/db/schema/scx_current_schema.sql`:
    compact OCPX, OCPX, API debugger, menus, permissions, and adapter seeds.
 
+The current-state schema does not create or use a database migration ledger.
+An upgraded database may still contain the retired historical table; verification
+tolerates that leftover but never reads it, and cleanup requires separate approval.
+
 Use the guarded entry point:
 
 ```bash
@@ -35,6 +39,12 @@ Every future change uses two synchronized artifacts:
 3. Synchronize the resulting final DDL and seed state into
    `scx-boot/src/main/resources/db/schema/scx_current_schema.sql`.
 4. Update the required-table manifest, verification checks, and contract tests.
+
+Versioned filenames are release-package identifiers, not database-resident history.
+Record the Git commit, SQL SHA-256, approval and execution evidence in the release
+record, then verify `information_schema`, constraints, seeds and business data
+postconditions. Current and future SQL must pass `make schema-ledger-check` and
+must not create, read, write or otherwise depend on the retired ledger.
 
 Do not run `init-database.sh` against development or production databases that
 already contain tables. Do not restore or replay the retired V1-V78 scripts.

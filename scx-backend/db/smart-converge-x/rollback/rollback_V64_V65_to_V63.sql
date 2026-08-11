@@ -4,19 +4,13 @@
 --   1. Restore the menu tree, page routes and permission parents changed by V65.
 --   2. Remove only role-menu rows created by V64/V65.
 --   3. Remove the new channel-user sensitive-read permission.
---   4. Remove V64/V65 from the custom migration history.
---   5. Keep V64 qualification-document columns by default to avoid data loss.
+--   4. Keep V64 qualification-document columns by default to avoid data loss.
 --
 -- Run this script against smart_converge_x only after taking a database backup.
 -- The application code must be rolled back before, or at the same time as, this
 -- database rollback.
 
 SELECT DATABASE() AS rollback_database;
-
-SELECT version, script_name, applied_at
-FROM scx_schema_migration
-WHERE version IN ('V64', 'V65')
-ORDER BY version;
 
 -- ---------------------------------------------------------------------------
 -- 1. Recovery snapshots
@@ -60,14 +54,6 @@ SELECT *
 FROM sys_role_menu
 WHERE LEFT(id, 4) IN ('v64_', 'v65_')
    OR menu_id = 'perm_ad_channel_user_sensitive_read';
-
-CREATE TABLE IF NOT EXISTS scx_rb_20260730_v64_v65_history
-LIKE scx_schema_migration;
-
-INSERT IGNORE INTO scx_rb_20260730_v64_v65_history
-SELECT *
-FROM scx_schema_migration
-WHERE version IN ('V64', 'V65');
 
 -- Retain a full copy of qualification rows that use V64 managed-storage data.
 CREATE TABLE IF NOT EXISTS scx_rb_20260730_v64_qualification_document
@@ -281,17 +267,6 @@ UPDATE sys_menu
 SET parent_id = 'menu_camp_review', update_time = NOW()
 WHERE id = 'perm_camp_review';
 
--- Remove the migration records only when they refer to the expected scripts.
-DELETE FROM scx_schema_migration
-WHERE version = 'V65'
-  AND script_name =
-    'V65__consolidate_commercial_media_campaign_navigation.sql';
-
-DELETE FROM scx_schema_migration
-WHERE version = 'V64'
-  AND script_name =
-    'V64__secure_qualification_documents_and_channel_users.sql';
-
 COMMIT;
 
 -- ---------------------------------------------------------------------------
@@ -443,10 +418,6 @@ DEALLOCATE PREPARE scx_v64_drop_statement;
 -- ---------------------------------------------------------------------------
 -- 4. Verification
 -- ---------------------------------------------------------------------------
-
-SELECT version, script_name
-FROM scx_schema_migration
-WHERE version IN ('V64', 'V65');
 
 SELECT id, name, path, parent_id, component, sort, del_flag
 FROM sys_menu

@@ -203,6 +203,9 @@ com.yzytech.scx.ocpx.admin
 - `init-database.sh` 只允许空库初始化，禁止扫描或自动执行 `db/migration`。
 - 未来已有库变更必须新增一份前向增量 SQL，并在同一变更中同步 `db/schema/scx_current_schema.sql`、`schema-required-tables.sh`、校验脚本和契约测试。
 - 已执行的增量 SQL 不得修改或重放；生产应用前必须备份、预览并取得明确授权。
+- `scx_schema_migration` 迁移账本已于 2026-08-11 明确退役。当前态 schema 和未来新增 SQL 均不得创建、查询、写入、更新、删除或以任何方式依赖该账本；版本化文件名只用于代码审查和发布包识别。
+- 已有环境若仍保留该历史表，只允许把它视为可选遗留对象；不得用其内容判断结构版本，也不得因本规则自动删除。删除存量表必须另行备份、预览并取得明确生产授权。
+- 已有库发布证据改为：目标身份、变更前备份、Git 提交、SQL 文件 SHA-256、人工审批/执行记录、`information_schema` 结构后置条件、关键数据对账和 `verify-database.sh` 结果。提交前运行 `make schema-ledger-check`，阻止后续业务 SQL 重新引用退役账本。
 
 ### 5.2 前端（`scx-fronted/`）
 

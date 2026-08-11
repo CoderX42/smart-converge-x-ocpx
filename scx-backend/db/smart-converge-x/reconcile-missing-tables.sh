@@ -22,7 +22,7 @@ mysql_args=(
 
 allowed_list="$(printf "'%s'," "${SCX_ALLOWED_TABLES[@]}")"
 allowed_list="${allowed_list%,}"
-expected_union="$(printf "SELECT '%s' AS table_name UNION ALL " "${SCX_ALLOWED_TABLES[@]}")"
+expected_union="$(printf "SELECT '%s' AS table_name UNION ALL " "${SCX_EXPECTED_TABLES[@]}")"
 expected_union="${expected_union% UNION ALL }"
 
 missing="$(mysql "${mysql_args[@]}" --batch --skip-column-names \

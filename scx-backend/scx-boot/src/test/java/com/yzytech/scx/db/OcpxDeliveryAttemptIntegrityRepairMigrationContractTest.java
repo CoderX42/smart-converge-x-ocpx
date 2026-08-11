@@ -28,8 +28,7 @@ class OcpxDeliveryAttemptIntegrityRepairMigrationContractTest {
 					"job_row.attempt_count=repair.repaired_max",
 					"ADD UNIQUE KEY uk_scx_ocpx_delivery_attempt_no (job_id,attempt_no)")
 			.doesNotContain("DELETE FROM scx_ocpx_delivery_attempt",
-					"DELETE FROM scx_ocpx_delivery_job", "TRUNCATE TABLE", "DROP TABLE ",
-					"INSERT INTO scx_schema_migration", "UPDATE scx_schema_migration");
+					"DELETE FROM scx_ocpx_delivery_job", "TRUNCATE TABLE", "DROP TABLE ");
 	}
 
 	@Test

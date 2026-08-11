@@ -22,8 +22,7 @@ class OcpxPartialNamespaceRepairMigrationContractTest {
 					"LOWER(constraint_name) LIKE '%adx%'", "LOWER(trigger_name) LIKE '%adx%'",
 					"LOWER(table_comment) LIKE '%adx%'", "target_menu.del_flag<>'1'",
 					"active OCPX menu conflicting with an ADX source menu")
-			.doesNotContain("INSERT INTO scx_schema_migration", "UPDATE scx_schema_migration", "TRUNCATE TABLE",
-					"DROP TABLE ", "${SCX_");
+			.doesNotContain("TRUNCATE TABLE", "DROP TABLE ", "${SCX_");
 	}
 
 	@Test

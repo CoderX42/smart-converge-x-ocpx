@@ -12,13 +12,9 @@
 USE `smart_converge_x`;
 SET NAMES utf8mb4;
 
-CREATE TABLE IF NOT EXISTS scx_schema_migration (
-  version VARCHAR(32) NOT NULL,
-  script_name VARCHAR(255) NOT NULL,
-  checksum VARCHAR(128) NOT NULL,
-  applied_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  PRIMARY KEY (version)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='SCX historical schema change audit';
+-- Database-resident migration ledgers are intentionally excluded. Existing
+-- databases use explicitly reviewed forward-only deltas and structural
+-- postcondition verification; empty databases consume this current-state file.
 
 -- V68: replace the broad SCX advertising domains with the compact OCPX management loop.
 -- Historical migrations remain immutable; the separately authorized retirement script
