@@ -1,6 +1,8 @@
-scx:
-  ocpx:
-    payload-aes-key: replace-before-production-payload-aes-key
+spring:
+  config:
+    activate:
+      on-profile: dev
+    import: classpath:ocpx-local-secrets.yml
 
 ---
 spring:

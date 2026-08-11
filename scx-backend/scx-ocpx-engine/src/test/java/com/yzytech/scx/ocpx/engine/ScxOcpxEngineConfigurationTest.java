@@ -23,6 +23,8 @@ class ScxOcpxEngineConfigurationTest {
 		assertThat(source.getProperty("spring.config.import")).isEqualTo("classpath:ocpx-protocol-crypto.yml");
 		assertThat(source.getProperty("spring.webflux.base-path")).isEqualTo("/ocpx");
 		assertThat(source.getProperty("scx.ocpx.public-base-url")).isEqualTo("http://127.0.0.1:10000/ocpx");
+		assertThat(source.getProperty("scx.ocpx.device-hmac-key")).isNull();
+		assertThat(source.getProperty("scx.ocpx.callback-token-key")).isNull();
 	}
 
 	@Test

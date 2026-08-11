@@ -5,12 +5,18 @@ import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.core.io.ClassPathResource;
 
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ScxBootOcpxBoundaryTest {
+
+	@Test
+	void exposesRequiredOcpxProtocolCryptoConfigurationOnBootClasspath() {
+		assertThat(new ClassPathResource("ocpx-protocol-crypto.yml").exists()).isTrue();
+	}
 
 	@Test
 	void excludesTheIndependentOcpxDataPlaneFromManagementComponentScanning() {

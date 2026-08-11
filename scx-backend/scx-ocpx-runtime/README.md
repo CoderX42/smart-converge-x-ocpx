@@ -32,7 +32,14 @@
   -> 下游 Adapter
 ```
 
-运行参数统一由 `scx-ocpx-engine/src/main/resources/application-*.yml` 提供。本模块不新增独立配置文件，也不依赖 `/etc/scx/scx.env` 或运行时环境变量占位符。
+运行参数由 `scx-ocpx-engine/src/main/resources/application-*.yml` 与共享的
+`ocpx-protocol-crypto.yml` 提供，不依赖 `/etc/scx/scx.env` 或运行时环境变量占位符。
+
+本地 `dev` 环境的协议密钥保存在 Git 忽略的
+`src/main/resources/ocpx-local-secrets.yml` 中。该文件为 `payload-aes-key`、
+`device-hmac-key` 和 `callback-token-key` 分别配置独立随机值，由管理面和独立引擎
+共同加载；不得提交、输出或在三个用途之间复用密钥。生产 profile 使用既有生产配置，
+更换前必须先完成密文迁移与签名切换设计。
 
 ## 开发与验证
 
