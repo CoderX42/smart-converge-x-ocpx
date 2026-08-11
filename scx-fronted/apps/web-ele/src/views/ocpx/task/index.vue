@@ -47,6 +47,7 @@ import {
   secondaryAuthenticate,
   updateTask,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   buildTaskPayload,
@@ -326,7 +327,7 @@ function openCreate() {
     return;
   }
   resetEditor();
-  idempotencyKey.value = crypto.randomUUID().replaceAll('-', '');
+  idempotencyKey.value = createClientRequestId();
   savedSnapshot.value = taskEditorSnapshot(form);
   editorOpen.value = true;
 }
@@ -410,7 +411,7 @@ function addEventBinding() {
     eventDefinitionId: '',
     limitValue: undefined,
     overLimitDelivery: false,
-    rowKey: crypto.randomUUID(),
+    rowKey: createClientRequestId(),
   });
 }
 
@@ -624,7 +625,7 @@ async function confirmPublish() {
     const result = await publishTaskRoute(row.id, {
       checkToken: check.checkToken,
       expectedTaskVersion: check.taskConfigVersion,
-      publishRequestId: crypto.randomUUID().replaceAll('-', ''),
+      publishRequestId: createClientRequestId(),
     });
     ElMessage.success(
       result.active
@@ -673,7 +674,7 @@ async function pauseRoute() {
     await pauseTaskRoute(row.id, {
       confirmed: true,
       expectedTaskVersion: preview.taskConfigVersion,
-      pauseRequestId: crypto.randomUUID().replaceAll('-', ''),
+      pauseRequestId: createClientRequestId(),
       previewToken: preview.previewToken,
       reason: pauseReason.value.trim(),
     });

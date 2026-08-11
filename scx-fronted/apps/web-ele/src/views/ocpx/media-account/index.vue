@@ -54,6 +54,7 @@ import {
   updateMediaAccount,
   updateMediaCredential,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   buildMediaAccountCreatePayload,
@@ -259,7 +260,7 @@ async function openCreate() {
     return;
   }
   await changeEditorChannel();
-  idempotencyKey.value = crypto.randomUUID().replaceAll('-', '');
+  idempotencyKey.value = createClientRequestId();
   savedSnapshot.value = mediaAccountEditorSnapshot(form);
   editorOpen.value = true;
 }

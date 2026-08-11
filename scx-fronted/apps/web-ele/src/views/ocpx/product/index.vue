@@ -38,11 +38,11 @@ import {
   updateProduct,
   uploadProductLogo,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   buildProductCreatePayload,
   buildProductUpdatePayload,
-  createProductIdempotencyKey,
   duplicateProductPolicyIndexes,
   productEditorSnapshot,
   resolveProductEmptyState,
@@ -207,7 +207,7 @@ function openCreate() {
     return;
   }
   resetEditor();
-  idempotencyKey.value = createProductIdempotencyKey();
+  idempotencyKey.value = createClientRequestId();
   savedSnapshot.value = productEditorSnapshot(form);
   editorOpen.value = true;
 }

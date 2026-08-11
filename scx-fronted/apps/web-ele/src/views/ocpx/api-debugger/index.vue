@@ -35,9 +35,9 @@ import {
   preflightApiDebug,
   saveApiDebugCase,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
-  createDebugClientId,
   formatJsonText,
   formatResponseText,
   maskSensitiveText,
@@ -69,11 +69,11 @@ const requestBody = ref(
   JSON.stringify(
     {
       channel_id: '',
-      clickid: `debug-${createDebugClientId()}`,
+      clickid: `debug-${createClientRequestId()}`,
       event: 'CLICK',
       event_time: Math.floor(Date.now() / 1000),
       monitor_id: '',
-      oaid: `debug-device-${createDebugClientId()}`,
+      oaid: `debug-device-${createClientRequestId()}`,
       os: 'android',
       schema_version: '1.0',
     },
@@ -425,11 +425,11 @@ watch([targetId, scenario], () => {
       ? JSON.stringify(
           {
             channel_id: target.channelCode,
-            clickid: `debug-${createDebugClientId()}`,
+            clickid: `debug-${createClientRequestId()}`,
             event: 'CLICK',
             event_time: Math.floor(Date.now() / 1000),
             monitor_id: target.monitorId,
-            oaid: `debug-device-${createDebugClientId()}`,
+            oaid: `debug-device-${createClientRequestId()}`,
             os: 'android',
             schema_version: '1.0',
           },

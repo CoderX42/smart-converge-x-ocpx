@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  createDebugClientId,
   formatJsonText,
   formatResponseText,
   maskSensitiveText,
@@ -10,21 +9,6 @@ import {
 } from './model';
 
 describe('aPI debugger editor model', () => {
-  it('generates debug IDs when randomUUID is unavailable', () => {
-    expect(
-      createDebugClientId({ randomUUID: () => 'native-random-uuid' }),
-    ).toBe('native-random-uuid');
-
-    const generated = createDebugClientId({
-      getRandomValues(array) {
-        array.fill(171);
-        return array;
-      },
-    });
-    expect(generated).toBe('ab'.repeat(16));
-    expect(createDebugClientId(null)).toMatch(/^[a-z0-9]+-[a-z0-9]+$/);
-  });
-
   it('switches request body formats without leaking file bytes', () => {
     expect(serializeRequestBody('NONE', 'secret', {})).toBe('');
     expect(serializeRequestBody('TEXT', 'plain text', {})).toBe('plain text');

@@ -25,6 +25,7 @@ import {
   previewRuntimeReplay,
   secondaryAuthenticate,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   canConfirmRuntimeReplay,
@@ -269,7 +270,7 @@ async function confirmReplay() {
       failureId: failure.id,
       previewToken: preview.previewToken,
       reason: replayForm.reason.trim(),
-      requestId: crypto.randomUUID().replaceAll('-', ''),
+      requestId: createClientRequestId(),
       ticket: replayForm.ticket.trim() || undefined,
     });
     ElMessage.success(

@@ -42,6 +42,7 @@ import {
   updateAdvertiser,
   uploadAdvertiserDocument,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   buildAdvertiserCreatePayload,
@@ -239,7 +240,7 @@ function resetEditor() {
 
 function openCreate() {
   resetEditor();
-  idempotencyKey.value = crypto.randomUUID();
+  idempotencyKey.value = createClientRequestId();
   savedSnapshot.value = editorSnapshot(form);
   editorOpen.value = true;
 }
@@ -483,7 +484,7 @@ async function downloadDocument(document: AdvertiserDocument) {
 function openRecharge(row: Advertiser) {
   rechargeTarget.value = row;
   rechargeAmount.value = undefined;
-  rechargeRequestId.value = crypto.randomUUID();
+  rechargeRequestId.value = createClientRequestId();
   rechargeOpen.value = true;
 }
 

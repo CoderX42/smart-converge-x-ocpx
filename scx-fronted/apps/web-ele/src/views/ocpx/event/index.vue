@@ -27,6 +27,7 @@ import {
   updateCanonicalEventDefinition,
   updateCanonicalEventMapping,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   compatibleDefinitions,
@@ -318,7 +319,7 @@ async function save() {
               code: definitionForm.code.trim().toUpperCase(),
               status: definitionForm.status,
             },
-            crypto.randomUUID().replaceAll('-', ''),
+            createClientRequestId(),
           ));
     } else {
       const data = {
@@ -341,7 +342,7 @@ async function save() {
               channelId: mappingForm.channelId,
               status: mappingForm.status,
             },
-            crypto.randomUUID().replaceAll('-', ''),
+            createClientRequestId(),
           ));
     }
     drawerOpen.value = false;

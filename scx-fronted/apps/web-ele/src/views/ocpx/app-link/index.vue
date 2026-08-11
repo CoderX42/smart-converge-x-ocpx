@@ -40,6 +40,7 @@ import {
   updateAppLink,
   validateAppLinkUrl,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   appLinkEditorSnapshot,
@@ -266,7 +267,7 @@ async function openCreate() {
   }
   resetEditor();
   await loadDocuments(form.productId);
-  idempotencyKey.value = crypto.randomUUID().replaceAll('-', '');
+  idempotencyKey.value = createClientRequestId();
   savedSnapshot.value = appLinkEditorSnapshot(form);
   editorOpen.value = true;
 }

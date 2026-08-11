@@ -31,6 +31,7 @@ import {
   rechargeAdvertiser,
   saveCatalog,
 } from '#/api/ocpx';
+import { createClientRequestId } from '#/utils/request-id';
 
 import {
   appendChannelMacros,
@@ -523,7 +524,7 @@ async function publish(row: Row) {
 function openRecharge(row: Row) {
   rechargeTarget.value = row;
   rechargeAmount.value = undefined;
-  rechargeRequestId.value = crypto.randomUUID();
+  rechargeRequestId.value = createClientRequestId();
   rechargeDialog.value = true;
 }
 
