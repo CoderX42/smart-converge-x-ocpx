@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.admin.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.CatalogRequests;
 import com.yzytech.scx.ocpx.admin.dto.CatalogViews;
 import com.yzytech.scx.ocpx.admin.entity.OcpxAdvertiser;
@@ -56,6 +57,8 @@ public class OcpxCatalogService {
 
 	private final OcpxUrlPolicy urlPolicy;
 
+	private final OcpxTrackingProperties trackingProperties;
+
 	public IPage<CatalogViews.Channel> channels(Page<OcpxChannel> page, String keyword) {
 		Restriction restriction = accessScope.current().restriction(ScopeType.CHANNEL, PermissionLevel.VIEW);
 		if (isEmpty(restriction)) {
@@ -73,23 +76,29 @@ public class OcpxCatalogService {
 
 	@Transactional
 	public CatalogViews.Channel saveChannel(String id, CatalogRequests.SaveChannel request) {
+		OcpxChannel entity;
 		if (StringUtils.hasText(id)) {
-			requireChannel(id, PermissionLevel.OPERATE);
+			entity = requireChannel(id, PermissionLevel.OPERATE);
 		}
 		else {
 			accessScope.requireAll(PermissionLevel.MANAGE);
+			entity = new OcpxChannel();
 		}
-		String publicBaseUri = validatePublicBaseUri(request.uri());
+		String publicBaseUri = validatePublicBaseUri(
+				firstNonBlank(request.uri(), entity.getUri(), trackingProperties.getPublicBaseUrl()));
 		ensureUniqueChannel(id, request.channelName(), request.channelCode());
-		OcpxChannel entity = StringUtils.hasText(id) ? requireChannel(id, PermissionLevel.OPERATE) : new OcpxChannel();
 		entity.setChannelCode(request.channelCode().trim());
 		entity.setChannelName(request.channelName().trim());
 		entity.setAdapterCode(request.adapterCode().trim().toUpperCase());
-		entity.setAuthType(request.authType());
-		entity.setKeyVersion(request.keyVersion());
+		entity.setAuthType(firstNonBlank(request.authType(), entity.getAuthType(), "HMAC"));
+		entity.setKeyVersion(request.keyVersion() == null
+				? (entity.getKeyVersion() == null ? 1 : entity.getKeyVersion()) : request.keyVersion());
 		entity.setUri(publicBaseUri);
 		entity.setMacroParams(request.macroParams().trim());
-		entity.setCallbackHostAllowlist(request.callbackHostAllowlist().trim().toLowerCase());
+		if (request.callbackHostAllowlist() != null) {
+			entity.setCallbackHostAllowlist(trimToNull(request.callbackHostAllowlist()) == null ? null
+					: request.callbackHostAllowlist().trim().toLowerCase());
+		}
 		entity.setStatus(request.status());
 		entity.setConfigVersion(entity.getConfigVersion() == null ? 1 : entity.getConfigVersion() + 1);
 		if (StringUtils.hasText(request.secretKey())) {
@@ -531,6 +540,15 @@ public class OcpxCatalogService {
 
 	private String trimToNull(String value) {
 		return StringUtils.hasText(value) ? value.trim() : null;
+	}
+
+	private String firstNonBlank(String... values) {
+		for (String value : values) {
+			if (StringUtils.hasText(value)) {
+				return value.trim();
+			}
+		}
+		return null;
 	}
 
 	private CatalogViews.Channel channelView(OcpxChannel entity) {

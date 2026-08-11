@@ -34,6 +34,7 @@ import {
 import { createClientRequestId } from '#/utils/request-id';
 
 import AutoCodeInput from './auto-code-input.vue';
+import { buildChannelSavePayload } from './channel-form';
 import {
   appendChannelMacros,
   CHANNEL_MACRO_OPTIONS,
@@ -219,11 +220,7 @@ const rules = computed<FormRules>(() => {
       'channelCode',
       'channelName',
       'adapterCode',
-      'authType',
-      'keyVersion',
-      'uri',
       'macroParams',
-      'callbackHostAllowlist',
       'status',
     ],
     deduction: ['channelId', 'appLinkId', 'ratio'],
@@ -325,8 +322,6 @@ function resetForm() {
     appLink: { linkPlatform: 1 },
     channel: {
       adapterCode: 'STANDARD',
-      authType: 'HMAC',
-      keyVersion: 1,
       macroParams: DEFAULT_CHANNEL_MACRO_PARAMS,
       status: 'ACTIVE',
     },
@@ -484,7 +479,8 @@ async function save() {
   }
   saving.value = true;
   try {
-    const payload = { ...form };
+    const payload =
+      props.kind === 'channel' ? buildChannelSavePayload(form) : { ...form };
     if (props.kind === 'monitor') {
       payload.eventBindings = (form.eventBindings || []).map(
         (binding: MonitorEventBinding) => ({
@@ -781,31 +777,6 @@ onMounted(async () => {
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="鉴权方式" prop="authType">
-            <el-select v-model="form.authType">
-              <el-option label="HMAC-SHA256" value="HMAC" />
-              <el-option label="无鉴权（仅联调）" value="NONE" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="密钥版本" prop="keyVersion">
-            <el-input-number v-model="form.keyVersion" :min="1" />
-          </el-form-item>
-          <el-form-item label="SCX OCPX引擎地址" prop="uri">
-            <el-input
-              v-model="form.uri"
-              placeholder="https://ocpx.example.com/ocpx"
-            />
-            <span class="field-hint">
-              系统据此生成 V70 HMAC POST 上报接口；不是媒体旧式 GET 监测模板。
-            </span>
-          </el-form-item>
-          <el-form-item label="渠道密钥">
-            <el-input
-              v-model="form.secretKey"
-              show-password
-              :placeholder="form.id ? '留空表示不修改' : '发布前至少配置 32 位'"
-            />
-          </el-form-item>
           <el-form-item label="宏参数" prop="macroParams">
             <div class="macro-editor">
               <el-input
@@ -848,12 +819,6 @@ onMounted(async () => {
                 可手动编辑；追加时按标准顺序写入，已存在的参数不会重复。
               </p>
             </div>
-          </el-form-item>
-          <el-form-item label="回调域名白名单" prop="callbackHostAllowlist">
-            <el-input
-              v-model="form.callbackHostAllowlist"
-              placeholder="callback.media.example，多个用逗号分隔"
-            />
           </el-form-item>
           <el-form-item label="渠道状态" prop="status">
             <el-radio-group v-model="form.status">

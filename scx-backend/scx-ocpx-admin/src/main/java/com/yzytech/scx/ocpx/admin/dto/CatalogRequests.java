@@ -21,9 +21,9 @@ public final class CatalogRequests {
 
 	public record SaveChannel(@NotBlank @Pattern(regexp = "^[a-z][a-z0-9_-]{1,63}$") String channelCode,
 			@NotBlank @Size(max = 100) String channelName, @NotBlank @Size(max = 32) String adapterCode,
-			@NotBlank @Pattern(regexp = "HMAC|NONE") String authType, @NotNull @DecimalMin("1") Integer keyVersion,
-			@NotBlank @Size(max = 512) String uri, @Size(max = 255) String secretKey,
-			@NotBlank @Size(max = 1000) String macroParams, @NotBlank @Size(max = 1000) String callbackHostAllowlist,
+			@Pattern(regexp = "HMAC|NONE") String authType, @DecimalMin("1") Integer keyVersion,
+			@Size(max = 512) String uri, @Size(max = 255) String secretKey,
+			@NotBlank @Size(max = 1000) String macroParams, @Size(max = 1000) String callbackHostAllowlist,
 			@NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status) {
 	}
 

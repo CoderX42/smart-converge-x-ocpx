@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.CatalogRequests;
 import com.yzytech.scx.ocpx.admin.dto.CatalogViews;
 import com.yzytech.scx.ocpx.admin.entity.OcpxAdvertiser;
@@ -42,12 +43,56 @@ class OcpxCatalogServiceTest {
 
 	private final OcpxEventService eventService = mock(OcpxEventService.class);
 
+	private final OcpxTrackingProperties trackingProperties = new OcpxTrackingProperties();
+
 	private OcpxCatalogService service;
 
 	@BeforeEach
 	void setUp() {
+		trackingProperties.setPublicBaseUrl("https://tracking.example/ocpx");
 		service = new OcpxCatalogService(channelMapper, advertiserMapper, appLinkMapper, monitorMapper, deductionMapper,
-				accessScope, configChangeService, eventService, new OcpxUrlPolicy());
+				accessScope, configChangeService, eventService, new OcpxUrlPolicy(), trackingProperties);
+	}
+
+	@Test
+	void channelCreationUsesSystemManagedRuntimeDefaults() {
+		CatalogRequests.SaveChannel request = new CatalogRequests.SaveChannel("media_main", "主渠道", "STANDARD", null,
+				null, null, null, "?clickid=__CLICK_ID__", null, "ACTIVE");
+
+		CatalogViews.Channel result = service.saveChannel(null, request);
+
+		ArgumentCaptor<OcpxChannel> channel = ArgumentCaptor.forClass(OcpxChannel.class);
+		verify(channelMapper).insert(channel.capture());
+		assertThat(channel.getValue().getAuthType()).isEqualTo("HMAC");
+		assertThat(channel.getValue().getKeyVersion()).isEqualTo(1);
+		assertThat(channel.getValue().getUri()).isEqualTo("https://tracking.example/ocpx");
+		assertThat(channel.getValue().getSecretKey()).isNull();
+		assertThat(channel.getValue().getCallbackHostAllowlist()).isNull();
+		assertThat(result.authType()).isEqualTo("HMAC");
+		assertThat(result.keyVersion()).isEqualTo(1);
+	}
+
+	@Test
+	void channelUpdatePreservesSystemManagedRuntimeFields() {
+		OcpxChannel existing = new OcpxChannel();
+		existing.setId("channel-1");
+		existing.setAuthType("HMAC");
+		existing.setKeyVersion(4);
+		existing.setUri("https://legacy.example/ocpx");
+		existing.setSecretKey("existing-secret");
+		existing.setCallbackHostAllowlist("callback.example");
+		when(channelMapper.selectById("channel-1")).thenReturn(existing);
+		CatalogRequests.SaveChannel request = new CatalogRequests.SaveChannel("media_main", "更新后的渠道", "STANDARD", null,
+				null, null, null, "?clickid=__CLICK_ID__", null, "ACTIVE");
+
+		service.saveChannel("channel-1", request);
+
+		assertThat(existing.getAuthType()).isEqualTo("HMAC");
+		assertThat(existing.getKeyVersion()).isEqualTo(4);
+		assertThat(existing.getUri()).isEqualTo("https://legacy.example/ocpx");
+		assertThat(existing.getSecretKey()).isEqualTo("existing-secret");
+		assertThat(existing.getCallbackHostAllowlist()).isEqualTo("callback.example");
+		verify(channelMapper).updateById(existing);
 	}
 
 	@Test
