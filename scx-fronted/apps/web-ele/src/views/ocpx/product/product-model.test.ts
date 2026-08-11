@@ -3,12 +3,35 @@ import { describe, expect, it } from 'vitest';
 import {
   buildProductCreatePayload,
   buildProductUpdatePayload,
+  createProductIdempotencyKey,
   duplicateProductPolicyIndexes,
   productEditorSnapshot,
   resolveProductEmptyState,
 } from './product-model';
 
 describe('product management model', () => {
+  it('creates valid idempotency keys without requiring randomUUID', () => {
+    expect(
+      createProductIdempotencyKey({
+        randomUUID: () => 'native-random-uuid',
+      }),
+    ).toBe('nativerandomuuid');
+
+    const generated = createProductIdempotencyKey({
+      getRandomValues(array) {
+        array.fill(171);
+        return array;
+      },
+      randomUUID() {
+        throw new Error('unavailable');
+      },
+    });
+    expect(generated).toBe('ab'.repeat(16));
+
+    const fallback = createProductIdempotencyKey(null);
+    expect(fallback).toMatch(/^[a-z0-9]{16,64}$/);
+  });
+
   it('distinguishes permission, initial, filtered and failed states', () => {
     expect(
       resolveProductEmptyState({

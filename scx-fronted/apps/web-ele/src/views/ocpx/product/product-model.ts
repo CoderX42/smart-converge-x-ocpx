@@ -22,6 +22,44 @@ export type ProductEditor = {
 export type ProductEmptyState =
   'ERROR' | 'FILTER_EMPTY' | 'INITIAL_EMPTY' | 'NO_PERMISSION' | 'READY';
 
+type ClientCrypto = {
+  getRandomValues?: (array: Uint8Array) => Uint8Array;
+  randomUUID?: () => string;
+};
+
+/**
+ * Creates a request idempotency key without assuming randomUUID is available.
+ * The key identifies a create request and is not an authentication credential.
+ */
+export function createProductIdempotencyKey(cryptoApi?: ClientCrypto | null) {
+  const source = cryptoApi === undefined ? globalThis.crypto : cryptoApi;
+  if (typeof source?.randomUUID === 'function') {
+    try {
+      return source.randomUUID().replaceAll('-', '');
+    } catch {
+      // Continue with getRandomValues in restricted browser/WebView contexts.
+    }
+  }
+  if (typeof source?.getRandomValues === 'function') {
+    try {
+      const bytes = new Uint8Array(16);
+      source.getRandomValues(bytes);
+      return Array.from(bytes, (value) =>
+        value.toString(16).padStart(2, '0'),
+      ).join('');
+    } catch {
+      // The final fallback is sufficient for a non-security idempotency key.
+    }
+  }
+  const timestamp = Date.now().toString(36).padStart(10, '0');
+  const random = Math.random()
+    .toString(36)
+    .slice(2)
+    .padEnd(16, '0')
+    .slice(0, 16);
+  return `${timestamp}${random}`;
+}
+
 export function resolveProductEmptyState(input: {
   canView: boolean;
   error: boolean;

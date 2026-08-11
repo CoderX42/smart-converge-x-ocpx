@@ -510,8 +510,9 @@ public class OcpxRuntimeService {
 
 	private Map<String, Long> grouped(String select, ScopeSql scope, String groupBy) {
 		Map<String, Long> result = new LinkedHashMap<>();
-		jdbcTemplate.query(select + scope.clause() + groupBy, scope.args().toArray(),
-				(ResultSet rs) -> result.put(rs.getString(1), rs.getLong(2)));
+		jdbcTemplate.query(select + scope.clause() + groupBy, scope.args().toArray(), (ResultSet rs) -> {
+			result.put(rs.getString(1), rs.getLong(2));
+		});
 		return result;
 	}
 

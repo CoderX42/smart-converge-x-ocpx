@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.RowCallbackHandler;
 
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
@@ -49,6 +51,22 @@ class OcpxRuntimeServiceTest {
 				OcpxAccessScope.ScopeType.CHANNEL, Map.of("channel-1", OcpxAccessScope.PermissionLevel.MANAGE),
 				OcpxAccessScope.ScopeType.MEDIA_ACCOUNT, Map.of("media-1", OcpxAccessScope.PermissionLevel.MANAGE));
 		when(accessScope.current()).thenReturn(new OcpxAccessScope.Snapshot(9, null, grants));
+	}
+
+	@Test
+	void overviewReturnsZeroCountsWhenRuntimeTablesAreEmpty() {
+		var overview = service.overview();
+
+		assertThat(overview.accepted()).isZero();
+		assertThat(overview.succeeded()).isZero();
+		assertThat(overview.failed()).isZero();
+		assertThat(overview.dlq()).isZero();
+		assertThat(overview.replayQueued()).isZero();
+		assertThat(overview.replayTerminal()).isZero();
+		assertThat(overview.byFactType()).isEmpty();
+		assertThat(overview.byFailureClass()).isEmpty();
+		assertThat(overview.freshnessStatus()).isEqualTo("FINAL");
+		verify(jdbcTemplate, times(4)).query(anyString(), any(Object[].class), any(RowCallbackHandler.class));
 	}
 
 	@Test

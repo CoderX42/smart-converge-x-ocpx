@@ -42,6 +42,7 @@ import {
 import {
   buildProductCreatePayload,
   buildProductUpdatePayload,
+  createProductIdempotencyKey,
   duplicateProductPolicyIndexes,
   productEditorSnapshot,
   resolveProductEmptyState,
@@ -206,7 +207,7 @@ function openCreate() {
     return;
   }
   resetEditor();
-  idempotencyKey.value = crypto.randomUUID().replaceAll('-', '');
+  idempotencyKey.value = createProductIdempotencyKey();
   savedSnapshot.value = productEditorSnapshot(form);
   editorOpen.value = true;
 }
