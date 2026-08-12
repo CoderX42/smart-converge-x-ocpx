@@ -1,0 +1,60 @@
+package com.yzytech.scx.ocpx.feedback.web;
+
+import com.alibaba.fastjson2.JSON;
+import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Set;
+
+/** 下游媒体 Feedback HTTP 入口。 */
+@RestController
+@RequiredArgsConstructor
+public class FeedbackIngressController {
+
+	private static final Set<String> RETIRED_ROUTE_PARAMETERS = Set.of("chid", "mid", "dspid", "linkid");
+
+	private final Logger errorLog = LoggerFactory.getLogger("error");
+
+	private final Logger feedbackLog = LoggerFactory.getLogger("fb");
+
+	private final FeedbackService feedbackService;
+
+	private final FeedbackRequestAdapter requestAdapter;
+
+	/**
+	 * 接收媒体曝光或点击，将查询参数标准化后进入 Feedback 处理链路。
+	 *
+	 * <p>
+	 * 成功响应沿用旧协议固定 JSON；异常仅记录日志，不改写既有兼容响应行为。
+	 * @param request 通用媒体查询参数
+	 * @return 兼容旧协议的 HTTP 处理结果
+	 */
+	@GetMapping("/feedback")
+	public ResponseEntity<FeedbackIngressResponse> handleFeedback(@Valid @ModelAttribute FeedbackIngressRequest request,
+			HttpServletRequest servletRequest) {
+		if (RETIRED_ROUTE_PARAMETERS.stream().anyMatch(servletRequest.getParameterMap()::containsKey)) {
+			return ResponseEntity.badRequest().build();
+		}
+		try {
+			feedbackLog.info("feedback ingress req:{}", JSON.toJSONString(request));
+			FeedbackReq feedback = requestAdapter.toFeedback(request);
+			feedbackService.handleFeedback(feedback);
+			return ResponseEntity.ok(FeedbackIngressResponse.success());
+		}
+		catch (Exception exception) {
+			errorLog.error("feedback ingress error:{},param:{}", exception.getMessage(),
+					JSON.toJSONString(request), exception);
+			return ResponseEntity.ok().build();
+		}
+	}
+
+}

@@ -1,6 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
-import com.yzytech.scx.ocpx.constant.RedisConstants;
+import com.yzytech.scx.ocpx.core.OcpxRefreshContract;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +14,7 @@ public class OcpxConfigRefreshPublisher {
 	}
 
 	public void mark() {
-		redis.opsForValue().set(RedisConstants.DATA_REFRESH, "1");
+		redis.opsForValue().set(OcpxRefreshContract.REDIS_KEY, "1");
 	}
 
 }

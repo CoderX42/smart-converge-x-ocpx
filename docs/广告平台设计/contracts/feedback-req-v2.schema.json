@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "feedback-req-v2.schema.json",
-  "title": "General Feedback GET query parameters",
+  "title": "Feedback ingress GET query parameters",
   "type": "object",
-  "required": ["chid", "mid", "dspid", "linkid", "event"],
+  "required": ["mId", "tId", "aId", "lId", "event"],
   "properties": {
-    "chid": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMedia.id" },
-    "mid": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMonitorTask.id" },
-    "dspid": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxAdvertiser.id" },
-    "linkid": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxPromotionLink.id" },
+    "mId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMedia.id" },
+    "tId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMonitorTask.id" },
+    "aId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxAdvertiser.id; distinct from advertiser-side adv_id" },
+    "lId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxPromotionLink.id" },
     "event": { "type": "string", "enum": ["IMP", "CLK"] },
     "request_id": { "type": "string", "maxLength": 128 },
     "callback_url": { "type": "string", "maxLength": 2000 },
@@ -37,5 +37,5 @@
     "creative_id": { "type": "string" },
     "impresss_id": { "type": "string" }
   },
-  "additionalProperties": { "type": "string" }
+  "additionalProperties": false
 }

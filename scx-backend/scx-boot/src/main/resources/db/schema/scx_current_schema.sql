@@ -150,8 +150,10 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback (
   id BIGINT NOT NULL AUTO_INCREMENT,
   time_key_req VARCHAR(20) NULL, time_key_res VARCHAR(20) NULL,
   time_hour_res VARCHAR(20) NULL, date_res VARCHAR(20) NULL,
-  channel_id VARCHAR(32) NULL, dsp_id VARCHAR(32) NULL,
-  monitor_id VARCHAR(32) NULL, link_id VARCHAR(32) NULL,
+  m_id VARCHAR(32) NULL COMMENT 'OcpxMedia.id',
+  a_id VARCHAR(32) NULL COMMENT 'OcpxAdvertiser.id; distinct from adv_id',
+  t_id VARCHAR(32) NULL COMMENT 'OcpxMonitorTask.id',
+  l_id VARCHAR(32) NULL COMMENT 'OcpxPromotionLink.id',
   userid VARCHAR(128) NULL, user_type VARCHAR(64) NULL,
   adv_id VARCHAR(128) NULL, group_id VARCHAR(128) NULL,
   plan_id VARCHAR(128) NULL, creative_id VARCHAR(128) NULL,
@@ -165,7 +167,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_feedback_req (req_id),
-  KEY idx_ocpx_feedback_route (channel_id,dsp_id,monitor_id,link_id)
+  KEY idx_ocpx_feedback_route (m_id,a_id,t_id,l_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='LOG: legacy-compatible OCPX feedback detail';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback_day LIKE scx_ocpx_log_feedback;
@@ -174,8 +176,10 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_callback (
   id BIGINT NOT NULL AUTO_INCREMENT,
   time_key_req VARCHAR(20) NULL, time_key_res VARCHAR(20) NULL,
   time_hour_res VARCHAR(20) NULL, date_res VARCHAR(20) NULL,
-  channel_id VARCHAR(32) NULL, dsp_id VARCHAR(32) NULL,
-  monitor_id VARCHAR(32) NULL, link_id VARCHAR(32) NULL,
+  m_id VARCHAR(32) NULL COMMENT 'OcpxMedia.id',
+  a_id VARCHAR(32) NULL COMMENT 'OcpxAdvertiser.id; distinct from adv_id',
+  t_id VARCHAR(32) NULL COMMENT 'OcpxMonitorTask.id',
+  l_id VARCHAR(32) NULL COMMENT 'OcpxPromotionLink.id',
   adv_id VARCHAR(128) NULL, group_id VARCHAR(128) NULL,
   plan_id VARCHAR(128) NULL, creative_id VARCHAR(128) NULL,
   imp_id VARCHAR(128) NULL, clk_id VARCHAR(128) NULL, req_id VARCHAR(128) NULL,
@@ -188,15 +192,17 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_callback (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_callback_req (req_id),
-  KEY idx_ocpx_callback_route (channel_id,dsp_id,monitor_id,link_id)
+  KEY idx_ocpx_callback_route (m_id,a_id,t_id,l_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='LOG: legacy-compatible OCPX callback detail';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat_temp (
   id BIGINT NOT NULL AUTO_INCREMENT,
   time_hour INT NOT NULL,
-  channel_id VARCHAR(32) NOT NULL, dsp_id VARCHAR(32) NOT NULL,
+  m_id VARCHAR(32) NOT NULL COMMENT 'OcpxMedia.id',
+  a_id VARCHAR(32) NOT NULL COMMENT 'OcpxAdvertiser.id; distinct from adv_id',
   app_id INT NULL, slot_id INT NULL, dsp_slot_id INT NULL,
-  monitor_id VARCHAR(32) NOT NULL, link_id VARCHAR(32) NOT NULL,
+  t_id VARCHAR(32) NOT NULL COMMENT 'OcpxMonitorTask.id',
+  l_id VARCHAR(32) NOT NULL COMMENT 'OcpxPromotionLink.id',
   req_smt INT NOT NULL DEFAULT 0, res_smt INT NOT NULL DEFAULT 0,
   uni_win_smt INT NOT NULL DEFAULT 0, show_smt INT NOT NULL DEFAULT 0,
   uni_show_smt INT NOT NULL DEFAULT 0, clk_smt INT NOT NULL DEFAULT 0,
@@ -211,15 +217,17 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat_temp (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_report_temp_group (mark,create_time),
-  KEY idx_ocpx_report_temp_route (channel_id,dsp_id,monitor_id,link_id)
+  KEY idx_ocpx_report_temp_route (m_id,a_id,t_id,l_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='AGGREGATE: legacy-compatible OCPX temporary report material';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat (
   id BIGINT NOT NULL AUTO_INCREMENT,
   time_hour INT NOT NULL,
-  channel_id VARCHAR(32) NOT NULL, dsp_id VARCHAR(32) NOT NULL,
+  m_id VARCHAR(32) NOT NULL COMMENT 'OcpxMedia.id',
+  a_id VARCHAR(32) NOT NULL COMMENT 'OcpxAdvertiser.id; distinct from adv_id',
   app_id INT NULL, slot_id INT NULL, dsp_slot_id INT NULL,
-  monitor_id VARCHAR(32) NOT NULL, link_id VARCHAR(32) NOT NULL,
+  t_id VARCHAR(32) NOT NULL COMMENT 'OcpxMonitorTask.id',
+  l_id VARCHAR(32) NOT NULL COMMENT 'OcpxPromotionLink.id',
   req_smt INT NOT NULL DEFAULT 0, res_smt INT NOT NULL DEFAULT 0,
   uni_win_smt INT NOT NULL DEFAULT 0, show_smt INT NOT NULL DEFAULT 0,
   uni_show_smt INT NOT NULL DEFAULT 0, clk_smt INT NOT NULL DEFAULT 0,
@@ -234,7 +242,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_report_time (time_hour),
-  KEY idx_ocpx_report_route (channel_id,dsp_id,monitor_id,link_id)
+  KEY idx_ocpx_report_route (m_id,a_id,t_id,l_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='AGGREGATE: legacy-compatible OCPX report material';
 
 -- Preserve the original scx-system management navigation and permissions.

@@ -25,6 +25,15 @@ SCX_OPTIONAL_RETIRED_TABLES=(
   scx_schema_migration
 )
 
+# OCPX Feedback/Callback route dimensions. Java and Query use the matching
+# lower-camel names mId/tId/aId/lId; adv_id remains the advertiser-side ad ID.
+SCX_OCPX_ROUTE_TABLES=(
+  scx_ocpx_log_feedback scx_ocpx_log_feedback_day scx_ocpx_log_callback
+  scx_ocpx_report_mat_temp scx_ocpx_report_mat
+)
+SCX_OCPX_ROUTE_COLUMNS=(m_id t_id a_id l_id)
+SCX_OCPX_RETIRED_ROUTE_COLUMNS=(channel_id monitor_id dsp_id link_id)
+
 SCX_EXPECTED_TABLES=(
   "${SCX_REQUIRED_TABLES[@]}"
   "${SCX_XXL_JOB_TABLES[@]}"

@@ -183,8 +183,9 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log-buffer`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。`log-buffer` 仅提供进程内有界脱敏日志缓冲，不包含系统日志落库自动配置。 |
+| `scx-ocpx-core` | OCPX 管理面与数据面共享的四个 MyBatis-Plus 实体及最小契约；不包含 Spring 运行组件。 |
 | `scx-ocpx-admin` | 精简广告管理业务：四实体 CRUD、流程日志查询、Dashboard 和报表。 |
-| `scx-ocpx-engine` | 四实体最小 Spring Boot 应用；采用传统 Controller / Service / Mapper 包骨架，`upstream` 表示广告主/DSP、`downstream` 表示媒体/渠道，默认监听 `10000/ocpx`，当前没有数据面业务接口。 |
+| `scx-ocpx-engine` | 独立 OCPX 数据面应用；实现通用 Feedback/Callback GET 闭环，默认监听 `10000/ocpx`。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
 典型包结构（以 `scx-ocpx-admin` 为例）：
@@ -197,7 +198,8 @@ com.yzytech.scx.ocpx.admin
 └── resources/mapper/*.xml
 ```
 
-OCPX 的四个 `@TableName` 实体统一位于 `scx-ocpx-engine` 的 `com.yzytech.scx.ocpx.entity` 包。
+OCPX 的四个 `@TableName` 实体统一位于 `scx-ocpx-core` 的
+`com.yzytech.scx.ocpx.entity` 包；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine。
 
 数据库脚本约定：
 

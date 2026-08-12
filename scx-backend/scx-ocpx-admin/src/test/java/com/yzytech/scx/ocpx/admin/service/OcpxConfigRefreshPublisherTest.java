@@ -1,6 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
-import com.yzytech.scx.ocpx.constant.RedisConstants;
+import com.yzytech.scx.ocpx.core.OcpxRefreshContract;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -20,7 +20,7 @@ class OcpxConfigRefreshPublisherTest {
 
 		new OcpxConfigRefreshPublisher(redis).mark();
 
-		verify(values).set(RedisConstants.DATA_REFRESH, "1");
+		verify(values).set(OcpxRefreshContract.REDIS_KEY, "1");
 	}
 
 }

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: SCX OCPX general/union GET data plane
+  title: SCX OCPX Feedback/Callback GET data plane
   version: 4.0.0
-  description: sgyz-ocpx compatible general Feedback and union Callback. All partner requests use HTTP GET Query String parameters.
+  description: SCX OCPX Feedback and Callback data plane. All partner requests use HTTP GET Query String parameters.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -10,14 +10,14 @@ servers:
         default: sandbox.example.invalid
   - url: http://localhost:10000/ocpx
 paths:
-  /general/feedback:
+  /feedback:
     get:
-      operationId: generalFeedback
+      operationId: ingestFeedback
       parameters:
-        - { name: chid, in: query, required: true, description: OcpxMedia.id, schema: { type: string, maxLength: 32 } }
-        - { name: mid, in: query, required: true, description: OcpxMonitorTask.id, schema: { type: string, maxLength: 32 } }
-        - { name: dspid, in: query, required: true, description: OcpxAdvertiser.id, schema: { type: string, maxLength: 32 } }
-        - { name: linkid, in: query, required: true, description: OcpxPromotionLink.id, schema: { type: string, maxLength: 32 } }
+        - { name: mId, in: query, required: true, description: OcpxMedia.id, schema: { type: string, maxLength: 32 } }
+        - { name: tId, in: query, required: true, description: OcpxMonitorTask.id, schema: { type: string, maxLength: 32 } }
+        - { name: aId, in: query, required: true, description: OcpxAdvertiser.id；不同于广告主侧广告 ID adv_id, schema: { type: string, maxLength: 32 } }
+        - { name: lId, in: query, required: true, description: OcpxPromotionLink.id, schema: { type: string, maxLength: 32 } }
         - { name: event, in: query, required: true, schema: { type: string, enum: [IMP, CLK] } }
         - { name: request_id, in: query, required: false, description: Missing value falls back to request JSON MD5, schema: { type: string, maxLength: 128 } }
         - { name: callback_url, in: query, required: false, schema: { type: string, maxLength: 2000 } }
@@ -46,6 +46,7 @@ paths:
         - { name: creative_id, in: query, required: false, schema: { type: string } }
         - { name: impresss_id, in: query, required: false, schema: { type: string } }
       responses:
+        '400': { description: 缺少短路由主键，或请求仍包含已退役的 chid/mid/dspid/linkid }
         '200':
           description: Legacy success response. Internal handling errors are logged and retain legacy response behavior.
           content:
@@ -58,12 +59,12 @@ paths:
                   code: { type: integer, const: 200 }
                   msg: { type: string, const: 提交成功 }
                   data: { type: object }
-  /union/callback:
+  /callback:
     get:
-      operationId: unionCallback
+      operationId: handleUpstreamCallback
       parameters:
         - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
-        - { name: s, in: query, required: false, description: linkid_mid state, schema: { type: string } }
+        - { name: s, in: query, required: false, description: lId_tId state, schema: { type: string } }
         - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 17 } }
         - { name: event_time, in: query, required: true, schema: { type: integer, format: int64 } }
       responses:

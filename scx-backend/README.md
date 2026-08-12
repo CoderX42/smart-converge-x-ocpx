@@ -9,8 +9,9 @@
 | `scx-auth` | 登录、验证码和令牌认证 |
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
+| `scx-ocpx-core` | Admin 与 Engine 共享的四个 MyBatis-Plus 实体及最小契约，不包含运行时组件 |
 | `scx-ocpx-admin` | 四实体 CRUD、流程日志查询、Dashboard 和报表管理能力 |
-| `scx-ocpx-engine` | 四实体独立 Engine，一比一迁移 `sgyz-ocpx` 通用 `general/feedback` 与 `union/callback` GET 数据层，默认监听 `10000/ocpx` |
+| `scx-ocpx-engine` | 独立 OCPX 数据面，一比一迁移 `sgyz-ocpx` 通用 Feedback/Callback GET 数据层，默认监听 `10000/ocpx` |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |

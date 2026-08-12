@@ -326,7 +326,7 @@ test.describe.serial('L0 四角色生产权限门禁', () => {
       );
       const operator = sessionFor(sessions, 'operator');
       const body = {
-        allowedScopes: ['CLICK', 'CONVERSION', 'RTA'],
+        allowedScopes: ['CLICK', 'CONVERSION'],
         callbackAllowedHosts: [],
         dynamicCallbackEnabled: false,
         maxQps: 10,
@@ -390,7 +390,7 @@ test.describe.serial('L0 四角色生产权限门禁', () => {
       const disable = await json<boolean>(
         await operator.api.put(`/boot/ad/channel-clients/${createdClient.id}`, {
           data: {
-            allowedScopes: ['CLICK', 'CONVERSION', 'RTA'],
+            allowedScopes: ['CLICK', 'CONVERSION'],
             callbackAllowedHosts: [],
             dynamicCallbackEnabled: false,
             maxQps: 10,
@@ -415,7 +415,7 @@ test.describe.serial('L0 四角色生产权限门禁', () => {
           `/boot/ad/channel-clients/${created.id}`,
           {
             data: {
-              allowedScopes: ['CLICK', 'CONVERSION', 'RTA'],
+              allowedScopes: ['CLICK', 'CONVERSION'],
               callbackAllowedHosts: [],
               dynamicCallbackEnabled: false,
               maxQps: 10,

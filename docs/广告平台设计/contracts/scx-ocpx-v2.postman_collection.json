@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "SCX OCPX general/union GET",
+    "name": "SCX OCPX Feedback/Callback GET",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -8,14 +8,14 @@
       "name": "媒体 Feedback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/general/feedback?chid={{mediaId}}&mid={{monitorTaskId}}&dspid={{advertiserId}}&linkid={{promotionLinkId}}&event=CLK&request_id=click_demo&oaid=device_demo&callback_url={{downstreamCallbackUrl}}"
+        "url": "{{baseUrl}}/ocpx/feedback?mId={{mediaId}}&tId={{monitorTaskId}}&aId={{advertiserId}}&lId={{promotionLinkId}}&event=CLK&request_id=click_demo&oaid=device_demo&callback_url={{downstreamCallbackUrl}}"
       }
     },
     {
       "name": "广告主 Callback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/union/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event_type=1&event_time=1700000000"
+        "url": "{{baseUrl}}/ocpx/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event_type=1&event_time=1700000000"
       }
     }
   ],

@@ -43,7 +43,6 @@
 | [06-媒体渠道与媒体账户](06-媒体渠道与媒体账户.md) | Channel、Adapter、MediaAccount、外部 MediaCredential 与内部负责人 | Draft |
 | [07-任务与监测路由发布](07-任务与监测路由发布.md) | Task、MonitorRoute、草稿校验与发布快照 | Draft |
 | [08-事件字典与事件映射](08-事件字典与事件映射.md) | 事件定义、渠道映射、任务绑定、发布快照 | Draft / 本地在研依赖 |
-| [09-RTA管理](09-RTA管理.md) | RTA 配置、决策端口、统计与启用门禁 | Blocked |
 | [10-报表中心](10-报表中心.md) | 五类汇总、统一粒度、指标口径、导出 | Draft |
 | [11-用户权限与个人中心](11-用户权限与个人中心.md) | `scx-system` 账号、RBAC、对象数据范围 | Draft |
 | [12-DP转换工具](12-DP转换工具.md) | 淘宝/京东转换适配器与 SSRF 边界 | Blocked |
@@ -63,7 +62,6 @@
 | 媒体 | 媒体渠道、渠道用户邮箱/密码、账户数量 | `OcpxChannel`、Adapter、`sys_user` | `MediaAccount`、外部 `MediaCredential`、内部负责人/对象范围分层 | 产品并行实施 |
 | 任务/路由 | 两行筛选、点击/曝光/去重、事件比例/限额/超量、监测地址、联调/点击/转化、三类报表入口 | `OcpxMonitorLink`、发布服务、Outbox | `Task` 运营聚合、宏契约、冻结依赖版本、保存与发布分离 | 链接/媒体后实施 |
 | 事件 | 产品/链接事件映射 | 当前工作树存在事件定义/映射/快照在研代码 | 主线评审、契约稳定、迁移确认 | 先收口现有在研工作 |
-| RTA | 列表、全局配置、新增/编辑、日报/时报六列统计 | `RtaDecisionPort` 接口边界 | Accepted ADR 当前要求 OFF；参考新增默认开启与密钥回显均不得照搬 | Blocked |
 | 报表 | 数据/产品/链接/任务/媒体汇总 | 小时事实、报表接口 | 新维度、统一分组、口径字典 | 路由链路后实施 |
 | 用户权限 | 用户、重置、禁用、个人中心 | `scx-system` / Sa-Token | OCPX 对象范围关联 | 可与主数据并行 |
 | DP | 淘宝/京东页签 | 无正式产品边界 | 协议、所有权、隐私、SSRF、幂等 RFC | Blocked |
@@ -86,7 +84,6 @@
                 ↓
           Reports → Dashboard
 
-RTA：替代 ADR 接受后再进入主链
 DP：供应商协议与安全 RFC 接受后独立实施
 ```
 
@@ -94,7 +91,7 @@ DP：供应商协议与安全 RFC 接受后独立实施
 
 ## 6. 通用实现约定
 
-- 前端：新业务页放在 `scx-fronted/apps/web-ele/src/views/ocpx/`；继续使用服务端菜单与权限驱动路由。API 按 `product/link/media/task/rta/report/dp` 拆分，同时保留现有 `ocpx.ts` 兼容导出。
+- 前端：新业务页放在 `scx-fronted/apps/web-ele/src/views/ocpx/`；继续使用服务端菜单与权限驱动路由。API 按 `product/link/media/task/report/dp` 拆分，同时保留现有 `ocpx.ts` 兼容导出。
 - 后端：管理面归 `scx-ocpx-admin`，身份与菜单归 `scx-auth/scx-system`；高并发机器数据面当前未实现，重建时不得按页面新建 Maven 模块。
 - API：管理端统一 `Result<T>`，列表统一 `page/current/size/total/records`；创建接口支持 `Idempotency-Key`，更新接口携带 `version` 或 `If-Match`；冲突返回 `409`。
 - 数据：MySQL 是主数据、版本、Outbox 和最终事实的记录系统；Redis 仅作可靠队列、幂等、短期计数、缓存和配置失效通知。
@@ -122,7 +119,7 @@ DP：供应商协议与安全 RFC 接受后独立实施
 | [SHOT-MEDIA-04](assets/2026-08-09/SHOT-MEDIA-04-edit-drawer-sanitized.png) | 编辑媒体渠道抽屉脱敏裁切；三个业务值均替换为“已脱敏” |
 | [SHOT-MEDIA-05](assets/2026-08-09/SHOT-MEDIA-05-channel-user-add-sanitized.png) | 新增渠道用户抽屉脱敏裁切；父媒体名已替换，证明邮箱/密码必填与描述字段 |
 | [SHOT-TASK-01](assets/2026-08-09/SHOT-TASK-01-list-sanitized.png) | 任务列表 AI 辅助脱敏；保留两行筛选、表头、监测地址复制区和七个行动作 |
-| [SHOT-TASK-02](assets/2026-08-09/SHOT-TASK-02-add-drawer-upper-sanitized.png) | 新增任务上半段脱敏裁切；证明任务名/运营、后置 RTA、点击链接、曝光、媒体与去重字段 |
+| [SHOT-TASK-02](assets/2026-08-09/SHOT-TASK-02-add-drawer-upper-sanitized.png) | 新增任务上半段脱敏裁切；证明任务名/运营、点击链接、曝光、媒体与去重字段 |
 | [SHOT-TASK-03](assets/2026-08-09/SHOT-TASK-03-exposure-event-mapping-sanitized.png) | 曝光与大点击条件区、媒体选择和事件映射行脱敏证据 |
 | [SHOT-TASK-04](assets/2026-08-09/SHOT-TASK-04-event-status-lower-sanitized.png) | 事件比例/限量/超量、描述、归档、状态、确定/取消的下半段证据 |
 | [SHOT-TASK-05](assets/2026-08-09/SHOT-TASK-05-hourly-summary-sanitized.png) | 小时汇总抽屉脱敏证据；保留日期、双导出、列设置和小时指标表结构 |
@@ -131,11 +128,6 @@ DP：供应商协议与安全 RFC 接受后独立实施
 | [SHOT-TASK-08](assets/2026-08-09/SHOT-TASK-08-integration-detail-sanitized.png) | 媒体联调详情脱敏证据；产品/包名/下载地址均已替换，保留复制图标和空态 |
 | [SHOT-TASK-09](assets/2026-08-09/SHOT-TASK-09-click-detail-sanitized.png) | 点击详情抽屉脱敏证据；第三方浮层已移除，保留筛选、表头、空态和分页 |
 | [SHOT-TASK-10](assets/2026-08-09/SHOT-TASK-10-conversion-detail-sanitized.png) | 转化详情抽屉脱敏证据；数据行已遮盖，保留筛选、导出、表头和分页 |
-| [SHOT-RTA-01](assets/2026-08-09/SHOT-RTA-01-list-sanitized.png) | RTA 列表脱敏证据；保留筛选、今日概况、RTA 标识区、配置图标、行操作和分页 |
-| [SHOT-RTA-02](assets/2026-08-09/SHOT-RTA-02-add-drawer-sanitized.png) | 新增 RTA 抽屉脱敏证据；保留服务地址/密钥/名称/文档/API/媒体/状态结构，业务值均已替换 |
-| [SHOT-RTA-03](assets/2026-08-09/SHOT-RTA-03-edit-drawer-sanitized.png) | 编辑 RTA 抽屉脱敏证据；证明参考页会回填密钥与关闭状态，原值已完全遮盖 |
-| [SHOT-RTA-04](assets/2026-08-09/SHOT-RTA-04-config-drawer-sanitized.png) | 全局 RTA 配置抽屉脱敏证据；保留必填域名、加密密钥与确定/取消 |
-| [SHOT-RTA-05](assets/2026-08-09/SHOT-RTA-05-stats-sanitized.png) | RTA 数据统计抽屉脱敏证据；保留日期范围、搜索、六列表头和分页，样例值均遮盖 |
 | [SHOT-REPORT-01](assets/2026-08-09/SHOT-REPORT-01-task-summary-filter-table.png) | 任务汇总筛选与双导出按钮 |
 | [SHOT-USER-01](assets/2026-08-09/SHOT-USER-01-nav-selected.png) | 用户管理菜单选中态 |
 | [SHOT-SETTING-01](assets/2026-08-09/SHOT-SETTING-01-page-header.png) | 用户中心页面标题区域 |
@@ -147,6 +139,5 @@ DP：供应商协议与安全 RFC 接受后独立实施
 ## 8. 评审门禁
 
 - 任一“已实现”结论必须给出代码、迁移、测试和运行证据，不能引用本包自行证明。
-- RTA 从 `OFF` 改为主动决策前，必须有替代 ADR、失败策略、容量与合规验收。
 - DP 开工前必须有供应商协议、域名白名单、数据保留和审计 RFC/ADR。
 - 本包若与 Accepted ADR 或正式契约冲突，先更新本包状态为 Blocked，不能绕过决策直接编码。

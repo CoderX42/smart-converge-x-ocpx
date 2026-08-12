@@ -12,6 +12,7 @@ ACTIVE_PATHS=(
   "${ROOT_DIR}/scx-backend/scx-boot/pom.xml"
   "${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/application.yml"
   "${ROOT_DIR}/scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql"
+  "${ROOT_DIR}/scx-backend/scx-ocpx-core"
   "${ROOT_DIR}/scx-backend/scx-ocpx-admin"
   "${ROOT_DIR}/scx-backend/scx-ocpx-engine"
   "${ROOT_DIR}/scx-backend/db/smart-converge-x/README.md"

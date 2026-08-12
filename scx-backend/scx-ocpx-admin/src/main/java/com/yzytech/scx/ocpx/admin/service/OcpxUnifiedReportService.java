@@ -93,10 +93,10 @@ public class OcpxUnifiedReportService {
 		List<Object> args = new ArrayList<>();
 		args.add(hourKey(query.startDate(), "00"));
 		args.add(hourKey(query.endDate(), "23"));
-		filter(sql, args, "r.dsp_id", query.advertiserId());
-		filter(sql, args, "r.link_id", query.promotionLinkId());
-		filter(sql, args, "r.channel_id", query.mediaId());
-		filter(sql, args, "r.monitor_id", query.monitorTaskId());
+		filter(sql, args, "r.a_id", query.advertiserId());
+		filter(sql, args, "r.l_id", query.promotionLinkId());
+		filter(sql, args, "r.m_id", query.mediaId());
+		filter(sql, args, "r.t_id", query.monitorTaskId());
 		sql.append(" GROUP BY ").append(dimension.keySql()).append(",").append(dimension.nameSql());
 		if (ranking) {
 			sql.append(" ORDER BY ");
@@ -198,14 +198,14 @@ public class OcpxUnifiedReportService {
 
 		static Dimension of(String groupBy) {
 			return switch (groupBy) {
-				case "ADVERTISER" ->
-					new Dimension("r.dsp_id", "a.advertiser_name", "JOIN scx_ocpx_advertiser a ON a.id=r.dsp_id");
-				case "PROMOTION_LINK" ->
-					new Dimension("r.link_id", "p.link_name", "JOIN scx_ocpx_promotion_link p ON p.id=r.link_id");
-				case "MEDIA" ->
-					new Dimension("r.channel_id", "m.media_name", "JOIN scx_ocpx_media m ON m.id=r.channel_id");
-				case "MONITOR_TASK" ->
-					new Dimension("r.monitor_id", "t.task_name", "JOIN scx_ocpx_monitor_task t ON t.id=r.monitor_id");
+			case "ADVERTISER" ->
+					new Dimension("r.a_id", "a.advertiser_name", "JOIN scx_ocpx_advertiser a ON a.id=r.a_id");
+			case "PROMOTION_LINK" ->
+					new Dimension("r.l_id", "p.link_name", "JOIN scx_ocpx_promotion_link p ON p.id=r.l_id");
+			case "MEDIA" ->
+					new Dimension("r.m_id", "m.media_name", "JOIN scx_ocpx_media m ON m.id=r.m_id");
+			case "MONITOR_TASK" ->
+					new Dimension("r.t_id", "t.task_name", "JOIN scx_ocpx_monitor_task t ON t.id=r.t_id");
 				default -> new Dimension("r.time_hour",
 						"DATE_FORMAT(STR_TO_DATE(CAST(r.time_hour AS CHAR),'%Y%m%d%H'),'%Y-%m-%d %H:00')", "");
 			};

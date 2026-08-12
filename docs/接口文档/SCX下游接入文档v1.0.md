@@ -1,6 +1,6 @@
 # SCX（Smart Converge X）下游媒体/渠道接入文档 v1.0
 
-> 适用对象：需要向 SCX 上报点击/曝光/转化事件，或接入 SCX RTA 实时决策的下游媒体方、DSP、渠道。  
+> 适用对象：需要向 SCX 上报点击/曝光/转化事件并接收转化回传的下游媒体方、DSP、渠道。
 > 协议版本：`1.0`  
 > 沙箱域名：向 SCX 运营获取  
 > 最后更新：2026-07-21
@@ -15,7 +15,6 @@ SCX（瑶知智汇广告平台）是面向效果广告投放与归因管理的�
 
 - **点击/曝光上报**：用户在媒体侧发生点击/曝光时，媒体向 SCX 上报设备信息
 - **转化归因回传**：SCX 完成归因匹配后，将转化信息回传给媒体/渠道
-- **RTA 实时决策**：广告请求时媒体向 SCX 询问是否投放当前流量
 
 ### 1.2 接入流程
 
@@ -23,18 +22,17 @@ SCX（瑶知智汇广告平台）是面向效果广告投放与归因管理的�
 ┌──────────┐    ①点击/曝光上报(设备ID)    ┌──────────┐
 │  下游媒体  │ ──────────────────────────▶ │   SCX    │
 │  /DSP     │                              │  平台    │
-│           │ ◀────────────────────────── │          │
-└──────────┘    ②RTA 决策响应(投放/拒绝)    └──────────┘
-       │                                        │
-       │                                        │ ③归因匹配
+└──────────┘                              └──────────┘
+       ▲                                        │
+       │                                        │ ②归因匹配
        │                                        ▼
        │                              ┌──────────────────┐
        │                              │  归因引擎         │
        │                              │  (Last-Click 7天) │
        │                              └──────────────────┘
        │                                        │
-       │        ④转化回传(actionType)            │
-       ◀────────────────────────────────────────┘
+       │        ③转化回传(actionType)            │
+       └────────────────────────────────────────┘
 ```
 
 ### 1.3 环境信息
@@ -51,9 +49,8 @@ SCX（瑶知智汇广告平台）是面向效果广告投放与归因管理的�
 | 项目 | 说明 |
 |---|---|
 | `taskCode` | 监测任务编码，由 SCX 平台创建任务后提供 |
-| `signingKey` | HMAC 签名密钥，沙箱默认值见第 3 节 |
+| `signingKey` | HMAC 签名密钥，沙箱默认值见第 4 节 |
 | `callbackUrl` | 你方的转化接收地址，SCX 归因后将回传至此 |
-| `rtaId`（可选） | RTA 策略 ID，如需接入 RTA 则获取 |
 
 ---
 
@@ -123,7 +120,7 @@ public static String hashDeviceId(String rawId) {
 |---|---|---|---|
 | `X-Timestamp` | String | ✅ | Unix 毫秒时间戳，允许±180s 偏差 |
 | `X-Nonce` | String | ✅ | 唯一随机串，长度 8-128，单次有效（防重放） |
-| `X-Sign` | String | ✅ | HMAC 签名，详见第 5 节 |
+| `X-Sign` | String | ✅ | HMAC 签名，详见第 4 节 |
 
 #### 请求体
 
@@ -257,80 +254,9 @@ public static String hashDeviceId(String rawId) {
 
 ---
 
-## 4. RTA 实时决策 API
+## 4. HMAC 签名方案
 
-### 4.1 接口信息
-
-广告请求时，媒体向 SCX 询问是否投放当前设备流量。
-
-| 属性 | 值 |
-|---|---|
-| 方法 | `POST` |
-| 路径 | `/open-api/rta/v1/decisions` |
-| Content-Type | `application/json` |
-
-#### 请求头（与事件上报相同签名方案）
-
-| 头部 | 必填 | 说明 |
-|---|---|---|
-| `X-Timestamp` | ✅ | Unix 毫秒时间戳 |
-| `X-Nonce` | ✅ | 唯一随机串 |
-| `X-Sign` | ✅ | HMAC 签名 |
-
-#### 请求体
-
-```json
-{
-  "schemaVersion": "1.0",
-  "requestId": "req-20260721-00001",
-  "taskCode": "SCX任务编码",
-  "deviceKeyHash": "SHA256小写hex(64字符)",
-  "attributes": {
-    "ip": "1.2.3.4",
-    "os": "android"
-  }
-}
-```
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `schemaVersion` | String | ✅ | 固定 `"1.0"` |
-| `requestId` | String | ✅ | 你方请求唯一 ID |
-| `taskCode` | String | ✅ | 监测任务编码 |
-| `deviceKeyHash` | String | ✅ | 设备标识哈希 |
-| `attributes` | Object | 否 | 扩展属性 |
-
-#### 响应
-
-```json
-{
-  "code": 0,
-  "data": {
-    "requestId": "req-20260721-00001",
-    "decision": "ALLOW",
-    "reasonCode": "TARGET_AUDIENCE",
-    "duplicateDelivery": false
-  }
-}
-```
-
-| 字段 | 说明 |
-|---|---|
-| `decision` | `ALLOW`（投放）/ `DENY`（拒绝） |
-| `reasonCode` | 决策原因 |
-| `duplicateDelivery` | 是否重复请求（幂等保护） |
-
-#### RTA 性能要求
-
-- 响应超时：建议 50ms 内，最大 200ms
-- 建议 QPS：与 SCX 运营确认容量
-- 请求重试：建议指数退避，最多 2 次
-
----
-
-## 5. HMAC 签名方案
-
-### 5.1 签名算法
+### 4.1 签名算法
 
 所有机器 API 调用必须携带 HMAC-SHA256 签名。签名防止请求伪造和重放。
 
@@ -341,7 +267,7 @@ sign = Hex(HMAC-SHA256(
 ))
 ```
 
-### 5.2 Canonical Payload 构造规则
+### 4.2 Canonical Payload 构造规则
 
 1. 将请求体 JSON 按字段字母序排列
 2. `eventType` 转为大写
@@ -350,7 +276,7 @@ sign = Hex(HMAC-SHA256(
 5. `attributes` 的 key 按字母序排列；若为 null 则写 `{}`
 6. JSON 序列化使用紧凑格式（无空格），`null` 值包含在 JSON 中
 
-### 5.3 签名示例（Python）
+### 4.3 签名示例（Python）
 
 ```python
 import hashlib, hmac, json, time
@@ -423,7 +349,7 @@ resp = requests.post(
 print(resp.json())
 ```
 
-### 5.4 签名示例（Java）
+### 4.4 签名示例（Java）
 
 ```java
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -491,7 +417,7 @@ public class ScxSigner {
 }
 ```
 
-### 5.5 签名验证步骤（接收 SCX 回调时）
+### 4.5 签名验证步骤（接收 SCX 回调时）
 
 当 SCX 向你的 callback URL 回传转化信息时，SCX 使用相同签名方案。验证方法：
 
@@ -505,13 +431,13 @@ public class ScxSigner {
 
 ---
 
-## 6. 转化回传（Callback）
+## 5. 转化回传（Callback）
 
-### 6.1 回传流程
+### 5.1 回传流程
 
 当 SCX 完成归因匹配后，将向媒体在创建监测任务时配置的回传地址发送 HTTP 回调。
 
-### 6.2 回传格式
+### 5.2 回传格式
 
 SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并携带签名头。
 
@@ -540,7 +466,7 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 | `clickEventId` | 关联的点击事件 ID |
 | `attributedAt` | 归因完成时间 |
 
-### 6.3 媒体侧需实现的回调接口
+### 5.3 媒体侧需实现的回调接口
 
 你的服务需要提供一个 HTTP 端点接收 SCX 的回调：
 
@@ -566,7 +492,7 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 | `0` | 成功接收 |
 | 非 `0` | 失败，SCX 将进入重试队列（退避重试，最大 5 次后进入死信） |
 
-### 6.4 回传重试策略
+### 5.4 回传重试策略
 
 - 首次失败：1 分钟后重试
 - 第二次失败：2 分钟后重试
@@ -576,9 +502,9 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 
 ---
 
-## 7. 错误码参考
+## 6. 错误码参考
 
-### 7.1 HTTP 状态码
+### 6.1 HTTP 状态码
 
 | 状态码 | 含义 |
 |---|---|
@@ -587,7 +513,7 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 | `403` | 沙箱已关闭 / 设备哈希格式非法 / nonce 已使用 |
 | `500` | 服务端错误 |
 
-### 7.2 业务错误码
+### 6.2 业务错误码
 
 响应 JSON 中的 `code` 字段：
 
@@ -598,7 +524,7 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 | `401` | 签名无效 |
 | `403` | 操作被拒绝 |
 
-### 7.3 常见错误消息
+### 6.3 常见错误消息
 
 | msg | 原因 | 解决方法 |
 |---|---|---|
@@ -610,9 +536,9 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 
 ---
 
-## 8. 联调与沙箱测试
+## 7. 联调与沙箱测试
 
-### 8.1 沙箱环境
+### 7.1 沙箱环境
 
 沙箱环境专用于联调测试，特点：
 
@@ -621,12 +547,12 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 - 默认签名密钥：`scx-sandbox-local-only`
 - 支持事件重放和回传人工触发
 
-### 8.2 联调步骤
+### 7.2 联调步骤
 
 ```
 1. 向 SCX 运营获取 taskCode、source、signingKey
 2. 按第 2 节规范实现设备 ID 哈希
-3. 按第 5 节签名方案实现 HMAC 签名
+3. 按第 4 节签名方案实现 HMAC 签名
 4. 发送测试 CLICK 事件 → 确认收到 ELIGIBLE 响应
 5. 重复发送相同 eventId → 确认收到 duplicateDelivery=true
 6. 发送 ACTIVATE 事件（带 businessEventKey） → 确认归因成功
@@ -634,7 +560,7 @@ SCX 以 **HTTP POST** 方式回调，Content-Type 为 `application/json`，并�
 8. 验收通过后申请生产环境凭证
 ```
 
-### 8.3 快速测试（Shell）
+### 7.3 快速测试（Shell）
 
 ```bash
 # 沙箱环境变量
@@ -645,7 +571,7 @@ TASK="demo-task"
 # 生成设备哈希
 DEVICE_HASH=$(echo -n "test-device-001" | openssl dgst -sha256 | awk '{print $2}')
 
-# 构造请求并签名（使用第5节的 Python 或 Java 代码）
+# 构造请求并签名（使用第4节的 Python 或 Java 代码）
 # 发送点击事件
 curl -X POST "$BASE/open-api/events/v1/clicks" \
   -H "Content-Type: application/json" \
@@ -657,9 +583,9 @@ curl -X POST "$BASE/open-api/events/v1/clicks" \
 
 ---
 
-## 9. 附录
+## 8. 附录
 
-### 9.1 与行业常见接入方式的对比
+### 8.1 与行业常见接入方式的对比
 
 | 特性 | 行业常见做法 | SCX 做法 |
 |---|---|---|
@@ -670,7 +596,7 @@ curl -X POST "$BASE/open-api/events/v1/clicks" \
 | 幂等保障 | 依赖 clickId | `(source, eventId)` 唯一约束 + 业务转化键 |
 | 回调可靠性 | 无重试 | 退避重试(5次) → DLQ → 人工重放 |
 
-### 9.2 SDK 兼容性建议
+### 8.2 SDK 兼容性建议
 
 如果你的系统已对接过其他 OCPX 平台（如爱念/聚告/长风等），适配 SCX 需要调整：
 
@@ -679,7 +605,7 @@ curl -X POST "$BASE/open-api/events/v1/clicks" \
 3. **认证**：增加 HMAC 签名头
 4. **回调接收**：从 `GET + actionType` 改为 `POST + JSON + 验签`
 
-### 9.3 联系方式
+### 8.3 联系方式
 
 - 沙箱环境开通、taskCode 获取：联系 SCX 运营
 - 技术联调支持：联系 SCX 研发团队
@@ -687,7 +613,7 @@ curl -X POST "$BASE/open-api/events/v1/clicks" \
 
 ---
 
-## 10. 完整 Python 接入示例（可直接运行）
+## 9. 完整 Python 接入示例（可直接运行）
 
 以下代码已通过沙箱环境实测验证（2026-07-21），下游可直接复制使用：
 
@@ -805,7 +731,7 @@ if __name__ == "__main__":
     print(f"PAY: status={pay['data'].get('attributionStatus')}")
 ```
 
-### 10.1 实测结果（2026-07-21 沙箱环境）
+### 9.1 实测结果（2026-07-21 沙箱环境）
 
 ```
 ═══ SCX 下游对接 完整验证 ═══

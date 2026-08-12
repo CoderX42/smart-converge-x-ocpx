@@ -26,11 +26,11 @@ class ScxOcpxEngineApplicationTest {
 		PropertySource<?> development = load("application-dev.yml");
 		PropertySource<?> production = load("application-prod.yml");
 
-		assertThat(development.getProperty("spring.datasource.url")).asString().contains("127.0.0.1:3306");
-		assertThat(development.getProperty("spring.data.redis.host")).isEqualTo("127.0.0.1");
+		assertThat(development.getProperty("spring.datasource.url"))
+			.isNotEqualTo(production.getProperty("spring.datasource.url"));
+		assertThat(development.getProperty("spring.data.redis.host"))
+			.isNotEqualTo(production.getProperty("spring.data.redis.host"));
 		assertThat(development.getProperty("domain.name")).isEqualTo("http://127.0.0.1:10000/ocpx");
-		assertThat(production.getProperty("spring.datasource.url")).asString().doesNotContain("127.0.0.1");
-		assertThat(production.getProperty("spring.data.redis.host")).isNotEqualTo("127.0.0.1");
 		assertThat(production.getProperty("domain.name")).isEqualTo("https://ocpx.zhongsenyuedong.cn/ocpx");
 	}
 

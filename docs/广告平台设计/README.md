@@ -15,7 +15,9 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 广告域保留历史 `scx_ocpx_flow_log`，但 Engine 不再写入。当前数据层写入 Feedback/Callback 明细、Feedback 日明细、临时报表和最终报表五张新表。
 
-当前 `scx-ocpx-engine` 使用 Spring MVC，默认监听 `10000/ocpx`，已实现 `general/feedback` 与 `union/callback` 通用 GET 闭环、四实体内存索引、Redis 去重/分桶/扣量、StorageTask 落库和 Admin DataMergeTask 汇总。`chid/mid/dspid/linkid` 分别是媒体、任务、广告主和链接的 SCX 字符串主键。不包含合作方专用协议。
+当前 `scx-ocpx-engine` 使用 Spring MVC，默认监听 `10000/ocpx`，已实现 `/feedback` 与 `/callback` 通用 GET 闭环、四实体内存索引、Redis 去重/分桶/扣量、StorageTask 落库和 Admin DataMergeTask 汇总。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 字符串主键。不包含合作方专用协议。
+
+四个共享实体位于独立的 `scx-ocpx-core`；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine，也不使用 OCPX 组件扫描正则。
 
 用户、角色、菜单、部门、字典、操作日志和登录日志仍由原系统管理框架承载。本次只调整广告业务菜单与权限。
 

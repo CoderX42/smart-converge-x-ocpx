@@ -5,7 +5,7 @@
         DELETE FROM scx_ocpx_report_mat_temp WHERE mark=#{mark} AND create_time &lt;= #{groupTime}
     </delete>
     <select id="groupReportMinute" resultType="com.yzytech.scx.ocpx.admin.model.OcpxReportMat">
-        SELECT time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id,
+        SELECT time_hour,m_id,a_id,app_id,slot_id,dsp_slot_id,t_id,l_id,
                IFNULL(SUM(req_smt),0) req_smt,IFNULL(SUM(res_smt),0) res_smt,
                IFNULL(SUM(uni_win_smt),0) uni_win_smt,IFNULL(SUM(show_smt),0) show_smt,
                IFNULL(SUM(uni_show_smt),0) uni_show_smt,IFNULL(SUM(clk_smt),0) clk_smt,
@@ -18,10 +18,10 @@
                IFNULL(SUM(win_price),0) win_price,0 mark
         FROM scx_ocpx_report_mat_temp
         WHERE mark=#{mark} AND create_time &lt;= #{groupTime}
-        GROUP BY time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id
+        GROUP BY time_hour,m_id,a_id,app_id,slot_id,dsp_slot_id,t_id,l_id
     </select>
     <select id="groupReport" resultType="com.yzytech.scx.ocpx.admin.model.OcpxReportMat">
-        SELECT time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id,
+        SELECT time_hour,m_id,a_id,app_id,slot_id,dsp_slot_id,t_id,l_id,
                IFNULL(SUM(req_smt),0) req_smt,IFNULL(SUM(res_smt),0) res_smt,
                IFNULL(SUM(uni_win_smt),0) uni_win_smt,IFNULL(SUM(show_smt),0) show_smt,
                IFNULL(SUM(uni_show_smt),0) uni_show_smt,IFNULL(SUM(clk_smt),0) clk_smt,
@@ -34,6 +34,6 @@
                IFNULL(SUM(win_price),0) win_price,1 mark
         FROM scx_ocpx_report_mat
         WHERE mark=#{mark} AND time_hour &lt;= #{groupTime}
-        GROUP BY time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id
+        GROUP BY time_hour,m_id,a_id,app_id,slot_id,dsp_slot_id,t_id,l_id
     </select>
 </mapper>

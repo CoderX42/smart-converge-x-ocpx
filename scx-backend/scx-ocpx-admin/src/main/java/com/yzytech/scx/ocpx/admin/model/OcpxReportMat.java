@@ -18,9 +18,11 @@ public class OcpxReportMat extends Model<OcpxReportMat> {
 
 	private Integer timeHour;
 
-	private String channelId;
+	/** 下游媒体主键，对应 {@code OcpxMedia.id}。 */
+	private String mId;
 
-	private String dspId;
+	/** 上游广告主主键，对应 {@code OcpxAdvertiser.id}；不是广告主侧广告 ID {@code advId}。 */
+	private String aId;
 
 	private Integer appId;
 
@@ -28,9 +30,11 @@ public class OcpxReportMat extends Model<OcpxReportMat> {
 
 	private Integer dspSlotId;
 
-	private String monitorId;
+	/** 监测任务主键，对应 {@code OcpxMonitorTask.id}。 */
+	private String tId;
 
-	private String linkId;
+	/** 推广链接主键，对应 {@code OcpxPromotionLink.id}。 */
+	private String lId;
 
 	private Integer reqSmt;
 

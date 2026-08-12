@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "callback-req-v2.schema.json",
-  "title": "Union Callback GET query parameters",
+  "title": "Upstream Callback GET query parameters",
   "type": "object",
   "required": ["ext", "event_type", "event_time"],
   "properties": {

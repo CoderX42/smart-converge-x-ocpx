@@ -19,4 +19,4 @@ domain:
   name: https://ocpx.zhongsenyuedong.cn/ocpx
 
 app:
-  callback-aes-key: replace-before-production
+  callback-aes-key: rcDe7gFGzssGFEe_PuR2BRdl_kh87iFU

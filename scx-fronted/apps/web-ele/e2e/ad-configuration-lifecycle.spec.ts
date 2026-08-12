@@ -269,7 +269,6 @@ test.describe('广告投放配置写入 E2E', () => {
           linkId: activeLink.id,
           mediaId: media.id,
           name: `E2E sandbox task ${runId}`,
-          rtaEnabled: false,
           status: 'DRAFT',
         },
         method: 'POST',

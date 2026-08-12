@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.yzytech.scx.ocpx.dao.mapper.FeedbackMapper">
+<mapper namespace="com.yzytech.scx.ocpx.report.mapper.FeedbackMapper">
     <insert id="addLogFeedback">
         INSERT INTO scx_ocpx_log_feedback
-        (time_key_req,time_key_res,time_hour_res,date_res,channel_id,dsp_id,monitor_id,link_id,userid,user_type,
+        (time_key_req,time_key_res,time_hour_res,date_res,m_id,a_id,t_id,l_id,userid,user_type,
          adv_id,group_id,plan_id,creative_id,imp_id,clk_id,req_id,ua,ip,device_os,device_did,device_oaid,
          device_dpid,device_mac,device_idfa,device_caid,device_caid1,callback_url,ts,ts_ms,base_price)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.timeKeyRes},#{item.timeKeyRes},LEFT(${item.timeKeyRes},10),LEFT(${item.timeKeyRes},8),
-             #{item.chid},#{item.dspid},#{item.mid},#{item.linkid},#{item.userId},#{item.userType},#{item.advId},
+             #{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.userId},#{item.userType},#{item.advId},
              #{item.groupId},#{item.planId},#{item.creativeId},#{item.impresssId},#{item.clickId},#{item.reqId},
              #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.mac},#{item.idfa},
              #{item.caid},#{item.caid1},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
@@ -17,13 +17,13 @@
     </insert>
     <insert id="addLogFeedbackDay">
         INSERT INTO scx_ocpx_log_feedback_day
-        (time_key_req,time_key_res,time_hour_res,date_res,channel_id,dsp_id,monitor_id,link_id,userid,user_type,
+        (time_key_req,time_key_res,time_hour_res,date_res,m_id,a_id,t_id,l_id,userid,user_type,
          adv_id,group_id,plan_id,creative_id,imp_id,clk_id,req_id,ua,ip,device_os,device_did,device_oaid,
          device_dpid,device_mac,device_idfa,device_caid,device_caid1,callback_url,ts,ts_ms,base_price)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.timeKeyRes},#{item.timeKeyRes},LEFT(${item.timeKeyRes},10),LEFT(${item.timeKeyRes},8),
-             #{item.chid},#{item.dspid},#{item.mid},#{item.linkid},#{item.userId},#{item.userType},#{item.advId},
+             #{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.userId},#{item.userType},#{item.advId},
              #{item.groupId},#{item.planId},#{item.creativeId},#{item.impresssId},#{item.clickId},#{item.reqId},
              #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.mac},#{item.idfa},
              #{item.caid},#{item.caid1},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
@@ -31,10 +31,10 @@
     </insert>
     <insert id="addReport">
         INSERT INTO scx_ocpx_report_mat_temp
-        (time_hour,channel_id,dsp_id,monitor_id,link_id,show_smt,uni_show_smt,clk_smt,uni_clk_smt,base_price)
+        (time_hour,m_id,a_id,t_id,l_id,show_smt,uni_show_smt,clk_smt,uni_clk_smt,base_price)
         VALUES
         <foreach collection="list" item="item" separator=",">
-            (LEFT(${item.timeKeyRes},10),#{item.chid},#{item.dspid},#{item.mid},#{item.linkid},#{item.showSmt},
+            (LEFT(${item.timeKeyRes},10),#{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.showSmt},
              #{item.uniShowSmt},#{item.clkSmt},#{item.uniClkSmt},IFNULL(#{item.basePrice},0))
         </foreach>
     </insert>

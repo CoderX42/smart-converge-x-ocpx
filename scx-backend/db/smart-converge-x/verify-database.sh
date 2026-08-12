@@ -26,6 +26,20 @@ ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_na
 expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_flow_log,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX must contain four business tables and the legacy-compatible data layer"
 
+route_table_list="$(printf "'%s'," "${SCX_OCPX_ROUTE_TABLES[@]}")"; route_table_list="${route_table_list%,}"
+route_column_list="$(printf "'%s'," "${SCX_OCPX_ROUTE_COLUMNS[@]}")"; route_column_list="${route_column_list%,}"
+retired_route_column_list="$(printf "'%s'," "${SCX_OCPX_RETIRED_ROUTE_COLUMNS[@]}")"; retired_route_column_list="${retired_route_column_list%,}"
+route_column_count="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN (${route_table_list}) AND column_name IN (${route_column_list})")"
+expected_route_column_count=$(( ${#SCX_OCPX_ROUTE_TABLES[@]} * ${#SCX_OCPX_ROUTE_COLUMNS[@]} ))
+[[ "$route_column_count" -eq "$expected_route_column_count" ]] || fail "OCPX route ID columns m_id/t_id/a_id/l_id are incomplete"
+retired_route_column_count="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN (${route_table_list}) AND column_name IN (${retired_route_column_list})")"
+[[ "$retired_route_column_count" -eq 0 ]] || fail "retired OCPX route ID columns remain"
+route_comment_count="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN (${route_table_list}) AND column_name IN (${route_column_list}) AND column_comment<>''")"
+[[ "$route_comment_count" -eq "$expected_route_column_count" ]] || fail "OCPX route ID column comments are incomplete"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

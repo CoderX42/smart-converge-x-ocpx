@@ -6,7 +6,7 @@
     <artifactId>scx-ocpx-admin</artifactId>
     <description>SCX OCPX 管理面：四实体、流程日志与报表</description>
     <dependencies>
-        <dependency><groupId>com.scx</groupId><artifactId>scx-ocpx-engine</artifactId></dependency>
+        <dependency><groupId>com.scx</groupId><artifactId>scx-ocpx-core</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
         <dependency><groupId>com.baomidou</groupId><artifactId>mybatis-plus-spring-boot3-starter</artifactId></dependency>
