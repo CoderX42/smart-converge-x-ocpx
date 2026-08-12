@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxReportMatMapper">
+    <delete id="deleteReportMatTemp">
+        DELETE FROM scx_ocpx_report_mat_temp WHERE mark=#{mark} AND create_time &lt;= #{groupTime}
+    </delete>
+    <select id="groupReportMinute" resultType="com.yzytech.scx.ocpx.admin.model.OcpxReportMat">
+        SELECT time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id,
+               IFNULL(SUM(req_smt),0) req_smt,IFNULL(SUM(res_smt),0) res_smt,
+               IFNULL(SUM(uni_win_smt),0) uni_win_smt,IFNULL(SUM(show_smt),0) show_smt,
+               IFNULL(SUM(uni_show_smt),0) uni_show_smt,IFNULL(SUM(clk_smt),0) clk_smt,
+               IFNULL(SUM(uni_clk_smt),0) uni_clk_smt,IFNULL(SUM(activate),0) activate,
+               IFNULL(SUM(evoke),0) evoke,IFNULL(SUM(login),0) login,IFNULL(SUM(register),0) register,
+               IFNULL(SUM(payment),0) payment,IFNULL(SUM(customer_acquisition),0) customer_acquisition,
+               IFNULL(SUM(next_stay),0) next_stay,IFNULL(SUM(visits),0) visits,
+               IFNULL(SUM(authentication),0) authentication,IFNULL(SUM(place_order),0) place_order,
+               IFNULL(SUM(finish_the_order),0) finish_the_order,IFNULL(SUM(base_price),0) base_price,
+               IFNULL(SUM(win_price),0) win_price,0 mark
+        FROM scx_ocpx_report_mat_temp
+        WHERE mark=#{mark} AND create_time &lt;= #{groupTime}
+        GROUP BY time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id
+    </select>
+    <select id="groupReport" resultType="com.yzytech.scx.ocpx.admin.model.OcpxReportMat">
+        SELECT time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id,
+               IFNULL(SUM(req_smt),0) req_smt,IFNULL(SUM(res_smt),0) res_smt,
+               IFNULL(SUM(uni_win_smt),0) uni_win_smt,IFNULL(SUM(show_smt),0) show_smt,
+               IFNULL(SUM(uni_show_smt),0) uni_show_smt,IFNULL(SUM(clk_smt),0) clk_smt,
+               IFNULL(SUM(uni_clk_smt),0) uni_clk_smt,IFNULL(SUM(activate),0) activate,
+               IFNULL(SUM(evoke),0) evoke,IFNULL(SUM(login),0) login,IFNULL(SUM(register),0) register,
+               IFNULL(SUM(payment),0) payment,IFNULL(SUM(customer_acquisition),0) customer_acquisition,
+               IFNULL(SUM(next_stay),0) next_stay,IFNULL(SUM(visits),0) visits,
+               IFNULL(SUM(authentication),0) authentication,IFNULL(SUM(place_order),0) place_order,
+               IFNULL(SUM(finish_the_order),0) finish_the_order,IFNULL(SUM(base_price),0) base_price,
+               IFNULL(SUM(win_price),0) win_price,1 mark
+        FROM scx_ocpx_report_mat
+        WHERE mark=#{mark} AND time_hour &lt;= #{groupTime}
+        GROUP BY time_hour,channel_id,dsp_id,app_id,slot_id,dsp_slot_id,monitor_id,link_id
+    </select>
+</mapper>

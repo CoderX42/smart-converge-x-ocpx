@@ -25,17 +25,26 @@ public class OcpxAdvertiserService {
 	private static final Set<String> ADAPTERS = Set.of("COCO", "TEMPLATE_GET");
 
 	private final OcpxAdvertiserMapper advertiserMapper;
+
 	private final OcpxPromotionLinkMapper promotionLinkMapper;
+
 	private final OcpxUrlPolicy urlPolicy;
+
+	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	public IPage<AdvertiserViews.Item> list(Page<OcpxAdvertiser> page, String keyword, String adapterCode,
 			String status) {
-		return advertiserMapper.selectPage(page, Wrappers.<OcpxAdvertiser>lambdaQuery()
-			.and(StringUtils.hasText(keyword), q -> q.like(OcpxAdvertiser::getAdvertiserCode, keyword).or()
-				.like(OcpxAdvertiser::getAdvertiserName, keyword))
-			.eq(StringUtils.hasText(adapterCode), OcpxAdvertiser::getAdapterCode, adapterCode)
-			.eq(StringUtils.hasText(status), OcpxAdvertiser::getStatus, status)
-			.orderByDesc(OcpxAdvertiser::getUpdateTime)).convert(this::view);
+		return advertiserMapper
+			.selectPage(page,
+					Wrappers.<OcpxAdvertiser>lambdaQuery()
+						.and(StringUtils.hasText(keyword),
+								q -> q.like(OcpxAdvertiser::getAdvertiserCode, keyword)
+									.or()
+									.like(OcpxAdvertiser::getAdvertiserName, keyword))
+						.eq(StringUtils.hasText(adapterCode), OcpxAdvertiser::getAdapterCode, adapterCode)
+						.eq(StringUtils.hasText(status), OcpxAdvertiser::getStatus, status)
+						.orderByDesc(OcpxAdvertiser::getUpdateTime))
+			.convert(this::view);
 	}
 
 	public AdvertiserViews.Item detail(String id) {
@@ -53,6 +62,7 @@ public class OcpxAdvertiserService {
 		advertiser.setConfigVersion(1L);
 		advertiser.setDeleted(false);
 		advertiserMapper.insert(advertiser);
+		configRefreshPublisher.mark();
 		return detail(advertiser.getId());
 	}
 
@@ -63,13 +73,16 @@ public class OcpxAdvertiserService {
 		ensureUnique(id, current.getAdvertiserCode(), request.name());
 		OcpxAdvertiser update = new OcpxAdvertiser();
 		update.setId(id);
-		apply(update, request.name(), request.adapterCode(), request.credentialConfigKey(),
-				request.credentialVersion(), request.bidUrl(), request.macroParams(), request.upstreamHostAllowlist());
+		apply(update, request.name(), request.adapterCode(), request.credentialConfigKey(), request.credentialVersion(),
+				request.bidUrl(), request.macroParams(), request.upstreamHostAllowlist());
 		update.setConfigVersion(current.getConfigVersion() + 1);
-		if (advertiserMapper.update(update, Wrappers.<OcpxAdvertiser>lambdaUpdate().eq(OcpxAdvertiser::getId, id)
-			.eq(OcpxAdvertiser::getConfigVersion, request.expectedVersion())) != 1) {
+		if (advertiserMapper.update(update,
+				Wrappers.<OcpxAdvertiser>lambdaUpdate()
+					.eq(OcpxAdvertiser::getId, id)
+					.eq(OcpxAdvertiser::getConfigVersion, request.expectedVersion())) != 1) {
 			throw conflict();
 		}
+		configRefreshPublisher.mark();
 		return detail(id);
 	}
 
@@ -78,11 +91,15 @@ public class OcpxAdvertiserService {
 		OcpxAdvertiser current = require(id);
 		requireVersion(current, request.expectedVersion());
 		long next = current.getConfigVersion() + 1;
-		if (advertiserMapper.update(null, Wrappers.<OcpxAdvertiser>lambdaUpdate().eq(OcpxAdvertiser::getId, id)
-			.eq(OcpxAdvertiser::getConfigVersion, request.expectedVersion())
-			.set(OcpxAdvertiser::getStatus, request.status()).set(OcpxAdvertiser::getConfigVersion, next)) != 1) {
+		if (advertiserMapper.update(null,
+				Wrappers.<OcpxAdvertiser>lambdaUpdate()
+					.eq(OcpxAdvertiser::getId, id)
+					.eq(OcpxAdvertiser::getConfigVersion, request.expectedVersion())
+					.set(OcpxAdvertiser::getStatus, request.status())
+					.set(OcpxAdvertiser::getConfigVersion, next)) != 1) {
 			throw conflict();
 		}
+		configRefreshPublisher.mark();
 		return new AdvertiserViews.Mutation(id, request.status(), next);
 	}
 
@@ -90,11 +107,12 @@ public class OcpxAdvertiserService {
 	public AdvertiserViews.Mutation archive(String id, AdvertiserRequests.VersionedAction request) {
 		OcpxAdvertiser current = require(id);
 		requireVersion(current, request.expectedVersion());
-		if (promotionLinkMapper.selectCount(Wrappers.<OcpxPromotionLink>lambdaQuery()
-			.eq(OcpxPromotionLink::getAdvertiserId, id)) > 0) {
+		if (promotionLinkMapper
+			.selectCount(Wrappers.<OcpxPromotionLink>lambdaQuery().eq(OcpxPromotionLink::getAdvertiserId, id)) > 0) {
 			throw new IllegalArgumentException("广告主仍有未归档推广链接");
 		}
 		advertiserMapper.deleteById(id);
+		configRefreshPublisher.mark();
 		return new AdvertiserViews.Mutation(id, "ARCHIVED", current.getConfigVersion() + 1);
 	}
 
@@ -123,7 +141,8 @@ public class OcpxAdvertiserService {
 
 	private void ensureUnique(String id, String code, String name) {
 		if (advertiserMapper.selectCount(Wrappers.<OcpxAdvertiser>lambdaQuery()
-			.and(q -> q.eq(OcpxAdvertiser::getAdvertiserCode, code.trim()).or()
+			.and(q -> q.eq(OcpxAdvertiser::getAdvertiserCode, code.trim())
+				.or()
 				.eq(OcpxAdvertiser::getAdvertiserName, name.trim()))
 			.ne(StringUtils.hasText(id), OcpxAdvertiser::getId, id)) > 0) {
 			throw new IllegalArgumentException("广告主编码或名称已存在");
@@ -132,19 +151,23 @@ public class OcpxAdvertiserService {
 
 	private OcpxAdvertiser require(String id) {
 		OcpxAdvertiser value = advertiserMapper.selectById(id);
-		if (value == null) throw new BootBusinessException(HttpStatus.NOT_FOUND.value(), "广告主不存在");
+		if (value == null)
+			throw new BootBusinessException(HttpStatus.NOT_FOUND.value(), "广告主不存在");
 		return value;
 	}
 
 	private void requireVersion(OcpxAdvertiser value, Long expected) {
-		if (!expected.equals(value.getConfigVersion())) throw conflict();
+		if (!expected.equals(value.getConfigVersion()))
+			throw conflict();
 	}
 
 	private BootBusinessException conflict() {
 		return new BootBusinessException(HttpStatus.CONFLICT.value(), "配置已被其他操作修改，请刷新后重试");
 	}
 
-	private String trim(String value) { return StringUtils.hasText(value) ? value.trim() : null; }
+	private String trim(String value) {
+		return StringUtils.hasText(value) ? value.trim() : null;
+	}
 
 	private AdvertiserViews.Item view(OcpxAdvertiser value) {
 		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), value.getAdvertiserCode(),
@@ -152,4 +175,5 @@ public class OcpxAdvertiserService {
 				value.getMacroParams(), value.getUpstreamHostAllowlist(), value.getStatus(), value.getConfigVersion(),
 				value.getCreateTime(), value.getUpdateTime());
 	}
+
 }

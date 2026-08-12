@@ -1,87 +1,80 @@
 openapi: 3.1.0
 info:
-  title: SCX OCPX four-entity data plane
-  version: 2.0.0
-  description: Downstream media feedback, upstream advertiser callback and public tracking routes.
+  title: SCX OCPX general/union GET data plane
+  version: 4.0.0
+  description: sgyz-ocpx compatible general Feedback and union Callback. All partner requests use HTTP GET Query String parameters.
 servers:
   - url: https://{domain}/ocpx
-    variables: { domain: { default: sandbox.example.invalid } }
+    variables:
+      domain:
+        default: sandbox.example.invalid
   - url: http://localhost:10000/ocpx
 paths:
-  /open-api/ocpx/v2/media/{mediaCode}/feedback:
-    post:
-      operationId: acceptMediaFeedbackV2
-      parameters:
-        - { name: mediaCode, in: path, required: true, schema: { type: string, maxLength: 64 } }
-        - { $ref: '#/components/parameters/Authorization' }
-        - { $ref: '#/components/parameters/KeyVersion' }
-        - { $ref: '#/components/parameters/Timestamp' }
-        - { $ref: '#/components/parameters/Nonce' }
-        - { $ref: '#/components/parameters/Signature' }
-      requestBody:
-        required: true
-        content:
-          application/json: { schema: { $ref: './feedback-req-v2.schema.json' } }
-      responses:
-        '202': { description: Synchronously forwarded to the advertiser and logged }
-        '400': { $ref: '#/components/responses/Error' }
-        '401': { $ref: '#/components/responses/Error' }
-        '404': { $ref: '#/components/responses/Error' }
-        '502': { $ref: '#/components/responses/Error' }
-  /open-api/ocpx/v2/advertisers/{advertiserCode}/callback:
+  /general/feedback:
     get:
-      operationId: acceptAdvertiserCallbackV2
+      operationId: generalFeedback
       parameters:
-        - { name: advertiserCode, in: path, required: true, schema: { type: string, maxLength: 64 } }
-        - { name: ext, in: query, required: true, schema: { type: string, maxLength: 1024 } }
-        - { name: event, in: query, required: false, schema: { type: string } }
-        - { name: action_type, in: query, required: false, schema: { type: string } }
-        - { name: event_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: conversion_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: order_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: currency_amount, in: query, required: false, schema: { type: string } }
+        - { name: chid, in: query, required: true, description: OcpxMedia.id, schema: { type: string, maxLength: 32 } }
+        - { name: mid, in: query, required: true, description: OcpxMonitorTask.id, schema: { type: string, maxLength: 32 } }
+        - { name: dspid, in: query, required: true, description: OcpxAdvertiser.id, schema: { type: string, maxLength: 32 } }
+        - { name: linkid, in: query, required: true, description: OcpxPromotionLink.id, schema: { type: string, maxLength: 32 } }
+        - { name: event, in: query, required: true, schema: { type: string, enum: [IMP, CLK] } }
+        - { name: request_id, in: query, required: false, description: Missing value falls back to request JSON MD5, schema: { type: string, maxLength: 128 } }
+        - { name: callback_url, in: query, required: false, schema: { type: string, maxLength: 2000 } }
+        - { name: caid, in: query, required: false, schema: { type: string } }
+        - { name: caid1, in: query, required: false, schema: { type: string } }
+        - { name: last_caid, in: query, required: false, schema: { type: string } }
+        - { name: prev_caid, in: query, required: false, schema: { type: string } }
+        - { name: idfa, in: query, required: false, schema: { type: string } }
+        - { name: idfa_md5, in: query, required: false, schema: { type: string } }
+        - { name: imei, in: query, required: false, schema: { type: string } }
+        - { name: imei_md5, in: query, required: false, schema: { type: string } }
+        - { name: oaid, in: query, required: false, schema: { type: string } }
+        - { name: oaid_md5, in: query, required: false, schema: { type: string } }
+        - { name: androidid, in: query, required: false, schema: { type: string } }
+        - { name: mac, in: query, required: false, schema: { type: string } }
+        - { name: mac_md5, in: query, required: false, schema: { type: string } }
+        - { name: ip, in: query, required: false, schema: { type: string } }
+        - { name: model, in: query, required: false, schema: { type: string } }
+        - { name: os, in: query, required: false, description: 0 Android, 1 iOS, schema: { type: string, enum: ['0', '1'] } }
+        - { name: ts, in: query, required: false, schema: { type: string } }
+        - { name: mts, in: query, required: false, schema: { type: string } }
+        - { name: ua, in: query, required: false, schema: { type: string } }
+        - { name: adv_id, in: query, required: false, schema: { type: string } }
+        - { name: group_id, in: query, required: false, schema: { type: string } }
+        - { name: plan_id, in: query, required: false, schema: { type: string } }
+        - { name: creative_id, in: query, required: false, schema: { type: string } }
+        - { name: impresss_id, in: query, required: false, schema: { type: string } }
       responses:
-        '200': { description: Adapter-defined response }
-        '404': { description: Advertiser or adapter not found }
-        '502': { description: Downstream media rejected the callback or was unavailable }
-  /c/{taskCode}:
+        '200':
+          description: Legacy success response. Internal handling errors are logged and retain legacy response behavior.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ret, code, msg, data]
+                properties:
+                  ret: { type: integer, const: 0 }
+                  code: { type: integer, const: 200 }
+                  msg: { type: string, const: 提交成功 }
+                  data: { type: object }
+  /union/callback:
     get:
-      operationId: openTrackingRoute
+      operationId: unionCallback
       parameters:
-        - { name: taskCode, in: path, required: true, schema: { type: string, minLength: 2, maxLength: 64 } }
+        - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
+        - { name: s, in: query, required: false, description: linkid_mid state, schema: { type: string } }
+        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 17 } }
+        - { name: event_time, in: query, required: true, schema: { type: integer, format: int64 } }
       responses:
-        '302': { description: Redirect to the active promotion URL }
-        '410': { description: Active monitor task is unavailable }
+        '200': { description: Empty response after Callback handling }
+        '500': { description: Callback parse or handling exception }
 webhooks:
-  downstreamCallback:
-    post:
-      operationId: deliverDownstreamCallbackV2
+  downstreamConversionGet:
+    get:
+      operationId: deliverDownstreamConversion
+      description: SCX decodes the Feedback callback_url and appends event_type.
       parameters:
-        - { name: Authorization, in: header, required: false, description: TOKEN media receives Bearer authentication, schema: { type: string } }
-        - { $ref: '#/components/parameters/KeyVersion' }
-        - { $ref: '#/components/parameters/Timestamp' }
-        - { $ref: '#/components/parameters/Nonce' }
-        - { $ref: '#/components/parameters/Signature' }
-        - { name: Idempotency-Key, in: header, required: true, description: Stable event id for media-side deduplication, schema: { type: string, maxLength: 128 } }
-      requestBody:
-        required: true
-        content:
-          application/json: { schema: { $ref: './callback-req-v2.schema.json' } }
+        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 17 } }
       responses:
-        '200': { description: Any 2xx is accepted }
-components:
-  parameters:
-    Authorization: { name: Authorization, in: header, required: false, description: TOKEN media uses Bearer authentication, schema: { type: string } }
-    KeyVersion: { name: X-OCPX-Key-Version, in: header, required: false, description: Required for SIGNATURE media, schema: { type: integer, minimum: 1 } }
-    Timestamp: { name: X-OCPX-Timestamp, in: header, required: false, description: Required for SIGNATURE media; seconds or milliseconds since epoch, schema: { type: integer } }
-    Nonce: { name: X-OCPX-Nonce, in: header, required: false, description: Required for SIGNATURE media and included in the HMAC input, schema: { type: string, minLength: 16, maxLength: 128 } }
-    Signature: { name: X-OCPX-Signature, in: header, required: false, description: HMAC-SHA256 of method, path, timestamp, nonce and body hash, schema: { type: string, pattern: '^[a-f0-9]{64}$' } }
-  responses:
-    Error:
-      description: Protocol error
-      content:
-        application/json:
-          schema:
-            type: object
-            required: [code, message]
-            properties: { code: { type: integer }, message: { type: string } }
+        '200': { description: Response body is ignored }

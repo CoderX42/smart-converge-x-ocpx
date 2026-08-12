@@ -1,43 +1,44 @@
-# SCX 对 `sgyz-ocpx` 核心流程的对照基线
+# SCX 对 `sgyz-ocpx` 通用数据闭环的兼容基线
 
-> 参考仓库：`/Users/karl/code/sgyz-ocpx`。SCX 参考其业务关系和双向回传思路，不复制硬编码合作方枚举、账号或私有 URL。
+> 参考仓库：`/Users/karl/code/sgyz-ocpx`。本基线只覆盖通用
+> `general/feedback` 与 `union/callback` 数据闭环。
 
-## 实体映射
+## 实体和 ID 映射
 
-| `sgyz-ocpx` | SCX | 表 |
-|---|---|---|
-| `UserDsp` | `OcpxAdvertiser` | `scx_ocpx_advertiser` |
-| `DspLink` | `OcpxPromotionLink` | `scx_ocpx_promotion_link` |
-| `UserChannel` | `OcpxMedia` | `scx_ocpx_media` |
-| `ChannelMonitorTask` | `OcpxMonitorTask` | `scx_ocpx_monitor_task` |
+| `sgyz-ocpx` | SCX | Query ID | SCX 表 |
+|---|---|---|---|
+| `UserDsp` | `OcpxAdvertiser` | `dspid` | `scx_ocpx_advertiser` |
+| `DspLink` | `OcpxPromotionLink` | `linkid` | `scx_ocpx_promotion_link` |
+| `UserChannel` | `OcpxMedia` | `chid` | `scx_ocpx_media` |
+| `ChannelMonitorTask` | `OcpxMonitorTask` | `mid` | `scx_ocpx_monitor_task` |
 
-## 核心流程对照
+所有 ID 均保留为 `String`，值是对应 SCX 实体的主键。
+`credentialConfigKey` 对应旧 `UserDsp.ekey`，`bidUrl` 继续作为广告主 URL 模板，
+`OcpxMonitorTask.taskCode` 对应旧 `bizId`。
 
-`sgyz-ocpx` 的核心是媒体事件 → 广告主，以及广告主转化 → 媒体的双向协议转换。SCX 当前对应流程为：
+## 兼容闭环
 
 ```text
-媒体 FeedbackReqV2
-  -> mediaCode 鉴权
-  -> monitor_task_id 解析四实体关系
-  -> UpstreamAdapter 同步转发广告主
-  -> 广告主 callback 携带签名 ext
-  -> UpstreamAdapter 解析转化
-  -> DownstreamAdapter 同步回传媒体
-  -> scx_ocpx_flow_log 记录结果并供报表聚合
+媒体 GET /general/feedback
+  -> GeneralParamAdapter
+  -> Feedback Redis 去重、队列
+  -> UnionServiceImpl 替换 bidUrl 宏、生成 AES ext 和 signature
+  -> 广告主 GET
+  -> 广告主 GET /union/callback
+  -> 解密 ext、Callback 去重和 linkid+chid 扣量
+  -> 原 callback_url 追加 event_type
+  -> 媒体 GET
+  -> StorageTask 写明细、日明细和临时报表
+  -> Admin DataMergeTask 写最终报表
 ```
 
-SCX 用 Adapter 注册表代替在业务服务中按 DSP/渠道 ID 写大量分支；监测任务和数据库外键表达合作关系，账号和 Secret 只存在于 Engine 配置。
+SCX 保留旧 Redis Key、去重算法、队列分桶、扣量数组、StorageTask 批次与写入顺序、
+配置内存索引、共享刷新标记和最终报表合并方式。Feedback 重复仍转发；扣量数组长度
+固定为 11；Redis 数组读改写、List 消费和多表写入仍按旧代码的非原子方式运行。
 
-## 当前覆盖与差异
+## 必要适配与排除项
 
-| 能力 | 当前 SCX |
-|---|---|
-| 四方关系 | 已用四实体 CRUD、组合外键和运行时联查实现 |
-| 媒体 Feedback | V2 JSON、NONE/TOKEN/SIGNATURE 鉴权、同步上游转发 |
-| 广告主 Callback | 统一入口、签名 ext、同步下游回传 |
-| 合作方协议差异 | `UpstreamAdapter` / `DownstreamAdapter` |
-| 日志与报表 | 单一脱敏流程日志，五维直接聚合 |
-| 扣量、账务、队列、重试、DLQ | 当前最小版本不提供 |
-| RTA | 不属于当前产品边界 |
-
-因此，SCX 已保留 `sgyz-ocpx` 的四实体关系和 Feedback/Callback 主闭环，但没有保留旧项目或此前 SCX 的所有扩展能力。每个真实 DSP/媒体私有协议仍需单独 Adapter 和合作方 UAT。
+仅适配 Java/Spring Boot 版本、`com.yzytech.scx.ocpx` 包名、SCX 字符串主键/表名，
+并使用无真实密钥和域名的本机配置。没有迁移爱奇艺、百度、OPPO、华为、快手等
+合作方 Controller、固定 ID、URL、枚举项和专用协议；不包含 RTA、智能出价、预算、
+账务、重试、DLQ 或管理端扣量配置页面。

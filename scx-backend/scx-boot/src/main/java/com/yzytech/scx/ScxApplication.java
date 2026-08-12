@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx;
 
 import com.yzytech.scx.common.job.annotation.BootEnableXxlJob;
@@ -19,13 +18,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@ComponentScan(basePackages = "com.yzytech.scx",
-			excludeFilters = {
-					@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
-					@ComponentScan.Filter(type = FilterType.CUSTOM,
-							classes = AutoConfigurationExcludeFilter.class),
-					@ComponentScan.Filter(type = FilterType.REGEX,
-							pattern = "com\\.yzytech\\.scx\\.ocpx\\.ScxOcpxEngineApplication") })
+@ComponentScan(basePackages = "com.yzytech.scx", excludeFilters = {
+		@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+		@ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
+		@ComponentScan.Filter(type = FilterType.REGEX,
+				pattern = "com\\.yzytech\\.scx\\.ocpx\\.(?:ScxOcpxEngineApplication|(?!(?:entity|admin)(?:\\.|$)).*)") })
 @EnableScheduling
 @BootEnableXxlJob
 public class ScxApplication {

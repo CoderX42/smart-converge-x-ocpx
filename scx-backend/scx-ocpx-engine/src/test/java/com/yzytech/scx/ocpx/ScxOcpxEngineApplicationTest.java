@@ -1,41 +1,41 @@
 package com.yzytech.scx.ocpx;
 
-import java.io.IOException;
-
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ScxOcpxEngineApplicationTest {
 
-	@LocalServerPort
-	private int port;
-
-	@Autowired
-	private ApplicationContext applicationContext;
-
 	@Test
-	void startsTheReactiveApplication() {
-		assertThat(port).isPositive();
-		assertThat(applicationContext).isNotNull();
+	void keepsTheServletPortContextDefaultProfileAndLegacyJobSettings() throws Exception {
+		PropertySource<?> source = load("application.yml");
+
+		assertThat(source.getProperty("server.port")).isEqualTo(10000);
+		assertThat(source.getProperty("server.servlet.context-path")).isEqualTo("/ocpx");
+		assertThat(source.getProperty("spring.profiles.active")).isEqualTo("dev");
+		assertThat(source.getProperty("spring.main.web-application-type")).isEqualTo("servlet");
+		assertThat(source.getProperty("bid.job.thread")).isEqualTo(1);
+		assertThat(source.getProperty("spring.datasource.url")).isNull();
 	}
 
 	@Test
-	void keepsTheDefaultPortAndContextPath() throws IOException {
-		PropertySource<?> source = new YamlPropertySourceLoader()
-			.load("engine", new ClassPathResource("application.yml"))
-			.get(0);
+	void separatesDevelopmentAndProductionConnections() throws Exception {
+		PropertySource<?> development = load("application-dev.yml");
+		PropertySource<?> production = load("application-prod.yml");
 
-		assertThat(source.getProperty("server.port")).isEqualTo(10000);
-		assertThat(source.getProperty("spring.webflux.base-path")).isEqualTo("/ocpx");
+		assertThat(development.getProperty("spring.datasource.url")).asString().contains("127.0.0.1:3306");
+		assertThat(development.getProperty("spring.data.redis.host")).isEqualTo("127.0.0.1");
+		assertThat(development.getProperty("domain.name")).isEqualTo("http://127.0.0.1:10000/ocpx");
+		assertThat(production.getProperty("spring.datasource.url")).asString().doesNotContain("127.0.0.1");
+		assertThat(production.getProperty("spring.data.redis.host")).isNotEqualTo("127.0.0.1");
+		assertThat(production.getProperty("domain.name")).isEqualTo("https://ocpx.zhongsenyuedong.cn/ocpx");
+	}
+
+	private PropertySource<?> load(String resource) throws Exception {
+		return new YamlPropertySourceLoader().load("engine", new ClassPathResource(resource)).get(0);
 	}
 
 }

@@ -1,9 +1,11 @@
 # ADR-007：OCPX Engine 增加最小启动骨架
 
-- 状态：Accepted
+- 状态：Superseded by ADR-010
 - 日期：2026-08-12
 - 范围：`scx-ocpx-engine` 启动与端口边界
 - 补充：ADR-006 的四实体清理决策
+
+> 当前 Engine 实现以 ADR-010 为准；本文仅保留最小骨架的历史决策记录。
 
 ## 背景
 

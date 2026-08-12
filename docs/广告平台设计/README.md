@@ -13,9 +13,9 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 | 下游媒体 | `OcpxMedia` | `scx_ocpx_media` |
 | 监测任务 | `OcpxMonitorTask` | `scx_ocpx_monitor_task` |
 
-广告域数据库另保留一张 `scx_ocpx_flow_log`。管理端可以查询和聚合已有日志，但当前源码没有生成 Feedback/Callback 流程日志的数据面实现。
+广告域保留历史 `scx_ocpx_flow_log`，但 Engine 不再写入。当前数据层写入 Feedback/Callback 明细、Feedback 日明细、临时报表和最终报表五张新表。
 
-当前 `scx-ocpx-engine` 只保留四个实体和最小 Spring Boot 启动骨架，默认监听 `10000/ocpx`。它不包含机器接口、同步转发、Adapter 或鉴权；Feedback/Callback、监测跳转及数据面重建均属于后续工作，不能把进程健康或历史契约视为业务能力已实现。
+当前 `scx-ocpx-engine` 使用 Spring MVC，默认监听 `10000/ocpx`，已实现 `general/feedback` 与 `union/callback` 通用 GET 闭环、四实体内存索引、Redis 去重/分桶/扣量、StorageTask 落库和 Admin DataMergeTask 汇总。`chid/mid/dspid/linkid` 分别是媒体、任务、广告主和链接的 SCX 字符串主键。不包含合作方专用协议。
 
 用户、角色、菜单、部门、字典、操作日志和登录日志仍由原系统管理框架承载。本次只调整广告业务菜单与权限。
 
@@ -36,5 +36,5 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 - 空库结构以 `scx_current_schema.sql` 为准。
 - `V96__reset_ocpx_ad_business_to_four_entities.sql` 是手工、破坏性的广告域重建 SQL；本次源码实现不执行它。
 - V96 不修改用户、角色、部门、字典、操作日志、登录日志或 `menu_ocpx_system`。
-- 当前 Engine 只有通用 `application.yml` 和独立进程骨架，没有 profile 凭据配置；后续重建前必须另行确定协议、安全和生产部署方案。
+- Engine 配置为本机联调字面量；生产必须私下替换 AES Key、域名和签名密钥后重新打包。
 - V79–V95 保持不变；不读写退役的 `scx_schema_migration`。

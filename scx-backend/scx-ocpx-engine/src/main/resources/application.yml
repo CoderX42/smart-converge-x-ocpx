@@ -1,13 +1,17 @@
 server:
   port: 10000
+  servlet:
+    context-path: /ocpx
 
 spring:
   application:
     name: scx-ocpx-engine
+  profiles:
+    active: dev
+  config:
+    fail-on-unresolved-placeholders: false
   main:
-    web-application-type: reactive
-  webflux:
-    base-path: /ocpx
+    web-application-type: servlet
 
 management:
   endpoints:
@@ -17,3 +21,18 @@ management:
   endpoint:
     health:
       show-details: never
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+bid:
+  job:
+    thread: 1
+
+app:
+  http:
+    timeout-millis: 3000
+  jobs:
+    storage-cron: '0 0/1 * * * ?'
+    reset-enabled: true

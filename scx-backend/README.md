@@ -10,7 +10,7 @@
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
 | `scx-ocpx-admin` | 四实体 CRUD、流程日志查询、Dashboard 和报表管理能力 |
-| `scx-ocpx-engine` | 四实体最小 Engine 应用，包含启动类，默认监听 `10000/ocpx`；尚无数据面业务接口 |
+| `scx-ocpx-engine` | 四实体独立 Engine，一比一迁移 `sgyz-ocpx` 通用 `general/feedback` 与 `union/callback` GET 数据层，默认监听 `10000/ocpx` |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |

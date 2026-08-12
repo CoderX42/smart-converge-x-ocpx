@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    # 本地开发数据库；外部环境使用对应 profile 的独立字面量配置
+    url: jdbc:mysql://mysql-e379be1ffea9-public.rds.volces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia%2FShanghai&allowMultiQueries=true
+    username: ocpxuser
+    password: OqS5ZRBU1wBuEqLeHAQ3
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: 47.120.19.150
+      password: IWzq76mM8ihEaY17U30P
+      port: 6379
+      database: 2
+      timeout: 3s
+
+domain:
+  name: http://127.0.0.1:10000/ocpx
+
+app:
+  callback-aes-key: local-dev-key-01

@@ -1,34 +1,24 @@
-# SCX OCPX v2 对外契约包
+# SCX OCPX 通用 GET 契约包
 
-本目录中的当前契约服务于四实体双向转发引擎。交付给下游媒体研发时，请同时提供：
-
-1. `../OCPX下游渠道API接入文档.md`
-2. `openapi.yaml`
-3. `feedback-req-v2.schema.json`
-4. `callback-req-v2.schema.json`
-5. `scx-ocpx-v2.postman_collection.json`
-6. `../uat/sign_request.py`
-7. `../uat/verify_request.py`
-
-另行通过安全渠道提供沙箱域名、`mediaCode`、启用的 `monitor_task_id`、配置键对应的凭据版本和鉴权材料。不要把真实账号或 Secret 写入数据库、流程日志、文档、Postman 集合、工单或 Git。
-
-## 文件用途
+本目录描述 `sgyz-ocpx` 通用 `general/union` 兼容接口。所有入站和出站合作方
+请求都是 HTTP GET Query String，不存在 JSON Body。
 
 | 文件 | 用途 |
 |---|---|
-| `openapi.yaml` | 下游调用的 feedback API、Coco callback 参考及 SCX 主动投递的下游 webhook |
-| `feedback-req-v2.schema.json` | 下游上报请求体 JSON Schema；业务关系仅以 `monitor_task_id` 派生 |
-| `callback-req-v2.schema.json` | SCX 向下游投递请求体 JSON Schema |
-| `scx-ocpx-v2.postman_collection.json` | 可导入 Apifox/Postman；包含媒体 Feedback、广告主 Callback 和公共 CLICK 路由示例 |
-| `../uat/sign_request.py` / `verify_request.py` | 生成 feedback 签名、验证捕获的 callback 签名 |
-| `historical-contracts.md` | 已退出接口说明，不属于当前接入能力 |
+| `openapi.yaml` | `/general/feedback`、`/union/callback` 和媒体回传 |
+| `feedback-req-v2.schema.json` | General Feedback Query 对象 |
+| `callback-req-v2.schema.json` | Union Callback Query 对象 |
+| `scx-ocpx-v2.postman_collection.json` | 本机 GET 示例 |
+| `historical-contracts.md` | 已退出接口，不属于当前能力 |
 
-## 校验
+`chid/mid/dspid/linkid` 分别直接使用 `OcpxMedia`、`OcpxMonitorTask`、
+`OcpxAdvertiser`、`OcpxPromotionLink` 的 SCX 字符串主键。Postman 只保留占位值，
+不得写入真实 AES Key、签名密钥、账号或生产域名。
 
-仓库根目录执行：
+Feedback HTTP 成功响应不表示同步上游成功：处理链按旧实现将日志入 Redis List，
+并交给固定线程 Manager 异步转发。Callback 成功返回空 `200`，解析异常返回 `500`。
+StorageTask 使用原 List `LRANGE/LTRIM` 消费方式，没有 processing 队列、重试或 DLQ。
 
 ```bash
 make contract-check
 ```
-
-当前契约是同步转发：Feedback 只有在上游成功接收后返回 202，Callback 只有在下游成功接收后返回广告主 Adapter 定义的成功响应。当前版本没有队列、自动重试、幂等事实或 DLQ。

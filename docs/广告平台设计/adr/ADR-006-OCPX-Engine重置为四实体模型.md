@@ -1,6 +1,6 @@
 # ADR-006：OCPX Engine 重置为四实体模型
 
-- 状态：Partially Superseded by ADR-007；四实体清理决策仍有效
+- 状态：Partially Superseded by ADR-010；四实体清理决策仍有效
 - 日期：2026-08-12
 - 范围：`scx-ocpx-engine` 当前源码与部署边界
 - 替代：ADR-001 的独立数据面实现决策
@@ -12,10 +12,10 @@
 ## 决策
 
 - `scx-ocpx-engine` 只保留 `OcpxAdvertiser`、`OcpxPromotionLink`、`OcpxMedia`、`OcpxMonitorTask`。
-- 四个实体统一位于 `com.yzytech.scx.ocpx`，不建立内部子包。
+- 四个实体最初统一位于 `com.yzytech.scx.ocpx`；ADR-008 后迁入传统分层的 `com.yzytech.scx.ocpx.entity`。
 - 实体从 `scx-ocpx-admin` 迁入 Engine，Admin 通过 Maven 依赖复用，仓库中不保留重复模型。
 - 删除 Engine 的启动类、Controller、Service、Mapper、协议 DTO、Adapter、配置资源和测试。
-- 本决策最初移除了 Spring Boot 启动骨架；后续 ADR-007 恢复最小启动类、可执行 JAR 和 `10000/ocpx`，但不恢复任何数据面业务实现。
+- 本决策最初移除了 Spring Boot 启动骨架和数据面；ADR-010 后恢复独立启动和选定的通用 Feedback/Callback 数据闭环，但仍严格保留四实体边界。
 - 公网 `/ocpx/` 路由在当前部署模板中返回 404。
 
 ## 后果

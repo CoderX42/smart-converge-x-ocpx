@@ -1,19 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "callback-req-v2.schema.json",
+  "title": "Union Callback GET query parameters",
   "type": "object",
-  "required": ["schema_version", "event_id", "source_event_id", "event", "action_time", "monitor_task_id"],
+  "required": ["ext", "event_type", "event_time"],
   "properties": {
-    "schema_version": { "const": "2.0" },
-    "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "source_event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "event": { "type": "string", "minLength": 1, "maxLength": 64 },
-    "action_time": { "type": "string", "format": "date-time" },
-    "amount": { "type": "number" },
-    "amount_raw": { "type": "string", "maxLength": 64 },
-    "click_id": { "type": "string", "maxLength": 128 },
-    "monitor_task_id": { "type": "string", "minLength": 1, "maxLength": 64 },
-    "extensions": { "type": "object", "additionalProperties": true }
+    "ext": { "type": "string", "minLength": 1 },
+    "s": { "type": "string" },
+    "event_type": { "type": "integer", "minimum": 1, "maximum": 17 },
+    "event_time": { "type": "integer" }
   },
   "additionalProperties": false
 }
