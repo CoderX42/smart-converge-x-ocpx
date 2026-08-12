@@ -1,7 +1,7 @@
 <configuration scan="true" scanPeriod="60 seconds" debug="false">
     <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{48} [debugExecutionId=%X{debugExecutionId:-}] - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{48} - %msg%n</pattern>
         </encoder>
     </appender>
     <appender name="engineFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -12,13 +12,11 @@
             <maxHistory>30</maxHistory>
         </rollingPolicy>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{48} [debugExecutionId=%X{debugExecutionId:-}] - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{48} - %msg%n</pattern>
         </encoder>
     </appender>
-    <appender name="apiDebugBuffer" class="com.yzytech.scx.common.log.appender.BoundedSanitizedLogAppender"/>
     <root level="INFO">
         <appender-ref ref="stdout"/>
         <appender-ref ref="engineFile"/>
-        <appender-ref ref="apiDebugBuffer"/>
     </root>
 </configuration>

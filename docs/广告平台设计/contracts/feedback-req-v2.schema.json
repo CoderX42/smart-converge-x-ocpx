@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "feedback-req-v2.schema.json",
+  "type": "object",
+  "required": ["monitor_task_id", "event", "event_id", "event_time"],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "monitor_task_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "event": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "event_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "click_id": { "type": "string", "maxLength": 128 },
+    "event_time": { "type": "integer" },
+    "device": { "type": "object", "additionalProperties": true },
+    "extensions": { "type": "object", "additionalProperties": true }
+  },
+  "additionalProperties": false
+}

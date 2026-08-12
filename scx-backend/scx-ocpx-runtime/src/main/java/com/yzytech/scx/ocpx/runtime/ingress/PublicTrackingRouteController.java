@@ -15,7 +15,7 @@ import java.util.Map;
 
 /** Public tracking entrance. Resolves locally and never fetches the destination. */
 @RestController
-@RequestMapping("/ocpx/c")
+@RequestMapping("/c")
 public class PublicTrackingRouteController {
 
 	private final PublicTrackingRouteService service;
@@ -24,12 +24,12 @@ public class PublicTrackingRouteController {
 		this.service = service;
 	}
 
-	@GetMapping("/{routeCode}")
-	public ResponseEntity<?> resolve(@PathVariable String routeCode, ServerWebExchange exchange) {
+	@GetMapping("/{taskCode}")
+	public ResponseEntity<?> resolve(@PathVariable String taskCode, ServerWebExchange exchange) {
 		try {
-			PublicTrackingRouteService.Resolution resolution = service.resolve(routeCode,
+			PublicTrackingRouteService.Resolution resolution = service.resolve(taskCode,
 					exchange.getRequest().getQueryParams());
-			return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+			return ResponseEntity.status(HttpStatus.FOUND)
 				.location(resolution.destination())
 				.cacheControl(CacheControl.noStore())
 				.build();

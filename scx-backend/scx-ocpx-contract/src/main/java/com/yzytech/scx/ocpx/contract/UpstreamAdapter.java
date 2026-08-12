@@ -8,13 +8,13 @@ import java.util.Map;
  * SCX 与一个上游广告主之间的双向协议适配器。
  *
  * <p>
- * 下游事件发往上游时使用 {@link #buildFeedback}；上游把转化回调给 SCX 时使用 {@link #parseCallback}。通用
- * Controller、可靠队列、重试、账务和审计不属于 Adapter，新增上游不能复制这些公共能力。
+ * 下游事件发往上游时，同步 Feedback 服务从四张业务表组装上下文并由 Adapter 构造请求；
+ * 上游把转化回调给 SCX 时使用 {@link #parseCallback}。Adapter 不负责数据库查询或日志。
  * </p>
  *
  * <p>
  * 协议处理方法返回 {@link Mono}，因此解析或校验异常必须作为 error 信号返回。Adapter 不允许调用 {@code subscribe()} 或
- * {@code block()}，订阅由 WebFlux 入口或后台 Worker 统一负责。
+	 * {@code block()}，订阅由 WebFlux 入口统一负责。
  * </p>
  */
 public interface UpstreamAdapter {
@@ -25,21 +25,14 @@ public interface UpstreamAdapter {
 
 	boolean supports(OcpxEventType eventType);
 
-	/**
-	 * Validate adapter-specific protocol requirements before a reliable delivery job is
-	 * created. Implementations must not perform network I/O here.
-	 */
-	default Mono<Void> validateFeedback(RouteSnapshot route, FeedbackReqV1 feedback) {
-		return Mono.empty();
-	}
+	/** Build one upstream request from the four-entity context and an in-memory credential. */
+	AdapterHttpRequest buildFeedback(UpstreamDeliveryContext context);
 
-	Mono<AdapterHttpRequest> buildFeedback(RouteSnapshot route, FeedbackReqV1 feedback, String callbackUrl);
-
-	/** 结合 HTTP 状态和合作方业务响应判断投递结果。 */
-	Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response);
+	/** Interpret both HTTP status and partner-specific business response semantics. */
+	AdapterDeliveryResult evaluateFeedbackResponse(AdapterHttpResponse response);
 
 	/**
-	 * 从当前上游的 callback 参数中提取 SCX 回调关联 token。参数名称属于媒体协议的一部分，不能由通用入口固定。
+	 * 从当前上游的 callback 参数中提取 SCX 回调关联 token。参数名称属于广告主协议的一部分，不能由通用入口固定。
 	 */
 	Mono<String> callbackToken(Map<String, String> parameters);
 

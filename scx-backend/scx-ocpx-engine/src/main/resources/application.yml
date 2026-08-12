@@ -32,24 +32,6 @@ logging:
 scx:
   ocpx:
     public-base-url: http://127.0.0.1:10000/ocpx
-    partition-count: 64
-    batch-size: 500
-    debug-execution-enabled: true
-    poll-delay-ms: 20
-    idempotency-ttl: 7d
-    nonce-ttl: 5m
-    snapshot-ttl: 7d
     callback-token-ttl: 7d
-    pending-idle: 30s
-    max-delivery-attempts: 5
-    replica-acks-required: 0
-    replica-ack-timeout-ms: 20
-    device-hmac-key-version: 1
     allow-http: true
     allow-private-addresses: true
-    upstream-delivery-enabled: false
-    downstream-delivery-enabled: false
-    adapter-concurrency: 64
-    circuit-failure-threshold: 20
-    circuit-open-duration: 30s
-    per-channel-qps: 30000

@@ -1,249 +1,87 @@
 openapi: 3.1.0
 info:
-  title: SCX OCPX 双向转发 API
-  version: 1.3.0
-  description: >-
-    scx-ocpx-engine 当前有效的数据面契约。feedback 由下游渠道发送给 SCX，Coco 或通用宏模板
-    upstream callback 由上游发送给 SCX；下游 CallbackReqV1 以 OpenAPI 3.1 webhook 描述 SCX 主动投递协议。
-    回调事件按点击时冻结的路由事件快照归一化，并在媒体任务创建时执行 CPA 扣费和严格日限量。
-    RTA 和历史 /open-api/events/v1 接口不属于当前运行契约。
+  title: SCX OCPX four-entity data plane
+  version: 2.0.0
+  description: Downstream media feedback, upstream advertiser callback and public tracking routes.
 servers:
   - url: https://{domain}/ocpx
-    description: 下游联调或生产环境；真实域名由 SCX 单独提供
-    variables:
-      domain:
-        default: sandbox.example.invalid
-        description: 替换为 SCX 提供的沙箱或生产域名
+    variables: { domain: { default: sandbox.example.invalid } }
   - url: http://localhost:10000/ocpx
-    description: 本地联调（生产必须 HTTPS）
 paths:
-  /open-api/ocpx/v1/channels/{channelCode}/feedback:
+  /open-api/ocpx/v2/media/{mediaCode}/feedback:
     post:
-      operationId: acceptChannelFeedback
-      summary: 接收下游 FeedbackReqV1
-      description: >-
-        签名原文为 METHOD、原始 PATH、X-Timestamp、X-Nonce、sha256(原始请求体)，
-        各行以换行符连接，再以渠道密钥计算小写十六进制 HMAC-SHA256。
-        202 只表示 Redis Stream 已可靠接收，不表示 MySQL 已落库或上游投递成功。
-        CLICK 的设备窗口验重在异步落库事务中完成，因此不同事件 ID 的设备窗口重复点击仍返回 202，
-        但事实会标记 DEDUPLICATED，且不计费、不创建上游任务。
+      operationId: acceptMediaFeedbackV2
       parameters:
-        - name: channelCode
-          in: path
-          required: true
-          schema: { type: string, minLength: 1, maxLength: 64 }
-        - $ref: '#/components/parameters/ClientId'
-        - $ref: '#/components/parameters/KeyVersion'
-        - $ref: '#/components/parameters/Timestamp'
-        - $ref: '#/components/parameters/Nonce'
-        - $ref: '#/components/parameters/Signature'
+        - { name: mediaCode, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { $ref: '#/components/parameters/Authorization' }
+        - { $ref: '#/components/parameters/KeyVersion' }
+        - { $ref: '#/components/parameters/Timestamp' }
+        - { $ref: '#/components/parameters/Nonce' }
+        - { $ref: '#/components/parameters/Signature' }
       requestBody:
         required: true
         content:
-          application/json:
-            schema:
-              $ref: './feedback-req-v1.schema.json'
+          application/json: { schema: { $ref: './feedback-req-v2.schema.json' } }
       responses:
-        '202':
-          description: 新事件已可靠进入接入队列；后续可能被设备窗口判定为 DEDUPLICATED
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/IngressResult' }
-        '200':
-          description: 相同事件 ID 与相同载荷的幂等重复请求
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/IngressResult' }
+        '202': { description: Synchronously forwarded to the advertiser and logged }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
-        '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '409':
-          description: nonce 重放，或相同事件 ID 对应不同载荷
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/IngressResult'
-                  - $ref: '#/components/schemas/Error'
-        '429': { $ref: '#/components/responses/Error' }
-        '503': { $ref: '#/components/responses/Error' }
-  /open-api/ocpx/v1/upstreams/{upstreamCode}/callback:
+        '502': { $ref: '#/components/responses/Error' }
+  /open-api/ocpx/v2/advertisers/{advertiserCode}/callback:
     get:
-      operationId: acceptGenericUpstreamCallback
-      summary: 接收已注册上游适配器 callback
-      description: >-
-        该路径只按 upstreamCode 路由，不定义统一媒体协议。callback token 名称、query 参数解析、
-        事件映射、HTTP 状态、headers 和响应 Body 均由对应 UpstreamAdapter 定义。下列 query 参数
-        是当前 COCO/TEMPLATE_GET 的字段集合；新增专用适配器时必须同时补充其独立协议文档。
+      operationId: acceptAdvertiserCallbackV2
       parameters:
-        - name: upstreamCode
-          in: path
-          required: true
-          schema: { type: string, enum: [coco, template_get] }
-        - name: ext
-          in: query
-          required: false
-          description: COCO/TEMPLATE_GET 使用的 SCX 有签名关联引用；其他适配器可定义不同参数名
-          schema: { type: string, minLength: 1, maxLength: 1024 }
-        - name: action_type
-          in: query
-          required: false
-          schema: { type: string }
-        - name: event
-          in: query
-          required: false
-          schema: { type: string }
-        - name: event_id
-          in: query
-          required: false
-          schema: { type: string, maxLength: 128 }
-        - name: conversion_id
-          in: query
-          required: false
-          schema: { type: string, maxLength: 128 }
-        - name: order_id
-          in: query
-          required: false
-          schema: { type: string, maxLength: 128 }
-        - name: event_time
-          in: query
-          required: false
-          schema:
-            oneOf:
-              - { type: integer }
-              - { type: string, format: date-time }
-        - name: amount
-          in: query
-          required: false
-          schema: { type: string, maxLength: 64 }
-        - name: currency_amount
-          in: query
-          required: false
-          description: Coco purchase 金额事实；不直接决定 CPC 或 CPA 扣费，CPA 使用发布快照中的考核单价
-          schema: { type: string, maxLength: 64 }
+        - { name: advertiserCode, in: path, required: true, schema: { type: string, maxLength: 64 } }
+        - { name: ext, in: query, required: true, schema: { type: string, maxLength: 1024 } }
+        - { name: event, in: query, required: false, schema: { type: string } }
+        - { name: action_type, in: query, required: false, schema: { type: string } }
+        - { name: event_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: conversion_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: order_id, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: currency_amount, in: query, required: false, schema: { type: string } }
       responses:
-        '200':
-          description: 适配器定义的成功或业务应答；Coco 成功为 HTTP 200、code=0
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: true
-            text/plain:
-              schema: { type: string }
-        '400':
-          description: 适配器定义的参数或协议错误响应
-        '401':
-          description: 适配器定义的鉴权错误响应
-        '402':
-          description: 广告主余额不足；未写转化事实、未占限量，充值后可使用相同事件重试
-        '422':
-          description: 点击路由版本中没有该上游事件的有效映射
-        '429':
-          description: Asia/Shanghai 自然日限量已满；响应提示次日重试
-        '404':
-          description: upstreamCode 未注册；因不存在对应媒体协议，返回空 Body
-        '410':
-          description: 适配器定义的 callback 引用过期响应
+        '200': { description: Adapter-defined response }
+        '404': { description: Advertiser or adapter not found }
+        '502': { description: Downstream media rejected the callback or was unavailable }
+  /c/{taskCode}:
+    get:
+      operationId: openTrackingRoute
+      parameters:
+        - { name: taskCode, in: path, required: true, schema: { type: string, minLength: 2, maxLength: 64 } }
+      responses:
+        '302': { description: Redirect to the active promotion URL }
+        '410': { description: Active monitor task is unavailable }
 webhooks:
   downstreamCallback:
     post:
-      operationId: deliverDownstreamCallback
-      summary: SCX 向下游投递标准 CallbackReqV1
-      description: >-
-        下游在管理面为已发布路由提供公网 HTTPS callback URL。SCX 使用本 webhook
-        主动 POST；下游应先验签，再以 Idempotency-Key/event_id 幂等持久化，最后返回
-        任意 HTTP 2xx。非 2xx 或超时按 1/2/5/10 分钟重试，最多尝试 5 次。
+      operationId: deliverDownstreamCallbackV2
       parameters:
-        - $ref: '#/components/parameters/ClientId'
-        - $ref: '#/components/parameters/KeyVersion'
-        - $ref: '#/components/parameters/Timestamp'
-        - $ref: '#/components/parameters/Nonce'
-        - $ref: '#/components/parameters/Signature'
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - { name: Authorization, in: header, required: false, description: TOKEN media receives Bearer authentication, schema: { type: string } }
+        - { $ref: '#/components/parameters/KeyVersion' }
+        - { $ref: '#/components/parameters/Timestamp' }
+        - { $ref: '#/components/parameters/Nonce' }
+        - { $ref: '#/components/parameters/Signature' }
+        - { name: Idempotency-Key, in: header, required: true, description: Stable event id for media-side deduplication, schema: { type: string, maxLength: 128 } }
       requestBody:
         required: true
         content:
-          application/json:
-            schema:
-              $ref: './callback-req-v1.schema.json'
+          application/json: { schema: { $ref: './callback-req-v2.schema.json' } }
       responses:
-        '200':
-          description: 示例成功响应；实际任意 HTTP 2xx 均视为成功
-        '400':
-          description: 下游拒绝了无效请求，SCX 将按任务策略处理失败
-        '500':
-          description: 下游暂时不可用，SCX 将按任务策略重试
+        '200': { description: Any 2xx is accepted }
 components:
   parameters:
-    ClientId:
-      name: X-Client-Id
-      in: header
-      required: true
-      schema: { type: string }
-    KeyVersion:
-      name: X-Key-Version
-      in: header
-      required: true
-      schema: { type: integer, minimum: 1 }
-    Timestamp:
-      name: X-Timestamp
-      in: header
-      required: true
-      description: Unix 秒或毫秒时间戳，允许窗口默认为 5 分钟
-      schema: { type: integer }
-    Nonce:
-      name: X-Nonce
-      in: header
-      required: true
-      schema: { type: string, minLength: 16, maxLength: 128 }
-    Signature:
-      name: X-Sign
-      in: header
-      required: true
-      schema: { type: string, pattern: '^[a-f0-9]{64}$' }
-    IdempotencyKey:
-      name: Idempotency-Key
-      in: header
-      required: true
-      description: 与 CallbackReqV1.event_id 相同；下游必须据此幂等处理
-      schema: { type: string, minLength: 1, maxLength: 128 }
-  schemas:
-    IngressResult:
-      type: object
-      required: [eventId, status, receivedAt]
-      properties:
-        eventId: { type: string }
-        status: { type: string, enum: [ACCEPTED, DUPLICATE, CONFLICT] }
-        receivedAt: { type: string, format: date-time }
-    CocoResult:
-      type: object
-      required: [code]
-      properties:
-        code: { const: 0 }
-        event_id: { type: string }
-        status: { type: string, enum: [ACCEPTED, DUPLICATE] }
-    Error:
-      type: object
-      required: [code, message]
-      properties:
-        code: { type: integer }
-        message: { type: string }
-    CocoError:
-      type: object
-      required: [code, message]
-      properties:
-        code: { const: 1 }
-        message: { type: string }
+    Authorization: { name: Authorization, in: header, required: false, description: TOKEN media uses Bearer authentication, schema: { type: string } }
+    KeyVersion: { name: X-OCPX-Key-Version, in: header, required: false, description: Required for SIGNATURE media, schema: { type: integer, minimum: 1 } }
+    Timestamp: { name: X-OCPX-Timestamp, in: header, required: false, description: Required for SIGNATURE media; seconds or milliseconds since epoch, schema: { type: integer } }
+    Nonce: { name: X-OCPX-Nonce, in: header, required: false, description: Required for SIGNATURE media and included in the HMAC input, schema: { type: string, minLength: 16, maxLength: 128 } }
+    Signature: { name: X-OCPX-Signature, in: header, required: false, description: HMAC-SHA256 of method, path, timestamp, nonce and body hash, schema: { type: string, pattern: '^[a-f0-9]{64}$' } }
   responses:
     Error:
-      description: 请求无效、未授权、限流或依赖服务不可用
+      description: Protocol error
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    CocoError:
-      description: Coco 回调参数、关联引用或签名无效
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/CocoError' }
+          schema:
+            type: object
+            required: [code, message]
+            properties: { code: { type: integer }, message: { type: string } }

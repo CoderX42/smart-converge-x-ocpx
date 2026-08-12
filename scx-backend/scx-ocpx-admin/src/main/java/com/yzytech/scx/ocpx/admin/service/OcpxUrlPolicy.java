@@ -30,7 +30,9 @@ public class OcpxUrlPolicy {
 	private static final Set<String> ALLOWED_MACROS = Set.of("__IMEI__", "__IMEI_MD5__", "__OAID__", "__OAID_MD5__",
 			"__IP__", "__ANDROIDID__", "__ANDROIDID_MD5__", "__AAID__", "__UA__", "__OS__", "__MODEL__", "__CALLBACK__",
 			"__CALLBACK_URL__", "__CLICKID__", "__CAMPAIGNID__", "__ADGROUPID__", "__CREATIVEID__", "__ADVERTISERID__",
-			"__REQUEST_ID__", "__IDFA__", "__IDFA_MD5__");
+			"__REQUEST_ID__", "__IDFA__", "__IDFA_MD5__", "__EVENT__", "__EVENTID__", "__EVENT_ID__",
+			"__EVENTTYPE__", "__EVENT_TYPE__", "__EVENT_TIME__",
+			"__SOURCE_EVENT_ID__", "__MONITOR_TASK_ID__", "__ACTION_TIME__", "__AMOUNT__", "__AMOUNT_RAW__");
 
 	private static final Set<String> RESERVED_SUFFIXES = Set.of("localhost", "local", "internal", "home", "lan", "test",
 			"example", "invalid", "onion");

@@ -11,11 +11,11 @@ def main():
     if len(sys.argv) != 7:
         raise SystemExit(
             "usage: verify_request.py METHOD RAW_PATH BODY_FILE "
-            "X_TIMESTAMP X_NONCE X_SIGN"
+            "X_OCPX_TIMESTAMP X_OCPX_NONCE X_OCPX_SIGNATURE"
         )
-    secret = os.environ.get("SCX_CHANNEL_SECRET")
+    secret = os.environ.get("SCX_MEDIA_SECRET")
     if not secret:
-        raise SystemExit("SCX_CHANNEL_SECRET is required")
+        raise SystemExit("SCX_MEDIA_SECRET is required")
     method, path, body_file, timestamp, nonce, actual = sys.argv[1:]
     with open(body_file, "rb") as stream:
         body = stream.read()

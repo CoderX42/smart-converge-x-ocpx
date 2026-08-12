@@ -9,8 +9,9 @@
 | 应用名 | `scx-ocpx-engine` |
 | 默认端口 | `10000` |
 | 上下文路径 | `/ocpx` |
-| Feedback | `POST /ocpx/open-api/ocpx/v1/channels/{channelCode}/feedback` |
-| Callback | `GET /ocpx/open-api/ocpx/v1/upstreams/{upstreamCode}/callback` |
+| Feedback | `POST /ocpx/open-api/ocpx/v2/media/{mediaCode}/feedback` |
+| Callback | `GET /ocpx/open-api/ocpx/v2/advertisers/{advertiserCode}/callback` |
+| 跟踪跳转 | `GET /ocpx/c/{taskCode}` |
 | 健康检查 | `GET /ocpx/actuator/health` |
 | Prometheus | `GET /ocpx/actuator/prometheus`，仅内部监控网络使用 |
 
@@ -21,9 +22,10 @@
 - 通用配置：`src/main/resources/application.yml`。
 - 开发配置：`src/main/resources/application-dev.yml`。
 - 生产配置：`src/main/resources/application-prod.yml`。
+- 上下游凭据引用：`scx.ocpx.partner-credentials.advertisers` 与 `scx.ocpx.partner-credentials.media`；四张业务表只保存配置键和版本。
 - 应用运行配置采用配置文件字面量，禁止新增 `${SCX_*}` 等运行时占位符或 `/etc/scx/scx.env` 依赖。
 - 修改配置后必须重新打包并重启；只修改服务器源码不会改变现有 JAR。
-- 上下游真实外发默认关闭。开启 `upstream-delivery-enabled` 或 `downstream-delivery-enabled` 需要单独的 UAT 和上线授权。
+- 当前 Feedback/Callback 均为同步真实外发；生产配置凭据和域名之前不得把 Engine 暴露给合作方。
 
 ## 本地构建与启动
 
@@ -67,4 +69,4 @@ bash scripts/bt-deploy/01-deploy.sh --no-pull engine
 bash scripts/bt-deploy/02-manage.sh engine-health
 ```
 
-源码、JAR、健康检查或本地测试通过都不等于生产放行。目标数据库迁移、Redis 持久化与副本、真实上下游 UAT、故障恢复和容量验收仍是独立门禁。
+源码、JAR、健康检查或本地测试通过都不等于生产放行。目标数据库重建、真实上下游 UAT 和容量验收仍是独立门禁。

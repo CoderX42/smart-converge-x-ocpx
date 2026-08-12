@@ -12,8 +12,11 @@ import javax.crypto.spec.SecretKeySpec;
 public final class SignRequest {
   public static void main(String[] args) throws Exception {
     if (args.length != 3) throw new IllegalArgumentException("METHOD RAW_PATH BODY_FILE required");
-    String secret = System.getenv("SCX_CHANNEL_SECRET");
-    if (secret == null || secret.isBlank()) throw new IllegalStateException("SCX_CHANNEL_SECRET is required");
+    String secret = System.getenv("SCX_MEDIA_SECRET");
+    String keyVersion = System.getenv("SCX_MEDIA_KEY_VERSION");
+    if (secret == null || secret.isBlank() || keyVersion == null || keyVersion.isBlank()) {
+      throw new IllegalStateException("SCX_MEDIA_SECRET and SCX_MEDIA_KEY_VERSION are required");
+    }
     byte[] body = Files.readAllBytes(Path.of(args[2]));
     String timestamp = Long.toString(Instant.now().toEpochMilli());
     String nonce = UUID.randomUUID().toString().replace("-", "");
@@ -22,8 +25,9 @@ public final class SignRequest {
     Mac mac = Mac.getInstance("HmacSHA256");
     mac.init(new SecretKeySpec(secret.getBytes(UTF_8), "HmacSHA256"));
     String signature = HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(UTF_8)));
-    System.out.println("X-Timestamp: " + timestamp);
-    System.out.println("X-Nonce: " + nonce);
-    System.out.println("X-Sign: " + signature);
+    System.out.println("X-OCPX-Key-Version: " + keyVersion);
+    System.out.println("X-OCPX-Timestamp: " + timestamp);
+    System.out.println("X-OCPX-Nonce: " + nonce);
+    System.out.println("X-OCPX-Signature: " + signature);
   }
 }

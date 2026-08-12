@@ -10,34 +10,27 @@ public final class UnifiedReportViews {
 	private UnifiedReportViews() {
 	}
 
-	public record MetricDefinition(String code, String label, String kind, String numerator, String denominator,
-			String status, boolean sensitive) {
+	public record MetricValue(long count, BigDecimal amount) {
 	}
 
-	public record MetricValue(BigDecimal value, BigDecimal numerator, BigDecimal denominator, String status) {
+	public record Record(String dimensionKey, String dimensionType, String dimensionName,
+			Map<String, MetricValue> metrics) {
 	}
 
-	public record Record(String dimensionKey, String dimensionType, Map<String, Object> dimensions,
-			Map<String, MetricValue> metrics, String qualityStatus, String finalityStatus, LocalDateTime asOf) {
+	public record Page(List<Record> records, long current, long size, long total,
+			Map<String, MetricValue> summary, LocalDateTime asOf) {
 	}
 
-	public record Summary(Map<String, MetricValue> metrics, String label) {
+	public record Option(String id, String code, String label, String status) {
 	}
 
-	public record Page(List<Record> records, long current, long size, long total, Summary pageSummary,
-			Summary querySummary, LocalDateTime asOf, String timezone, String freshnessStatus,
-			String metricDefinitionsVersion, List<MetricDefinition> metricDefinitions) {
+	public record Options(List<Option> advertisers, List<Option> promotionLinks, List<Option> media,
+			List<Option> monitorTasks) {
 	}
 
-	public record Option(String id, String label, String status) {
-	}
-
-	public record Options(List<Option> advertisers, List<Option> products, List<Option> appLinks, List<Option> tasks,
-			List<Option> channels, List<Option> mediaAccounts) {
-	}
-
-	public record ExportTask(String id, String type, String status, LocalDateTime expiresAt, String errorCode,
-			LocalDateTime createTime) {
+	public record Dashboard(Map<String, MetricValue> summary, List<Record> advertiserRanking,
+			List<Record> promotionLinkRanking, List<Record> mediaRanking, List<Record> monitorTaskRanking,
+			LocalDateTime asOf) {
 	}
 
 }

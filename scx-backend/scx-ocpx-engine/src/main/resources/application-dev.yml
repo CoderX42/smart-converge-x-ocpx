@@ -1,12 +1,6 @@
 spring:
   config:
     fail-on-unresolved-placeholders: false
-  data:
-    redis:
-      host: 47.120.19.150
-      password: IWzq76mM8ihEaY17U30P
-      port: 6379
-      database: 2
   datasource:
     dynamic:
       primary: master
@@ -18,12 +12,12 @@ spring:
           password: OqS5ZRBU1wBuEqLeHAQ3
           driver-class-name: com.mysql.cj.jdbc.Driver
 
-# 本地联调环境允许真实执行双向投递：
-# 1. 下游 CLICK Feedback 会真实请求 Coco Mock；
-# 2. Coco Callback 会真实回传到下游 Mock。
-# 生产环境仍在 application-prod.yml 中保持关闭，避免未完成 UAT 就外发。
 scx:
   ocpx:
-    debug-execution-enabled: true
-    upstream-delivery-enabled: true
-    downstream-delivery-enabled: true
+    partner-credentials:
+      # configKey:
+      #   version: 1
+      #   account: literal-account
+      #   secret: literal-secret
+      advertisers: {}
+      media: {}

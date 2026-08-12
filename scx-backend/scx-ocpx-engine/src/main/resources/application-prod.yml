@@ -1,13 +1,6 @@
 spring:
   config:
     fail-on-unresolved-placeholders: false
-  data:
-    redis:
-      host: redis-cnlfagupdyxgrkgqd.redis.ivolces.com
-      port: 6379
-      username: ocpxuser
-      password: OqS5ZRBU1wBuEqLeHAQ3
-      database: 0
   datasource:
     dynamic:
       primary: master
@@ -21,13 +14,11 @@ spring:
 
 scx:
   ocpx:
-    debug-execution-enabled: true
+    partner-credentials:
+      # Write literal values here, rebuild, then restart Engine in Baota.
+      advertisers: {}
+      media: {}
     public-base-url: https://ocpx.zhongsenyuedong.cn/ocpx
     # public-base-url: https://ocpx.example.com/ocpx
-    replica-acks-required: 1
     allow-http: false
     allow-private-addresses: false
-    upstream-delivery-enabled: false
-    downstream-delivery-enabled: false
-    device-hmac-key: 8f851e6a80d6d34f7cbff3ce3dc82b2920d0bd6f53d5da41b902681934ae7ce1
-    callback-token-key: 78713e2dd4ac23e6e42e3c9b25c2bbfd527986a33e2169b222286a4d8c5afdef

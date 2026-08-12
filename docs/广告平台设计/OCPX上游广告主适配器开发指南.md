@@ -1,286 +1,45 @@
-# SCX OCPX 上游广告主适配器开发指南
+# SCX OCPX V2 上游广告主 Adapter 开发指南
 
-> 适用版本：V70-V75 / OCPX Contract v1。本文面向 SCX 研发人员，用于接入 Coco 之外的广告主、代理平台或转化归因平台。新增上游不应复制一套接入、队列或重试服务，只实现协议差异并注册为 `UpstreamAdapter`。
+## Adapter 职责
 
-## 1. 接入边界
+SCX 参考 `sgyz-ocpx` 的 DSP 协议分流，但不在业务服务中按广告主 ID 写分支。上游合作方实现 `UpstreamAdapter`，只负责：
 
-SCX 把稳定流水线与第三方协议分开：
+- 声明支持的事件和协议能力；
+- 从 `UpstreamDeliveryContext` 构造广告主请求；
+- 根据 HTTP 与业务响应判断成功；
+- 从广告主 Callback 提取签名 `ext` 并归一化事件；
+- 构造广告主要求的 Callback 成功/失败响应。
 
-```text
-FeedbackReqV1
-  -> 标准化、幂等、Redis Stream、MySQL 事实
-  -> UpstreamAdapter.buildFeedback()
-  -> 上游 feedback API
+Adapter 不写数据库、不保存 Secret、不自行创建线程或调用 `subscribe()/block()`。当前统一层同步执行 HTTP，请求失败直接返回 502，不提供自动重试。
 
-上游 callback API
-  -> /open-api/ocpx/v1/upstreams/{upstreamCode}/callback
-  -> ext 校验与原路由快照恢复
-  -> UpstreamAdapter.parseCallback()
-  -> 扣量决策、CallbackReqV1、下游投递
-```
+## 运行上下文
 
-适配器只负责以下协议差异：
+`UpstreamDeliveryContext` 包含：
 
-- 上游支持哪些事件。
-- feedback 使用 GET、JSON POST 或表单 POST。
-- 字段、宏、签名和鉴权如何转换。
-- 哪些 HTTP 状态和响应体代表业务成功。
-- callback 参数如何映射为 SCX 规范事件。
-- 上游业务回调唯一键、金额与时间单位如何解释。
+- `partner`：从四张业务表读取的 `OcpxPartnerContext`；
+- `feedback`：媒体的 `FeedbackReqV2`；
+- `upstreamEventCode`：当前最小版本直接使用 Feedback 事件码；
+- `callbackUrl`：带短期签名 `ext` 的 SCX 回调地址；
+- `account/secret`：仅当次请求使用的 Engine 配置值。
 
-适配器不得自行创建线程池、队列、数据库事务、重试任务或扣量记录。这些能力由 `scx-ocpx-runtime` 统一提供。
+Adapter 必须使用 `partner.bidUrl()`、合作方协议字段和 `callbackUrl` 构造请求。账号和 Secret 不得进入 URL 日志、异常信息、流程日志或业务表。
 
-## 2. 对接前必须取得的协议资料
+## 实现要点
 
-没有下列信息时只能开发 Mock，不能启用真实外发：
+1. `code()` 使用稳定的大写 ASCII，并与广告主表的 `adapterCode` 一致。
+2. `supports()` 明确拒绝不支持的事件。
+3. 每个 URL 参数单独编码，未解析必填宏时失败关闭。
+4. `evaluateFeedbackResponse()` 同时检查 HTTP 和合作方业务码，并返回不含敏感数据的说明。
+5. `callbackToken()` 从合作方参数中取出 SCX 生成的 `ext`。
+6. `parseCallback()` 优先使用合作方稳定的 conversion/order ID，明确时间单位、时区和金额单位。
+7. `callbackSuccess()` / `callbackFailure()` 遵守合作方协议，不能统一假设任意 2xx 都代表业务成功。
 
-| 分类 | 必须确认的内容 |
-|---|---|
-| 环境 | 沙箱/生产 base URL、HTTPS 证书、DNS、IP 白名单 |
-| feedback | 方法、Content-Type、字段/宏、必填规则、编码、单次/批量 |
-| 鉴权 | Header/Query/Body 签名算法、密钥版本、时间窗、防重放规则 |
-| 成功语义 | HTTP 状态、业务 code、响应字段；不能默认所有 2xx 都成功 |
-| callback | 方法、参数、签名、来源 IP、成功响应、第三方重试策略 |
-| 事件 | 点击、激活、注册、留存、付费等事件的精确定义与时间窗口 |
-| 唯一键 | callback ID、订单号或事件 ID；是否可能存在同金额多次付费 |
-| 金额 | 元/分/厘、币种、含税规则、小数位、退款/冲正 |
-| 容量 | QPS、并发、超时、限流响应、日调用量、维护窗口 |
-| 合规 | 允许传输的设备标识、哈希算法、数据保留、删除要求 |
+## 配置与启用
 
-每个结论应写入该上游的协议说明或 UAT 记录。口头约定不能作为生产成功条件。
+1. 实现并注册 Adapter Bean。
+2. 广告主保存 Adapter 代码、上游 URL、宏、host 白名单和 `credentialConfigKey + version`。
+3. 在 Engine `application-dev.yml` / `application-prod.yml` 的 `scx.ocpx.partner-credentials.advertisers.<configKey>` 写字面量 `version/account/secret`。
+4. 重新打包并由宝塔重启 Engine。
+5. 创建广告主所属推广链接、媒体和 ACTIVE 监测任务。
 
-## 3. 命名与配置
-
-- `adapter_code` 使用稳定的大写 ASCII，例如 `TENCENT_ADS`，发布后不得改变语义。
-- Java 类建议命名为 `TencentAdsUpstreamAdapter`。
-- callback 地址固定为：
-
-```text
-https://{SCX_OCPX_ENGINE_DOMAIN}/ocpx/open-api/ocpx/v1/upstreams/{lowercase-adapter-code}/callback
-```
-
-- 广告主记录配置该 `adapter_code`、上报 URL/模板、密钥、必填宏和精确域名白名单。
-- 监测链接绑定渠道与广告主。发布后生成不可变路由版本；历史事件继续使用接收时的路由快照。
-- 密钥只写入后端配置/管理端密钥字段，接口只返回“已配置”，禁止放入前端、日志、URL 诊断参数或 Git 文档。
-
-### 3.1 `TEMPLATE_GET` 基础兼容适配器
-
-V71 注册 `TEMPLATE_GET`，用于承接 `sgyz-ocpx` 一类“SHOW/CLICK GET 宏模板 -> 广告主 callback”的基础流程。它支持标准字段宏和旧系统常见别名，包括：
-
-- 事件与时间：`__EVENT__`、`__EVENT_ID__`、`__EVENT_TIME__`、`__TS__`、`__MTS__`、`__REQUEST_ID__`。
-- 路由：`__CHANNEL_ID__`、`__DSP_ID__`、`__LINK_ID__`、`__TASK_ID__`、`__MONITOR_ID__`、`__BIZ_ID__`。
-- 设备：IDFA、IMEI、OAID、CAID、Android ID、AAID、GAID、IDFV、IP、UA、OS、MODEL 及常见 MD5 别名。
-- 回调：`__CALLBACK__`、`__CALLBACK_URL__`。
-
-通用 callback 路径本身不规定参数和响应，只按 `upstreamCode` 选择适配器。当前 `TEMPLATE_GET` 适配器接受 `action_type` 或 `event`，优先使用 `conversion_id/event_id/order_id` 生成稳定幂等 ID，并读取 `event_time/action_time` 与 `currency_amount/amount`。支持激活、首活、唤起、登录、注册、付费、获客、D2–D7、访问、认证、下单、完单、模糊留存和再激活等规范事件；适配器不得把模糊留存静默改成某日留存。
-
-`TEMPLATE_GET` 只把已明确的公共字段做模板替换，并以 HTTP 2xx 作为成功；如果合作方要求签名、加密、POST body、特殊业务成功码或自定义 callback 验签，必须新增专用适配器，不能直接选用它上线。
-
-## 4. 实现 UpstreamAdapter
-
-接口位于：
-
-```text
-scx-backend/scx-ocpx-contract/src/main/java/com/yzytech/scx/ocpx/contract/UpstreamAdapter.java
-```
-
-实现类放在：
-
-```text
-scx-backend/scx-ocpx-runtime/src/main/java/com/yzytech/scx/ocpx/runtime/adapter/
-```
-
-最小骨架：
-
-```java
-@Component
-public class ExampleUpstreamAdapter implements UpstreamAdapter {
-
-    @Override
-    public String code() {
-        return "EXAMPLE";
-    }
-
-    @Override
-    public AdapterCapabilities capabilities() {
-        return new AdapterCapabilities(
-            "UPSTREAM",
-            Set.of(OcpxEventType.CLICK),
-            Set.of("POST"),
-            Set.of("HMAC"),
-            Duration.ofSeconds(3),
-            Set.of("__CLICKID__", "__CALLBACK__"),
-            true
-        );
-    }
-
-    @Override
-    public boolean supports(OcpxEventType eventType) {
-        return eventType == OcpxEventType.CLICK;
-    }
-
-    @Override
-    public Mono<AdapterHttpRequest> buildFeedback(
-            RouteSnapshot route,
-            FeedbackReqV1 feedback,
-            String callbackUrl) {
-        // 只构造协议请求；不要在这里发 HTTP、写库或启动异步任务。
-        return Mono.error(new UnsupportedOperationException("implement protocol mapping"));
-    }
-
-    @Override
-    public Mono<AdapterDeliveryResult> evaluateFeedbackResponse(AdapterHttpResponse response) {
-        // 同时校验 HTTP 与已确认的业务 code，并返回稳定失败原因。
-        return Mono.just(response.statusCode() == 200
-            ? AdapterDeliveryResult.success(null, null)
-            : AdapterDeliveryResult.failure("EXAMPLE_HTTP_" + response.statusCode(), null, null));
-    }
-
-    @Override
-    public Mono<String> callbackToken(Map<String, String> parameters) {
-        // token 参数名属于上游协议；不能假定所有上游都使用 ext。
-        return Mono.justOrEmpty(parameters.get("vendor_token"));
-    }
-
-    @Override
-    public Mono<NormalizedCallbackEvent> parseCallback(
-            String callbackRef,
-            Map<String, String> parameters) {
-        // 校验必填参数、映射事件、生成稳定事件 ID、解释时间和金额。
-        return Mono.error(new UnsupportedOperationException("implement callback mapping"));
-    }
-
-    @Override
-    public Mono<UpstreamCallbackResponse> callbackSuccess(
-            Map<String, String> parameters, String eventId, String status) {
-        // HTTP 状态、headers 和 Body 都严格按当前上游文档返回。
-        return Mono.just(new UpstreamCallbackResponse(200, Map.of(), Map.of("vendor_code", 0)));
-    }
-
-    @Override
-    public Mono<UpstreamCallbackResponse> callbackFailure(
-            Map<String, String> parameters, int httpStatus, String message) {
-        return Mono.just(new UpstreamCallbackResponse(
-            httpStatus, Map.of(), Map.of("vendor_code", 1, "vendor_message", message)));
-    }
-}
-```
-
-Spring 会收集所有 Bean，由 `AdapterRegistry` 按 `code()` 建立不可变 Map。通用 Controller 只负责选择 adapter 并原样输出 `UpstreamCallbackResponse`，不会解释媒体参数或响应字段；核心流水线不需要增加 `if/else` 或广告主 ID 枚举。
-
-所有协议方法都返回 `Mono`。Adapter 只描述转换和响应判定，不得调用 `subscribe()`、`block()`、自行切换 Scheduler 或创建线程池；WebFlux Controller 和后台 Worker 是统一订阅边界。当前同步 JDBC/Redis 由 Runtime 的 `ReactiveBlockingExecutor` 隔离到 `boundedElastic`，Adapter 不感知存储线程模型。
-
-### 4.1 buildFeedback 规则
-
-1. 只处理 `supports()` 声明支持的事件。
-2. 参数值逐个进行符合第三方规范的 URL/JSON/表单编码，禁止整条 URL 字符串拼接后再整体编码。
-3. 缺失可选宏可置空；缺失必填宏必须抛出受控异常，让统一投递任务进入重试/死亡任务。
-4. callback 必须使用传入的 `callbackUrl`，不能自行把完整 `FeedbackReqV1` 放入 URL。
-5. callback 的 `ext` 是 SCX 签发的不可猜测引用；上游返回的业务参数不能替代它决定路由。
-6. 对 Header/Body 签名时使用广告主当前密钥和版本；不得记录签名原文中的设备标识。
-7. 只返回 `AdapterHttpRequest`；SSRF、超时、连接池、熔断、并发隔离和重试由统一 HTTP 层处理。
-
-### 4.2 evaluateFeedbackResponse 规则
-
-如果上游采用 `HTTP 200 + {"code":500}` 表示失败，就必须返回 `AdapterDeliveryResult.failure(...)`，并提供不含敏感信息的稳定原因。只有以下内容均明确后才能写成功判断：
-
-- 可接受的 HTTP 状态。
-- 业务 code/字段。
-- 空响应、非 JSON、重复请求的语义。
-- 限流、鉴权失败、参数错误是否可重试。
-
-当前统一任务最多投递 5 次，退避为 1/2/5/10 分钟。若某上游要求其他策略，应先形成 ADR/RFC，不要在适配器内部休眠重试。
-
-### 4.3 parseCallback 规则
-
-- 校验第三方必填参数与签名，但路由关系只能由已验证的 `callbackRef` 恢复。
-- 映射到 `OcpxEventType`，不得把未知事件静默映射为任意已知事件。
-- `eventId` 优先使用上游稳定 callback ID/订单号，并纳入上游标识；没有唯一键时必须制定可解释的指纹规则。
-- 同一订单的重试必须得到同一 `eventId`；不同订单即使金额相同也必须不同。
-- `actionTime` 使用上游真实发生时间并明确时区，不应无条件使用服务器接收时间。
-- 金额同时保留 `amountRaw`；只有金额单位、币种和精度确认后才填写规范 `amount`。
-- 无效请求抛出 `IllegalArgumentException`；入口会返回该上游约定的失败结果，不得先返回成功再异步丢弃。
-
-## 5. 注册与发布
-
-新适配器代码完成后，还需要在 `scx_ocpx_adapter` 注册能力。建议使用新的前向迁移，不修改已发布的 V70：
-
-```sql
-INSERT INTO scx_ocpx_adapter
-  (adapter_code, adapter_name, direction, status, capabilities_json, create_time, update_time)
-VALUES
-  ('EXAMPLE', 'Example 广告主', 'UPSTREAM', 'ACTIVE',
-   JSON_OBJECT(
-     'contractVersion', '1.0',
-     'protocolKind', 'DEDICATED',
-     'feedbackMethod', 'POST',
-     'callbackMethod', 'GET',
-     'auth', 'HMAC',
-     'callback', TRUE,
-     'timeoutMs', 3000,
-     'supportedMacros', JSON_ARRAY('__CLICKID__', '__CALLBACK__'),
-     'requiredUrlMacros', JSON_ARRAY('__CALLBACK__'),
-     'requiredAnyUrlMacros', JSON_ARRAY()
-   ), NOW(3), NOW(3))
-ON DUPLICATE KEY UPDATE
-  adapter_name=VALUES(adapter_name),
-  status=VALUES(status),
-  capabilities_json=VALUES(capabilities_json),
-  update_time=NOW(3);
-```
-
-随后：
-
-1. 管理端创建/更新广告主，选择 `EXAMPLE`。
-2. 填写沙箱 URL、密钥、必填宏和精确 host 白名单。
-3. 创建监测链接，保持 `DRAFT`。
-4. 发布校验通过后生成新 `config_version` 和配置 Outbox。
-5. `scx-ocpx-engine` 收到通知后原子替换本地路由索引；60 秒轮询兜底。
-
-代码 Bean 与数据库记录必须同时存在。只有数据库记录会在运行时找不到 Bean；只有 Bean 会在管理端发布校验失败。
-
-## 6. 必须补充的自动化测试
-
-每个上游适配器至少覆盖：
-
-- 每一个支持事件及不支持事件。
-- 所有宏/字段映射、空值、中文、空格、`+`、`&`、`?` 和 Unicode 编码。
-- 鉴权签名固定向量测试。
-- 2xx 业务成功、2xx 业务失败、4xx、5xx、超时和异常响应体。
-- callback 新增、重复、参数缺失、签名错误、过期/篡改 `ext`。
-- 事件类型映射、未知事件、业务时间与时区。
-- 多笔同金额付费、重复订单、金额负数/超长/精度/单位。
-- 路由发布后变更，历史 callback 仍使用原路由快照。
-- 日志中不出现完整 URL、设备 ID、密钥、签名或 callback 参数。
-
-协议单测之外，使用 WireMock 完成 feedback 与 callback 双向集成测试。真实 UAT 不能由 WireMock 替代。
-
-## 7. 沙箱与生产放行顺序
-
-1. 外发关闭：只验证下游 feedback 接收、标准化、入队和落库。
-2. 打开上游沙箱 feedback：核对请求、成功语义、限流和重试。
-3. 开放上游 callback：保持下游外发关闭，核对事件映射与幂等。
-4. 打开下游影子/Mock 回调，核对扣量决策和报表。
-5. 单路由灰度真实下游 callback。
-6. 完成对账、故障演练、容量验收和双方签字 UAT 后申请生产发布。
-
-数据库迁移、真实外发开关、第三方生产凭据和生产部署均需要单独授权。
-
-## 8. Coco 可复用与不可复用部分
-
-可直接复用：
-
-- `UpstreamAdapter` SPI 与 Spring Bean 注册。
-- Redis/MySQL 可靠链路、callback 引用、统一重试、DLQ、扣量与审计。
-- HTTPS/域名白名单/私网 DNS/禁止重定向校验。
-- `CocoUpstreamAdapter` 的宏替换、URL 编码和测试组织方式。
-
-不能直接照搬：
-
-- Coco 只支持 CLICK 的限制。
-- “任意 HTTP 2xx 成功”的临时判断。
-- Coco 的事件名称和 `currency_amount`。
-- 无业务 callback ID 时使用参数指纹的退化方案。
-- Coco 当前无鉴权的能力声明。
-
-每个新上游都必须依据其正式协议重新确认这些差异。
+配置键缺失、版本不匹配、事件不支持、URL 安全校验失败或合作方业务拒绝都会使当前请求失败；不会产生后台重试任务。

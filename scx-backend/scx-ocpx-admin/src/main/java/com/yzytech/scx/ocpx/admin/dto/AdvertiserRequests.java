@@ -1,47 +1,34 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-
-import java.util.List;
 
 public final class AdvertiserRequests {
 
 	private AdvertiserRequests() {
 	}
 
-	public record Create(@NotBlank @Size(max = 64) String name,
-			@NotBlank @Pattern(regexp = "^[a-z0-9_-]{2,32}$") String code,
-			@NotBlank @Size(max = 100) String account, @NotBlank @Size(min = 8, max = 72) String password,
-			@Size(max = 32) List<@Size(max = 64) String> roleIds,
-			@Size(max = 128) List<@Size(max = 64) String> extraMenuIds,
-			@jakarta.validation.Valid Integration integration) {
+	public record Create(@NotBlank @Size(max = 128) String name,
+			@NotBlank @Pattern(regexp = "^[a-z0-9_-]{2,64}$") String code,
+			@NotBlank @Size(max = 64) String adapterCode, @NotBlank @Size(max = 128) String credentialConfigKey,
+			@NotNull @Min(1) Long credentialVersion, @NotBlank @Size(max = 5000) String bidUrl,
+			@Size(max = 4000) String macroParams, @Size(max = 2000) String upstreamHostAllowlist) {
 	}
 
-	public record Integration(@NotBlank @Size(max = 32) String adapterKey, @Size(max = 5000) String bidUrl,
-			@Size(max = 1000) String macroParams, @Size(max = 1000) String upstreamHostAllowlist,
-			@Size(min = 16, max = 4096) String credentialInput) {
-	}
-
-	public record Update(@NotBlank @Size(max = 64) String name, @Size(max = 32) String adapterKey,
-			@Size(max = 5000) String bidUrl, @Size(max = 1000) String macroParams,
-			@Size(max = 1000) String upstreamHostAllowlist, @NotNull Long expectedVersion) {
-	}
-
-	public record RotateCredential(@NotBlank @Size(min = 16, max = 4096) String credentialInput,
-			@NotNull Long expectedCredentialRevision, @NotBlank @Size(max = 255) String reason) {
+	public record Update(@NotBlank @Size(max = 128) String name, @NotBlank @Size(max = 64) String adapterCode,
+			@NotBlank @Size(max = 128) String credentialConfigKey, @NotNull @Min(1) Long credentialVersion,
+			@NotBlank @Size(max = 5000) String bidUrl, @Size(max = 4000) String macroParams,
+			@Size(max = 2000) String upstreamHostAllowlist, @NotNull @Min(1) Long expectedVersion) {
 	}
 
 	public record ChangeStatus(@NotBlank @Pattern(regexp = "ACTIVE|DISABLED") String status,
-			@NotNull Long expectedVersion, @NotBlank @Size(max = 255) String reason, boolean confirmed) {
+			@NotNull @Min(1) Long expectedVersion) {
 	}
 
-	public record SetCurrentDocument(@NotNull Long expectedVersion) {
-	}
-
-	public record RetireDocument(@NotBlank @Size(max = 255) String reason) {
+	public record VersionedAction(@NotNull @Min(1) Long expectedVersion) {
 	}
 
 }

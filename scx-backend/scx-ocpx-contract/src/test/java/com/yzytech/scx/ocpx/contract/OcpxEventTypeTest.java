@@ -45,10 +45,14 @@ class OcpxEventTypeTest {
 	@Test
 	void normalizesFeedbackPropertyOrderForIdempotency() throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
-		FeedbackReqV1 left = mapper.readValue("{\"event\":\"click\",\"monitor_id\":\"m1\",\"ext\":{\"b\":2,\"a\":1}}",
-				FeedbackReqV1.class);
-		FeedbackReqV1 right = mapper.readValue("{\"ext\":{\"a\":1,\"b\":2},\"monitor_id\":\"m1\",\"event\":\"click\"}",
-				FeedbackReqV1.class);
+		FeedbackReqV2 left = mapper.readValue("""
+				{"event":"click","monitor_task_id":"m1","event_id":"e1","event_time":1,
+				 "device":{"b":2,"a":1}}
+				""", FeedbackReqV2.class);
+		FeedbackReqV2 right = mapper.readValue("""
+				{"device":{"a":1,"b":2},"event_time":1,"event_id":"e1",
+				 "monitor_task_id":"m1","event":"click"}
+				""", FeedbackReqV2.class);
 
 		var writer = mapper.writer().with(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 		assertEquals(writer.writeValueAsString(left), writer.writeValueAsString(right));

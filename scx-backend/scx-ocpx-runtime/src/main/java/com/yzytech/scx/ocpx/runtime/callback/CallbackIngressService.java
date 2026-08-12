@@ -1,105 +1,142 @@
 package com.yzytech.scx.ocpx.runtime.callback;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yzytech.scx.ocpx.contract.AdapterDeliveryResult;
+import com.yzytech.scx.ocpx.contract.AdapterHttpRequest;
+import com.yzytech.scx.ocpx.contract.CallbackReqV2;
+import com.yzytech.scx.ocpx.contract.DownstreamAdapter;
+import com.yzytech.scx.ocpx.contract.DownstreamDeliveryContext;
 import com.yzytech.scx.ocpx.contract.NormalizedCallbackEvent;
+import com.yzytech.scx.ocpx.contract.OcpxPartnerContext;
 import com.yzytech.scx.ocpx.contract.UpstreamAdapter;
-import com.yzytech.scx.ocpx.contract.OcpxEventType;
-import com.yzytech.scx.ocpx.contract.RouteEventSnapshot;
-import com.yzytech.scx.ocpx.runtime.deduction.DeductionService;
+import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
+import com.yzytech.scx.ocpx.runtime.config.CallbackTokenService;
+import com.yzytech.scx.ocpx.runtime.config.PartnerContextRepository;
+import com.yzytech.scx.ocpx.runtime.config.PartnerCredentialResolver;
+import com.yzytech.scx.ocpx.runtime.delivery.DeliveryHttpClient;
 import com.yzytech.scx.ocpx.runtime.error.OcpxException;
-import com.yzytech.scx.ocpx.runtime.model.CallbackContext;
-import com.yzytech.scx.ocpx.runtime.persistence.OcpxPersistenceRepository;
-import com.yzytech.scx.ocpx.runtime.security.CallbackTokenService;
+import com.yzytech.scx.ocpx.runtime.persistence.OcpxFlowLogRepository;
 import com.yzytech.scx.ocpx.runtime.support.ReactiveBlockingExecutor;
+import com.yzytech.scx.ocpx.runtime.util.OcpxHashing;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.DateTimeException;
 import java.util.Map;
+import java.util.TreeMap;
 
+/** Synchronous upstream Callback -> downstream media forwarding. */
 @Service
 public class CallbackIngressService {
 
-	private final CallbackTokenService tokenService;
-
-	private final OcpxPersistenceRepository repository;
-
-	private final DeductionService deductionService;
-
+	private final ObjectMapper objectMapper;
+	private final PartnerContextRepository contexts;
+	private final CallbackTokenService callbackTokens;
+	private final PartnerCredentialResolver credentials;
+	private final AdapterRegistry adapters;
+	private final DeliveryHttpClient httpClient;
+	private final OcpxFlowLogRepository flowLogs;
 	private final ReactiveBlockingExecutor blockingExecutor;
 
-	public CallbackIngressService(CallbackTokenService tokenService, OcpxPersistenceRepository repository,
-			DeductionService deductionService, ReactiveBlockingExecutor blockingExecutor) {
-		this.tokenService = tokenService;
-		this.repository = repository;
-		this.deductionService = deductionService;
+	public CallbackIngressService(ObjectMapper objectMapper, PartnerContextRepository contexts,
+			CallbackTokenService callbackTokens, PartnerCredentialResolver credentials, AdapterRegistry adapters,
+			DeliveryHttpClient httpClient, OcpxFlowLogRepository flowLogs,
+			ReactiveBlockingExecutor blockingExecutor) {
+		this.objectMapper = objectMapper;
+		this.contexts = contexts;
+		this.callbackTokens = callbackTokens;
+		this.credentials = credentials;
+		this.adapters = adapters;
+		this.httpClient = httpClient;
+		this.flowLogs = flowLogs;
 		this.blockingExecutor = blockingExecutor;
 	}
 
-	/** 上游 callback 的校验、归一化、扣量与可靠落库响应式编排。 */
-	public Mono<Result> accept(UpstreamAdapter adapter, Map<String, String> parameters) {
-		return accept(adapter, parameters, null);
-	}
-
-	public Mono<Result> accept(UpstreamAdapter adapter, Map<String, String> parameters, String debugExecutionId) {
+	public Mono<Result> accept(String advertiserCode, UpstreamAdapter adapter, Map<String, String> parameters) {
 		return adapter.callbackToken(parameters)
-			.switchIfEmpty(Mono.error(new IllegalArgumentException("callback token is required")))
-			.flatMap(token -> blockingExecutor.call(() -> tokenService.verify(token)))
-			.flatMap(callbackRef -> blockingExecutor.call(() -> repository.requireCallbackContext(callbackRef))
-				.flatMap(context -> parseAndPersist(adapter, parameters, callbackRef,
-						debugExecutionId == null ? context
-								: new CallbackContext(context.callbackRef(), context.feedbackEventId(), context.route(),
-										context.feedback(), debugExecutionId))))
+			.switchIfEmpty(Mono.error(new OcpxException(HttpStatus.BAD_REQUEST, "callback reference is required")))
+			.flatMap(token -> prepare(advertiserCode, adapter, token, parameters))
+			.flatMap(this::deliver)
 			.onErrorMap(IllegalArgumentException.class,
-					error -> new OcpxException(HttpStatus.BAD_REQUEST, error.getMessage()));
+					error -> new OcpxException(HttpStatus.BAD_REQUEST, error.getMessage()))
+			.onErrorMap(DateTimeException.class,
+					error -> new OcpxException(HttpStatus.BAD_REQUEST, "callback time is invalid"))
+			.onErrorMap(IllegalStateException.class,
+					error -> new OcpxException(HttpStatus.SERVICE_UNAVAILABLE,
+							"partner configuration is unavailable"));
 	}
 
-	private Mono<Result> parseAndPersist(UpstreamAdapter adapter, Map<String, String> parameters, String callbackRef,
-			CallbackContext context) {
-		if (!adapter.code().equalsIgnoreCase(context.route().upstreamAdapterCode())) {
-			return Mono.error(new OcpxException(HttpStatus.BAD_REQUEST, "callback upstream does not match route"));
-		}
-		return adapter.parseCallback(callbackRef, parameters)
-			.map(parsed -> mapEvent(parsed, context))
-			.flatMap(callback -> deductionService.decide(callback.eventId(), context.route(), callback.eventType())
-				.flatMap(decision -> blockingExecutor
-					.call(() -> repository.persistCallback(callback, context, decision.forwarded(), decision.reason()))
-					.map(result -> toResult(callback.eventId(), result))));
-	}
-
-	private NormalizedCallbackEvent mapEvent(NormalizedCallbackEvent parsed, CallbackContext context) {
-		String rawCode = parsed.sourceEventCode();
-		if (context.route().eventSnapshotVersion() == 0) {
-			if (!"LEGACY_ADAPTER".equals(context.route().eventMappingMode())) {
-				throw new OcpxException(HttpStatus.UNPROCESSABLE_ENTITY,
-						"route has no event snapshot; explicit legacy adapter mode is required");
+	private Mono<Work> prepare(String advertiserCode, UpstreamAdapter adapter, String token,
+			Map<String, String> parameters) {
+		return blockingExecutor.call(() -> {
+			CallbackTokenService.Payload payload = callbackTokens.verify(token);
+			OcpxPartnerContext context = contexts.findForCallback(advertiserCode, payload.monitorTaskId())
+				.orElseThrow(() -> new OcpxException(HttpStatus.NOT_FOUND, "active monitor task not found"));
+			if (!adapter.code().equalsIgnoreCase(context.upstreamAdapterCode())) {
+				throw new OcpxException(HttpStatus.BAD_REQUEST, "callback advertiser does not match monitor task");
 			}
-			String legacyCode = parsed.eventType().name();
-			RouteEventSnapshot legacyMapping = new RouteEventSnapshot("LEGACY", legacyCode, legacyCode, legacyCode,
-					legacyCode, legacyCode, legacyCode, BigDecimal.ZERO, 0);
-			return parsed.mapped(context.feedbackEventId(), parsed.eventType(), legacyMapping);
-		}
-		RouteEventSnapshot mapping = context.route()
-			.eventMappings()
-			.stream()
-			.filter(item -> item.upstreamEventCode().equalsIgnoreCase(rawCode)
-					|| item.upstreamEventCode().equalsIgnoreCase(parsed.eventType().name()))
-			.findFirst()
-			.orElseThrow(() -> new OcpxException(HttpStatus.UNPROCESSABLE_ENTITY,
-					"event is not mapped for the click route version"));
-		return parsed.mapped(context.feedbackEventId(), OcpxEventType.fromConversionCode(mapping.conversionEventCode()),
-				mapping);
+			if (!StringUtils.hasText(context.downstreamCallbackUrl())) {
+				throw new OcpxException(HttpStatus.UNPROCESSABLE_ENTITY, "media callback URL is not configured");
+			}
+			return new Prepared(context, payload);
+		}).flatMap(prepared -> adapter.parseCallback(token, parameters).map(event -> build(prepared, event, parameters)));
 	}
 
-	private Result toResult(String eventId, OcpxPersistenceRepository.CallbackPersistenceResult result) {
-		return switch (result.status()) {
-			case "DUPLICATE" -> new Result(eventId, "DUPLICATE");
-			case "LIMIT_EXCEEDED" -> throw new OcpxException(HttpStatus.TOO_MANY_REQUESTS,
-					"daily callback limit exceeded; retry after next Asia/Shanghai natural day");
-			case "INSUFFICIENT_BALANCE" -> throw new OcpxException(HttpStatus.PAYMENT_REQUIRED,
-					"advertiser balance is insufficient; recharge and retry the same event");
-			default -> new Result(eventId, "ACCEPTED");
-		};
+	private Work build(Prepared prepared, NormalizedCallbackEvent event, Map<String, String> parameters) {
+		OcpxPartnerContext context = prepared.context();
+		DownstreamAdapter downstream = adapters.requireDownstream(context.downstreamAdapterCode());
+		PartnerCredentialResolver.ResolvedCredential credential = credentials.requireMedia(context.mediaAuthType(),
+				context.mediaCredentialConfigKey(), context.mediaCredentialVersion());
+		CallbackReqV2 callback = new CallbackReqV2("2.0", event.eventId(), prepared.payload().sourceEventId(),
+				event.sourceEventCode(), event.actionTime(), event.amount(), event.amountRaw(),
+				prepared.payload().clickId(), context.monitorTaskId(), Map.of());
+		AdapterHttpRequest request = downstream
+			.buildCallback(new DownstreamDeliveryContext(context, callback, credential.account(), credential.secret()));
+		String payloadHash;
+		try {
+			payloadHash = OcpxHashing.sha256(objectMapper.writeValueAsString(new TreeMap<>(parameters)));
+		}
+		catch (Exception error) {
+			throw new IllegalArgumentException("callback parameters cannot be normalized", error);
+		}
+		return new Work(context, callback, downstream, request, payloadHash, System.nanoTime());
+	}
+
+	private Mono<Result> deliver(Work work) {
+		return httpClient.exchange(work.request()).onErrorResume(error -> log(work, "FAILED", null,
+				safeMessage(error)).then(Mono.error(new OcpxException(HttpStatus.BAD_GATEWAY,
+				"downstream callback delivery failed")))).flatMap(response -> {
+			AdapterDeliveryResult result = work.adapter().evaluateCallbackResponse(response);
+			String message = result.success() ? "partner accepted" : result.reason();
+			return log(work, result.success() ? "SUCCESS" : "FAILED", response.statusCode(), message)
+				.then(result.success() ? Mono.just(new Result(work.callback().eventId(), "ACCEPTED"))
+						: Mono.error(new OcpxException(HttpStatus.BAD_GATEWAY,
+								"downstream rejected callback: " + result.reason())));
+		});
+	}
+
+	private Mono<Void> log(Work work, String status, Integer partnerHttpStatus, String message) {
+		long duration = Math.max(0, (System.nanoTime() - work.started()) / 1_000_000);
+		OffsetDateTime eventTime = work.callback().actionTime() == null ? OffsetDateTime.now(ZoneOffset.UTC)
+				: work.callback().actionTime();
+		return blockingExecutor.run(() -> flowLogs.record(work.context(), "CALLBACK", work.callback().eventId(),
+				work.callback().sourceEventId(), work.callback().event(), work.payloadHash(), status, partnerHttpStatus,
+				message, duration, eventTime));
+	}
+
+	private String safeMessage(Throwable error) {
+		return "transport error: " + error.getClass().getSimpleName();
+	}
+
+	private record Prepared(OcpxPartnerContext context, CallbackTokenService.Payload payload) {
+	}
+
+	private record Work(OcpxPartnerContext context, CallbackReqV2 callback, DownstreamAdapter adapter,
+			AdapterHttpRequest request, String payloadHash, long started) {
 	}
 
 	public record Result(String eventId, String status) {

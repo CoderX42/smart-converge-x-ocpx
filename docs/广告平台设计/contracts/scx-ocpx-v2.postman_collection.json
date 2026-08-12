@@ -1,0 +1,9 @@
+{
+  "info": { "name": "SCX OCPX v2", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:10000/ocpx" }, { "key": "mediaCode", "value": "media_demo" }, { "key": "advertiserCode", "value": "adv_demo" }, { "key": "keyVersion", "value": "1" }, { "key": "timestamp", "value": "" }, { "key": "nonce", "value": "" }, { "key": "signature", "value": "" }, { "key": "taskCode", "value": "task_demo" }],
+  "item": [
+    { "name": "媒体 FeedbackReqV2", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-OCPX-Key-Version", "value": "{{keyVersion}}" }, { "key": "X-OCPX-Timestamp", "value": "{{timestamp}}" }, { "key": "X-OCPX-Nonce", "value": "{{nonce}}" }, { "key": "X-OCPX-Signature", "value": "{{signature}}" }], "url": "{{baseUrl}}/open-api/ocpx/v2/media/{{mediaCode}}/feedback", "body": { "mode": "raw", "raw": "{\"schema_version\":\"2.0\",\"monitor_task_id\":\"task_demo\",\"event\":\"CLICK\",\"event_id\":\"evt_demo\",\"event_time\":{{$timestamp}}}" } } },
+    { "name": "广告主 CallbackV2", "request": { "method": "GET", "url": "{{baseUrl}}/open-api/ocpx/v2/advertisers/{{advertiserCode}}/callback?ext=callback_ref" } },
+    { "name": "公共监测地址", "request": { "method": "GET", "url": "{{baseUrl}}/c/{{taskCode}}" } }
+  ]
+}

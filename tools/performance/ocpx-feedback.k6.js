@@ -4,12 +4,12 @@ import http from 'k6/http';
 import { check } from 'k6';
 
 const target = required('OCPX_TARGET');
-const channelCode = required('OCPX_CHANNEL_CODE');
-const monitorId = required('OCPX_MONITOR_ID');
-const secret = required('OCPX_CHANNEL_SECRET');
+const mediaCode = required('OCPX_MEDIA_CODE');
+const monitorTaskId = required('OCPX_MONITOR_TASK_ID');
+const secret = required('OCPX_MEDIA_SECRET');
 const keyVersion = __ENV.OCPX_KEY_VERSION || '1';
-const rate = Number(__ENV.OCPX_RATE || '20000');
-const duration = __ENV.OCPX_DURATION || '30m';
+const rate = Number(__ENV.OCPX_RATE || '10');
+const duration = __ENV.OCPX_DURATION || '30s';
 
 export const options = {
   discardResponseBodies: true,
@@ -17,15 +17,15 @@ export const options = {
     accepted_feedback: {
       executor: 'constant-arrival-rate',
       duration,
-      maxVUs: Number(__ENV.OCPX_MAX_VUS || '5000'),
-      preAllocatedVUs: Number(__ENV.OCPX_PREALLOCATED_VUS || '1000'),
+      maxVUs: Number(__ENV.OCPX_MAX_VUS || '100'),
+      preAllocatedVUs: Number(__ENV.OCPX_PREALLOCATED_VUS || '20'),
       rate,
       timeUnit: '1s',
     },
   },
   thresholds: {
     checks: ['rate>=0.999'],
-    http_req_duration: ['p(95)<=50', 'p(99)<=100'],
+    http_req_duration: ['p(95)<=3000'],
     http_req_failed: ['rate<=0.001'],
   },
 };
@@ -34,18 +34,22 @@ export default function () {
   const unique = `${exec.instance.idInTest}-${exec.scenario.iterationInTest}`;
   const eventId = `load-${unique}`;
   const body = JSON.stringify({
-    schema_version: '1.0',
+    schema_version: '2.0',
     event_id: eventId,
     event: 'click',
-    monitor_id: monitorId,
-    clickid: eventId,
-    oaid: crypto.sha256(`device-${unique}`, 'hex'),
-    ip: '203.0.113.10',
-    ua: 'SCX-OCPX-Capacity/1.0',
-    os: 'android',
-    model: 'capacity-test',
-    creative_id: 'capacity-creative',
+    monitor_task_id: monitorTaskId,
+    click_id: eventId,
     event_time: Date.now(),
+    device: {
+      model: 'capacity-test',
+      oaid: crypto.sha256(`device-${unique}`, 'hex'),
+      os: 'android',
+    },
+    extensions: {
+      creative_id: 'capacity-creative',
+      ip: '203.0.113.10',
+      ua: 'SCX-OCPX-Capacity/2.0',
+    },
   });
   const timestamp = String(Date.now());
   const nonce = crypto.sha256(`nonce-${unique}-${timestamp}`, 'hex').slice(0, 32);
@@ -56,13 +60,12 @@ export default function () {
   const response = http.post(target, body, {
     headers: {
       'Content-Type': 'application/json',
-      'X-Client-Id': channelCode,
-      'X-Key-Version': keyVersion,
-      'X-Nonce': nonce,
-      'X-Sign': signature,
-      'X-Timestamp': timestamp,
+      'X-OCPX-Key-Version': keyVersion,
+      'X-OCPX-Nonce': nonce,
+      'X-OCPX-Signature': signature,
+      'X-OCPX-Timestamp': timestamp,
     },
-    tags: { endpoint: 'ocpx-feedback' },
+    tags: { endpoint: `ocpx-feedback-${mediaCode}` },
   });
 
   check(response, {

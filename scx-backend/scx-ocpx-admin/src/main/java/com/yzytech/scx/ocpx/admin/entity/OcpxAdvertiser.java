@@ -6,10 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -25,38 +23,15 @@ public class OcpxAdvertiser {
 
 	private String adapterCode;
 
-	private Long adapterVersion;
-
 	private String bidUrl;
 
-	@JsonIgnore
-	private String secretKey;
+	private String credentialConfigKey;
 
-	@JsonIgnore
-	private String credentialRef;
-
-	private Long credentialRevision;
-
-	private String currentDocumentId;
-
-	private Long documentRevision;
-
-	@JsonIgnore
-	private String createRequestKey;
-
-	@JsonIgnore
-	private String createRequestHash;
+	private Long credentialVersion;
 
 	private String macroParams;
 
 	private String upstreamHostAllowlist;
-
-	private String account;
-
-	@JsonIgnore
-	private String passwordHash;
-
-	private BigDecimal balance;
 
 	private String status;
 

@@ -1,13 +1,11 @@
 package com.yzytech.scx.ocpx.contract;
 
-import reactor.core.publisher.Mono;
-
 /**
- * SCX 与一个下游渠道之间的双向协议适配器。
+ * SCX 与一个下游媒体之间的双向协议适配器。
  *
  * <p>
- * 下游向 SCX 上报时使用 {@link #parseFeedback}；SCX 把上游转化回传给下游时使用
- * {@link #buildCallback}。标准渠道通常直接选择 STANDARD，不需要为每个渠道新增 Java 类。
+ * 下游向 SCX 上报时由 V2 接入服务解析 FeedbackReqV2；SCX 把上游转化同步回传给下游时使用
+ * CallbackReqV2。标准媒体通常直接选择 STANDARD。
  * </p>
  */
 public interface DownstreamAdapter {
@@ -16,10 +14,10 @@ public interface DownstreamAdapter {
 
 	AdapterCapabilities capabilities();
 
-	Mono<FeedbackReqV1> parseFeedback(String rawBody);
+	/** Build one downstream callback from the four-entity context and an in-memory credential. */
+	AdapterHttpRequest buildCallback(DownstreamDeliveryContext context);
 
-	Mono<AdapterHttpRequest> buildCallback(RouteSnapshot route, CallbackReqV1 callback);
-
-	Mono<AdapterDeliveryResult> evaluateCallbackResponse(AdapterHttpResponse response);
+	/** Interpret both HTTP status and partner-specific business response semantics. */
+	AdapterDeliveryResult evaluateCallbackResponse(AdapterHttpResponse response);
 
 }

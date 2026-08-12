@@ -9,19 +9,11 @@
         <version>2.1.2</version>
     </parent>
     <artifactId>scx-ocpx-runtime</artifactId>
-    <description>SCX OCPX reliable forwarding runtime</description>
+    <description>SCX OCPX synchronous feedback and callback runtime</description>
     <dependencies>
         <dependency>
             <groupId>com.scx</groupId>
             <artifactId>scx-ocpx-contract</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-common-log-buffer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>

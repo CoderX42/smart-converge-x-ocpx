@@ -2,6 +2,9 @@ package com.yzytech.scx.ocpx.contract;
 
 import java.util.Locale;
 
+/**
+ * 事件枚举值
+ */
 public enum OcpxEventType {
 
 	SHOW,

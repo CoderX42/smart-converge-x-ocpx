@@ -6,7 +6,6 @@ import {
   Edit,
   InfoFilled,
   Key,
-  Operation,
   Plus,
   Refresh,
   Search,
@@ -45,7 +44,6 @@ const ResetPwd = defineAsyncComponent(
   () => import('./info/reset-password.vue'),
 );
 const LoginLog = defineAsyncComponent(() => import('./info/loginlog.vue'));
-const AccessScope = defineAsyncComponent(() => import('./access-scope.vue'));
 
 // 字典
 const { status } = useDict('status');
@@ -75,7 +73,6 @@ const treeRef = ref<InstanceType<typeof ElTree>>();
 const dialog = ref(false);
 const dialogLogin = ref(false);
 const formRef = ref();
-const accessScopeRef = ref();
 const queryRef = ref();
 const defaultProps = ref({
   children: 'children',
@@ -167,9 +164,6 @@ const showLoginLog = (row: any) => {
   state.userInfo = row;
   dialogLogin.value = true;
 };
-const showAccessScope = (row: any) => {
-  accessScopeRef.value.init(row);
-};
 const accountTypeName = (type: string) => {
   const names: Record<string, string> = {
     '0': '系统主账户',
@@ -254,7 +248,6 @@ initPage();
           </div>
           <!-- 新增修改弹窗 -->
           <Form ref="formRef" @init-page="initPage" />
-          <AccessScope ref="accessScopeRef" />
           <!-- 修改密码 -->
           <ElDialog
             v-model="dialog"
@@ -307,15 +300,6 @@ initPage();
                 width="310"
               >
                 <template #default="scope">
-                  <ElButton
-                    link
-                    type="primary"
-                    v-access:code="'ocpx:scope:view'"
-                    @click="showAccessScope(scope.row)"
-                    :icon="Operation"
-                  >
-                    OCPX范围
-                  </ElButton>
                   <ElButton
                     link
                     type="primary"

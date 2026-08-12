@@ -28,12 +28,12 @@ class ScxOcpxEngineConfigurationTest {
 	}
 
 	@Test
-	void keepsManagementLogConfigurationOutsideTheEngineClasspath() {
+	void keepsManagementModulesOutsideTheEngineClasspath() {
 		ClassLoader classLoader = getClass().getClassLoader();
 
 		assertThat(classLoader.getResource(
 				"com/yzytech/scx/common/log/appender/BoundedSanitizedLogAppender.class"))
-			.isNotNull();
+			.isNull();
 		assertThat(classLoader.getResource("com/yzytech/scx/common/log/config/BootSysLogConfig.class")).isNull();
 		assertThat(classLoader.getResource("com/yzytech/scx/system/api/remote/RemoteSysLogService.class")).isNull();
 	}

@@ -7,10 +7,10 @@ import reactor.core.scheduler.Schedulers;
 import java.util.concurrent.Callable;
 
 /**
- * 把暂时仍为同步实现的 JDBC、Redis 调用隔离到 Reactor 弹性线程池。
+ * 把同步 JDBC 调用隔离到 Reactor 弹性线程池。
  *
  * <p>
- * SCX 当前使用 JdbcTemplate 和 StringRedisTemplate，它们都会阻塞当前线程。Controller、Service 和 Adapter
+ * SCX 当前使用 JdbcTemplate，它会阻塞当前线程。Controller、Service 和 Adapter
  * 可以继续使用清晰的 Reactor 调用链，但必须通过本类执行这些阻塞片段，不能占用 Netty 事件循环线程。
  * </p>
  */

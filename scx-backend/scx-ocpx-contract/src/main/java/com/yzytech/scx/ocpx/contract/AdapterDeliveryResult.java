@@ -5,7 +5,7 @@ package com.yzytech.scx.ocpx.contract;
  *
  * <p>
  * 只看 HTTP 2xx 并不足以判断所有合作方成功，例如部分平台会返回 HTTP 200 和失败业务码。本对象把“是否成功”和 “失败原因”放在一次判定中，避免
- * DeliveryService 重复解析响应体，也避免通用服务理解某个媒体的私有 code。
+ * 同步转发服务重复解析响应体，也避免通用服务理解某个媒体的私有 code。
  * </p>
  *
  * @param success 当前合作方是否把本次请求视为成功

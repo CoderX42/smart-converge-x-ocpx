@@ -6,10 +6,12 @@ import com.yzytech.scx.ocpx.runtime.adapter.AdapterRegistry;
 import com.yzytech.scx.ocpx.runtime.adapter.AdapterNotFoundException;
 import com.yzytech.scx.ocpx.runtime.error.OcpxException;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -28,9 +30,13 @@ public class UpstreamCallbackDispatcher {
 
 	private final AdapterRegistry adapterRegistry;
 
-	public UpstreamCallbackDispatcher(CallbackIngressService callbackIngressService, AdapterRegistry adapterRegistry) {
+	private final JdbcTemplate jdbcTemplate;
+
+	public UpstreamCallbackDispatcher(CallbackIngressService callbackIngressService, AdapterRegistry adapterRegistry,
+			JdbcTemplate jdbcTemplate) {
 		this.callbackIngressService = callbackIngressService;
 		this.adapterRegistry = adapterRegistry;
+		this.jdbcTemplate = jdbcTemplate;
 	}
 
 	/**
@@ -47,7 +53,7 @@ public class UpstreamCallbackDispatcher {
 			}
 
 			Map<String, String> safeParameters = immutableParameters(parameters);
-			return callbackIngressService.accept(adapter, safeParameters)
+			return callbackIngressService.accept(upstreamCode, adapter, safeParameters)
 				.flatMap(result -> adapter.callbackSuccess(safeParameters, result.eventId(), result.status()))
 				.map(DispatchResult::handled)
 				.onErrorResume(OcpxException.class, error -> adapter
@@ -64,7 +70,14 @@ public class UpstreamCallbackDispatcher {
 			return null;
 		}
 		try {
-			return adapterRegistry.requireUpstream(upstreamCode.trim().toUpperCase(Locale.ROOT));
+			List<String> adapters = jdbcTemplate.query("""
+					SELECT adapter_code FROM scx_ocpx_advertiser
+					WHERE advertiser_code=? AND status='ACTIVE' AND deleted=0
+					""", (rs, rowNum) -> rs.getString(1), upstreamCode.trim());
+			if (adapters.size() != 1) {
+				return null;
+			}
+			return adapterRegistry.requireUpstream(adapters.get(0).toUpperCase(Locale.ROOT));
 		}
 		catch (AdapterNotFoundException error) {
 			return null;

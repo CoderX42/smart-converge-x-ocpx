@@ -15,10 +15,9 @@ import yaml
 root = pathlib.Path(sys.argv[1])
 required = [
     "openapi.yaml",
-    "asyncapi.yaml",
-    "feedback-req-v1.schema.json",
-    "callback-req-v1.schema.json",
-    "scx-ocpx-v1.postman_collection.json",
+    "feedback-req-v2.schema.json",
+    "callback-req-v2.schema.json",
+    "scx-ocpx-v2.postman_collection.json",
 ]
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
@@ -38,32 +37,28 @@ server_urls = {server.get("url") for server in openapi.get("servers", [])}
 assert "https://{domain}/ocpx" in server_urls
 assert "http://localhost:10000/ocpx" in server_urls
 assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
-assert "/open-api/ocpx/v1/channels/{channelCode}/feedback" in paths
-assert "/open-api/ocpx/v1/upstreams/{upstreamCode}/callback" in paths
-assert "/open-api/ocpx/v1/upstreams/coco/callback" not in paths, "Coco must use the generic callback path"
+assert "/open-api/ocpx/v2/media/{mediaCode}/feedback" in paths
+assert "/open-api/ocpx/v2/advertisers/{advertiserCode}/callback" in paths
+assert "/c/{taskCode}" in paths
+assert all("/v1/" not in path for path in paths), "v1 data-plane paths must not return"
 assert all(not path.startswith("/open-api/events/v1") for path in paths), "historical event API must not be active"
 webhooks = openapi.get("webhooks", {})
 assert "downstreamCallback" in webhooks, "standard downstream callback webhook must be documented"
 callback_operation = webhooks["downstreamCallback"].get("post", {})
-assert callback_operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == "./callback-req-v1.schema.json"
+assert callback_operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {}).get("$ref") == "./callback-req-v2.schema.json"
 
-with (root / "asyncapi.yaml").open(encoding="utf-8") as handle:
-    asyncapi = yaml.safe_load(handle)
-assert asyncapi.get("asyncapi") == "3.0.0", "AsyncAPI must be 3.0.0"
-assert "feedbackPartition" in asyncapi.get("channels", {})
-
-for name in ("feedback-req-v1.schema.json", "callback-req-v1.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
 
-with (root / "scx-ocpx-v1.postman_collection.json").open(encoding="utf-8") as handle:
+with (root / "scx-ocpx-v2.postman_collection.json").open(encoding="utf-8") as handle:
     postman = json.load(handle)
 postman_variables = {item.get("key"): item.get("value") for item in postman.get("variable", [])}
 assert postman_variables.get("baseUrl") == "http://localhost:10000/ocpx"
 assert "/rtb" not in json.dumps(postman, ensure_ascii=False), "retired /rtb path must not return"
 item_names = {item.get("name") for item in postman.get("item", [])}
-assert {"下游 FeedbackReqV1", "Coco Callback 场景", "通用模板 Callback", "Coco 上游响应 Mock"} <= item_names
+assert {"媒体 FeedbackReqV2", "广告主 CallbackV2", "公共监测地址"} <= item_names
 
 print("OCPX contracts validated")
 PY

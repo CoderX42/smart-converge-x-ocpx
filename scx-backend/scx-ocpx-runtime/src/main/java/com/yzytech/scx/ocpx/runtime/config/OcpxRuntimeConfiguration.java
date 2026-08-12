@@ -4,9 +4,7 @@ import com.yzytech.scx.ocpx.runtime.security.ProtocolCrypto;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.TaskExecutor;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -15,10 +13,10 @@ import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 
 import java.time.Duration;
-import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
-@EnableConfigurationProperties({ OcpxRuntimeProperties.class, OcpxCryptoProperties.class })
+@EnableConfigurationProperties({ OcpxRuntimeProperties.class, OcpxCryptoProperties.class,
+		PartnerCredentialProperties.class })
 public class OcpxRuntimeConfiguration {
 
 	@Bean
@@ -44,18 +42,6 @@ public class OcpxRuntimeConfiguration {
 		return builder.clientConnector(new ReactorClientHttpConnector(httpClient))
 			.exchangeStrategies(strategies)
 			.build();
-	}
-
-	@Bean("ocpxAuditExecutor")
-	TaskExecutor ocpxAuditExecutor() {
-		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setThreadNamePrefix("ocpx-audit-");
-		executor.setCorePoolSize(2);
-		executor.setMaxPoolSize(4);
-		executor.setQueueCapacity(2048);
-		executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
-		executor.initialize();
-		return executor;
 	}
 
 }

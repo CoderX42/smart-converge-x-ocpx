@@ -11,7 +11,7 @@ database. Historical V1-V78 migrations are not replayed.
 2. `10smart_converge_x_core.sql`: current system and code-generator tables.
 3. `20xxl_job_schema.sql`: XXL-JOB tables and minimal seed.
 4. `../../scx-boot/src/main/resources/db/schema/scx_current_schema.sql`:
-   compact OCPX, OCPX, API debugger, menus, permissions, and adapter seeds.
+   four OCPX business tables, one flow-log table, and advertising menus/permissions.
 
 The current-state schema does not create or use a database migration ledger.
 An upgraded database may still contain the retired historical table; verification
