@@ -113,8 +113,8 @@ public class OcpxPromotionLinkService {
 
 	public PromotionLinkViews.ValidationReport validateUrl(PromotionLinkRequests.ValidateUrl request) {
 		OcpxUrlPolicy.Result result = urlPolicy.validate(request.url());
-		return new PromotionLinkViews.ValidationReport(result.status(), false, result.normalizedMaskedUrl(),
-				result.host(), result.fingerprint(), result.macroSet(), result.issues());
+		return new PromotionLinkViews.ValidationReport(result.status(), false, result.maskedUrl(),
+				result.host(), result.fingerprint(), result.macros(), result.issues());
 	}
 
 	private void apply(OcpxPromotionLink link, String advertiserId, String name, String packageName, String platform,
