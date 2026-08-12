@@ -11,8 +11,6 @@
         <module>scx-common</module>
         <module>scx-system</module>
         <module>scx-ocpx-admin</module>
-        <module>scx-ocpx-contract</module>
-        <module>scx-ocpx-runtime</module>
         <module>scx-ocpx-engine</module>
 
         <module>scx-visual</module>
@@ -100,12 +98,7 @@
             </dependency>
             <dependency>
                 <groupId>com.scx</groupId>
-                <artifactId>scx-ocpx-contract</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.scx</groupId>
-                <artifactId>scx-ocpx-runtime</artifactId>
+                <artifactId>scx-ocpx-engine</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!--            权限系统公共模块-->

@@ -4,34 +4,16 @@ server:
 spring:
   application:
     name: scx-ocpx-engine
-  config:
-    import: classpath:ocpx-protocol-crypto.yml
-  profiles:
-    active: dev
   main:
     web-application-type: reactive
-    allow-bean-definition-overriding: false
   webflux:
-    # This public context path participates in the HMAC signature input.
     base-path: /ocpx
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info
   endpoint:
     health:
-      probes:
-        enabled: true
-
-logging:
-  level:
-    com.yzytech.scx.ocpx: INFO
-
-scx:
-  ocpx:
-    public-base-url: http://127.0.0.1:10000/ocpx
-    callback-token-ttl: 7d
-    allow-http: true
-    allow-private-addresses: true
+      show-details: never

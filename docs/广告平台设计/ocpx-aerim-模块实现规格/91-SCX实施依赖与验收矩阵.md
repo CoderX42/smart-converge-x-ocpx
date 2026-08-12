@@ -62,10 +62,10 @@ S7 当前源码新增 V88 的不可变 RouteVersion、发布记录、运行接�
 |---|---|---|---|
 | 用户/角色/菜单/密码 | `scx-auth/scx-system` | `views/system` / 现有 auth | 新建 OCPX 用户/密码表 |
 | 主数据/Task/发布管理 | `scx-ocpx-admin` | `views/ocpx/*` | 每个页面建 Maven 模块 |
-| 机器契约 | `scx-ocpx-contract` | 无直接 UI | 浏览器持有签名 Secret |
-| 高并发接入/投递 | `scx-ocpx-runtime/engine` | 运行中心只查管理 API | 放回 `scx-boot` 管理线程池 |
+| 机器契约 | 待重建（当前无实现源码） | 无直接 UI | 浏览器持有签名 Secret |
+| 高并发接入/投递 | 待重建数据面（当前未实现） | 运行中心只查管理 API | 放回 `scx-boot` 管理线程池 |
 | Dashboard/Reports | `scx-ocpx-admin` 统一查询服务 | `views/ocpx/dashboard/report` | 五页各写一套口径 |
-| RTA 管理/统计 | 管理元数据归 `scx-ocpx-admin`，未来机器决策归 `scx-ocpx-runtime/engine` | `views/ocpx/rta` | 在 `scx-boot` 外呼、浏览器持有/回读 Secret、把参考默认开启照搬为目标默认 |
+| RTA 管理/统计 | 管理元数据归 `scx-ocpx-admin`，未来机器决策数据面待重建 | `views/ocpx/rta` | 在 `scx-boot` 外呼、浏览器持有/回读 Secret、把参考默认开启照搬为目标默认 |
 | 调试/补偿 | ADR-002 工作台 + runtime | `views/ocpx/runtime` | 任意代理/复制投放路径 |
 
 ## 4. 切片级交付矩阵

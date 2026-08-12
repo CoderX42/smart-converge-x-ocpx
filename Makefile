@@ -15,10 +15,10 @@ db-migrate: db-init
 mvp-db-migrate: db-migrate
 
 backend-build: schema-ledger-check ocpx-four-entity-check
-	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am -DskipTests clean package
+	cd scx-backend && mvn -pl scx-boot -am -DskipTests clean package
 
 backend-test: schema-ledger-check ocpx-four-entity-check
-	cd scx-backend && mvn -pl scx-boot,scx-ocpx-engine -am test
+	cd scx-backend && mvn -pl scx-boot -am test
 
 backend-run-dev:
 	cd scx-backend && mvn -pl scx-boot -am spring-boot:run -Dspring-boot.run.profiles=dev
@@ -30,7 +30,7 @@ ocpx-engine-test:
 	cd scx-backend && mvn -pl scx-ocpx-engine -am test
 
 ocpx-engine-run-dev:
-	cd scx-backend && mvn -pl scx-ocpx-engine -am spring-boot:run -Dspring-boot.run.profiles=dev
+	cd scx-backend && mvn -pl scx-ocpx-engine -am spring-boot:run
 
 frontend-build:
 	cd scx-fronted && pnpm build:ele

@@ -1,7 +1,7 @@
 package com.yzytech.scx.ocpx.admin.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.yzytech.scx.ocpx.admin.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import org.apache.ibatis.annotations.Mapper;
 
 @Mapper

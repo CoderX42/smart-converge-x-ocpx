@@ -14,12 +14,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScxBootOcpxBoundaryTest {
 
 	@Test
-	void exposesRequiredOcpxProtocolCryptoConfigurationOnBootClasspath() {
-		assertThat(new ClassPathResource("ocpx-protocol-crypto.yml").exists()).isTrue();
+	void exposesTheSharedOcpxModelAndEngineEntrypointOnTheClasspath() {
+		assertThat(new ClassPathResource("ocpx-protocol-crypto.yml").exists()).isFalse();
+		ClassLoader classLoader = getClass().getClassLoader();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxAdvertiser.class")).isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxPromotionLink.class")).isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxMedia.class")).isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxMonitorTask.class")).isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/ScxOcpxEngineApplication.class")).isNotNull();
 	}
 
 	@Test
-	void excludesTheIndependentOcpxDataPlaneFromManagementComponentScanning() {
+	void keepsTheStandardManagementComponentScanFilters() {
 		ComponentScan componentScan = ScxApplication.class.getDeclaredAnnotation(ComponentScan.class);
 
 		assertThat(componentScan).isNotNull();
@@ -33,7 +39,8 @@ class ScxBootOcpxBoundaryTest {
 		});
 		assertThat(Arrays.asList(componentScan.excludeFilters())).anySatisfy(filter -> {
 			assertThat(filter.type()).isEqualTo(FilterType.REGEX);
-			assertThat(filter.pattern()).containsExactly("com\\.yzytech\\.scx\\.ocpx\\.runtime\\..*");
+			assertThat(filter.pattern())
+				.containsExactly("com\\.yzytech\\.scx\\.ocpx\\.ScxOcpxEngineApplication");
 		});
 	}
 

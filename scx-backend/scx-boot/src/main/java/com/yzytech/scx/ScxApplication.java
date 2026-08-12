@@ -20,11 +20,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan(basePackages = "com.yzytech.scx",
-		excludeFilters = {
-				@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
-				@ComponentScan.Filter(type = FilterType.CUSTOM, classes = AutoConfigurationExcludeFilter.class),
-				@ComponentScan.Filter(type = FilterType.REGEX,
-						pattern = "com\\.yzytech\\.scx\\.ocpx\\.runtime\\..*") })
+			excludeFilters = {
+					@ComponentScan.Filter(type = FilterType.CUSTOM, classes = TypeExcludeFilter.class),
+					@ComponentScan.Filter(type = FilterType.CUSTOM,
+							classes = AutoConfigurationExcludeFilter.class),
+					@ComponentScan.Filter(type = FilterType.REGEX,
+							pattern = "com\\.yzytech\\.scx\\.ocpx\\.ScxOcpxEngineApplication") })
 @EnableScheduling
 @BootEnableXxlJob
 public class ScxApplication {

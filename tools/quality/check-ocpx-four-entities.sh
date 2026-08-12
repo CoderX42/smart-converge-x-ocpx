@@ -4,8 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 SEARCH_PATHS=(
-  "${ROOT_DIR}/scx-backend/scx-ocpx-contract/src"
-  "${ROOT_DIR}/scx-backend/scx-ocpx-runtime/src"
+  "${ROOT_DIR}/scx-backend/scx-ocpx-engine/src"
   "${ROOT_DIR}/scx-backend/scx-ocpx-admin/src"
   "${ROOT_DIR}/scx-fronted/apps/web-ele/src"
   "${ROOT_DIR}/docs/广告平台设计/contracts"
@@ -69,12 +68,42 @@ expected_ocpx_tables = expected | {"scx_ocpx_flow_log"}
 if set(ocpx_tables) != expected_ocpx_tables or len(ocpx_tables) != 5:
     raise SystemExit(f"four-entity gate failed: OCPX tables are {ocpx_tables!r}")
 
-for profile in ("application-dev.yml", "application-prod.yml"):
-    config = (root / "scx-backend/scx-ocpx-engine/src/main/resources" / profile).read_text(encoding="utf-8")
-    if "partner-credentials:" not in config or "advertisers:" not in config or "media:" not in config:
-        raise SystemExit(f"four-entity gate failed: credential map missing in {profile}")
-    if re.search(r"\$\{(?:SCX|ROCKETMQ|XXL_JOB|XXL_SSO)_", config):
-        raise SystemExit(f"four-entity gate failed: forbidden runtime placeholder in {profile}")
+engine = root / "scx-backend/scx-ocpx-engine"
+java_root = engine / "src/main/java/com/yzytech/scx/ocpx"
+expected_java = {
+    "OcpxAdvertiser.java",
+    "OcpxPromotionLink.java",
+    "OcpxMedia.java",
+    "OcpxMonitorTask.java",
+    "ScxOcpxEngineApplication.java",
+}
+actual_java = {path.name for path in java_root.rglob("*.java")}
+if actual_java != expected_java:
+    raise SystemExit(f"four-entity gate failed: engine Java sources are {sorted(actual_java)!r}")
+
+entity_java = expected_java - {"ScxOcpxEngineApplication.java"}
+for path in java_root.rglob("*.java"):
+    source = path.read_text(encoding="utf-8")
+    is_valid_entity = path.name in entity_java and "@TableName(" in source
+    is_valid_application = path.name == "ScxOcpxEngineApplication.java" and "@SpringBootApplication" in source
+    if path.parent != java_root or "package com.yzytech.scx.ocpx;" not in source or not (is_valid_entity or is_valid_application):
+        raise SystemExit(f"four-entity gate failed: invalid entity source: {path}")
+
+expected_support_files = {
+    "src/test": {"ScxOcpxEngineApplicationTest.java"},
+    "src/main/resources": {"application.yml"},
+}
+for relative, expected_files in expected_support_files.items():
+    directory = engine / relative
+    files = {path.name for path in directory.rglob("*") if path.is_file()} if directory.exists() else set()
+    if files != expected_files:
+        raise SystemExit(f"four-entity gate failed: unexpected {relative} files: {sorted(files)!r}")
+
+application_yml = (engine / "src/main/resources/application.yml").read_text(encoding="utf-8")
+if not re.search(r"(?m)^\s*port:\s*10000\s*$", application_yml):
+    raise SystemExit("four-entity gate failed: engine port must be 10000")
+if not re.search(r"(?m)^\s*base-path:\s*/ocpx\s*$", application_yml):
+    raise SystemExit("four-entity gate failed: engine context path must be /ocpx")
 
 print("OCPX four-entity static gate passed")
 PY

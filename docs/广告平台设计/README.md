@@ -13,9 +13,9 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 | 下游媒体 | `OcpxMedia` | `scx_ocpx_media` |
 | 监测任务 | `OcpxMonitorTask` | `scx_ocpx_monitor_task` |
 
-广告域另保留一张 `scx_ocpx_flow_log`，记录脱敏后的 Feedback/Callback 转发结果。Dashboard 和报表直接聚合该日志，不创建报表事实表或导出任务表。
+广告域数据库另保留一张 `scx_ocpx_flow_log`。管理端可以查询和聚合已有日志，但当前源码没有生成 Feedback/Callback 流程日志的数据面实现。
 
-当前链路是同步的：媒体 Feedback 成功转发上游后返回 202；上游 Callback 成功回传媒体后返回广告主 Adapter 定义的成功响应。当前版本不包含事件配置、路由发布/快照/ACK、异步队列、自动重试、DLQ、扣量、账务、充值、对象范围或 API 调试。
+当前 `scx-ocpx-engine` 只保留四个实体和最小 Spring Boot 启动骨架，默认监听 `10000/ocpx`。它不包含机器接口、同步转发、Adapter 或鉴权；Feedback/Callback、监测跳转及数据面重建均属于后续工作，不能把进程健康或历史契约视为业务能力已实现。
 
 用户、角色、菜单、部门、字典、操作日志和登录日志仍由原系统管理框架承载。本次只调整广告业务菜单与权限。
 
@@ -23,7 +23,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 1. 仓库根目录 `AGENTS.md`。
 2. [四实体实现与新人上手](OCPX管理面实现说明.md)。
-3. [双向转发引擎实现说明](OCPX双向转发引擎实现说明.md)。
+3. [OCPX Engine 重建状态说明](OCPX双向转发引擎实现说明.md)。
 4. [sgyz-ocpx 核心流程对照](sgyz-ocpx基础能力兼容基线.md)。
 5. [下游媒体 API 接入文档](OCPX下游渠道API接入文档.md)。
 6. [上游广告主 Adapter 指南](OCPX上游广告主适配器开发指南.md)。
@@ -36,5 +36,5 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 - 空库结构以 `scx_current_schema.sql` 为准。
 - `V96__reset_ocpx_ad_business_to_four_entities.sql` 是手工、破坏性的广告域重建 SQL；本次源码实现不执行它。
 - V96 不修改用户、角色、部门、字典、操作日志、登录日志或 `menu_ocpx_system`。
-- 合作方账号和 Secret 只写在 Engine profile yml 的 `partner-credentials`，修改后重新打包并由宝塔重启。
+- 当前 Engine 只有通用 `application.yml` 和独立进程骨架，没有 profile 凭据配置；后续重建前必须另行确定协议、安全和生产部署方案。
 - V79–V95 保持不变；不读写退役的 `scx_schema_migration`。

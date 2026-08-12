@@ -9,9 +9,8 @@
 | `scx-auth` | 登录、验证码和令牌认证 |
 | `scx-system` | 用户、角色、菜单、部门、字典和日志 |
 | `scx-common` | Web、安全、数据源、Redis、RocketMQ、Excel 等公共能力 |
-| `scx-ocpx-admin` | 渠道、广告主及其登录账号、应用链接、监测链接、扣量、充值/点击账务和时段报表 |
-| `scx-ocpx-contract` / `scx-ocpx-runtime` | 双向协议、适配器 SPI、可靠投递和 CPC 点击计费 |
-| `scx-ocpx-engine` | 独立 OCPX 引擎端，端口 10000、上下文 `/ocpx` |
+| `scx-ocpx-admin` | 四实体 CRUD、流程日志查询、Dashboard 和报表管理能力 |
+| `scx-ocpx-engine` | 四实体最小 Engine 应用，包含启动类，默认监听 `10000/ocpx`；尚无数据面业务接口 |
 | `scx-visual/scx-generator` | 代码生成 |
 | `scx-visual/scx-monitor` | Spring Boot Admin 监控 |
 | `scx-boot` | 应用启动模块，启动类为 `com.yzytech.scx.ScxApplication` |

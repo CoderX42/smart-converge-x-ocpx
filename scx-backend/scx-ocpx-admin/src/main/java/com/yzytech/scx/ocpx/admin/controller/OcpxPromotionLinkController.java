@@ -8,7 +8,7 @@ import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkRequests;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkViews;
-import com.yzytech.scx.ocpx.admin.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.admin.service.OcpxPromotionLinkService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

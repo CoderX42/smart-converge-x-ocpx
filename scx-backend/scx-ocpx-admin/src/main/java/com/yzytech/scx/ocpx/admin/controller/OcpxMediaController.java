@@ -8,7 +8,7 @@ import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
-import com.yzytech.scx.ocpx.admin.entity.OcpxMedia;
+import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.admin.service.OcpxMediaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

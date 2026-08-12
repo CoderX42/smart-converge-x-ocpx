@@ -95,7 +95,7 @@ DP：供应商协议与安全 RFC 接受后独立实施
 ## 6. 通用实现约定
 
 - 前端：新业务页放在 `scx-fronted/apps/web-ele/src/views/ocpx/`；继续使用服务端菜单与权限驱动路由。API 按 `product/link/media/task/rta/report/dp` 拆分，同时保留现有 `ocpx.ts` 兼容导出。
-- 后端：管理面归 `scx-ocpx-admin`，身份与菜单归 `scx-auth/scx-system`，高并发机器流量归 `scx-ocpx-contract/runtime/engine`；不按页面新建 Maven 模块。
+- 后端：管理面归 `scx-ocpx-admin`，身份与菜单归 `scx-auth/scx-system`；高并发机器数据面当前未实现，重建时不得按页面新建 Maven 模块。
 - API：管理端统一 `Result<T>`，列表统一 `page/current/size/total/records`；创建接口支持 `Idempotency-Key`，更新接口携带 `version` 或 `If-Match`；冲突返回 `409`。
 - 数据：MySQL 是主数据、版本、Outbox 和最终事实的记录系统；Redis 仅作可靠队列、幂等、短期计数、缓存和配置失效通知。
 - 发布：运行依赖必须经过 `DRAFT → 校验 → 不可变快照 → PUBLISHED → Outbox → 数据面热更新`；未发布配置不得承载流量。

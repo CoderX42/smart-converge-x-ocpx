@@ -1,72 +1,23 @@
 # scx-ocpx-engine
 
-`scx-ocpx-engine` 是 SCX OCPX 独立引擎端，也是 `scx-ocpx-runtime` 的唯一生产启动模块。它采用 Spring WebFlux + Reactor Netty，与管理端 `scx-boot` 分进程部署和扩容。
+`scx-ocpx-engine` 当前是 OCPX 四实体的最小可启动应用，包含一个 Spring Boot 启动类和以下 Java 实体：
 
-## 运行边界
+- `OcpxAdvertiser`：上游广告主。
+- `OcpxPromotionLink`：推广链接。
+- `OcpxMedia`：下游媒体。
+- `OcpxMonitorTask`：监测任务。
 
-| 项目 | 值 |
-| --- | --- |
-| 应用名 | `scx-ocpx-engine` |
-| 默认端口 | `10000` |
-| 上下文路径 | `/ocpx` |
-| Feedback | `POST /ocpx/open-api/ocpx/v2/media/{mediaCode}/feedback` |
-| Callback | `GET /ocpx/open-api/ocpx/v2/advertisers/{advertiserCode}/callback` |
-| 跟踪跳转 | `GET /ocpx/c/{taskCode}` |
-| 健康检查 | `GET /ocpx/actuator/health` |
-| Prometheus | `GET /ocpx/actuator/prometheus`，仅内部监控网络使用 |
+四个实体和 `ScxOcpxEngineApplication` 全部直接位于 `com.yzytech.scx.ocpx`，实体由 `scx-ocpx-admin` 复用。应用默认监听 `10000`，WebFlux context path 为 `/ocpx`，健康检查为 `GET /ocpx/actuator/health`。
 
-公网只应通过 Nginx 暴露 `/ocpx/open-api/`，不得暴露 `/ocpx/actuator/`。请求原始路径参与 HMAC 签名，Nginx 必须保留完整 `/ocpx` 路径。
+本模块目前不包含业务 Controller、Service、Mapper、Adapter 或协议 DTO。启动成功只证明最小 Engine 进程可用，不代表 Feedback/Callback 等数据面能力已经实现。
 
-## 配置
+打包后生成两个产物：`scx-ocpx-engine.jar` 是供 Admin 依赖的普通模型 JAR，`scx-ocpx-engine-exec.jar` 是独立可执行应用。
 
-- 通用配置：`src/main/resources/application.yml`。
-- 开发配置：`src/main/resources/application-dev.yml`。
-- 生产配置：`src/main/resources/application-prod.yml`。
-- 上下游凭据引用：`scx.ocpx.partner-credentials.advertisers` 与 `scx.ocpx.partner-credentials.media`；四张业务表只保存配置键和版本。
-- 应用运行配置采用配置文件字面量，禁止新增 `${SCX_*}` 等运行时占位符或 `/etc/scx/scx.env` 依赖。
-- 修改配置后必须重新打包并重启；只修改服务器源码不会改变现有 JAR。
-- 当前 Feedback/Callback 均为同步真实外发；生产配置凭据和域名之前不得把 Engine 暴露给合作方。
-
-## 本地构建与启动
+构建验证：
 
 ```bash
-make ocpx-engine-test
-make ocpx-engine-build
-make ocpx-engine-run-dev
+cd scx-backend
+mvn -pl scx-ocpx-admin -am test
+mvn -pl scx-ocpx-engine -am spring-boot:run
+java -jar scx-ocpx-engine/target/scx-ocpx-engine-exec.jar
 ```
-
-也可以在 `scx-backend` 中直接执行：
-
-```bash
-mvn -pl scx-ocpx-engine -am test
-mvn -pl scx-ocpx-engine -am spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-## 宝塔部署
-
-生产构建产物为：
-
-```text
-/opt/smart-converge-x/build/backend/scx-ocpx-engine.jar
-```
-
-在生产服务器构建：
-
-```bash
-cd /opt/smart-converge-x
-bash scripts/bt-deploy/01-deploy.sh --no-pull engine
-```
-
-构建脚本不会管理 Java 进程。构建完成后在宝塔“Java 项目管理器”中重启 `SCX-OCPX引擎端`，启动参数必须包含：
-
-```text
---spring.profiles.active=prod
-```
-
-重启后在生产服务器执行：
-
-```bash
-bash scripts/bt-deploy/02-manage.sh engine-health
-```
-
-源码、JAR、健康检查或本地测试通过都不等于生产放行。目标数据库重建、真实上下游 UAT 和容量验收仍是独立门禁。

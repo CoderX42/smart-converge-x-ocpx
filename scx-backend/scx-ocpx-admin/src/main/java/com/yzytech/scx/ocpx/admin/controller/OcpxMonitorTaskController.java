@@ -8,7 +8,7 @@ import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
-import com.yzytech.scx.ocpx.admin.entity.OcpxMonitorTask;
+import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

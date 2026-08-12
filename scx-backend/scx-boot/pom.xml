@@ -35,12 +35,6 @@
             <groupId>com.scx</groupId>
             <artifactId>scx-ocpx-admin</artifactId>
         </dependency>
-        <!-- Boot directly imports ocpx-protocol-crypto.yml from this module. -->
-        <dependency>
-            <groupId>com.scx</groupId>
-            <artifactId>scx-ocpx-runtime</artifactId>
-        </dependency>
-
         <!--        代码生成-->
         <dependency>
             <groupId>com.scx</groupId>

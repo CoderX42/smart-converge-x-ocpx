@@ -183,7 +183,8 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log-buffer`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。`log-buffer` 仅提供进程内有界脱敏日志缓冲，不包含系统日志落库自动配置。 |
-| `scx-ocpx-admin` | 精简广告业务纵向模块：渠道、广告主、应用链接、监测链接、扣量、充值账务与时段报表。 |
+| `scx-ocpx-admin` | 精简广告管理业务：四实体 CRUD、流程日志查询、Dashboard 和报表。 |
+| `scx-ocpx-engine` | 四实体最小 Spring Boot 应用；含 `ScxOcpxEngineApplication` 与 4 个实体，默认监听 `10000/ocpx`，当前没有数据面业务接口。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
 典型包结构（以 `scx-ocpx-admin` 为例）：
@@ -193,9 +194,10 @@ com.yzytech.scx.ocpx.admin
 ├── controller/      # @RestController + @SaCheckPermission + Swagger
 ├── service/         # 渠道目录、账户与报表业务服务
 ├── mapper/          # MyBatis-Plus BaseMapper + 自定义 XML
-├── entity/          # @Data + @TableName
 └── resources/mapper/*.xml
 ```
+
+OCPX 的四个 `@TableName` 实体统一位于 `scx-ocpx-engine` 的 `com.yzytech.scx.ocpx` 根包。
 
 数据库脚本约定：
 

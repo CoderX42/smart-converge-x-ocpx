@@ -2,7 +2,6 @@
 .env
 .env.local
 *.local
-scx-backend/scx-ocpx-runtime/src/main/resources/ocpx-local-secrets.yml
 coverage/
 reports/
 
