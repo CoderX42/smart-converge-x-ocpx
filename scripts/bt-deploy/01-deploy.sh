@@ -62,17 +62,25 @@ fi
 
 build_boot() {
   bt_log '构建 scx-boot（跳过测试；日常发布前请先在 CI 或本机完成测试）'
-  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-boot -am -DskipTests package)
+  # A clean lifecycle is required because Maven does not remove resources that
+  # were deleted from src/main/resources during an incremental package. Without
+  # it, retired MyBatis XML files can remain in target/classes and enter the JAR.
+  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-boot -am -DskipTests clean package)
   local jar_file="${SCX_HOME}/scx-backend/scx-boot/target/scx-boot.jar"
+  local ocpx_admin_jar="${SCX_HOME}/scx-backend/scx-ocpx-admin/target/scx-ocpx-admin.jar"
   [[ -f "$jar_file" ]] || bt_die "未找到后端产物：${jar_file}"
+  [[ -f "$ocpx_admin_jar" ]] || bt_die "未找到 OCPX 管理模块产物：${ocpx_admin_jar}"
   jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/application-prod.yml' || bt_die '后端 JAR 缺少 application-prod.yml，拒绝发布。'
+  if jar tf "$ocpx_admin_jar" | grep -Eq '(^|/)(OcpxHourlyReportMapper\.xml|ReportRow\.class)$'; then
+    bt_die 'OCPX 管理模块仍包含已退役报表类或 Mapper XML，拒绝发布。'
+  fi
   cp -p "$jar_file" "${stage_dir}/backend/scx-boot.jar"
   (cd "${stage_dir}/backend" && sha256sum scx-boot.jar > scx-boot.jar.sha256)
 }
 
 build_engine() {
   bt_log '构建 scx-ocpx-engine 数据面（跳过测试；真实外发需单独授权）'
-  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-ocpx-engine -am -DskipTests package)
+  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-ocpx-engine -am -DskipTests clean package)
   local jar_file="${SCX_HOME}/scx-backend/scx-ocpx-engine/target/scx-ocpx-engine.jar"
   [[ -f "$jar_file" ]] || bt_die "未找到数据面产物：${jar_file}"
   jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/application-prod.yml' || bt_die 'scx-ocpx-engine JAR 缺少 application-prod.yml，拒绝发布。'
