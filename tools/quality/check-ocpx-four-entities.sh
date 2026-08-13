@@ -39,6 +39,49 @@ if set(actual) != expected_business | expected_data or len(actual) != 11:
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
 
+def table_body(table: str) -> str:
+    match = re.search(
+        rf"CREATE TABLE IF NOT EXISTS\s+{table}\s*\((.*?)\) ENGINE=",
+        schema,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        raise SystemExit(f"V102 schema gate failed: missing {table}")
+    return match.group(1).lower()
+
+v102_columns = {
+    "scx_ocpx_advertiser": {
+        "required": ("advertiser_name", "credential_config_key", "bid_url", "macro_params"),
+        "retired": ("advertiser_code", "adapter_code", "credential_version", "status", "deleted", "active_marker"),
+    },
+    "scx_ocpx_promotion_link": {
+        "required": ("platform tinyint", "link_url", "deeplink", "link_ext", "is_delete"),
+        "retired": ("link_code", "package_name", "link_type", "link_url_template", "deeplink_url", "download_url", "macro_set", "status", "active_marker"),
+    },
+    "scx_ocpx_media": {
+        "required": ("media_name", "credential_config_key", "uri varchar", "macro_params"),
+        "retired": ("media_code", "adapter_code", "auth_type", "credential_version", "ingress_uri", "callback_url", "status", "deleted", "active_marker"),
+    },
+    "scx_ocpx_monitor_task": {
+        "required": ("monitor_name", "biz_id", "show_url", "clk_url", "is_delete"),
+        "retired": ("task_code", "task_name", "operator_user_id", "status", "config_version", "archived_at", "active_marker"),
+    },
+    "scx_ocpx_deduction_rule": {
+        "required": ("promotion_link_id", "media_id", "ratio", "is_delete"),
+        "retired": ("active_marker",),
+    },
+}
+for table, contract in v102_columns.items():
+    body = table_body(table)
+    for required_column in contract["required"]:
+        if required_column not in body:
+            raise SystemExit(f"V102 schema gate failed: {table} missing {required_column}")
+    for retired_column in contract["retired"]:
+        if re.search(rf"\b{retired_column}\b", body):
+            raise SystemExit(f"V102 schema gate failed: {table} retains {retired_column}")
+if "(if(is_delete=0,1,null))" not in table_body("scx_ocpx_deduction_rule"):
+    raise SystemExit("V102 schema gate failed: deduction functional unique index is missing")
+
 retired = re.compile(
     r"scx_ocpx_(channel|app_link|monitor_link|hourly_report|product|media_account|media_credential|task)(?:\W|$)"
 )
@@ -83,6 +126,11 @@ required = {
     "configuration/index/OcpxMediaIndex.java",
     "configuration/index/OcpxMonitorTaskIndex.java",
     "configuration/task/ResetRedisKeyTask.java",
+    "configuration/credential/PartnerCredentialProperties.java",
+    "configuration/credential/PartnerCredentialResolver.java",
+    "protocol/registry/AdvertiserProtocolRegistry.java",
+    "protocol/registry/MediaProtocolRegistry.java",
+    "report/service/OcpxFlowLogWriter.java",
     "shared/redis/RedisHelper.java",
 }
 actual_sources = {p.relative_to(java_root).as_posix() for p in java_root.rglob("*.java")}
@@ -144,6 +192,48 @@ expected_mapped = {
 }
 if set(mapped) != expected_mapped:
     raise SystemExit(f"four-entity gate failed: shared entities are {sorted(mapped)!r}")
+
+active_management = "\n".join(
+    file.read_text(encoding="utf-8")
+    for relative in (
+        "scx-backend/scx-ocpx-core/src/main/java",
+        "scx-backend/scx-ocpx-admin/src/main/java",
+    )
+    for file in (root / relative).rglob("*.java")
+)
+for retired_name in (
+    "advertiserCode", "mediaCode", "adapterCode", "credentialVersion",
+    "upstreamHostAllowlist", "callbackHostAllowlist", "configVersion",
+    "linkUrlTemplate", "deeplinkUrl", "downloadUrl", "macroSet",
+    "redirectEnabled", "taskCode", "taskName", "operatorUserId", "archivedAt",
+):
+    if re.search(rf"\b{retired_name}\b", active_management):
+        raise SystemExit(f"V102 source gate failed: retired management field {retired_name} remains")
+
+admin_controllers = "\n".join(
+    file.read_text(encoding="utf-8")
+    for file in (root / "scx-backend/scx-ocpx-admin/src/main/java/com/yzytech/scx/ocpx/admin/controller").glob("*.java")
+)
+for retired_endpoint in (
+    "/status", "/archive", "/preflight", "/connectivity-check", "/url:validate",
+):
+    if retired_endpoint in admin_controllers:
+        raise SystemExit(f"V102 API gate failed: retired endpoint {retired_endpoint} remains")
+
+v102 = (root / "scx-backend/scx-boot/src/main/resources/db/migration/V102__align_ocpx_management_with_vientiane.sql").read_text(encoding="utf-8")
+for required_fragment in (
+    "soft-deleted advertiser ids require manual handling",
+    "soft-deleted media ids require manual handling",
+    "WEB OTHER or invalid platform ids require manual mapping",
+    "RENAME COLUMN ingress_uri TO uri",
+    "RENAME COLUMN task_name TO monitor_name",
+    "RENAME COLUMN deleted TO is_delete",
+    "perm_ocpx_promotion_link_delete",
+):
+    if required_fragment not in v102:
+        raise SystemExit(f"V102 migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v102:
+    raise SystemExit("V102 migration gate failed: retired migration ledger is referenced")
 
 admin_pom = (root / "scx-backend/scx-ocpx-admin/pom.xml").read_text(encoding="utf-8")
 engine_pom = (root / "scx-backend/scx-ocpx-engine/pom.xml").read_text(encoding="utf-8")

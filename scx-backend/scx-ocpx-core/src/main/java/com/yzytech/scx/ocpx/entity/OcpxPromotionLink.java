@@ -19,35 +19,22 @@ public class OcpxPromotionLink {
 
 	private String advertiserId;
 
-	private String linkCode;
-
 	private String linkName;
 
-	private String packageName;
-
-	private String platform;
-
-	private String linkType;
+	private Integer platform;
 
 	private String linkChannel;
 
-	private String linkUrlTemplate;
+	private String linkUrl;
 
-	private String deeplinkUrl;
+	private String deeplink;
 
-	private String downloadUrl;
-
-	private String macroSet;
-
-	private Boolean redirectEnabled;
+	private String linkExt;
 
 	private String remark;
 
-	private String status;
-
-	private Long configVersion;
-
 	@TableLogic
+	@TableField("is_delete")
 	private Boolean deleted;
 
 	@TableField(fill = FieldFill.INSERT)

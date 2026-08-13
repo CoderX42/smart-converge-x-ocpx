@@ -2,87 +2,64 @@ import type { PageResult } from '../business';
 
 import { requestClient } from '#/api/request';
 
+export type PlatformCode = 1 | 2 | 3 | 4;
+
 export type AdvertiserV2 = {
-  adapterCode: string;
-  advertiserCode: string;
   advertiserName: string;
   balance?: number;
   bidUrl: string;
-  configVersion: number;
   createTime: string;
-  credentialConfigKey: string;
-  credentialVersion: number;
+  credentialConfigKey?: string;
   id: string;
   macroParams?: string;
-  status: 'ACTIVE' | 'DISABLED';
   updateTime: string;
-  upstreamHostAllowlist?: string;
 };
 
 export type PromotionLink = {
   advertiserId: string;
   advertiserName: string;
-  configVersion: number;
   createTime: string;
-  deeplinkUrl?: string;
-  downloadUrl?: string;
+  deeplink?: string;
   id: string;
   linkChannel?: string;
-  linkCode: string;
+  linkExt?: string;
   linkName: string;
-  linkType: 'DEEPLINK' | 'DOWNLOAD' | 'LANDING' | 'OTHER';
-  linkUrlTemplate: string;
-  macroSet: string[];
-  packageName?: string;
-  platform: 'ANDROID' | 'IOS' | 'OTHER' | 'WEB';
-  redirectEnabled: boolean;
+  linkUrl: string;
+  platform: PlatformCode;
   remark?: string;
-  status: 'ACTIVE' | 'DISABLED';
   updateTime: string;
 };
 
 export type Media = {
-  adapterCode: string;
-  authType: 'NONE' | 'SIGNATURE' | 'TOKEN';
-  callbackHostAllowlist: string[];
-  callbackUrl?: string;
-  configVersion: number;
   createTime: string;
   credentialConfigKey?: string;
-  credentialVersion?: number;
   id: string;
-  ingressUri: string;
-  macroParams: string[];
-  mediaCode: string;
+  macroParams?: string;
   mediaName: string;
-  status: 'ACTIVE' | 'DISABLED';
   updateTime: string;
+  uri: string;
 };
 
 export type MonitorTask = {
   advertiserId: string;
   advertiserName: string;
-  archivedAt?: string;
   bizId?: string;
   clkUrl: string;
-  configVersion: number;
   createTime: string;
   id: string;
   mediaId: string;
   mediaName: string;
-  operatorUserId?: string;
+  monitorName: string;
+  platform: PlatformCode;
   promotionLinkId: string;
   promotionLinkName: string;
   remark?: string;
   showUrl: string;
-  status: 'ACTIVE' | 'ARCHIVED' | 'PAUSED';
-  taskCode: string;
-  taskName: string;
-  unitPrice: number;
+  unitPrice?: number;
   updateTime: string;
 };
 
-export type VersionedAction = { expectedVersion: number };
+export type EntityOption = { id: string; name: string };
 
 export function listAdvertisers(params: Record<string, unknown>) {
   return requestClient.get<PageResult<AdvertiserV2>>('/ocpx/advertisers', {
@@ -95,15 +72,6 @@ export function createAdvertiserV2(data: Record<string, unknown>) {
 export function updateAdvertiserV2(id: string, data: Record<string, unknown>) {
   return requestClient.put<AdvertiserV2>(`/ocpx/advertisers/${id}`, data);
 }
-export function changeAdvertiserStatusV2(
-  id: string,
-  data: VersionedAction & { status: 'ACTIVE' | 'DISABLED' },
-) {
-  return requestClient.post(`/ocpx/advertisers/${id}/status`, data);
-}
-export function archiveAdvertiser(id: string, data: VersionedAction) {
-  return requestClient.post(`/ocpx/advertisers/${id}/archive`, data);
-}
 export function rechargeAdvertiser(id: string, balance: number) {
   return requestClient.post(`/ocpx/advertisers/${id}/recharge`, { balance });
 }
@@ -114,7 +82,7 @@ export function listPromotionLinks(params: Record<string, unknown>) {
   });
 }
 export function promotionLinkAdvertisers(keyword?: string) {
-  return requestClient.get<Array<{ code: string; id: string; name: string }>>(
+  return requestClient.get<EntityOption[]>(
     '/ocpx/promotion-links/advertiser-options',
     { params: { keyword } },
   );
@@ -125,17 +93,8 @@ export function createPromotionLink(data: Record<string, unknown>) {
 export function updatePromotionLink(id: string, data: Record<string, unknown>) {
   return requestClient.put<PromotionLink>(`/ocpx/promotion-links/${id}`, data);
 }
-export function changePromotionLinkStatus(
-  id: string,
-  data: VersionedAction & { status: 'ACTIVE' | 'DISABLED' },
-) {
-  return requestClient.post(`/ocpx/promotion-links/${id}/status`, data);
-}
-export function archivePromotionLink(id: string, data: VersionedAction) {
-  return requestClient.post(`/ocpx/promotion-links/${id}/archive`, data);
-}
-export function validatePromotionLinkUrl(url: string) {
-  return requestClient.post('/ocpx/promotion-links/url:validate', { url });
+export function deletePromotionLink(id: string) {
+  return requestClient.delete(`/ocpx/promotion-links/${id}`);
 }
 
 export function listMedia(params: Record<string, unknown>) {
@@ -146,27 +105,6 @@ export function createMedia(data: Record<string, unknown>) {
 }
 export function updateMedia(id: string, data: Record<string, unknown>) {
   return requestClient.put<Media>(`/ocpx/media/${id}`, data);
-}
-export function changeMediaStatus(
-  id: string,
-  data: VersionedAction & { status: 'ACTIVE' | 'DISABLED' },
-) {
-  return requestClient.post(`/ocpx/media/${id}/status`, data);
-}
-export function preflightMedia(id: string) {
-  return requestClient.post<{ issues: string[]; status: 'BLOCK' | 'PASS' }>(
-    `/ocpx/media/${id}/preflight`,
-  );
-}
-export function checkMediaConnectivity(id: string) {
-  return requestClient.post<{
-    message: string;
-    networkCalled: boolean;
-    status: string;
-  }>(`/ocpx/media/${id}/connectivity-check`);
-}
-export function archiveMedia(id: string, data: VersionedAction) {
-  return requestClient.post(`/ocpx/media/${id}/archive`, data);
 }
 
 export function listMonitorTasks(params: Record<string, unknown>) {
@@ -182,15 +120,6 @@ export function createMonitorTask(data: Record<string, unknown>) {
 }
 export function updateMonitorTask(id: string, data: Record<string, unknown>) {
   return requestClient.put<MonitorTask>(`/ocpx/monitor-tasks/${id}`, data);
-}
-export function changeMonitorTaskStatus(
-  id: string,
-  data: VersionedAction & { status: 'ACTIVE' | 'PAUSED' },
-) {
-  return requestClient.post(`/ocpx/monitor-tasks/${id}/status`, data);
-}
-export function archiveMonitorTask(id: string, data: VersionedAction) {
-  return requestClient.post(`/ocpx/monitor-tasks/${id}/archive`, data);
 }
 export function deleteMonitorTask(id: string) {
   return requestClient.delete(`/ocpx/monitor-tasks/${id}`);

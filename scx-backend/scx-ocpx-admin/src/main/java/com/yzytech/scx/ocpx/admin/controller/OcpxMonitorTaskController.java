@@ -33,8 +33,8 @@ public class OcpxMonitorTaskController {
 	@GetMapping
 	@SaCheckPermission("ocpx:monitor-task:view")
 	public Result<IPage<MonitorTaskViews.Item>> list(Page<OcpxMonitorTask> page, String keyword,
-			String advertiserId, String promotionLinkId, String mediaId, String status) {
-		return Result.success(service.list(page, keyword, advertiserId, promotionLinkId, mediaId, status));
+			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId) {
+		return Result.success(service.list(page, keyword, advertiserId, promotionLinkId, mediaId, monitorTaskId));
 	}
 
 	@GetMapping("/{id}")
@@ -56,22 +56,6 @@ public class OcpxMonitorTaskController {
 	public Result<MonitorTaskViews.Item> update(@PathVariable String id,
 			@Valid @RequestBody MonitorTaskRequests.Update request) {
 		return call(() -> service.update(id, request));
-	}
-
-	@PostMapping("/{id}/status")
-	@SaCheckPermission("ocpx:monitor-task:status")
-	@SysLog("修改监测任务状态")
-	public Result<MonitorTaskViews.Mutation> status(@PathVariable String id,
-			@Valid @RequestBody MonitorTaskRequests.ChangeStatus request) {
-		return call(() -> service.changeStatus(id, request));
-	}
-
-	@PostMapping("/{id}/archive")
-	@SaCheckPermission("ocpx:monitor-task:archive")
-	@SysLog("归档监测任务")
-	public Result<MonitorTaskViews.Mutation> archive(@PathVariable String id,
-			@Valid @RequestBody MonitorTaskRequests.VersionedAction request) {
-		return call(() -> service.archive(id, request));
 	}
 
 	@DeleteMapping("/{id}")

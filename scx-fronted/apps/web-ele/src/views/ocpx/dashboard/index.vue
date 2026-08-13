@@ -119,7 +119,9 @@ onMounted(async () => {
           <el-table :data="dashboard?.advertiserRanking ?? []">
             <el-table-column label="广告主" prop="dimensionName" />
             <el-table-column label="流程数">
-              <template #default="{ row }">{{ metricCount(row.metrics) }}</template>
+              <template #default="{ row }">{{
+                metricCount(row.metrics)
+              }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -129,7 +131,9 @@ onMounted(async () => {
           <el-table :data="dashboard?.promotionLinkRanking ?? []">
             <el-table-column label="推广链接" prop="dimensionName" />
             <el-table-column label="流程数">
-              <template #default="{ row }">{{ metricCount(row.metrics) }}</template>
+              <template #default="{ row }">{{
+                metricCount(row.metrics)
+              }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -142,7 +146,9 @@ onMounted(async () => {
           <el-table :data="dashboard?.mediaRanking ?? []">
             <el-table-column label="媒体" prop="dimensionName" />
             <el-table-column label="流程数">
-              <template #default="{ row }">{{ metricCount(row.metrics) }}</template>
+              <template #default="{ row }">{{
+                metricCount(row.metrics)
+              }}</template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -152,7 +158,9 @@ onMounted(async () => {
           <el-table :data="dashboard?.monitorTaskRanking ?? []">
             <el-table-column label="监测任务" prop="dimensionName" />
             <el-table-column label="流程数">
-              <template #default="{ row }">{{ metricCount(row.metrics) }}</template>
+              <template #default="{ row }">{{
+                metricCount(row.metrics)
+              }}</template>
             </el-table-column>
           </el-table>
         </el-card>

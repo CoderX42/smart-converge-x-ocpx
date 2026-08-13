@@ -7,9 +7,11 @@ import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkRequests;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkViews;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
+import com.yzytech.scx.ocpx.entity.OcpxDeductionRule;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
+import com.yzytech.scx.ocpx.admin.mapper.OcpxDeductionRuleMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import lombok.RequiredArgsConstructor;
@@ -30,22 +32,23 @@ public class OcpxPromotionLinkService {
 
 	private final OcpxMonitorTaskMapper taskMapper;
 
+	private final OcpxDeductionRuleMapper deductionRuleMapper;
+
 	private final OcpxUrlPolicy urlPolicy;
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	public IPage<PromotionLinkViews.Item> list(Page<OcpxPromotionLink> page, String keyword, String advertiserId,
-			String platform, String status) {
+			Integer platform) {
 		return linkMapper
 			.selectPage(page,
 					Wrappers.<OcpxPromotionLink>lambdaQuery()
 						.and(StringUtils.hasText(keyword),
-								q -> q.like(OcpxPromotionLink::getLinkCode, keyword)
+								q -> q.like(OcpxPromotionLink::getId, keyword)
 									.or()
 									.like(OcpxPromotionLink::getLinkName, keyword))
 						.eq(StringUtils.hasText(advertiserId), OcpxPromotionLink::getAdvertiserId, advertiserId)
-						.eq(StringUtils.hasText(platform), OcpxPromotionLink::getPlatform, platform)
-						.eq(StringUtils.hasText(status), OcpxPromotionLink::getStatus, status)
+						.eq(platform != null, OcpxPromotionLink::getPlatform, platform)
 						.orderByDesc(OcpxPromotionLink::getUpdateTime))
 			.convert(this::view);
 	}
@@ -53,14 +56,13 @@ public class OcpxPromotionLinkService {
 	public List<PromotionLinkViews.AdvertiserOption> advertiserOptions(String keyword) {
 		return advertiserMapper
 			.selectList(Wrappers.<OcpxAdvertiser>lambdaQuery()
-				.eq(OcpxAdvertiser::getStatus, "ACTIVE")
 				.and(StringUtils.hasText(keyword),
-						q -> q.like(OcpxAdvertiser::getAdvertiserCode, keyword)
+						q -> q.like(OcpxAdvertiser::getId, keyword)
 							.or()
 							.like(OcpxAdvertiser::getAdvertiserName, keyword))
 				.orderByAsc(OcpxAdvertiser::getAdvertiserName))
 			.stream()
-			.map(a -> new PromotionLinkViews.AdvertiserOption(a.getId(), a.getAdvertiserCode(), a.getAdvertiserName()))
+			.map(a -> new PromotionLinkViews.AdvertiserOption(a.getId(), a.getAdvertiserName()))
 			.toList();
 	}
 
@@ -70,15 +72,10 @@ public class OcpxPromotionLinkService {
 
 	@Transactional
 	public PromotionLinkViews.Item create(PromotionLinkRequests.Create request) {
-		requireActiveAdvertiser(request.advertiserId());
-		ensureCode(null, request.linkCode());
+		requireAdvertiser(request.advertiserId());
 		OcpxPromotionLink link = new OcpxPromotionLink();
-		link.setLinkCode(request.linkCode().trim());
-		apply(link, request.advertiserId(), request.linkName(), request.packageName(), request.platform(),
-				request.linkType(), request.linkChannel(), request.linkUrlTemplate(), request.deeplinkUrl(),
-				request.downloadUrl(), request.redirectEnabled(), request.macroSet(), request.remark());
-		link.setStatus("ACTIVE");
-		link.setConfigVersion(1L);
+		apply(link, request.advertiserId(), request.linkName(), request.platform(), request.linkChannel(),
+				request.linkUrl(), request.deeplink(), request.linkExt(), request.remark());
 		link.setDeleted(false);
 		linkMapper.insert(link);
 		configRefreshPublisher.mark();
@@ -88,94 +85,60 @@ public class OcpxPromotionLinkService {
 	@Transactional
 	public PromotionLinkViews.Item update(String id, PromotionLinkRequests.Update request) {
 		OcpxPromotionLink current = require(id);
-		requireVersion(current, request.expectedVersion());
-		requireActiveAdvertiser(request.advertiserId());
+		requireAdvertiser(request.advertiserId());
 		if (!current.getAdvertiserId().equals(request.advertiserId()) && taskMapper
 			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0) {
 			throw new IllegalArgumentException("已被监测任务引用的推广链接不能更换广告主");
 		}
 		OcpxPromotionLink update = new OcpxPromotionLink();
 		update.setId(id);
-		apply(update, request.advertiserId(), request.linkName(), request.packageName(), request.platform(),
-				request.linkType(), request.linkChannel(), request.linkUrlTemplate(), request.deeplinkUrl(),
-				request.downloadUrl(), request.redirectEnabled(), request.macroSet(), request.remark());
-		update.setConfigVersion(current.getConfigVersion() + 1);
-		if (linkMapper.update(update,
-				Wrappers.<OcpxPromotionLink>lambdaUpdate()
-					.eq(OcpxPromotionLink::getId, id)
-					.eq(OcpxPromotionLink::getConfigVersion, request.expectedVersion())) != 1)
-			throw conflict();
+		apply(update, request.advertiserId(), request.linkName(), request.platform(), request.linkChannel(),
+				request.linkUrl(), request.deeplink(), request.linkExt(), request.remark());
+		linkMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
 	}
 
 	@Transactional
-	public PromotionLinkViews.Mutation changeStatus(String id, PromotionLinkRequests.StatusAction request) {
-		OcpxPromotionLink current = require(id);
-		requireVersion(current, request.expectedVersion());
-		long next = current.getConfigVersion() + 1;
-		if (linkMapper.update(null,
-				Wrappers.<OcpxPromotionLink>lambdaUpdate()
-					.eq(OcpxPromotionLink::getId, id)
-					.eq(OcpxPromotionLink::getConfigVersion, request.expectedVersion())
-					.set(OcpxPromotionLink::getStatus, request.status())
-					.set(OcpxPromotionLink::getConfigVersion, next)) != 1)
-			throw conflict();
-		configRefreshPublisher.mark();
-		return new PromotionLinkViews.Mutation(id, request.status(), next);
-	}
-
-	@Transactional
-	public PromotionLinkViews.Mutation archive(String id, PromotionLinkRequests.VersionedAction request) {
-		OcpxPromotionLink current = require(id);
-		requireVersion(current, request.expectedVersion());
+	public void delete(String id) {
+		require(id);
 		if (taskMapper
 			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0) {
 			throw new IllegalArgumentException("推广链接仍被监测任务引用");
 		}
+		if (deductionRuleMapper
+			.selectCount(Wrappers.<OcpxDeductionRule>lambdaQuery().eq(OcpxDeductionRule::getPromotionLinkId, id)) > 0) {
+			throw new IllegalArgumentException("推广链接仍被扣量规则引用");
+		}
 		linkMapper.deleteById(id);
 		configRefreshPublisher.mark();
-		return new PromotionLinkViews.Mutation(id, "ARCHIVED", current.getConfigVersion() + 1);
 	}
 
-	public PromotionLinkViews.ValidationReport validateUrl(PromotionLinkRequests.ValidateUrl request) {
-		OcpxUrlPolicy.Result result = urlPolicy.validate(request.url());
-		return new PromotionLinkViews.ValidationReport(result.status(), false, result.maskedUrl(), result.host(),
-				result.fingerprint(), result.macros(), result.issues());
-	}
-
-	private void apply(OcpxPromotionLink link, String advertiserId, String name, String packageName, String platform,
-			String type, String channel, String url, String deeplink, String download, Boolean redirect, String macros,
-			String remark) {
+	private void apply(OcpxPromotionLink link, String advertiserId, String name, Integer platform, String channel,
+			String url, String deeplink, String linkExt, String remark) {
 		OcpxUrlPolicy.Result result = urlPolicy.validate(url);
 		if (!"PASS".equals(result.status()))
-			throw new IllegalArgumentException("推广 URL 校验失败");
+			throw new IllegalArgumentException("推广 URL 校验失败: " + String.join(",", result.issues()));
+		String normalizedDeeplink = trim(deeplink);
+		if (StringUtils.hasText(normalizedDeeplink)) {
+			OcpxUrlPolicy.Result deeplinkResult = urlPolicy.validate(normalizedDeeplink);
+			if (!"PASS".equals(deeplinkResult.status()))
+				throw new IllegalArgumentException("唤起 URL 校验失败: " + String.join(",", deeplinkResult.issues()));
+			normalizedDeeplink = deeplinkResult.normalizedUrl();
+		}
 		link.setAdvertiserId(advertiserId);
 		link.setLinkName(name.trim());
-		link.setPackageName(trim(packageName));
 		link.setPlatform(platform);
-		link.setLinkType(type);
 		link.setLinkChannel(trim(channel));
-		link.setLinkUrlTemplate(result.normalizedUrl());
-		link.setDeeplinkUrl(trim(deeplink));
-		link.setDownloadUrl(trim(download));
-		link.setRedirectEnabled(redirect);
-		link.setMacroSet(trim(macros));
+		link.setLinkUrl(result.normalizedUrl());
+		link.setDeeplink(normalizedDeeplink);
+		link.setLinkExt(trim(linkExt));
 		link.setRemark(trim(remark));
 	}
 
-	private void requireActiveAdvertiser(String id) {
-		if (advertiserMapper.selectCount(Wrappers.<OcpxAdvertiser>lambdaQuery()
-			.eq(OcpxAdvertiser::getId, id)
-			.eq(OcpxAdvertiser::getStatus, "ACTIVE")) != 1)
-			throw new IllegalArgumentException("广告主不存在或未启用");
-	}
-
-	private void ensureCode(String id, String code) {
-		if (linkMapper.selectCount(Wrappers.<OcpxPromotionLink>lambdaQuery()
-			.eq(OcpxPromotionLink::getLinkCode, code.trim())
-			.ne(StringUtils.hasText(id), OcpxPromotionLink::getId, id)) > 0)
-			throw new IllegalArgumentException("推广链接编码已存在");
+	private void requireAdvertiser(String id) {
+		if (advertiserMapper.selectById(id) == null)
+			throw new IllegalArgumentException("广告主不存在");
 	}
 
 	private OcpxPromotionLink require(String id) {
@@ -185,15 +148,6 @@ public class OcpxPromotionLinkService {
 		return value;
 	}
 
-	private void requireVersion(OcpxPromotionLink value, Long expected) {
-		if (!expected.equals(value.getConfigVersion()))
-			throw conflict();
-	}
-
-	private BootBusinessException conflict() {
-		return new BootBusinessException(409, "配置已被修改，请刷新后重试");
-	}
-
 	private String trim(String value) {
 		return StringUtils.hasText(value) ? value.trim() : null;
 	}
@@ -201,17 +155,9 @@ public class OcpxPromotionLinkService {
 	private PromotionLinkViews.Item view(OcpxPromotionLink link) {
 		OcpxAdvertiser a = advertiserMapper.selectById(link.getAdvertiserId());
 		return new PromotionLinkViews.Item(link.getId(), link.getAdvertiserId(),
-				a == null ? null : a.getAdvertiserName(), link.getLinkCode(), link.getLinkName(), link.getPackageName(),
-				link.getPlatform(), link.getLinkType(), link.getLinkChannel(), link.getLinkUrlTemplate(),
-				link.getDeeplinkUrl(), link.getDownloadUrl(), split(link.getMacroSet()),
-				Boolean.TRUE.equals(link.getRedirectEnabled()), link.getRemark(), link.getStatus(),
-				link.getConfigVersion(), link.getCreateTime(), link.getUpdateTime());
-	}
-
-	private List<String> split(String value) {
-		return StringUtils.hasText(value)
-				? java.util.Arrays.stream(value.split(",")).map(String::trim).filter(StringUtils::hasText).toList()
-				: List.of();
+				a == null ? null : a.getAdvertiserName(), link.getLinkName(), link.getPlatform(), link.getLinkChannel(),
+				link.getLinkUrl(), link.getDeeplink(), link.getLinkExt(), link.getRemark(), link.getCreateTime(),
+				link.getUpdateTime());
 	}
 
 }

@@ -50,8 +50,6 @@ class OcpxDeductionRuleServiceTest {
 
 	@Test
 	void createWritesRatioAndResetsRouteCounts() {
-		when(mediaMapper.selectCount(any())).thenReturn(1L);
-		when(linkMapper.selectCount(any())).thenReturn(1L);
 		when(ruleMapper.selectCount(any())).thenReturn(0L);
 		when(ruleMapper.selectById(any())).thenReturn(rule());
 		when(mediaMapper.selectById(any())).thenReturn(media());
@@ -69,8 +67,6 @@ class OcpxDeductionRuleServiceTest {
 	@Test
 	void updateRewritesRatioAndResetsRouteCounts() {
 		when(ruleMapper.selectById("rule-1")).thenReturn(rule());
-		when(mediaMapper.selectCount(any())).thenReturn(1L);
-		when(linkMapper.selectCount(any())).thenReturn(1L);
 		when(ruleMapper.selectCount(any())).thenReturn(0L);
 		when(mediaMapper.selectById(any())).thenReturn(media());
 		when(linkMapper.selectById(any())).thenReturn(link());
@@ -82,6 +78,23 @@ class OcpxDeductionRuleServiceTest {
 		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
 		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
 		verify(configRefreshPublisher).mark();
+	}
+
+	@Test
+	void updateResetsThePreviousRouteWhenDimensionsChange() {
+		when(ruleMapper.selectById("rule-1")).thenReturn(rule());
+		when(ruleMapper.selectCount(any())).thenReturn(0L);
+		when(mediaMapper.selectById(any())).thenReturn(media());
+		when(linkMapper.selectById(any())).thenReturn(link());
+
+		service.update("rule-1", new DeductionRuleRequests.Update("media-2", "link-2", 0.4));
+
+		verify(values).set("ocpx:route:ratio:link-1:media-1", "1.0");
+		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
+		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
+		verify(values).set("ocpx:route:ratio:link-2:media-2", "0.4");
+		verify(redis).delete("ocpx:route:original-count:link-2:media-2");
+		verify(redis).delete("ocpx:route:delivered-count:link-2:media-2");
 	}
 
 	@Test
@@ -99,8 +112,8 @@ class OcpxDeductionRuleServiceTest {
 
 	@Test
 	void createRejectsDuplicatedActiveRule() {
-		when(mediaMapper.selectCount(any())).thenReturn(1L);
-		when(linkMapper.selectCount(any())).thenReturn(1L);
+		when(mediaMapper.selectById("media-1")).thenReturn(media());
+		when(linkMapper.selectById("link-1")).thenReturn(link());
 		when(ruleMapper.selectCount(any())).thenReturn(1L);
 
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
@@ -110,14 +123,14 @@ class OcpxDeductionRuleServiceTest {
 	}
 
 	@Test
-	void createRejectsInactiveMediaAndInactivePromotionLink() {
-		when(mediaMapper.selectCount(any())).thenReturn(0L);
+	void createRejectsMissingMediaAndPromotionLink() {
+		when(mediaMapper.selectById("media-1")).thenReturn(null);
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("媒体");
 
-		when(mediaMapper.selectCount(any())).thenReturn(1L);
-		when(linkMapper.selectCount(any())).thenReturn(0L);
+		when(mediaMapper.selectById("media-1")).thenReturn(media());
+		when(linkMapper.selectById("link-1")).thenReturn(null);
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("推广链接");

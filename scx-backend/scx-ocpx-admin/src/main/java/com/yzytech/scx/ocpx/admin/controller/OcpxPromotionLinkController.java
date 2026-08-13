@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,8 +36,8 @@ public class OcpxPromotionLinkController {
 	@GetMapping
 	@SaCheckPermission("ocpx:promotion-link:view")
 	public Result<IPage<PromotionLinkViews.Item>> list(Page<OcpxPromotionLink> page, String keyword,
-			String advertiserId, String platform, String status) {
-		return Result.success(promotionLinkService.list(page, keyword, advertiserId, platform, status));
+			String advertiserId, Integer platform) {
+		return Result.success(promotionLinkService.list(page, keyword, advertiserId, platform));
 	}
 
 	@GetMapping("/advertiser-options")
@@ -66,27 +67,14 @@ public class OcpxPromotionLinkController {
 		return call(() -> promotionLinkService.update(id, request));
 	}
 
-	@PostMapping("/{id}/status")
-	@SaCheckPermission("ocpx:promotion-link:status")
-	@SysLog("修改推广链接状态")
-	public Result<PromotionLinkViews.Mutation> status(@PathVariable String id,
-			@Valid @RequestBody PromotionLinkRequests.StatusAction request) {
-		return call(() -> promotionLinkService.changeStatus(id, request));
-	}
-
-	@PostMapping("/{id}/archive")
-	@SaCheckPermission("ocpx:promotion-link:archive")
-	@SysLog("归档推广链接")
-	public Result<PromotionLinkViews.Mutation> archive(@PathVariable String id,
-			@Valid @RequestBody PromotionLinkRequests.VersionedAction request) {
-		return call(() -> promotionLinkService.archive(id, request));
-	}
-
-	@PostMapping("/url:validate")
-	@SaCheckPermission("ocpx:promotion-link:validate")
-	public Result<PromotionLinkViews.ValidationReport> validateUrl(
-			@Valid @RequestBody PromotionLinkRequests.ValidateUrl request) {
-		return call(() -> promotionLinkService.validateUrl(request));
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ocpx:promotion-link:delete")
+	@SysLog("删除推广链接")
+	public Result<Void> delete(@PathVariable String id) {
+		return call(() -> {
+			promotionLinkService.delete(id);
+			return null;
+		});
 	}
 
 	private <T> Result<T> call(Callable<T> action) {

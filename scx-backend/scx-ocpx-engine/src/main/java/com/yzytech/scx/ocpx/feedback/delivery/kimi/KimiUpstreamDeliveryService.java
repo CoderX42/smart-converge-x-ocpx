@@ -85,12 +85,15 @@ public class KimiUpstreamDeliveryService extends UpstreamDeliveryService {
 	 * @return 已替换宏的请求地址
 	 */
 	public String getReqUrl(OcpxAdvertiser advertiser, FeedbackReq feedback) {
+		if (advertiser == null) {
+			return null;
+		}
 		String bidUrl = advertiser.getBidUrl();
 		OcpxMonitorTask monitorTask = monitorTaskIndex.get(feedback.getTId());
 		String bizId = "__BIZ_ID__";
 		if (monitorTask != null) {
 			bizId = monitorTask.getBizId();
-			if (bizId.startsWith("{")) {
+			if (bizId != null && bizId.startsWith("{")) {
 				Map<String, Object> map = JSON.parseObject(bizId);
 				bizId = (String) map.get("trackingId");
 			}

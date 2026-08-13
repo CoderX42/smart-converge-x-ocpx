@@ -10,6 +10,8 @@
 > 维护说明（2026-07-29）：本文早期执行快照中出现的 `scripts/check-*`、`scripts/db/*` 等一次性验证路径仅保留为历史证据；根目录 `scripts/` 现仅保留宝塔运维入口，当前契约门使用 `make contract-check`。
 >
 > 决策更新（2026-08-11）：项目负责人明确退役 `scx_schema_migration` 及其依赖。本文执行快照中的旧账本描述只保留为历史证据；当前和未来数据库变更遵守 ADR-004，不再创建、读取、补写或依赖数据库迁移账本。
+>
+> 决策更新（2026-08-13）：V102 以 vientiane 当前管理源码为参考硬替换 OCPX 管理模型。下文历史快照中的 Adapter、状态/归档、版本参数、媒体导出和旧字段不再代表当前能力；当前契约以 [V102 对齐基线](OCPX管理端vientiane对齐V102.md) 为准。
 
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
 
@@ -22,9 +24,10 @@
 | P0-1 | 扣量规则 | 已交付 | V99 新表 `scx_ocpx_deduction_rule`（`media_id`+`promotion_link_id`+`ratio`，软删唯一）；Admin CRUD `/ocpx/deduction-rules`（权限 `ocpx:deduction-rule:*`）；写库后同步 Redis `ocpx:route:ratio:{lId}:{mId}`，变更/删除清理 `ocpx:route:original-count:`/`ocpx:route:delivered-count:`，删除复位 1.0；菜单种子「扣量规则」`/ocpx/deduction`；前端 `views/ocpx/deduction/index.vue`、`api/ocpx/deduction.ts`；`check-ocpx-four-entities.sh` 放宽为五业务表 |
 | P0-2 | 监测任务业务字段与双链接 | 已交付 | V100 为 `scx_ocpx_monitor_task` 增加 `unit_price`/`biz_id`/`show_url`/`clk_url`/`remark`；Admin 创建/更新时持久化生成 `show_url`/`clk_url`（`{engine-base}/feedback?{媒体宏参数}&event=IMP\|CLK&mId=&tId=&aId=&lId=`）；配置项 `scx.ocpx.admin.tracking.engine-base-url` yml 直写；旧 `/c/{taskCode}` trackingUrl 已移除；前端监测任务页对齐 SGYZ advertise/flow |
 | P1-3 | 充值/余额极简版与监测任务删除 | 已交付 | `POST /ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`），Redis key `ocpx:advertiser:balance:{aId}` 单值累加，列表/详情逐行回填 balance，无流水表；`DELETE /ocpx/monitor-tasks/{id}`（逻辑删，权限 `ocpx:monitor-task:delete`）；V101 权限种子；前端广告主页余额列 + 充值弹窗、监测任务删除按钮 |
-| P1-4 | 报表对齐 SGYZ | 已交付 | `GET /ocpx/reports/summary`（dateType 0时/1日/2月/3年、linkRadio 左联扣量规则、clickRate、snake_case 白名单排序、current/size 分页）、`GET /ocpx/reports/summary:export`（CSV 带 BOM，`时段报表.csv`）、`GET /ocpx/media:export`（`媒体管理报表.csv`）；前端报表页重写为 SGYZ AChannelTime 形态（`api/ocpx/report.ts`） |
-| P1-5 | 小米 + KIMI 合作方适配 | 已交付 | 引擎 `GET /mi/feedback`（固定响应 `{"code":0,"failMsg":"","success":true}`）与小米回传（`trail.e.mi.com/api/callback` + MD5 sign，`adapterCode=MI` 分发）；`POST /kimi/callback`（query `ext`/`s` + body `action_type`/`action_time`，响应 `{"code":0}`）与 KIMI 投递（`adapterCode=KIMI` 分发，回调地址 `{domain}/kimi/callback?ext=&s={lId}_{mId}`）；Admin adapterCode 白名单增加 `MI`/`KIMI`；GET-only 门禁对 `KimiCallbackController` 加白名单 |
+| P1-4 | 报表对齐 SGYZ | 已交付 | `GET /ocpx/reports/summary` 支持小时/日/月/年、四实体级联、扣量、CTR、消耗、转化列、排序和分页；`GET /ocpx/reports/summary:export` 输出 CSV；V102 删除媒体导出接口，前端报表页对齐 AChannelTime 形态 |
+| P1-5 | 小米 + KIMI 合作方适配 | 已交付 | 引擎保留 `GET /mi/feedback`、小米签名回传、`POST /kimi/callback` 与 KIMI CLICK 投递；V102 改为广告主/媒体主键 Java 固定注册表分发，凭据经服务端引用解析，不再依赖管理表 Adapter 字段 |
 | P2-6 | 数据面运维回补 | 已交付 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实未改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
+| P0-7 | vientiane 管理端 V102 硬替换对齐 | 已实现，目标环境未迁移 | V102 精简五实体字段、平台转换、函数唯一索引和 RBAC；管理 API 删除旧动作且新增推广链接删除；Engine 改为主键固定注册表和服务端凭据引用；七个列表页完成字段、弹窗、列控制、复制、级联及分页对齐。目标库迁移、生产注册表/凭据、UAT、部署和重启均未执行 |
 
 仍未对齐（不得描述为已交付）：SGYZ 其余 11 个媒体与 19 个广告主合作方适配、RTA、渠道应用审核、自助账号体系、点击扣费/CPC、账务流水表。详见 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md)「2026-08 增补：已对齐能力」。
 

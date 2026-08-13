@@ -3,8 +3,9 @@ package com.yzytech.scx.ocpx.callback.delivery.mi;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.delivery.DownstreamDeliveryService;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
-import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
-import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
+import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
+import com.yzytech.scx.ocpx.configuration.index.OcpxMediaIndex;
+import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.stereotype.Service;
@@ -12,22 +13,22 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
-
 /**
  * 小米媒体转化回传实现（SGYZ MiServiceImpl 平移）。
  *
  * <p>
- * 仅激活、注册、付费、下单四类动作回传；签名 secretKey 取监测任务 {@code bizId}（JSON 形态取
- * {@code secretKey} 键），请求为固定地址的 HTTP GET。
+ * 仅激活、注册、付费、下单四类动作回传；签名材料通过媒体的服务端凭据引用解析，请求为固定地址的 HTTP GET。
  */
 @Service
 public class MiDownstreamDeliveryService extends DownstreamDeliveryService {
 
-	private final OcpxMonitorTaskIndex monitorTaskIndex;
+	private final OcpxMediaIndex mediaIndex;
 
-	public MiDownstreamDeliveryService(OcpxMonitorTaskIndex monitorTaskIndex) {
-		this.monitorTaskIndex = monitorTaskIndex;
+	private final PartnerCredentialResolver credentialResolver;
+
+	public MiDownstreamDeliveryService(OcpxMediaIndex mediaIndex, PartnerCredentialResolver credentialResolver) {
+		this.mediaIndex = mediaIndex;
+		this.credentialResolver = credentialResolver;
 	}
 
 	@Override
@@ -46,17 +47,11 @@ public class MiDownstreamDeliveryService extends DownstreamDeliveryService {
 			deviceId = "&oaid=" + request.getFeedback().getOaid();
 		}
 
-		OcpxMonitorTask monitorTask = monitorTaskIndex.get(request.getFeedback().getTId());
-		String secretKey = "";
-		if (monitorTask != null) {
-			String bizId = monitorTask.getBizId();
-			if (!bizId.startsWith("{")) {
-				secretKey = bizId;
-			}
-			else {
-				Map<String, Object> map = JSON.parseObject(bizId);
-				secretKey = (String) map.get("secretKey");
-			}
+		OcpxMedia media = mediaIndex.get(request.getFeedback().getMId());
+		String secretKey = credentialResolver.mediaSecret(media).orElse(null);
+		if (!StringUtils.hasText(secretKey)) {
+			log.warn("mi credential is not configured for mId:{}", request.getFeedback().getMId());
+			return;
 		}
 
 		String params = "callback=" + request.getFeedback().getExt() + deviceId + "&conv_time="

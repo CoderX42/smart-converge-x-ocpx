@@ -16,7 +16,6 @@ import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 
@@ -111,11 +110,13 @@ class KimiUpstreamDeliveryServiceTest {
 	}
 
 	@Test
-	void rethrowsWhenTheDeliveryFails() {
+	void ignoresMissingAdvertiserConfigurationWithoutCallingTheNetwork() {
 		FeedbackReq click = feedback(EventTypeEnum.CLICK);
 
-		// 广告主索引缺失时 getReqUrl 触发空指针，SGYZ 行为为包装成 RuntimeException 继续抛出。
-		assertThatThrownBy(() -> service.deliver(click)).isInstanceOf(RuntimeException.class);
+		try (MockedStatic<NetUtil> netUtil = Mockito.mockStatic(NetUtil.class)) {
+			service.deliver(click);
+			netUtil.verifyNoInteractions();
+		}
 	}
 
 	private FeedbackReq feedback(EventTypeEnum event) {

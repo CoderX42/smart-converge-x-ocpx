@@ -1,9 +1,10 @@
 package com.yzytech.scx.ocpx.feedback.delivery;
 
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.feedback.delivery.kimi.KimiUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -18,8 +19,9 @@ import java.util.concurrent.TimeUnit;
  * 线程池参数属于历史协议链路的兼容约束。队列满时使用调用方线程执行，避免默默丢弃请求，但会增加 入站请求延迟。
  *
  * <p>
- * 广告主 {@code adapterCode} 为 {@code KIMI}（忽略大小写）时走 KIMI 协议投递，其余（含索引缺失）走 现有通用模板投递；不做注册表抽象。
+ * 广告主主键必须显式登记为通用模板或 KIMI；未登记主键拒绝上游转发并写脱敏流程日志。
  */
+@Slf4j
 @Component
 public class UpstreamDeliveryDispatcher {
 
@@ -31,13 +33,17 @@ public class UpstreamDeliveryDispatcher {
 
 	private static KimiUpstreamDeliveryService kimiDeliveryService;
 
-	private static OcpxAdvertiserIndex advertiserIndex;
+	private static AdvertiserProtocolRegistry protocolRegistry;
+
+	private static OcpxFlowLogWriter flowLogWriter;
 
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
-			KimiUpstreamDeliveryService kimiDeliveryService, OcpxAdvertiserIndex advertiserIndex) {
+			KimiUpstreamDeliveryService kimiDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			OcpxFlowLogWriter flowLogWriter) {
 		UpstreamDeliveryDispatcher.deliveryService = deliveryService;
 		UpstreamDeliveryDispatcher.kimiDeliveryService = kimiDeliveryService;
-		UpstreamDeliveryDispatcher.advertiserIndex = advertiserIndex;
+		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
+		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
 	}
 
 	/**
@@ -54,21 +60,25 @@ public class UpstreamDeliveryDispatcher {
 				if (service != null) {
 					service.deliver(request);
 				}
+				else {
+					log.warn("Reject unregistered advertiser protocol aId:{}", request.getAId());
+					flowLogWriter.rejectedAdvertiser(request);
+				}
 			}
-			catch (Exception ignored) {
+			catch (Exception error) {
+				log.warn("Upstream delivery failed aId:{} lId:{}", request.getAId(), request.getLId());
 			}
 		});
 	}
 
-	/** 按广告主 Adapter 选择投递实现；索引缺失或 Adapter 非 {@code KIMI} 时回退通用模板实现。 */
+	/** 按固定主键注册表选择投递实现；未登记时返回 {@code null}。 */
 	static UpstreamDeliveryService resolve(FeedbackReq request) {
-		if (advertiserIndex != null) {
-			OcpxAdvertiser advertiser = advertiserIndex.get(request.getAId());
-			if (advertiser != null && "KIMI".equalsIgnoreCase(advertiser.getAdapterCode())) {
-				return kimiDeliveryService;
-			}
+		if (protocolRegistry == null) {
+			return null;
 		}
-		return deliveryService;
+		return protocolRegistry.resolve(request.getAId())
+			.map(protocol -> protocol == AdvertiserProtocolRegistry.Protocol.KIMI ? kimiDeliveryService : deliveryService)
+			.orElse(null);
 	}
 
 }

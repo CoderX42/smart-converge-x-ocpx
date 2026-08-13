@@ -56,8 +56,8 @@ public class OcpxDeductionRuleService {
 
 	@Transactional
 	public DeductionRuleViews.Item create(DeductionRuleRequests.Create request) {
-		requireActiveMedia(request.mediaId());
-		requireActivePromotionLink(request.promotionLinkId());
+		requireMedia(request.mediaId());
+		requirePromotionLink(request.promotionLinkId());
 		ensureUnique(null, request.mediaId(), request.promotionLinkId());
 		OcpxDeductionRule rule = new OcpxDeductionRule();
 		rule.setMediaId(request.mediaId());
@@ -72,9 +72,9 @@ public class OcpxDeductionRuleService {
 
 	@Transactional
 	public DeductionRuleViews.Item update(String id, DeductionRuleRequests.Update request) {
-		require(id);
-		requireActiveMedia(request.mediaId());
-		requireActivePromotionLink(request.promotionLinkId());
+		OcpxDeductionRule current = require(id);
+		requireMedia(request.mediaId());
+		requirePromotionLink(request.promotionLinkId());
 		ensureUnique(id, request.mediaId(), request.promotionLinkId());
 		OcpxDeductionRule update = new OcpxDeductionRule();
 		update.setId(id);
@@ -82,6 +82,10 @@ public class OcpxDeductionRuleService {
 		update.setPromotionLinkId(request.promotionLinkId());
 		update.setRatio(request.ratio());
 		ruleMapper.updateById(update);
+		if (!current.getMediaId().equals(request.mediaId())
+				|| !current.getPromotionLinkId().equals(request.promotionLinkId())) {
+			syncRouteRatio(current.getPromotionLinkId(), current.getMediaId(), 1.0);
+		}
 		syncRouteRatio(request.promotionLinkId(), request.mediaId(), request.ratio());
 		configRefreshPublisher.mark();
 		return detail(id);
@@ -103,18 +107,14 @@ public class OcpxDeductionRuleService {
 		redis.delete(ROUTE_DELIVERED_COUNT_PREFIX + route);
 	}
 
-	private void requireActiveMedia(String id) {
-		if (mediaMapper.selectCount(Wrappers.<OcpxMedia>lambdaQuery()
-			.eq(OcpxMedia::getId, id)
-			.eq(OcpxMedia::getStatus, "ACTIVE")) != 1)
-			throw new IllegalArgumentException("媒体不存在或未启用");
+	private void requireMedia(String id) {
+		if (mediaMapper.selectById(id) == null)
+			throw new IllegalArgumentException("媒体不存在");
 	}
 
-	private void requireActivePromotionLink(String id) {
-		if (linkMapper.selectCount(Wrappers.<OcpxPromotionLink>lambdaQuery()
-			.eq(OcpxPromotionLink::getId, id)
-			.eq(OcpxPromotionLink::getStatus, "ACTIVE")) != 1)
-			throw new IllegalArgumentException("推广链接不存在或未启用");
+	private void requirePromotionLink(String id) {
+		if (linkMapper.selectById(id) == null)
+			throw new IllegalArgumentException("推广链接不存在");
 	}
 
 	private void ensureUnique(String id, String mediaId, String promotionLinkId) {

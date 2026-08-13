@@ -15,6 +15,8 @@ export type SummaryReportRow = {
   login: number;
   mediaId: string;
   mediaName: string;
+  monitorName: string;
+  monitorTaskId: string;
   nextStay: number;
   payment: number;
   placeOrder: number;
@@ -22,8 +24,6 @@ export type SummaryReportRow = {
   promotionLinkName: string;
   register: number;
   reportTime: string;
-  taskId: string;
-  taskName: string;
   uniClkSmt: number;
   uniShowSmt: number;
   visits: number;
@@ -44,10 +44,10 @@ export type SummaryReportQuery = {
   desc?: string;
   endTime: string;
   mediaId?: string;
+  monitorTaskId?: string;
   promotionLinkId?: string;
   size?: number;
   startTime: string;
-  taskId?: string;
 };
 
 export function getSummaryReport(params: SummaryReportQuery) {
@@ -59,5 +59,9 @@ export function getSummaryReport(params: SummaryReportQuery) {
 export function exportSummaryReport(
   params: Omit<SummaryReportQuery, 'asc' | 'current' | 'desc' | 'size'>,
 ) {
-  return downloadBlobFile('/ocpx/reports/summary:export', params, '时段报表.csv');
+  return downloadBlobFile(
+    '/ocpx/reports/summary:export',
+    params,
+    '时段报表.csv',
+  );
 }

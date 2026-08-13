@@ -8,13 +8,8 @@ public final class AdvertiserViews {
 	private AdvertiserViews() {
 	}
 
-	public record Item(String id, String advertiserName, String advertiserCode, String adapterCode,
-			String credentialConfigKey, long credentialVersion, String bidUrl, String macroParams,
-			String upstreamHostAllowlist, String status, long configVersion, BigDecimal balance,
-			LocalDateTime createTime, LocalDateTime updateTime) {
-	}
-
-	public record Mutation(String id, String status, long configVersion) {
+	public record Item(String id, String advertiserName, String credentialConfigKey, String bidUrl, String macroParams,
+			BigDecimal balance, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
 }

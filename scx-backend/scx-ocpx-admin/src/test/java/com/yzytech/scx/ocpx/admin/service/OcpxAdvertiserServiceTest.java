@@ -8,7 +8,6 @@ import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
-import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,8 +33,6 @@ class OcpxAdvertiserServiceTest {
 
 	private OcpxAdvertiserMapper advertiserMapper;
 
-	private OcpxPromotionLinkMapper promotionLinkMapper;
-
 	private OcpxUrlPolicy urlPolicy;
 
 	private OcpxConfigRefreshPublisher configRefreshPublisher;
@@ -50,14 +47,12 @@ class OcpxAdvertiserServiceTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		advertiserMapper = mock(OcpxAdvertiserMapper.class);
-		promotionLinkMapper = mock(OcpxPromotionLinkMapper.class);
 		urlPolicy = mock(OcpxUrlPolicy.class);
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		redis = mock(StringRedisTemplate.class);
 		values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		service = new OcpxAdvertiserService(advertiserMapper, promotionLinkMapper, urlPolicy, configRefreshPublisher,
-				redis);
+		service = new OcpxAdvertiserService(advertiserMapper, urlPolicy, configRefreshPublisher, redis);
 	}
 
 	@Test
@@ -105,7 +100,7 @@ class OcpxAdvertiserServiceTest {
 		when(values.get("ocpx:advertiser:balance:adv-2")).thenReturn(null);
 
 		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
-			.list(new Page<>(1, 10), null, null, null)
+			.list(new Page<>(1, 10), null)
 			.getRecords();
 
 		assertThat(records.get(0).balance()).isEqualByComparingTo("123.45");
@@ -127,10 +122,7 @@ class OcpxAdvertiserServiceTest {
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
 		advertiser.setId(id);
 		advertiser.setAdvertiserName("广告主一");
-		advertiser.setAdvertiserCode("adv_code");
-		advertiser.setStatus("ACTIVE");
-		advertiser.setCredentialVersion(1L);
-		advertiser.setConfigVersion(1L);
+		advertiser.setBidUrl("https://example.test/callback");
 		return advertiser;
 	}
 

@@ -77,8 +77,8 @@ class OcpxMonitorTaskServiceTest {
 		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
 		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
 
-		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("task-code", "任务一", "adv-1",
-				"link-1", "media-1", null, new BigDecimal("12.340000"), "biz-1", "备注一"));
+		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
+				"media-1", new BigDecimal("12.340000"), "biz-1", "备注一"));
 
 		String expectedShow = "http://127.0.0.1:10000/ocpx/feedback?"
 				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
@@ -114,31 +114,30 @@ class OcpxMonitorTaskServiceTest {
 		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
 		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
 
-		service.create(new MonitorTaskRequests.Create("task-code", "任务一", "adv-1", "link-1", "media-1", null,
-				BigDecimal.ZERO, null, null));
+		service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO,
+				null, null));
 
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
 		verify(taskMapper).updateById(captor.capture());
 		assertThat(captor.getValue().getShowUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?&event=IMP&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+				"http://127.0.0.1:10000/ocpx/feedback?event=IMP&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
 		assertThat(captor.getValue().getClkUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?&event=CLK&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+				"http://127.0.0.1:10000/ocpx/feedback?event=CLK&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
 	}
 
 	@Test
 	void updateRegeneratesUrlsAfterRebind() {
 		OcpxMonitorTask current = task("task-1", "adv-1", "link-1", "media-1");
-		current.setConfigVersion(3L);
 		when(taskMapper.selectById("task-1")).thenReturn(current);
 		stubActiveRelations();
 		when(mediaMapper.selectById("media-2")).thenReturn(media("media-2"));
-		when(taskMapper.update(any(OcpxMonitorTask.class), any())).thenReturn(1);
+		when(taskMapper.updateById(any(OcpxMonitorTask.class))).thenReturn(1);
 
-		service.update("task-1", new MonitorTaskRequests.Update("任务一", "adv-1", "link-2", "media-2", null,
-				new BigDecimal("9.9"), "biz-2", null, 3L));
+		service.update("task-1", new MonitorTaskRequests.Update("任务一", "adv-1", "link-2", "media-2",
+				new BigDecimal("9.9"), "biz-2", null));
 
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
-		verify(taskMapper).update(captor.capture(), any());
+		verify(taskMapper).updateById(captor.capture());
 		OcpxMonitorTask update = captor.getValue();
 		assertThat(update.getShowUrl()).isEqualTo("http://127.0.0.1:10000/ocpx/feedback?"
 				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
@@ -156,20 +155,19 @@ class OcpxMonitorTaskServiceTest {
 		Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
 		assertThat(validator
-			.validate(new MonitorTaskRequests.Create("task-code", "任务一", "adv-1", "link-1", "media-1", null, null,
-					null, null)))
+			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", null, null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 		assertThat(validator
-			.validate(new MonitorTaskRequests.Create("task-code", "任务一", "adv-1", "link-1", "media-1", null,
+			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1",
 					new BigDecimal("-0.01"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 		assertThat(validator
-			.validate(new MonitorTaskRequests.Create("task-code", "任务一", "adv-1", "link-1", "media-1", null,
-					BigDecimal.ZERO, null, null)))
+			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO,
+					null, null)))
 			.noneMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 		assertThat(validator
-			.validate(new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1", null,
-					new BigDecimal("-1"), null, null, 1L)))
+			.validate(new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1",
+					new BigDecimal("-1"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 	}
 
@@ -217,13 +215,10 @@ class OcpxMonitorTaskServiceTest {
 	private OcpxMonitorTask task(String id, String advertiserId, String linkId, String mediaId) {
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		task.setId(id);
-		task.setTaskCode("task-code");
-		task.setTaskName("任务一");
+		task.setMonitorName("任务一");
 		task.setAdvertiserId(advertiserId);
 		task.setPromotionLinkId(linkId);
 		task.setMediaId(mediaId);
-		task.setStatus("ACTIVE");
-		task.setConfigVersion(1L);
 		task.setDeleted(false);
 		return task;
 	}
@@ -246,7 +241,7 @@ class OcpxMonitorTaskServiceTest {
 		OcpxMedia media = new OcpxMedia();
 		media.setId(id);
 		media.setMediaName("媒体一");
-		media.setIngressUri("/feedback?");
+		media.setUri("/feedback");
 		media.setMacroParams("request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__");
 		return media;
 	}

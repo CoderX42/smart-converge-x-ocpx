@@ -1,51 +1,36 @@
 package com.yzytech.scx.ocpx.feedback.delivery;
 
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.feedback.delivery.kimi.KimiUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
-import org.junit.jupiter.api.AfterEach;
+import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class UpstreamDeliveryDispatcherTest {
-
-	private final OcpxAdvertiserIndex advertiserIndex = new OcpxAdvertiserIndex();
 
 	private final TemplateGetUpstreamDeliveryService templateDelivery = mock(TemplateGetUpstreamDeliveryService.class);
 
 	private final KimiUpstreamDeliveryService kimiDelivery = mock(KimiUpstreamDeliveryService.class);
 
-	@AfterEach
-	void clearIndex() {
-		advertiserIndex.clear();
-	}
+	private final AdvertiserProtocolRegistry registry = mock(AdvertiserProtocolRegistry.class);
 
 	@Test
-	void routesKimiAdvertisersToTheKimiDeliveryIgnoringCase() {
-		new UpstreamDeliveryDispatcher(templateDelivery, kimiDelivery, advertiserIndex);
-		advertiserIndex.add("kimi-upper", advertiser("KIMI"));
-		advertiserIndex.add("kimi-lower", advertiser("kimi"));
+	void routesOnlyExplicitlyRegisteredAdvertisers() {
+		new UpstreamDeliveryDispatcher(templateDelivery, kimiDelivery, registry, mock(OcpxFlowLogWriter.class));
+		when(registry.resolve("kimi-id")).thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.KIMI));
+		when(registry.resolve("template-id"))
+			.thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.TEMPLATE_GET));
+		when(registry.resolve("missing-id")).thenReturn(Optional.empty());
 
-		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("kimi-upper"))).isSameAs(kimiDelivery);
-		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("kimi-lower"))).isSameAs(kimiDelivery);
-	}
-
-	@Test
-	void routesOtherOrMissingAdvertisersToTheTemplateDelivery() {
-		new UpstreamDeliveryDispatcher(templateDelivery, kimiDelivery, advertiserIndex);
-		advertiserIndex.add("template", advertiser("TEMPLATE_GET"));
-
-		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("template"))).isSameAs(templateDelivery);
-		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("missing"))).isSameAs(templateDelivery);
-	}
-
-	private OcpxAdvertiser advertiser(String adapterCode) {
-		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		advertiser.setAdapterCode(adapterCode);
-		return advertiser;
+		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("kimi-id"))).isSameAs(kimiDelivery);
+		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("template-id"))).isSameAs(templateDelivery);
+		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("missing-id"))).isNull();
 	}
 
 	private FeedbackReq feedback(String advertiserId) {

@@ -66,13 +66,11 @@ class IndexDataLoaderTest {
 	}
 
 	/**
-	 * 四个实体均依赖 {@code deleted} 字段上的 {@link TableLogic}，使 {@code selectList(null)} 自动追加
-	 * {@code deleted = 0}，与 SGYZ Parser 的 {@code isDelete = 0} 过滤语义等价。
+	 * 只有推广链接和监测任务保留逻辑删除；广告主和媒体的 V102 模型没有删除字段。
 	 */
 	@Test
 	void reliesOnTableLogicToExcludeLogicallyDeletedRows() throws NoSuchFieldException {
-		for (Class<?> entity : List.of(OcpxAdvertiser.class, OcpxPromotionLink.class, OcpxMedia.class,
-				OcpxMonitorTask.class)) {
+		for (Class<?> entity : List.of(OcpxPromotionLink.class, OcpxMonitorTask.class)) {
 			Field deleted = entity.getDeclaredField("deleted");
 			assertThat(deleted.isAnnotationPresent(TableLogic.class)).as(entity.getSimpleName()).isTrue();
 		}

@@ -1,59 +1,51 @@
-# SCX 广告业务四实体实现与新人上手
+# SCX OCPX 管理面实现说明
 
-## 先理解上下游
+## 业务关系
 
 ```text
-下游媒体上报 Feedback
-  -> SCX 根据监测任务找到广告主和推广链接
-  -> 协议转换并同步转发上游广告主
-
-上游广告主回调 Callback
-  -> SCX 根据签名 ext 找回监测任务
-  -> 协议转换并同步回传下游媒体
+广告主 1 ── N 推广链接
+媒体 1 ── N 监测任务 N ── 1 推广链接 ── 1 广告主
+媒体 + 推广链接 ── 0..1 生效扣量规则
 ```
 
-SCX 当前是效果回传与协议转换平台，不是完整 RTB 竞价平台。
+管理 API 使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`。外部数据面使用同一组主键的短名 `aId/mId/lId/tId`。任务保存时校验所属链接确实属于所选广告主。
 
-## 四个业务实体
+## 当前字段
 
-| 含义 | 类 | 表 | 管理 API |
-|---|---|---|---|
-| 上游广告主 | `OcpxAdvertiser` | `scx_ocpx_advertiser` | `/ocpx/advertisers` |
-| 推广链接 | `OcpxPromotionLink` | `scx_ocpx_promotion_link` | `/ocpx/promotion-links` |
-| 下游媒体 | `OcpxMedia` | `scx_ocpx_media` | `/ocpx/media` |
-| 监测任务 | `OcpxMonitorTask` | `scx_ocpx_monitor_task` | `/ocpx/monitor-tasks` |
+| 对象 | 业务字段 | 删除语义 |
+|---|---|---|
+| 广告主 | `name/bidUrl/credentialConfigKey/macro` | 不提供删除 |
+| 推广链接 | `advertiserId/name/platform/channelId/linkUrl/deeplink/linkExt/remark` | `is_delete` 逻辑删除 |
+| 媒体 | `name/uri/credentialConfigKey/macro` | 不提供删除 |
+| 监测任务 | `monitorName/mediaId/advertiserId/promotionLinkId/unitPrice/bizId/showUrl/clkUrl/remark` | `is_delete` 逻辑删除 |
+| 扣量规则 | `mediaId/promotionLinkId/ratio` | `is_delete` 逻辑删除；函数唯一索引保证同一路由只有一条生效规则 |
 
-一个广告主拥有多条推广链接；一条推广链接只属于一个广告主；一条监测任务连接一个广告主、该广告主的一条推广链接和一个媒体。数据库组合外键与服务校验都会阻止任务选择其他广告主的链接。
+所有对象另有主键和创建/修改时间。平台为数值：`1 Android`、`2 iOS`、`3 Android+iOS`、`4 快应用`。监测 URL 由后端生成，前端不提交。
 
-- 广告主保存上游 Adapter、URL、宏、主机白名单和凭据配置键/版本。
-- 推广链接保存平台、链接类型、URL 模板、Deeplink、下载地址和宏。
-- 媒体保存下游 Adapter、鉴权类型、接入 URI、Callback URL、主机白名单和凭据配置键/版本。
-- 监测任务只保存四方关系、运营人员、状态和配置版本。创建后直接为 ACTIVE，可暂停、恢复或归档。
+广告主 `bidUrl`、推广链接 URL 统一使用 `OcpxUrlPolicy` 校验，只允许安全的 HTTP/HTTPS 地址并拒绝本机、内网、链路本地地址、危险协议和非法模板。媒体 `uri` 是接入标识，不作为服务端请求目的地址。
 
-账号和 Secret 不进入业务表或流程日志，只在 Engine profile yml 中按配置键读取。
+## 管理 API
 
-## 保留的报表与日志
+| 前缀 | 保留操作 |
+|---|---|
+| `/ocpx/advertisers` | 列表、详情、新增、编辑、`POST /{id}/recharge` |
+| `/ocpx/promotion-links` | 列表、选项、详情、新增、编辑、逻辑删除 |
+| `/ocpx/media` | 列表、详情、新增、编辑 |
+| `/ocpx/monitor-tasks` | 列表、详情、新增、编辑、逻辑删除 |
+| `/ocpx/deduction-rules` | 列表、详情、新增、编辑、逻辑删除并同步 Redis 比例 |
+| `/ocpx/reports` | 选项、小时明细、时段汇总、CSV 导出 |
+| `/ocpx/flow-logs` | 脱敏流程日志查询 |
 
-`scx_ocpx_flow_log` 是广告域唯一额外技术表。Feedback 和 Callback 外发成功或失败时各写一条脱敏记录。管理后台保留：
+状态切换、归档、连通性测试、预检、独立 URL 校验、媒体导出和乐观锁版本参数均已删除，不提供兼容路径或字段别名。软删除前会校验依赖关系。
 
-- 经营总览；
-- 报表中心，支持 `TIME/ADVERTISER/PROMOTION_LINK/MEDIA/MONITOR_TASK`；
-- 流程日志，可按时间、流程、结果和事件 ID 查询。
+## 管理前端
 
-报表直接聚合流程日志，不保留小时事实或报表导出任务表。系统原有操作日志、登录日志不受影响。
+七个列表页统一使用 `RightToolbar`：查询区显隐、刷新、列选择、当前行高亮、内部滚动、分页 `[10,30,60]` 且默认 30 条。列选择默认全选、不持久化，操作列不参与隐藏。长 URL、宏和扩展信息省略显示，悬浮看全文，点击复制并反馈结果；级联父项改变时清空无效子项；删除必须二次确认。
 
-## 新人阅读和操作顺序
+Dashboard 保留 SCX 指标卡和四维排行，不使用列表页工具栏。流程日志没有参考页面，因此保留现有业务字段，仅统一列表交互。
 
-1. 看四个 Entity、DTO、Controller，理解字段和管理 API。
-2. 看 `OcpxMonitorTaskService` 的关系校验与状态变化。
-3. 看 `PartnerContextRepository`，理解运行时如何只联查四表。
-4. 沿 Feedback 阅读 `FeedbackIngressController` → `FeedbackIngressService` → `UpstreamAdapter`。
-5. 沿 Callback 阅读 `UpstreamCallbackController` → `CallbackIngressService` → `DownstreamAdapter`。
-6. 看 `OcpxFlowLogRepository` 和 `OcpxUnifiedReportService`，理解日志与报表共用一个数据源。
-7. 管理后台按广告主 → 推广链接 → 媒体 → 监测任务的顺序建数据。
+按钮同时受权限控制，并提供加载禁用、键盘焦点和可访问名称。浏览器只读写 `credentialConfigKey` 引用，永远不读写真实账号或密钥。
 
-## 当前删除的广告业务
+## 报表和日志
 
-事件配置、路由发布/快照/ACK、对象范围、广告主账号授权、充值账务、扣量、点击去重、队列、投递重试、DLQ、运行中心、API 调试和报表导出均不属于当前最小版本。
-
-系统管理基础框架和 `sys_*` 数据保持不变；V96 只清理明确列出的旧广告菜单、角色菜单和广告表。
+时段报表读取最终报表表，支持小时/日/月/年、媒体到任务、广告主到链接级联筛选、合计行和 CSV。流程日志保存时间、流程、事件、四实体主键、结果、HTTP、耗时和脱敏说明；未登记广告主拒绝转发时会写入失败日志。系统操作日志和登录日志不受影响。

@@ -7,45 +7,78 @@ import { onMounted, reactive, ref } from 'vue';
 
 import { Page } from '@boot/common-ui';
 
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 
 import {
-  archiveAdvertiser,
-  changeAdvertiserStatusV2,
   createAdvertiserV2,
   listAdvertisers,
   rechargeAdvertiser,
   updateAdvertiserV2,
 } from '#/api/ocpx';
+import RightToolbar from '#/components/right-toolbar/index.vue';
+
+import LongText from '../long-text.vue';
+import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+
+import '../table.scss';
 
 defineOptions({ name: 'OcpxAdvertiserManagement' });
 
+const columns = [
+  { key: 'id', label: '广告主编号' },
+  { key: 'name', label: '名称' },
+  { key: 'balance', label: '余额' },
+  { key: 'credential', label: '凭据引用' },
+  { key: 'bidUrl', label: '请求地址' },
+  { key: 'macro', label: '宏参数' },
+  { key: 'createTime', label: '创建时间' },
+  { key: 'updateTime', label: '修改时间' },
+];
+const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<AdvertiserV2[]>([]);
 const loading = ref(false);
+const saving = ref(false);
 const total = ref(0);
-const filters = reactive({ current: 1, keyword: '', size: 20, status: '' });
-const open = ref(false);
+const showSearch = ref(true);
+const query = reactive({ current: 1, keyword: '', size: 30 });
+
+const dialogOpen = ref(false);
 const editing = ref<AdvertiserV2>();
+const formRef = ref<FormInstance>();
 const form = reactive({
-  adapterCode: 'TEMPLATE_GET',
-  advertiserCode: '',
   advertiserName: '',
   bidUrl: '',
   credentialConfigKey: '',
-  credentialVersion: 1,
   macroParams: '',
-  upstreamHostAllowlist: '',
 });
+const rules: FormRules = {
+  advertiserName: [{ message: '请输入广告主名称', required: true }],
+  bidUrl: [{ message: '请输入请求地址', required: true }],
+};
+
+const rechargeOpen = ref(false);
+const rechargeLoading = ref(false);
+const rechargeId = ref('');
+const rechargeFormRef = ref<FormInstance>();
+const rechargeForm = reactive({ balance: '' });
+const rechargeRules: FormRules = {
+  balance: [
+    { message: '请输入充值金额', required: true },
+    {
+      message: '请输入不小于 0 的数字',
+      pattern: /^\d+(?:\.\d+)?$/,
+    },
+  ],
+};
+
+function hasColumn(key: string) {
+  return visibleColumns.value.includes(key);
+}
 
 async function load() {
   loading.value = true;
   try {
-    const result = await listAdvertisers({
-      current: filters.current,
-      keyword: filters.keyword || undefined,
-      size: filters.size,
-      status: filters.status || undefined,
-    });
+    const result = await listAdvertisers({ ...query });
     rows.value = result.records;
     total.value = result.total;
   } finally {
@@ -53,86 +86,46 @@ async function load() {
   }
 }
 
+function search() {
+  resetPage(query);
+  void load();
+}
+
 function edit(row?: AdvertiserV2) {
   editing.value = row;
   Object.assign(form, {
-    adapterCode: row?.adapterCode || 'TEMPLATE_GET',
-    advertiserCode: row?.advertiserCode || '',
     advertiserName: row?.advertiserName || '',
     bidUrl: row?.bidUrl || '',
     credentialConfigKey: row?.credentialConfigKey || '',
-    credentialVersion: row?.credentialVersion || 1,
     macroParams: row?.macroParams || '',
-    upstreamHostAllowlist: row?.upstreamHostAllowlist || '',
   });
-  open.value = true;
+  dialogOpen.value = true;
 }
 
 async function save() {
-  const data = {
-    adapterCode: form.adapterCode,
-    bidUrl: form.bidUrl,
-    credentialConfigKey: form.credentialConfigKey,
-    credentialVersion: form.credentialVersion,
-    macroParams: form.macroParams || undefined,
-    name: form.advertiserName,
-    upstreamHostAllowlist: form.upstreamHostAllowlist || undefined,
-  };
-  await (editing.value ? updateAdvertiserV2(editing.value.id, {
-      ...data,
-      expectedVersion: editing.value.configVersion,
-    }) : createAdvertiserV2({ ...data, code: form.advertiserCode }));
-  ElMessage.success('保存成功');
-  open.value = false;
-  await load();
-}
-
-async function toggle(row: AdvertiserV2) {
-  await changeAdvertiserStatusV2(row.id, {
-    expectedVersion: row.configVersion,
-    status: row.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE',
-  });
-  await load();
-}
-
-async function archive(row: AdvertiserV2) {
-  await ElMessageBox.confirm('确认归档该广告主？', '归档广告主');
-  await archiveAdvertiser(row.id, { expectedVersion: row.configVersion });
-  await load();
-}
-
-const rechargeOpen = ref(false);
-const rechargeId = ref('');
-const rechargeLoading = ref(false);
-const rechargeFormRef = ref<FormInstance>();
-const rechargeForm = reactive({ balance: '' });
-
-function validateBalance(
-  _rule: unknown,
-  value: string,
-  callback: (error?: Error) => void,
-) {
-  if (value === '' || value === undefined || value === null) {
-    callback(new Error('请输入金额'));
-    return;
-  }
-  if (/^\d+(?:\.\d+)?$/.test(String(value))) {
-    callback();
-  } else {
-    callback(new Error('请输入正确的数字格式'));
+  if (!(await formRef.value?.validate().catch(() => false))) return;
+  saving.value = true;
+  try {
+    const payload = {
+      bidUrl: form.bidUrl,
+      credentialConfigKey: form.credentialConfigKey || undefined,
+      macroParams: form.macroParams || undefined,
+      name: form.advertiserName,
+    };
+    await (editing.value
+      ? updateAdvertiserV2(editing.value.id, payload)
+      : createAdvertiserV2(payload));
+    ElMessage.success('保存成功');
+    dialogOpen.value = false;
+    await load();
+  } finally {
+    saving.value = false;
   }
 }
 
-const rechargeRules: FormRules = {
-  balance: [
-    { message: '请输入金额', required: true, trigger: 'blur' },
-    { trigger: 'blur', validator: validateBalance },
-  ],
-};
-
-// 平移 SGYZ dsp/recharge.vue：弹窗只取行 id，提交后刷新列表
 function recharge(row: AdvertiserV2) {
   rechargeId.value = row.id;
+  rechargeForm.balance = '';
   rechargeOpen.value = true;
 }
 
@@ -149,163 +142,210 @@ async function submitRecharge() {
   }
 }
 
-function handleRechargeClose() {
-  rechargeFormRef.value?.resetFields();
-}
-
 onMounted(load);
 </script>
 
 <template>
   <Page auto-content-height title="广告主管理">
     <el-card shadow="never">
-      <div class="mb-4 flex gap-3">
+      <div v-show="showSearch" class="ocpx-query">
         <el-input
-          v-model="filters.keyword"
+          v-model="query.keyword"
+          aria-label="按广告主查询"
           clearable
-          placeholder="编码 / 名称"
-          @keyup.enter="load"
+          placeholder="广告主编号 / 名称"
+          @clear="search"
+          @keyup.enter="search"
         />
-        <el-select v-model="filters.status" clearable placeholder="状态">
-          <el-option label="启用" value="ACTIVE" />
-          <el-option label="停用" value="DISABLED" />
-        </el-select>
-        <el-button @click="load">查询</el-button>
+        <el-button :disabled="loading" type="primary" @click="search"
+          >查询</el-button
+        >
+        <el-button
+          :disabled="loading"
+          @click="
+            Object.assign(query, { keyword: '' });
+            search();
+          "
+        >
+          重置
+        </el-button>
+      </div>
+
+      <div class="ocpx-actions">
         <el-button
           v-access:code="'ocpx:advertiser:add'"
+          :disabled="loading || saving"
           type="primary"
           @click="edit()"
         >
           新增广告主
         </el-button>
+        <RightToolbar
+          v-model:visible-columns="visibleColumns"
+          :columns="columns"
+          :loading="loading"
+          refresh-btn
+          search-btn
+          @refresh="load"
+          @search="showSearch = !showSearch"
+        />
       </div>
-      <el-alert
-        class="mb-4"
-        :closable="false"
-        title="账号和 Secret 仅保存在 Engine 配置中；管理库只保存配置键与版本。"
-        type="info"
-      />
-      <el-table v-loading="loading" :data="rows">
-        <el-table-column label="编码" prop="advertiserCode" />
-        <el-table-column label="名称" prop="advertiserName" />
-        <el-table-column label="余额" prop="balance">
+
+      <el-table
+        v-loading="loading"
+        class="ocpx-table"
+        :data="rows"
+        highlight-current-row
+        max-height="560"
+        size="small"
+      >
+        <el-table-column
+          v-if="hasColumn('id')"
+          label="广告主编号"
+          min-width="170"
+        >
+          <template #default="{ row }"><LongText :value="row.id" /></template>
+        </el-table-column>
+        <el-table-column
+          v-if="hasColumn('name')"
+          label="名称"
+          min-width="150"
+          prop="advertiserName"
+        />
+        <el-table-column
+          v-if="hasColumn('balance')"
+          label="余额"
+          min-width="110"
+        >
           <template #default="{ row }">{{ row.balance ?? 0 }}</template>
         </el-table-column>
-        <el-table-column label="Adapter" prop="adapterCode" />
-        <el-table-column label="凭据引用" min-width="180">
-          <template #default="{ row }">
-            {{ row.credentialConfigKey }} @ v{{ row.credentialVersion }}
-          </template>
+        <el-table-column
+          v-if="hasColumn('credential')"
+          label="凭据引用"
+          min-width="180"
+        >
+          <template #default="{ row }"
+            ><LongText :value="row.credentialConfigKey"
+          /></template>
         </el-table-column>
-        <el-table-column label="状态" prop="status" />
-        <el-table-column fixed="right" label="操作" width="300">
+        <el-table-column
+          v-if="hasColumn('bidUrl')"
+          label="请求地址"
+          min-width="240"
+        >
+          <template #default="{ row }"
+            ><LongText :value="row.bidUrl"
+          /></template>
+        </el-table-column>
+        <el-table-column
+          v-if="hasColumn('macro')"
+          label="宏参数"
+          min-width="220"
+        >
+          <template #default="{ row }"
+            ><LongText :value="row.macroParams"
+          /></template>
+        </el-table-column>
+        <el-table-column
+          v-if="hasColumn('createTime')"
+          label="创建时间"
+          min-width="170"
+          prop="createTime"
+        />
+        <el-table-column
+          v-if="hasColumn('updateTime')"
+          label="修改时间"
+          min-width="170"
+          prop="updateTime"
+        />
+        <el-table-column fixed="right" label="操作" width="130">
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
+              :disabled="saving || rechargeLoading"
               link
               type="primary"
               @click="edit(row)"
+              >编辑</el-button
             >
-              编辑
-            </el-button>
             <el-button
               v-access:code="'ocpx:advertiser:recharge'"
+              :disabled="saving || rechargeLoading"
               link
               type="primary"
               @click="recharge(row)"
+              >充值</el-button
             >
-              充值
-            </el-button>
-            <el-button
-              v-access:code="'ocpx:advertiser:status'"
-              link
-              @click="toggle(row)"
-            >
-              切换状态
-            </el-button>
-            <el-button
-              v-access:code="'ocpx:advertiser:archive'"
-              link
-              type="danger"
-              @click="archive(row)"
-            >
-              归档
-            </el-button>
           </template>
         </el-table-column>
       </el-table>
       <el-pagination
-        v-model:current-page="filters.current"
-        v-model:page-size="filters.size"
-        class="mt-4"
+        v-model:current-page="query.current"
+        v-model:page-size="query.size"
+        class="ocpx-pagination"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="PAGE_SIZES"
         :total="total"
         @change="load"
       />
     </el-card>
 
     <el-dialog
-      v-model="open"
+      v-model="dialogOpen"
       :title="editing ? '编辑广告主' : '新增广告主'"
-      width="720px"
+      width="680px"
     >
-      <el-form :model="form" label-width="130px">
-        <el-form-item label="广告主编码" required>
-          <el-input v-model="form.advertiserCode" :disabled="!!editing" />
-        </el-form-item>
-        <el-form-item label="广告主名称" required>
-          <el-input v-model="form.advertiserName" />
-        </el-form-item>
-        <el-form-item label="上游 Adapter" required>
-          <el-input v-model="form.adapterCode" />
-        </el-form-item>
-        <el-form-item label="上游地址" required>
-          <el-input v-model="form.bidUrl" />
-        </el-form-item>
-        <el-form-item label="凭据配置键" required>
-          <el-input v-model="form.credentialConfigKey" />
-        </el-form-item>
-        <el-form-item label="凭据版本" required>
-          <el-input-number v-model="form.credentialVersion" :min="1" />
-        </el-form-item>
-        <el-form-item label="宏参数">
-          <el-input v-model="form.macroParams" type="textarea" />
-        </el-form-item>
-        <el-form-item label="上游主机白名单">
-          <el-input v-model="form.upstreamHostAllowlist" type="textarea" />
-        </el-form-item>
+      <el-form
+        ref="formRef"
+        class="ocpx-dialog-form"
+        :model="form"
+        :rules="rules"
+        label-width="110px"
+      >
+        <el-form-item label="名称" prop="advertiserName"
+          ><el-input v-model="form.advertiserName"
+        /></el-form-item>
+        <el-form-item label="请求地址" prop="bidUrl"
+          ><el-input v-model="form.bidUrl" type="textarea"
+        /></el-form-item>
+        <el-form-item label="凭据引用" prop="credentialConfigKey"
+          ><el-input v-model="form.credentialConfigKey"
+        /></el-form-item>
+        <el-form-item label="宏参数" prop="macroParams"
+          ><el-input v-model="form.macroParams" :rows="4" type="textarea"
+        /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="open = false">取消</el-button>
-        <el-button type="primary" @click="save">保存</el-button>
+        <el-button :disabled="saving" @click="dialogOpen = false"
+          >取消</el-button
+        >
+        <el-button :loading="saving" type="primary" @click="save"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="rechargeOpen"
-      :close-on-click-modal="false"
-      title="广告主充值"
-      width="480px"
-      @close="handleRechargeClose"
-    >
+    <el-dialog v-model="rechargeOpen" title="广告主充值" width="460px">
       <el-form
         ref="rechargeFormRef"
         :model="rechargeForm"
         :rules="rechargeRules"
         label-width="100px"
       >
-        <el-form-item label="充值金额" prop="balance">
-          <el-input v-model="rechargeForm.balance" placeholder="请输入金额" />
-        </el-form-item>
+        <el-form-item label="充值金额" prop="balance"
+          ><el-input v-model="rechargeForm.balance" inputmode="decimal"
+        /></el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="rechargeOpen = false">取消</el-button>
+        <el-button :disabled="rechargeLoading" @click="rechargeOpen = false"
+          >取消</el-button
+        >
         <el-button
           :loading="rechargeLoading"
           type="primary"
           @click="submitRecharge"
+          >确定</el-button
         >
-          确定
-        </el-button>
       </template>
     </el-dialog>
   </Page>

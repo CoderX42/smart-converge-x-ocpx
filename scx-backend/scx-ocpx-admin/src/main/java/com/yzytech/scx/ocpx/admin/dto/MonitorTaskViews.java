@@ -8,13 +8,10 @@ public final class MonitorTaskViews {
 	private MonitorTaskViews() {
 	}
 
-	public record Item(String id, String taskCode, String taskName, String advertiserId, String advertiserName,
-			String promotionLinkId, String promotionLinkName, String mediaId, String mediaName, String operatorUserId,
-			String status, long configVersion, String showUrl, String clkUrl, BigDecimal unitPrice, String bizId,
-			String remark, LocalDateTime archivedAt, LocalDateTime createTime, LocalDateTime updateTime) {
-	}
-
-	public record Mutation(String id, String status, long configVersion) {
+	public record Item(String id, String monitorName, String advertiserId, String advertiserName,
+			String promotionLinkId, String promotionLinkName, Integer platform, String mediaId, String mediaName,
+			String showUrl, String clkUrl, BigDecimal unitPrice, String bizId, String remark, LocalDateTime createTime,
+			LocalDateTime updateTime) {
 	}
 
 }

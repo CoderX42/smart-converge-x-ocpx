@@ -26,6 +26,25 @@ ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_na
 expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_deduction_rule,scx_ocpx_flow_log,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX must contain five business tables and the legacy-compatible data layer"
 
+assert_exact_columns() {
+  local table="$1" expected="$2" actual
+  actual="$(scalar "SELECT GROUP_CONCAT(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='${table}'")"
+  [[ "$actual" == "$expected" ]] || fail "${table} columns do not match the V102 management model"
+}
+
+assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,credential_config_key,bid_url,macro_params,create_time,update_time'
+assert_exact_columns scx_ocpx_promotion_link 'id,advertiser_id,link_name,platform,link_channel,link_url,deeplink,link_ext,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,macro_params,create_time,update_time'
+assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
+
+invalid_platforms="$(scalar "SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE platform NOT IN (1,2,3,4)")"
+[[ "$invalid_platforms" -eq 0 ]] || fail "promotion-link platform must be one of 1 Android, 2 iOS, 3 Android+iOS, 4 quick app"
+
+deduction_unique_parts="$(scalar "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_ocpx_deduction_rule' AND index_name='uk_ocpx_deduction_rule_route'")"
+deduction_function_part="$(scalar "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='scx_ocpx_deduction_rule' AND index_name='uk_ocpx_deduction_rule_route' AND expression IS NOT NULL")"
+[[ "$deduction_unique_parts" -eq 3 && "$deduction_function_part" -eq 1 ]] || fail "deduction route functional unique index is missing"
+
 route_table_list="$(printf "'%s'," "${SCX_OCPX_ROUTE_TABLES[@]}")"; route_table_list="${route_table_list%,}"
 route_column_list="$(printf "'%s'," "${SCX_OCPX_ROUTE_COLUMNS[@]}")"; route_column_list="${route_column_list%,}"
 retired_route_column_list="$(printf "'%s'," "${SCX_OCPX_RETIRED_ROUTE_COLUMNS[@]}")"; retired_route_column_list="${retired_route_column_list%,}"
@@ -56,8 +75,17 @@ composite_fk="$(scalar "SELECT COUNT(*) FROM information_schema.referential_cons
 
 retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' AND
  (permission LIKE CONCAT('ad','x:%') OR permission REGEXP '^ocpx:(channel|product|app-link|media-account|task|monitor|deduction|event|runtime|api-debug|scope|account):'
-  OR permission IN ('ocpx:monitor-task:publish','ocpx:report:export','ocpx:advertiser:grant'))")"
+  OR permission IN (
+    'ocpx:monitor-task:publish','ocpx:report:export','ocpx:advertiser:grant',
+    'ocpx:advertiser:status','ocpx:advertiser:archive',
+    'ocpx:promotion-link:status','ocpx:promotion-link:archive','ocpx:promotion-link:validate',
+    'ocpx:media:status','ocpx:media:archive','ocpx:media:preflight','ocpx:media:connectivity','ocpx:media:export',
+    'ocpx:monitor-task:status','ocpx:monitor-task:archive'
+  ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
+
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:promotion-link:delete','ocpx:monitor-task:delete')")"
+[[ "$required_permissions" -eq 3 ]] || fail "required recharge and delete permissions are incomplete"
 
 system_admin="$(scalar "SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='system' AND u.del_flag='0' AND r.role_code='ROLE_ADMIN' AND r.del_flag='0'")"
 [[ "$system_admin" -eq 1 ]] || fail "system administrator role mapping changed"

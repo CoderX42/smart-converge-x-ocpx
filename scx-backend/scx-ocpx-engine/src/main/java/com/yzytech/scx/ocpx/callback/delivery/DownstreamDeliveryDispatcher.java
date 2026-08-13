@@ -2,8 +2,7 @@ package com.yzytech.scx.ocpx.callback.delivery;
 
 import com.yzytech.scx.ocpx.callback.delivery.mi.MiDownstreamDeliveryService;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
-import com.yzytech.scx.ocpx.configuration.index.OcpxMediaIndex;
-import com.yzytech.scx.ocpx.entity.OcpxMedia;
+import com.yzytech.scx.ocpx.protocol.registry.MediaProtocolRegistry;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -19,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  * 执行任务，以反压方式避免直接丢弃回传。
  *
  * <p>
- * 媒体 {@code adapterCode} 为 {@code MI}（忽略大小写）时走小米协议回传，其余（含索引缺失）走现有通用 回调地址回传；不做注册表抽象。
+ * 媒体主键登记为 MI 时走小米协议；其余媒体按参考实现走 Feedback 自带回调地址。
  */
 @Component
 public class DownstreamDeliveryDispatcher {
@@ -32,13 +31,13 @@ public class DownstreamDeliveryDispatcher {
 
 	private static MiDownstreamDeliveryService miDeliveryService;
 
-	private static OcpxMediaIndex mediaIndex;
+	private static MediaProtocolRegistry protocolRegistry;
 
 	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService,
-			MiDownstreamDeliveryService miDeliveryService, OcpxMediaIndex mediaIndex) {
+			MiDownstreamDeliveryService miDeliveryService, MediaProtocolRegistry protocolRegistry) {
 		DownstreamDeliveryDispatcher.deliveryService = deliveryService;
 		DownstreamDeliveryDispatcher.miDeliveryService = miDeliveryService;
-		DownstreamDeliveryDispatcher.mediaIndex = mediaIndex;
+		DownstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 	}
 
 	/**
@@ -61,13 +60,11 @@ public class DownstreamDeliveryDispatcher {
 		});
 	}
 
-	/** 按媒体 Adapter 选择回传实现；索引缺失或 Adapter 非 {@code MI} 时回退通用实现。 */
+	/** 按媒体主键固定注册表选择特殊协议；未登记媒体回退通用实现。 */
 	static DownstreamDeliveryService resolve(CallbackReq request) {
-		if (mediaIndex != null) {
-			OcpxMedia media = mediaIndex.get(request.getFeedback().getMId());
-			if (media != null && "MI".equalsIgnoreCase(media.getAdapterCode())) {
-				return miDeliveryService;
-			}
+		if (protocolRegistry != null && protocolRegistry.resolve(request.getFeedback().getMId())
+			.orElse(null) == MediaProtocolRegistry.Protocol.MI) {
+			return miDeliveryService;
 		}
 		return deliveryService;
 	}

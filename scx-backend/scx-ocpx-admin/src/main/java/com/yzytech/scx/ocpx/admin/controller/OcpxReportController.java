@@ -61,16 +61,16 @@ public class OcpxReportController {
 
 	@GetMapping("/reports/summary")
 	@SaCheckPermission("ocpx:report:view")
-	public Result<SummaryReportViews.Page> summary(Integer dateType, String mediaId, String taskId,
+	public Result<SummaryReportViews.Page> summary(Integer dateType, String mediaId, String monitorTaskId,
 			String advertiserId, String promotionLinkId, String startTime, String endTime, String asc, String desc,
 			Long current, Long size) {
-		return Result.success(service.summary(new SummaryReportQuery(dateType, mediaId, taskId, advertiserId,
+		return Result.success(service.summary(new SummaryReportQuery(dateType, mediaId, monitorTaskId, advertiserId,
 				promotionLinkId, startTime, endTime, asc, desc, current, size)));
 	}
 
 	@GetMapping("/reports/summary:export")
 	@SaCheckPermission("ocpx:report:view")
-	public void exportSummary(Integer dateType, String mediaId, String taskId, String advertiserId,
+	public void exportSummary(Integer dateType, String mediaId, String monitorTaskId, String advertiserId,
 			String promotionLinkId, String startTime, String endTime, HttpServletResponse response) {
 		try {
 			response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -79,7 +79,7 @@ public class OcpxReportController {
 			response.setHeader("Content-Disposition", "attachment;filename*=UTF-8''" + fileName + ".csv");
 			response.getWriter()
 				.print("\ufeff"
-						+ service.summaryCsv(new SummaryReportQuery(dateType, mediaId, taskId, advertiserId,
+						+ service.summaryCsv(new SummaryReportQuery(dateType, mediaId, monitorTaskId, advertiserId,
 								promotionLinkId, startTime, endTime, null, null, null, null)));
 		}
 		catch (Exception error) {
@@ -90,7 +90,7 @@ public class OcpxReportController {
 	private UnifiedReportQuery query(LocalDate startDate, LocalDate endDate, String groupBy, String advertiserId,
 			String promotionLinkId, String mediaId, String monitorTaskId, Long current, Long size) {
 		return new UnifiedReportQuery(startDate, endDate, groupBy, advertiserId, promotionLinkId, mediaId,
-				monitorTaskId, current == null ? 1 : current, size == null ? 20 : size);
+				monitorTaskId, current == null ? 1 : current, size == null ? 30 : size);
 	}
 
 }

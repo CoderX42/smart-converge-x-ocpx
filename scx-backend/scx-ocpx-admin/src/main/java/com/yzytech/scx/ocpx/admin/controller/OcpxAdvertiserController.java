@@ -33,9 +33,8 @@ public class OcpxAdvertiserController {
 
 	@GetMapping
 	@SaCheckPermission("ocpx:advertiser:view")
-	public Result<IPage<AdvertiserViews.Item>> list(Page<OcpxAdvertiser> page, String keyword, String adapterCode,
-			String status) {
-		return Result.success(advertiserService.list(page, keyword, adapterCode, status));
+	public Result<IPage<AdvertiserViews.Item>> list(Page<OcpxAdvertiser> page, String keyword) {
+		return Result.success(advertiserService.list(page, keyword));
 	}
 
 	@GetMapping("/{id}")
@@ -57,22 +56,6 @@ public class OcpxAdvertiserController {
 	public Result<AdvertiserViews.Item> update(@PathVariable String id,
 			@Valid @RequestBody AdvertiserRequests.Update request) {
 		return call(() -> advertiserService.update(id, request));
-	}
-
-	@PostMapping("/{id}/status")
-	@SaCheckPermission("ocpx:advertiser:status")
-	@SysLog("修改广告主状态")
-	public Result<AdvertiserViews.Mutation> status(@PathVariable String id,
-			@Valid @RequestBody AdvertiserRequests.ChangeStatus request) {
-		return call(() -> advertiserService.changeStatus(id, request));
-	}
-
-	@PostMapping("/{id}/archive")
-	@SaCheckPermission("ocpx:advertiser:archive")
-	@SysLog("归档广告主")
-	public Result<AdvertiserViews.Mutation> archive(@PathVariable String id,
-			@Valid @RequestBody AdvertiserRequests.VersionedAction request) {
-		return call(() -> advertiserService.archive(id, request));
 	}
 
 	@PostMapping("/{id}/recharge")

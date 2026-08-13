@@ -21,7 +21,7 @@ public final class UnifiedReportViews {
 			Map<String, MetricValue> summary, LocalDateTime asOf) {
 	}
 
-	public record Option(String id, String code, String label, String status) {
+	public record Option(String id, String label) {
 	}
 
 	public record Options(List<Option> advertisers, List<Option> promotionLinks, List<Option> media,

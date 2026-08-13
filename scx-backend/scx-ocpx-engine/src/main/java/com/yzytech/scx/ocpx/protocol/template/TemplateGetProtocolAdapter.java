@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.protocol.template;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.web.UpstreamCallbackRequest;
+import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
 import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
@@ -37,8 +38,12 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 
 	private final OcpxMonitorTaskIndex monitorTaskIndex;
 
-	public TemplateGetProtocolAdapter(OcpxMonitorTaskIndex monitorTaskIndex) {
+	private final PartnerCredentialResolver credentialResolver;
+
+	public TemplateGetProtocolAdapter(OcpxMonitorTaskIndex monitorTaskIndex,
+			PartnerCredentialResolver credentialResolver) {
 		this.monitorTaskIndex = monitorTaskIndex;
+		this.credentialResolver = credentialResolver;
 	}
 
 	/**
@@ -76,15 +81,20 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	 *
 	 * <p>
 	 * 空字段保留原宏，UA、机型和 Callback URL 使用严格 URL 编码；签名为最终模板地址与广告主 {@code credentialConfigKey}
-	 * 拼接后的 MD5。
+	 * 引用所解析的服务端密钥拼接后的 MD5。凭据不存在时拒绝生成请求地址。
 	 * @param advertiser 上游广告主配置
 	 * @param feedback 标准化媒体事件
 	 * @return 已替换宏并追加 {@code signature} 的请求地址
 	 */
 	public String buildUpstreamRequestUrl(OcpxAdvertiser advertiser, FeedbackReq feedback) {
+		String credential = credentialResolver.advertiserSecret(advertiser).orElse(null);
+		if (!StringUtils.hasText(credential)) {
+			return null;
+		}
 		String bidUrl = advertiser.getBidUrl();
 		OcpxMonitorTask monitorTask = monitorTaskIndex.get(feedback.getTId());
-		String bizId = monitorTask == null ? "__BIZ_ID__" : monitorTask.getTaskCode();
+		String bizId = monitorTask == null ? "__BIZ_ID__"
+				: StringUtil.replaceDefault(monitorTask.getBizId(), "__BIZ_ID__");
 		String requestUrl = bidUrl
 			.replace("__REQUEST_ID__", StringUtil.replaceDefault(feedback.getReqId(), "__REQUEST_ID__"))
 			.replace("__IMEI__", StringUtil.replaceDefault(feedback.getImei(), "__IMEI__"))
@@ -103,7 +113,7 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 					StringUtil.replaceDefaultEncode(buildCallbackUrl(feedback), "__CALLBACK_URL__"))
 			.replace("__BIZ_ID__", bizId);
 		String md5 = DigestUtils
-			.md5DigestAsHex((requestUrl + advertiser.getCredentialConfigKey()).getBytes(StandardCharsets.UTF_8));
+			.md5DigestAsHex((requestUrl + credential).getBytes(StandardCharsets.UTF_8));
 		return requestUrl + "&signature=" + md5;
 	}
 

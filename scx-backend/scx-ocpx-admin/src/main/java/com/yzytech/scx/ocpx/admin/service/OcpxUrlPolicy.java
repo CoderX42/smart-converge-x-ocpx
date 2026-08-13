@@ -74,6 +74,9 @@ public class OcpxUrlPolicy {
 			if (!StringUtils.hasText(host) || reservedHost(host) || unsafeLiteralAddress(host)) {
 				return blocked("URL_HOST_NOT_PUBLIC", issues);
 			}
+			if (unsafeResolvedAddress(host)) {
+				return blocked("URL_HOST_NOT_PUBLIC", issues);
+			}
 			int port = uri.getPort();
 			if (port == 0 || port > 65535) {
 				return blocked("URL_PORT_INVALID", issues);
@@ -151,6 +154,21 @@ public class OcpxUrlPolicy {
 				|| first == 192 && second == 0 || first == 192 && second == 0 && third == 2
 				|| first == 198 && (second == 18 || second == 19) || first == 198 && second == 51 && third == 100
 				|| first == 203 && second == 0 && third == 113;
+	}
+
+	private boolean unsafeResolvedAddress(String host) {
+		try {
+			for (InetAddress address : InetAddress.getAllByName(host)) {
+				if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
+						|| address.isSiteLocalAddress() || address.isMulticastAddress()) {
+					return true;
+				}
+			}
+			return false;
+		}
+		catch (Exception error) {
+			return true;
+		}
 	}
 
 	private int[] ipv4(String host) {

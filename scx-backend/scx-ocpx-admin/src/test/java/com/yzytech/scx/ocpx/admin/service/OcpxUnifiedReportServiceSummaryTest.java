@@ -73,8 +73,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 		assertThat(row.reportTime()).isEqualTo("20260812");
 		assertThat(row.mediaId()).isEqualTo("media-1");
 		assertThat(row.mediaName()).isEqualTo("小米");
-		assertThat(row.taskId()).isEqualTo("task-1");
-		assertThat(row.taskName()).isEqualTo("任务一");
+		assertThat(row.monitorTaskId()).isEqualTo("task-1");
+		assertThat(row.monitorName()).isEqualTo("任务一");
 		assertThat(row.advertiserId()).isEqualTo("advertiser-1");
 		assertThat(row.advertiserName()).isEqualTo("KIMI");
 		assertThat(row.promotionLinkId()).isEqualTo("link-1");
@@ -90,7 +90,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), any(Object[].class));
 		assertThat(sql.getValue()).contains(
-				"LEFT JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND dr.deleted=0");
+				"LEFT JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND dr.is_delete=0");
 	}
 
 	@Test
@@ -204,7 +204,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		lenient().when(rs.getString("m_id")).thenReturn("media-1");
 		lenient().when(rs.getString("media_name")).thenReturn("小米");
 		lenient().when(rs.getString("t_id")).thenReturn("task-1");
-		lenient().when(rs.getString("task_name")).thenReturn("任务一");
+		lenient().when(rs.getString("monitor_name")).thenReturn("任务一");
 		lenient().when(rs.getString("a_id")).thenReturn("advertiser-1");
 		lenient().when(rs.getString("advertiser_name")).thenReturn("KIMI");
 		lenient().when(rs.getString("l_id")).thenReturn("link-1");

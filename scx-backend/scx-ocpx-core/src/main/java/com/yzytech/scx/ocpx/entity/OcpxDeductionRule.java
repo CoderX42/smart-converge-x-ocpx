@@ -24,6 +24,7 @@ public class OcpxDeductionRule {
 	private Double ratio;
 
 	@TableLogic
+	@TableField("is_delete")
 	private Boolean deleted;
 
 	@TableField(fill = FieldFill.INSERT)

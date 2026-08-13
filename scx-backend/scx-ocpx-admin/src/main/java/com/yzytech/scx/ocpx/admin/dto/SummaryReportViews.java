@@ -8,7 +8,7 @@ public final class SummaryReportViews {
 	private SummaryReportViews() {
 	}
 
-	public record Row(String reportTime, String mediaId, String mediaName, String taskId, String taskName,
+	public record Row(String reportTime, String mediaId, String mediaName, String monitorTaskId, String monitorName,
 			String advertiserId, String advertiserName, String promotionLinkId, String promotionLinkName,
 			String linkRadio, long uniShowSmt, long uniClkSmt, Double clickRate, BigDecimal basePrice, long activate,
 			long evoke, long login, long register, long payment, long customerAcquisition, long nextStay, long visits,

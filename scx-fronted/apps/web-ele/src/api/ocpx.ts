@@ -5,10 +5,8 @@ export * from './ocpx/four-entity';
 export * from './ocpx/report';
 
 export type ReportOption = {
-  code: string;
   id: string;
   label: string;
-  status: string;
 };
 
 export type UnifiedReportOptions = {
@@ -19,11 +17,7 @@ export type UnifiedReportOptions = {
 };
 
 export type UnifiedReportGroupBy =
-  | 'ADVERTISER'
-  | 'MEDIA'
-  | 'MONITOR_TASK'
-  | 'PROMOTION_LINK'
-  | 'TIME';
+  'ADVERTISER' | 'MEDIA' | 'MONITOR_TASK' | 'PROMOTION_LINK' | 'TIME';
 
 export type MetricValue = { amount: number; count: number };
 

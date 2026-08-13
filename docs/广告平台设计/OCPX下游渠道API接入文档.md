@@ -1,100 +1,53 @@
-# SCX OCPX V2 下游媒体接入文档
+# SCX OCPX 下游媒体接入文档
 
-## 接入前准备
+## 通用 Feedback
 
-运营人员依次创建并启用广告主、推广链接、媒体和监测任务。下游媒体只需要保存 SCX 分配的 `mediaCode` 和 `monitor_task_id`；广告主、推广链接和媒体关系均从监测任务派生。
-
-合作方账号和 Secret 不进数据库或流程日志，只在 Engine profile yml 中按 `configKey + version` 配置。
-
-## Feedback 接口
-
-```text
-POST {baseUrl}/open-api/ocpx/v2/media/{mediaCode}/feedback
-Content-Type: application/json
+```http
+GET /ocpx/feedback?mId={mediaId}&tId={monitorTaskId}&aId={advertiserId}&lId={promotionLinkId}&event=CLK&callback_url={url}
 ```
+
+四个 ID 都是 SCX 管理端生成的字符串主键。`mId/tId/aId/lId` 分别表示媒体、监测任务、广告主和推广链接；旧 `chid/mid/dspid/linkid` 不接受。实际监测 URL 由管理端创建或编辑任务后生成，不应由浏览器自行拼接。
+
+Feedback 可携带设备、广告、请求和时间等通用 Query 参数，详见 `contracts/feedback-req-v2.schema.json` 与 Postman 集合。宏占位值会按既有兼容规则清空。
+
+HTTP 接收成功只表示请求进入 SCX 数据层和异步上游队列，不表示广告主已经接受。上游转发失败通过脱敏流程日志观测。
+
+## 通用 Callback 回传
+
+上游通过 `GET /ocpx/callback` 回调 SCX。SCX 解密 `ext` 恢复原 Feedback，在去重和扣量通过后读取原请求的 `callback_url`，追加转化事件参数，以 GET 回传媒体。
+
+`callback_url` 必须是安全的 HTTP/HTTPS 公网地址。SCX 拒绝本机、内网、链路本地地址、用户信息、危险协议和非法 URL；媒体不得依赖管理表中的固定 Callback URL。
+
+通用媒体无需在 Java 注册表登记。只有需要专用签名或方言协议的媒体才登记到 `MediaProtocolRegistry`。
+
+## 小米例外
+
+小米入站使用：
+
+```http
+GET /ocpx/mi/feedback
+```
+
+响应固定为：
 
 ```json
-{
-  "schema_version": "2.0",
-  "monitor_task_id": "task-id-assigned-by-scx",
-  "event": "CLICK",
-  "event_id": "media-event-0001",
-  "click_id": "media-click-0001",
-  "event_time": 1785744000000,
-  "device": { "platform": "android" },
-  "extensions": { "campaign": "sandbox" }
-}
+{"code":0,"failMsg":"","success":true}
 ```
 
-`monitor_task_id`、`event`、`event_id`、`event_time` 必填。时间支持 Unix 秒或毫秒，不得早于 2000 年，最多允许未来 24 小时。扩展字段不能覆盖四实体关系。
+只有明确登记为 `MI` 的媒体才使用小米签名回传。签名材料通过媒体 `credentialConfigKey` 在 Engine profile 的 `ocpx.partner-credentials.media` 中解析，不进入媒体表、浏览器、注册表或日志。未登记媒体不会使用 MI 协议，而是回退到通用 `callback_url`。
 
-## 媒体鉴权
+## 凭据和日志
 
-媒体支持 `NONE`、`TOKEN`、`SIGNATURE`。
+合作方账号、密码、Secret、AES Key 与签名材料不进入业务数据库、API 响应、浏览器、流程日志或 Postman 示例。管理端只保存凭据引用。日志只能记录四实体主键、事件 ID、协议类型、结果码、耗时和脱敏说明。
 
-TOKEN：
+## 联调检查
 
-```text
-Authorization: Bearer {mediaSecret}
-```
+- 四主键存在且任务关系一致；
+- 监测任务未被逻辑删除；
+- 广告主已在上游注册表分类；
+- 通用 `callback_url` 通过出站 URL 安全策略；
+- MI 媒体已登记并能解析服务端凭据；
+- 重复、扣量和全部转化事件均按契约验证；
+- 流程日志和错误响应不泄露凭据或完整敏感载荷。
 
-SIGNATURE：
-
-```text
-X-OCPX-Key-Version: 1
-X-OCPX-Timestamp: 1785744000000
-X-OCPX-Nonce: 7858c055c6754ee688873e11b9c17088
-X-OCPX-Signature: {64位小写十六进制HMAC-SHA256}
-```
-
-签名原文：
-
-```text
-METHOD + "\n" + RAW_PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + SHA256(RAW_BODY)
-```
-
-时间允许与 Engine 相差 5 分钟，密钥版本必须与媒体表引用的版本一致。当前最小版本不保存 Nonce，因此只校验格式、时间窗和签名，不提供服务端 Nonce 防重放。
-
-## Feedback 响应
-
-| HTTP | 含义 |
-|---:|---|
-| 202 | 广告主已同步接受请求，成功日志已写入 |
-| 400 | 请求字段或时间无效 |
-| 401 | TOKEN/HMAC 或密钥版本无效 |
-| 404 | 媒体或 ACTIVE 监测任务不存在 |
-| 422 | Adapter 不支持事件或必要配置缺失 |
-| 502 | 广告主网络失败或业务拒绝，失败日志已写入 |
-
-当前没有幂等事实表、队列或自动重试。同一个 `event_id` 重复请求可能再次转发，调用方应使用稳定事件 ID，并根据合作协议谨慎决定是否重试 502。
-
-## SCX 回传媒体 Callback
-
-广告主回调后，SCX 会同步请求媒体表配置的 `callbackUrl`，正文使用 `CallbackReqV2`：
-
-```json
-{
-  "schema_version": "2.0",
-  "event_id": "conversion-event-id",
-  "source_event_id": "media-event-0001",
-  "event": "ACTIVATE",
-  "action_time": "2026-08-12T10:30:00+08:00",
-  "amount": 0,
-  "amount_raw": null,
-  "click_id": "media-click-0001",
-  "monitor_task_id": "task-id-assigned-by-scx",
-  "extensions": {}
-}
-```
-
-TOKEN/SIGNATURE 凭据与媒体配置一致。媒体应自行按 `event_id` 做幂等并返回协议约定的成功响应；当前 SCX 不自动重试失败 Callback。
-
-## 公共监测地址
-
-```text
-GET {baseUrl}/c/{taskCode}
-```
-
-地址直接解析 ACTIVE 监测任务和推广链接模板。任务暂停/归档，或广告主、推广链接、媒体任一停用时返回 410。
-
-机器契约位于 `contracts/openapi.yaml`、两个 V2 JSON Schema 和 Postman 集合。
+生产注册表、凭据、真实第三方 UAT、目标库迁移、部署和重启不在源码实现授权范围内。

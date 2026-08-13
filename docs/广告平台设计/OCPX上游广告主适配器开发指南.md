@@ -1,45 +1,37 @@
-# SCX OCPX V2 上游广告主 Adapter 开发指南
+# SCX OCPX 上游广告主接入指南
 
-## Adapter 职责
+## 选择协议
 
-SCX 参考 `sgyz-ocpx` 的 DSP 协议分流，但不在业务服务中按广告主 ID 写分支。上游合作方实现 `UpstreamAdapter`，只负责：
+SCX 不再从广告主表读取 Adapter 字段。上游协议由 `AdvertiserProtocolRegistry` 按 SCX 广告主主键固定登记：
 
-- 声明支持的事件和协议能力；
-- 从 `UpstreamDeliveryContext` 构造广告主请求；
-- 根据 HTTP 与业务响应判断成功；
-- 从广告主 Callback 提取签名 `ext` 并归一化事件；
-- 构造广告主要求的 Callback 成功/失败响应。
+| 协议 | 用途 |
+|---|---|
+| `TEMPLATE_GET` | 通用 GET 模板转发 |
+| `KIMI` | KIMI CLICK 上游投递与专用 Callback |
 
-Adapter 不写数据库、不保存 Secret、不自行创建线程或调用 `subscribe()/block()`。当前统一层同步执行 HTTP，请求失败直接返回 502，不提供自动重试。
+未登记广告主必须拒绝转发，并写一条不含请求载荷、凭据或密钥的失败流程日志。不能把“未登记”自动降级为通用协议。
 
-## 运行上下文
+## 接入步骤
 
-`UpstreamDeliveryContext` 包含：
+1. 在管理端创建广告主，保存名称、请求地址、凭据引用和宏。
+2. 获取管理端生成的广告主主键。
+3. 在 `AdvertiserProtocolRegistry.REGISTRATIONS` 中把该主键显式映射到 `TEMPLATE_GET` 或 `KIMI`。
+4. 在 Engine 对应 profile 的 `ocpx.partner-credentials.advertisers.<credentialConfigKey>` 填写服务端字面量凭据。
+5. 运行注册表、四主键链路、签名、脱敏和未登记拒绝测试。
+6. 在隔离环境完成真实协议联调；生产主键和凭据需在发布提交中单独复核。
 
-- `partner`：从四张业务表读取的 `OcpxPartnerContext`；
-- `feedback`：媒体的 `FeedbackReqV2`；
-- `upstreamEventCode`：当前最小版本直接使用 Feedback 事件码；
-- `callbackUrl`：带短期签名 `ext` 的 SCX 回调地址；
-- `account/secret`：仅当次请求使用的 Engine 配置值。
+注册表不允许保存账号、密码、Secret、AES Key、签名材料或完整 URL。管理 API 和浏览器也只能看到 `credentialConfigKey`，不能返回已解析凭据。
 
-Adapter 必须使用 `partner.bidUrl()`、合作方协议字段和 `callbackUrl` 构造请求。账号和 Secret 不得进入 URL 日志、异常信息、流程日志或业务表。
+## 通用模板协议
 
-## 实现要点
+`TEMPLATE_GET` 使用广告主 `bidUrl` 和宏配置构造请求，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback 加密为 `ext`，并使用解析后的服务端凭据计算签名。`bidUrl` 保存时必须通过统一 URL 安全校验。
 
-1. `code()` 使用稳定的大写 ASCII，并与广告主表的 `adapterCode` 一致。
-2. `supports()` 明确拒绝不支持的事件。
-3. 每个 URL 参数单独编码，未解析必填宏时失败关闭。
-4. `evaluateFeedbackResponse()` 同时检查 HTTP 和合作方业务码，并返回不含敏感数据的说明。
-5. `callbackToken()` 从合作方参数中取出 SCX 生成的 `ext`。
-6. `parseCallback()` 优先使用合作方稳定的 conversion/order ID，明确时间单位、时区和金额单位。
-7. `callbackSuccess()` / `callbackFailure()` 遵守合作方协议，不能统一假设任意 2xx 都代表业务成功。
+新增宏时应同时补充：请求 DTO、模板替换、契约样例、URL 编码测试和敏感字段日志测试。禁止把原始 Feedback、设备标识、账号或 Secret 写入异常消息。
 
-## 配置与启用
+## KIMI 协议
 
-1. 实现并注册 Adapter Bean。
-2. 广告主保存 Adapter 代码、上游 URL、宏、host 白名单和 `credentialConfigKey + version`。
-3. 在 Engine `application-dev.yml` / `application-prod.yml` 的 `scx.ocpx.partner-credentials.advertisers.<configKey>` 写字面量 `version/account/secret`。
-4. 重新打包并由宝塔重启 Engine。
-5. 创建广告主所属推广链接、媒体和 ACTIVE 监测任务。
+只有登记为 `KIMI` 的广告主才进入 KIMI 投递；当前只处理 CLICK。回调入口为 `POST /ocpx/kimi/callback`，外部路由仍使用 `lId/mId`。KIMI 配置也只能通过广告主凭据引用解析。
 
-配置键缺失、版本不匹配、事件不支持、URL 安全校验失败或合作方业务拒绝都会使当前请求失败；不会产生后台重试任务。
+## 发布门槛
+
+发布前必须从目标库只读盘点全部广告主主键，并逐个分类为 `TEMPLATE_GET` 或 `KIMI`。存在任何未分类广告主、缺失凭据引用、无法解析凭据或把敏感值带入代码/日志时均为 No-Go。主键盘点、注册表填充、目标库操作、部署和重启需要独立授权。

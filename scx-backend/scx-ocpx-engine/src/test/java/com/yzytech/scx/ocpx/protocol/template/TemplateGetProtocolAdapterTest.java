@@ -2,6 +2,8 @@ package com.yzytech.scx.ocpx.protocol.template;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialProperties;
+import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
@@ -12,6 +14,8 @@ import com.yzytech.scx.ocpx.shared.util.AesUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -66,17 +70,29 @@ class TemplateGetProtocolAdapterTest {
 		TemplateGetProtocolAdapter adapter = adapter();
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		task.setId("task-id");
-		task.setTaskCode("BIZ-1");
+		task.setBizId("BIZ-1");
 		monitorTaskIndex.add(task.getId(), task);
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
 		advertiser.setBidUrl("https://adv.example/click?rid=__REQUEST_ID__&oaid=__OAID__&biz=__BIZ_ID__");
-		advertiser.setCredentialConfigKey("local-signing-key");
+		advertiser.setCredentialConfigKey("advertiser-signing");
 		FeedbackReq feedback = FeedbackReq.builder().tId("task-id").reqId("request-1").oaid("oaid-1").build();
 
 		String result = adapter.buildUpstreamRequestUrl(advertiser, feedback);
 
 		assertThat(result).isEqualTo("https://adv.example/click?rid=request-1&oaid=oaid-1&biz=BIZ-1"
-				+ "&signature=c3bd8e8cc706ed27f9cff9a0cc0df0fe");
+				+ "&signature=c3bd8e8cc706ed27f9cff9a0cc0df0fe")
+			.doesNotContain("local-signing-key", "advertiser-signing");
+	}
+
+	@Test
+	void rejectsAnAdvertiserWhoseCredentialReferenceCannotBeResolved() {
+		TemplateGetProtocolAdapter adapter = adapter();
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setBidUrl("https://adv.example/click?rid=__REQUEST_ID__");
+		advertiser.setCredentialConfigKey("missing-reference");
+
+		assertThat(adapter.buildUpstreamRequestUrl(advertiser, FeedbackReq.builder().reqId("request-1").build()))
+			.isNull();
 	}
 
 	@Test
@@ -123,7 +139,10 @@ class TemplateGetProtocolAdapterTest {
 	}
 
 	private TemplateGetProtocolAdapter adapter() {
-		TemplateGetProtocolAdapter adapter = new TemplateGetProtocolAdapter(monitorTaskIndex);
+		PartnerCredentialProperties properties = new PartnerCredentialProperties();
+		properties.setAdvertisers(Map.of("advertiser-signing", "local-signing-key"));
+		TemplateGetProtocolAdapter adapter = new TemplateGetProtocolAdapter(monitorTaskIndex,
+				new PartnerCredentialResolver(properties));
 		ReflectionTestUtils.setField(adapter, "domainName", "http://127.0.0.1:10000/ocpx");
 		ReflectionTestUtils.setField(adapter, "callbackAesKey", "local-dev-key-01");
 		return adapter;

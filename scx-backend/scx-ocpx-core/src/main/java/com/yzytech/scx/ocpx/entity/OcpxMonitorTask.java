@@ -18,17 +18,13 @@ public class OcpxMonitorTask {
 	@TableId(type = IdType.ASSIGN_ID)
 	private String id;
 
-	private String taskCode;
-
-	private String taskName;
+	private String monitorName;
 
 	private String advertiserId;
 
 	private String promotionLinkId;
 
 	private String mediaId;
-
-	private String operatorUserId;
 
 	private BigDecimal unitPrice;
 
@@ -40,13 +36,8 @@ public class OcpxMonitorTask {
 
 	private String remark;
 
-	private String status;
-
-	private Long configVersion;
-
-	private LocalDateTime archivedAt;
-
 	@TableLogic
+	@TableField("is_delete")
 	private Boolean deleted;
 
 	@TableField(fill = FieldFill.INSERT)

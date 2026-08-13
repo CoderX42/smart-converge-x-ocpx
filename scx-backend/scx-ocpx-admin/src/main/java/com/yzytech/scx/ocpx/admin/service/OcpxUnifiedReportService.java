@@ -121,16 +121,16 @@ public class OcpxUnifiedReportService {
 		args.add(Integer.valueOf(query.startTime() + "00"));
 		args.add(Integer.valueOf(query.endTime() + "23"));
 		filter(stat, args, "r.m_id", query.mediaId());
-		filter(stat, args, "r.t_id", query.taskId());
+		filter(stat, args, "r.t_id", query.monitorTaskId());
 		filter(stat, args, "r.a_id", query.advertiserId());
 		filter(stat, args, "r.l_id", query.promotionLinkId());
 		stat.append(" GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,").append(period);
-		String select = "SELECT m.media_name,a.advertiser_name,p.link_name,t.task_name,dr.ratio AS link_radio,stat.* FROM ("
+		String select = "SELECT m.media_name,a.advertiser_name,p.link_name,t.monitor_name,dr.ratio AS link_radio,stat.* FROM ("
 				+ stat + ") AS stat" + " JOIN scx_ocpx_media m ON m.id=stat.m_id"
 				+ " JOIN scx_ocpx_advertiser a ON a.id=stat.a_id"
 				+ " JOIN scx_ocpx_promotion_link p ON p.id=stat.l_id"
 				+ " JOIN scx_ocpx_monitor_task t ON t.id=stat.t_id"
-				+ " LEFT JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND dr.deleted=0";
+				+ " LEFT JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND dr.is_delete=0";
 		return new SummarySql(stat.toString(), select, args);
 	}
 
@@ -149,7 +149,7 @@ public class OcpxUnifiedReportService {
 	private SummaryReportViews.Row mapSummaryRow(ResultSet rs, int rowNum) throws SQLException {
 		Object ratio = rs.getObject("link_radio");
 		return new SummaryReportViews.Row(rs.getString("reportTime"), rs.getString("m_id"), rs.getString("media_name"),
-				rs.getString("t_id"), rs.getString("task_name"), rs.getString("a_id"), rs.getString("advertiser_name"),
+				rs.getString("t_id"), rs.getString("monitor_name"), rs.getString("a_id"), rs.getString("advertiser_name"),
 				rs.getString("l_id"), rs.getString("link_name"), ratio == null ? null : ratio.toString(),
 				rs.getLong("uni_show_smt"), rs.getLong("uni_clk_smt"), rs.getDouble("clickRate"),
 				rs.getBigDecimal("base_price"), rs.getLong("activate"), rs.getLong("evoke"), rs.getLong("login"),
@@ -159,7 +159,7 @@ public class OcpxUnifiedReportService {
 	}
 
 	private List<Object> summaryCsvRow(SummaryReportViews.Row row) {
-		return Arrays.asList(row.reportTime(), row.mediaName(), row.taskName(), row.advertiserName(),
+		return Arrays.asList(row.reportTime(), row.mediaName(), row.monitorName(), row.advertiserName(),
 				row.promotionLinkName(), row.linkRadio(), row.uniShowSmt(), row.uniClkSmt(), row.clickRate(),
 				row.basePrice(), row.activate(), row.evoke(), row.login(), row.register(), row.payment(),
 				row.customerAcquisition(), row.nextStay(), row.visits(), row.authentication(), row.placeOrder(),
@@ -177,10 +177,10 @@ public class OcpxUnifiedReportService {
 				|| query.startTime().compareTo(query.endTime()) > 0) {
 			throw new IllegalArgumentException("报表时间范围无效");
 		}
-		return new SummaryReportQuery(dateType, query.mediaId(), query.taskId(), query.advertiserId(),
+		return new SummaryReportQuery(dateType, query.mediaId(), query.monitorTaskId(), query.advertiserId(),
 				query.promotionLinkId(), query.startTime(), query.endTime(), query.asc(), query.desc(),
 				query.current() == null ? 1 : Math.max(1, query.current()),
-				query.size() == null ? 20 : Math.min(100, Math.max(1, query.size())));
+				query.size() == null ? 30 : Math.min(100, Math.max(1, query.size())));
 	}
 
 	private boolean isDayKey(String value) {
@@ -196,10 +196,10 @@ public class OcpxUnifiedReportService {
 	}
 
 	public UnifiedReportViews.Options options() {
-		return new UnifiedReportViews.Options(options("scx_ocpx_advertiser", "advertiser_code", "advertiser_name"),
-				options("scx_ocpx_promotion_link", "link_code", "link_name"),
-				options("scx_ocpx_media", "media_code", "media_name"),
-				options("scx_ocpx_monitor_task", "task_code", "task_name"));
+		return new UnifiedReportViews.Options(options("scx_ocpx_advertiser", "advertiser_name", null),
+				options("scx_ocpx_promotion_link", "link_name", "is_delete=0"),
+				options("scx_ocpx_media", "media_name", null),
+				options("scx_ocpx_monitor_task", "monitor_name", "is_delete=0"));
 	}
 
 	private List<UnifiedReportViews.Record> ranking(UnifiedReportQuery query, String groupBy) {
@@ -290,10 +290,11 @@ public class OcpxUnifiedReportService {
 		return Map.copyOf(result);
 	}
 
-	private List<UnifiedReportViews.Option> options(String table, String code, String name) {
-		String sql = "SELECT id," + code + "," + name + ",status FROM " + table + " WHERE deleted=0 ORDER BY " + name;
-		return jdbcTemplate.query(sql, (resultSet, rowNum) -> new UnifiedReportViews.Option(resultSet.getString(1),
-				resultSet.getString(2), resultSet.getString(3), resultSet.getString(4)));
+	private List<UnifiedReportViews.Option> options(String table, String name, String predicate) {
+		String sql = "SELECT id," + name + " FROM " + table
+				+ (predicate == null ? "" : " WHERE " + predicate) + " ORDER BY " + name;
+		return jdbcTemplate.query(sql,
+				(resultSet, rowNum) -> new UnifiedReportViews.Option(resultSet.getString(1), resultSet.getString(2)));
 	}
 
 	private void filter(StringBuilder sql, List<Object> args, String column, String value) {
@@ -321,7 +322,7 @@ public class OcpxUnifiedReportService {
 		return new UnifiedReportQuery(start, end, groupBy, query == null ? null : query.advertiserId(),
 				query == null ? null : query.promotionLinkId(), query == null ? null : query.mediaId(),
 				query == null ? null : query.monitorTaskId(), query == null ? 1 : Math.max(1, query.current()),
-				query == null ? 20 : Math.min(100, Math.max(1, query.size())));
+				query == null ? 30 : Math.min(100, Math.max(1, query.size())));
 	}
 
 	private record MetricColumn(String code, String column) {
@@ -344,7 +345,7 @@ public class OcpxUnifiedReportService {
 			case "MEDIA" ->
 					new Dimension("r.m_id", "m.media_name", "JOIN scx_ocpx_media m ON m.id=r.m_id");
 			case "MONITOR_TASK" ->
-					new Dimension("r.t_id", "t.task_name", "JOIN scx_ocpx_monitor_task t ON t.id=r.t_id");
+					new Dimension("r.t_id", "t.monitor_name", "JOIN scx_ocpx_monitor_task t ON t.id=r.t_id");
 				default -> new Dimension("r.time_hour",
 						"DATE_FORMAT(STR_TO_DATE(CAST(r.time_hour AS CHAR),'%Y%m%d%H'),'%Y-%m-%d %H:00')", "");
 			};

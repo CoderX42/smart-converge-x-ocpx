@@ -1,0 +1,36 @@
+.ocpx-query {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.ocpx-query .el-input,
+.ocpx-query .el-select,
+.ocpx-query .el-date-editor {
+  width: 220px;
+}
+
+.ocpx-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ocpx-table.el-table {
+  --el-table-header-bg-color: var(--el-fill-color-light);
+}
+
+.ocpx-pagination {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.ocpx-dialog-form .el-input,
+.ocpx-dialog-form .el-select,
+.ocpx-dialog-form .el-input-number {
+  width: 100%;
+}

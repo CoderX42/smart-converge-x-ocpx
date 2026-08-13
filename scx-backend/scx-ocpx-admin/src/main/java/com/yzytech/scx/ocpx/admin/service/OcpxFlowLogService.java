@@ -33,7 +33,7 @@ public class OcpxFlowLogService {
 		String normalizedType = normalize(flowType, FLOW_TYPES, "flowType");
 		String normalizedStatus = normalize(resultStatus, STATUSES, "resultStatus");
 		long current = currentValue == null ? 1 : Math.max(1, currentValue);
-		long size = sizeValue == null ? 20 : Math.min(100, Math.max(1, sizeValue));
+		long size = sizeValue == null ? 30 : Math.min(100, Math.max(1, sizeValue));
 		StringBuilder where = new StringBuilder(" WHERE f.event_time>=? AND f.event_time<?");
 		List<Object> args = new ArrayList<>();
 		args.add(start.atStartOfDay());
@@ -53,7 +53,7 @@ public class OcpxFlowLogService {
 		String sql = """
 				SELECT f.id,f.flow_type,f.event_id,f.source_event_id,f.event_code,
 				       f.advertiser_id,a.advertiser_name,f.promotion_link_id,p.link_name,
-				       f.media_id,m.media_name,f.monitor_task_id,t.task_name,f.result_status,
+		       f.media_id,m.media_name,f.monitor_task_id,t.monitor_name,f.result_status,
 				       f.partner_http_status,f.message,f.duration_ms,f.event_time,f.create_time
 				FROM scx_ocpx_flow_log f
 				JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id

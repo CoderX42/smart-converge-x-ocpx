@@ -19,45 +19,80 @@ import {
   listMonitorTasks,
   listPromotionLinks,
 } from '#/api/ocpx';
+import RightToolbar from '#/components/right-toolbar/index.vue';
+
+import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+
+import '../table.scss';
 
 defineOptions({ name: 'OcpxUnifiedReport' });
 
 type SummaryColumn = {
   field: keyof SummaryReportRow;
-  title: string;
+  key: string;
+  label: string;
+  width?: number;
 };
 
 const columns: SummaryColumn[] = [
-  { field: 'reportTime', title: '时间' },
-  { field: 'mediaName', title: '渠道名称' },
-  { field: 'taskName', title: '渠道链接信息' },
-  { field: 'advertiserName', title: 'DSP名称' },
-  { field: 'promotionLinkName', title: 'DSP链接信息' },
-  { field: 'linkRadio', title: 'DSP链接扣量' },
-  { field: 'uniShowSmt', title: '展示数' },
-  { field: 'uniClkSmt', title: '点击数' },
-  { field: 'clickRate', title: '点击率' },
-  { field: 'basePrice', title: '消耗' },
-  { field: 'activate', title: '激活' },
-  { field: 'evoke', title: '唤起' },
-  { field: 'login', title: '登录' },
-  { field: 'register', title: '注册' },
-  { field: 'payment', title: '付费' },
-  { field: 'customerAcquisition', title: '获客' },
-  { field: 'nextStay', title: '次留' },
-  { field: 'visits', title: '访问' },
-  { field: 'authentication', title: '认证' },
-  { field: 'placeOrder', title: '下单' },
-  { field: 'finishTheOrder', title: '完单' },
+  { field: 'reportTime', key: 'reportTime', label: '时间', width: 130 },
+  { field: 'mediaName', key: 'mediaName', label: '媒体', width: 140 },
+  { field: 'monitorName', key: 'monitorName', label: '监测任务', width: 150 },
+  {
+    field: 'advertiserName',
+    key: 'advertiserName',
+    label: '广告主',
+    width: 150,
+  },
+  {
+    field: 'promotionLinkName',
+    key: 'promotionLinkName',
+    label: '推广链接',
+    width: 160,
+  },
+  { field: 'linkRadio', key: 'linkRadio', label: '扣量', width: 90 },
+  { field: 'uniShowSmt', key: 'uniShowSmt', label: '展示', width: 100 },
+  { field: 'uniClkSmt', key: 'uniClkSmt', label: '点击', width: 100 },
+  { field: 'clickRate', key: 'clickRate', label: 'CTR', width: 90 },
+  { field: 'basePrice', key: 'basePrice', label: '消耗', width: 110 },
+  { field: 'activate', key: 'activate', label: '激活', width: 90 },
+  { field: 'evoke', key: 'evoke', label: '唤起', width: 90 },
+  { field: 'login', key: 'login', label: '登录', width: 90 },
+  { field: 'register', key: 'register', label: '注册', width: 90 },
+  { field: 'payment', key: 'payment', label: '付费', width: 90 },
+  {
+    field: 'customerAcquisition',
+    key: 'customerAcquisition',
+    label: '获客',
+    width: 90,
+  },
+  { field: 'nextStay', key: 'nextStay', label: '次留', width: 90 },
+  { field: 'visits', key: 'visits', label: '访问', width: 90 },
+  { field: 'authentication', key: 'authentication', label: '认证', width: 90 },
+  { field: 'placeOrder', key: 'placeOrder', label: '下单', width: 90 },
+  { field: 'finishTheOrder', key: 'finishTheOrder', label: '完单', width: 90 },
 ];
-
-const SORTABLE_FIELDS = new Set(['reportTime', 'uniClkSmt', 'uniShowSmt']);
+const visibleColumns = ref(allColumnKeys(columns));
+const sortableFields = new Set(['reportTime', 'uniClkSmt', 'uniShowSmt']);
+const additiveFields = new Set<keyof SummaryReportRow>([
+  'activate',
+  'authentication',
+  'basePrice',
+  'customerAcquisition',
+  'evoke',
+  'finishTheOrder',
+  'login',
+  'nextStay',
+  'payment',
+  'placeOrder',
+  'register',
+  'uniClkSmt',
+  'uniShowSmt',
+  'visits',
+]);
 
 const dateShortcuts = [
-  {
-    text: '今天',
-    value: () => [new Date(), new Date()],
-  },
+  { text: '今天', value: () => [new Date(), new Date()] },
   {
     text: '昨天',
     value: () => [
@@ -70,25 +105,8 @@ const dateShortcuts = [
     value: () => [dayjs().subtract(6, 'day').toDate(), new Date()],
   },
   {
-    text: '最近一个月',
-    value: () => [
-      dayjs().startOf('month').toDate(),
-      dayjs().endOf('month').toDate(),
-    ],
-  },
-  {
-    text: '最近二个月',
-    value: () => [
-      dayjs().subtract(1, 'month').startOf('month').toDate(),
-      dayjs().endOf('month').toDate(),
-    ],
-  },
-  {
     text: '本月',
-    value: () => [
-      dayjs().startOf('month').toDate(),
-      dayjs().endOf('month').toDate(),
-    ],
+    value: () => [dayjs().startOf('month').toDate(), new Date()],
   },
   {
     text: '上月',
@@ -102,9 +120,11 @@ const dateShortcuts = [
 const rows = ref<SummaryReportRow[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const exporting = ref(false);
+const showSearch = ref(true);
 const mediaOptions = ref<ReportOption[]>([]);
 const advertiserOptions = ref<ReportOption[]>([]);
-const taskOptions = ref<MonitorTask[]>([]);
+const monitorOptions = ref<MonitorTask[]>([]);
 const linkOptions = ref<PromotionLink[]>([]);
 const filters = reactive({
   advertiserId: '',
@@ -117,14 +137,10 @@ const filters = reactive({
   ],
   desc: '',
   mediaId: '',
+  monitorTaskId: '',
   promotionLinkId: '',
-  size: 20,
-  taskId: '',
+  size: 30,
 });
-
-function camelToSnake(value: string) {
-  return value.replaceAll(/([A-Z])/g, '_$1').toLowerCase();
-}
 
 function currentParams() {
   return {
@@ -132,9 +148,9 @@ function currentParams() {
     dateType: filters.dateType,
     endTime: filters.dates[1],
     mediaId: filters.mediaId || undefined,
+    monitorTaskId: filters.monitorTaskId || undefined,
     promotionLinkId: filters.promotionLinkId || undefined,
     startTime: filters.dates[0],
-    taskId: filters.taskId || undefined,
   };
 }
 
@@ -155,67 +171,69 @@ async function load() {
   }
 }
 
-function toQuery() {
-  filters.current = 1;
-  load();
+function search() {
+  resetPage(filters);
+  void load();
 }
 
-function download() {
-  exportSummaryReport(currentParams());
+async function download() {
+  exporting.value = true;
+  try {
+    await exportSummaryReport(currentParams());
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function sortChange({
-  prop,
   order,
+  prop,
 }: {
   order: 'ascending' | 'descending' | null;
   prop: string;
 }) {
-  filters.asc = '';
-  filters.desc = '';
-  if (order === 'ascending') {
-    filters.asc = camelToSnake(prop);
-  } else if (order === 'descending') {
-    filters.desc = camelToSnake(prop);
-  }
-  load();
+  const field = prop.replaceAll(/([A-Z])/g, '_$1').toLowerCase();
+  filters.asc = order === 'ascending' ? field : '';
+  filters.desc = order === 'descending' ? field : '';
+  search();
 }
 
 function sumField(data: SummaryReportRow[], field: keyof SummaryReportRow) {
-  return data.reduce((acc, item) => acc + Number(item[field]), 0);
+  return data.reduce((sum, item) => sum + Number(item[field] || 0), 0);
 }
 
-function tableSummary({ data }: { data: SummaryReportRow[] }) {
-  const out: (number | string)[] = [];
-  for (const [i, column] of columns.entries()) {
-    if (i === 0) {
-      out[i] = '合计';
-    } else if (column.field === 'clickRate') {
+function tableSummary({
+  columns: renderedColumns,
+  data,
+}: {
+  columns: Array<{ property?: keyof SummaryReportRow }>;
+  data: SummaryReportRow[];
+}) {
+  return renderedColumns.map(({ property }, index) => {
+    if (index === 0) return '合计';
+    if (!property) return '-';
+    if (property === 'clickRate') {
       const shows = sumField(data, 'uniShowSmt');
-      out.push(
-        shows === 0
-          ? '0.00'
-          : ((sumField(data, 'uniClkSmt') / shows) * 100).toFixed(2),
-      );
-    } else if (column.field === 'uniShowSmt' || column.field === 'uniClkSmt') {
-      out.push(sumField(data, column.field));
-    } else {
-      out.push('-');
+      return shows
+        ? `${((sumField(data, 'uniClkSmt') / shows) * 100).toFixed(2)}%`
+        : '0.00%';
     }
-  }
-  return out;
+    return additiveFields.has(property) ? sumField(data, property) : '-';
+  });
 }
 
-async function loadTasks() {
+async function loadMonitors() {
+  filters.monitorTaskId = '';
   const page = await listMonitorTasks({
     current: 1,
     mediaId: filters.mediaId || undefined,
     size: 500,
   });
-  taskOptions.value = page.records;
+  monitorOptions.value = page.records;
 }
 
 async function loadLinks() {
+  filters.promotionLinkId = '';
   const page = await listPromotionLinks({
     advertiserId: filters.advertiserId || undefined,
     current: 1,
@@ -226,17 +244,16 @@ async function loadLinks() {
 
 watch(
   () => filters.mediaId,
-  () => {
-    filters.taskId = '';
-    loadTasks();
+  async () => {
+    await loadMonitors();
+    search();
   },
 );
-
 watch(
   () => filters.advertiserId,
-  () => {
-    filters.promotionLinkId = '';
-    loadLinks();
+  async () => {
+    await loadLinks();
+    search();
   },
 );
 
@@ -244,121 +261,142 @@ onMounted(async () => {
   const options = await getUnifiedReportOptions();
   mediaOptions.value = options.media;
   advertiserOptions.value = options.advertisers;
-  await Promise.all([loadTasks(), loadLinks()]);
+  await Promise.all([loadMonitors(), loadLinks()]);
   await load();
 });
 </script>
 
 <template>
-  <Page auto-content-height title="报表中心">
+  <Page auto-content-height title="时段报表">
     <el-card shadow="never">
-      <div class="mb-4 flex flex-wrap gap-3">
+      <div v-show="showSearch" class="ocpx-query">
         <el-select
           v-model="filters.dateType"
-          placeholder="显示类型"
-          style="width: 110px"
+          aria-label="报表粒度"
+          placeholder="报表粒度"
+          @change="search"
         >
-          <el-option label="按小时" :value="0" />
-          <el-option label="按日期" :value="1" />
-          <el-option label="按月份" :value="2" />
-          <el-option label="按年份" :value="3" />
+          <el-option label="小时" :value="0" /><el-option
+            label="日"
+            :value="1"
+          />
+          <el-option label="月" :value="2" /><el-option label="年" :value="3" />
         </el-select>
         <el-select
           v-model="filters.mediaId"
+          aria-label="报表媒体"
           clearable
           filterable
-          placeholder="请选择渠道"
-        >
-          <el-option
+          placeholder="媒体"
+          ><el-option
             v-for="item in mediaOptions"
             :key="item.id"
             :label="item.label"
             :value="item.id"
-          />
-        </el-select>
+        /></el-select>
         <el-select
-          v-model="filters.taskId"
+          v-model="filters.monitorTaskId"
+          aria-label="报表监测任务"
           clearable
           filterable
-          placeholder="请选择监测链接"
-        >
-          <el-option
-            v-for="item in taskOptions"
+          placeholder="监测任务"
+          @change="search"
+          ><el-option
+            v-for="item in monitorOptions"
             :key="item.id"
-            :label="item.taskName"
+            :label="item.monitorName"
             :value="item.id"
-          />
-        </el-select>
+        /></el-select>
         <el-select
           v-model="filters.advertiserId"
+          aria-label="报表广告主"
           clearable
           filterable
-          placeholder="请选择DSP"
-        >
-          <el-option
+          placeholder="广告主"
+          ><el-option
             v-for="item in advertiserOptions"
             :key="item.id"
             :label="item.label"
             :value="item.id"
-          />
-        </el-select>
+        /></el-select>
         <el-select
           v-model="filters.promotionLinkId"
+          aria-label="报表推广链接"
           clearable
           filterable
-          placeholder="请选择广告主应用链接"
-        >
-          <el-option
+          placeholder="推广链接"
+          @change="search"
+          ><el-option
             v-for="item in linkOptions"
             :key="item.id"
             :label="item.linkName"
             :value="item.id"
-          />
-        </el-select>
+        /></el-select>
         <el-date-picker
           v-model="filters.dates"
+          aria-label="报表日期范围"
+          end-placeholder="结束日期"
+          range-separator="至"
+          start-placeholder="开始日期"
+          :shortcuts="dateShortcuts"
           type="daterange"
           unlink-panels
           value-format="YYYYMMDD"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          :shortcuts="dateShortcuts"
+          @change="search"
         />
-        <el-button type="primary" @click="toQuery">搜索</el-button>
+        <el-button :disabled="loading" type="primary" @click="search"
+          >查询</el-button
+        >
       </div>
-      <div class="mb-4">
-        <el-button type="warning" size="small" @click="download">
-          下载
-        </el-button>
+      <div class="ocpx-actions">
+        <span></span>
+        <RightToolbar
+          v-model:visible-columns="visibleColumns"
+          :columns="columns"
+          export-btn
+          :loading="loading || exporting"
+          refresh-btn
+          search-btn
+          @export="download"
+          @refresh="load"
+          @search="showSearch = !showSearch"
+        />
       </div>
       <el-table
         v-loading="loading"
+        class="ocpx-table"
         :data="rows"
+        highlight-current-row
+        max-height="560"
         show-summary
+        size="small"
         :summary-method="tableSummary"
         @sort-change="sortChange"
       >
         <el-table-column
-          v-for="column in columns"
-          :key="column.field"
-          :label="column.title"
-          :prop="column.field"
-          :sortable="SORTABLE_FIELDS.has(column.field) ? 'custom' : false"
+          v-for="column in columns.filter(({ key }) =>
+            visibleColumns.includes(key),
+          )"
+          :key="column.key"
           align="center"
+          :label="column.label"
+          :min-width="column.width"
+          :prop="column.field"
+          :sortable="sortableFields.has(column.field) ? 'custom' : false"
         >
-          <template #default="{ row }">
-            <el-tag v-if="column.field === 'clickRate'" type="info">
-              {{ row.clickRate }}%
-            </el-tag>
-            <span v-else>{{ row[column.field] }}</span>
-          </template>
+          <template #default="{ row }"
+            ><span v-if="column.field === 'clickRate'"
+              >{{ row.clickRate }}%</span
+            ><span v-else>{{ row[column.field] ?? '-' }}</span></template
+          >
         </el-table-column>
       </el-table>
       <el-pagination
         v-model:current-page="filters.current"
         v-model:page-size="filters.size"
-        class="mt-4"
+        class="ocpx-pagination"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="PAGE_SIZES"
         :total="total"
         @change="load"
       />

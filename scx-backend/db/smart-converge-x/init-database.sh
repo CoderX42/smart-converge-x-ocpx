@@ -46,5 +46,5 @@ fi
 )
 
 if [[ "$SCX_SKIP_VERIFY" != "true" ]]; then
-  "$SCRIPT_DIR/verify-database.sh"
+  bash "$SCRIPT_DIR/verify-database.sh"
 fi
