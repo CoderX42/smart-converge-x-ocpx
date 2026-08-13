@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.configuration.index;
 
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxAdvertiserConfigMapper;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxMediaConfigMapper;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxMonitorTaskConfigMapper;
@@ -11,6 +12,7 @@ import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,6 +63,19 @@ class IndexDataLoaderTest {
 		assertThat(links.get("link-id")).isSameAs(link);
 		assertThat(media.get("media-id")).isSameAs(channel);
 		assertThat(tasks.get("task-id")).isSameAs(task);
+	}
+
+	/**
+	 * 四个实体均依赖 {@code deleted} 字段上的 {@link TableLogic}，使 {@code selectList(null)} 自动追加
+	 * {@code deleted = 0}，与 SGYZ Parser 的 {@code isDelete = 0} 过滤语义等价。
+	 */
+	@Test
+	void reliesOnTableLogicToExcludeLogicallyDeletedRows() throws NoSuchFieldException {
+		for (Class<?> entity : List.of(OcpxAdvertiser.class, OcpxPromotionLink.class, OcpxMedia.class,
+				OcpxMonitorTask.class)) {
+			Field deleted = entity.getDeclaredField("deleted");
+			assertThat(deleted.isAnnotationPresent(TableLogic.class)).as(entity.getSimpleName()).isTrue();
+		}
 	}
 
 }

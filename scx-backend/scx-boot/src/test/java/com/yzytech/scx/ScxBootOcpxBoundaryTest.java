@@ -16,6 +16,7 @@ class ScxBootOcpxBoundaryTest {
 		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxPromotionLink.class")).isNotNull();
 		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxMedia.class")).isNotNull();
 		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxMonitorTask.class")).isNotNull();
+		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/entity/OcpxDeductionRule.class")).isNotNull();
 		assertThat(classLoader.getResource("com/yzytech/scx/ocpx/ScxOcpxEngineApplication.class")).isNull();
 	}
 

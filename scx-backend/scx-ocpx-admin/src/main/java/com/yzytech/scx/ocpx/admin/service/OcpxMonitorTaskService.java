@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
@@ -62,11 +63,17 @@ public class OcpxMonitorTaskService {
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		task.setTaskCode(request.taskCode().trim());
 		apply(task, request.taskName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
-				request.operatorUserId());
+				request.operatorUserId(), request.unitPrice(), request.bizId(), request.remark());
 		task.setStatus("ACTIVE");
 		task.setConfigVersion(1L);
 		task.setDeleted(false);
 		taskMapper.insert(task);
+		generateTrackingUrls(task);
+		OcpxMonitorTask tracking = new OcpxMonitorTask();
+		tracking.setId(task.getId());
+		tracking.setShowUrl(task.getShowUrl());
+		tracking.setClkUrl(task.getClkUrl());
+		taskMapper.updateById(tracking);
 		configRefreshPublisher.mark();
 		return detail(task.getId());
 	}
@@ -79,8 +86,9 @@ public class OcpxMonitorTaskService {
 		OcpxMonitorTask update = new OcpxMonitorTask();
 		update.setId(id);
 		apply(update, request.taskName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
-				request.operatorUserId());
+				request.operatorUserId(), request.unitPrice(), request.bizId(), request.remark());
 		update.setConfigVersion(current.getConfigVersion() + 1);
+		generateTrackingUrls(update);
 		if (taskMapper.update(update,
 				Wrappers.<OcpxMonitorTask>lambdaUpdate()
 					.eq(OcpxMonitorTask::getId, id)
@@ -126,6 +134,14 @@ public class OcpxMonitorTaskService {
 		return new MonitorTaskViews.Mutation(id, "ARCHIVED", next);
 	}
 
+	/** 逻辑删（对齐 SGYZ channel/monitor/delete/{monitorId}，实体 @TableLogic 生效，URL 不做特殊处理）。 */
+	@Transactional
+	public void delete(String id) {
+		require(id);
+		taskMapper.deleteById(id);
+		configRefreshPublisher.mark();
+	}
+
 	private void validateRelation(String advertiserId, String linkId, String mediaId) {
 		if (advertiserMapper.selectCount(Wrappers.<OcpxAdvertiser>lambdaQuery()
 			.eq(OcpxAdvertiser::getId, advertiserId)
@@ -143,12 +159,32 @@ public class OcpxMonitorTaskService {
 	}
 
 	private void apply(OcpxMonitorTask task, String name, String advertiserId, String linkId, String mediaId,
-			String operator) {
+			String operator, BigDecimal unitPrice, String bizId, String remark) {
 		task.setTaskName(name.trim());
 		task.setAdvertiserId(advertiserId);
 		task.setPromotionLinkId(linkId);
 		task.setMediaId(mediaId);
 		task.setOperatorUserId(StringUtils.hasText(operator) ? operator.trim() : null);
+		task.setUnitPrice(unitPrice);
+		task.setBizId(StringUtils.hasText(bizId) ? bizId.trim() : null);
+		task.setRemark(StringUtils.hasText(remark) ? remark.trim() : null);
+	}
+
+	/**
+	 * 按 SGYZ 迁移的拼装方式持久化双监测链接：引擎域名 + 媒体 ingressUri + 媒体宏参数 + event + 四实体路由参数。
+	 */
+	private void generateTrackingUrls(OcpxMonitorTask task) {
+		OcpxMedia media = mediaMapper.selectById(task.getMediaId());
+		String base = trackingProperties.getEngineBaseUrl().replaceAll("/$", "");
+		String macros = media.getMacroParams() == null ? "" : media.getMacroParams();
+		StringBuilder splicing = new StringBuilder();
+		splicing.append("&mId=").append(task.getMediaId());
+		splicing.append("&tId=").append(task.getId());
+		splicing.append("&aId=").append(task.getAdvertiserId());
+		splicing.append("&lId=").append(task.getPromotionLinkId());
+		String prefix = base + media.getIngressUri() + macros;
+		task.setShowUrl(prefix + "&event=IMP" + splicing);
+		task.setClkUrl(prefix + "&event=CLK" + splicing);
 	}
 
 	private void ensureCode(String id, String code) {
@@ -178,11 +214,11 @@ public class OcpxMonitorTaskService {
 		OcpxAdvertiser a = advertiserMapper.selectById(t.getAdvertiserId());
 		OcpxPromotionLink p = linkMapper.selectById(t.getPromotionLinkId());
 		OcpxMedia m = mediaMapper.selectById(t.getMediaId());
-		String url = trackingProperties.getPublicBaseUrl().replaceAll("/$", "") + "/c/" + t.getTaskCode();
 		return new MonitorTaskViews.Item(t.getId(), t.getTaskCode(), t.getTaskName(), t.getAdvertiserId(),
 				a == null ? null : a.getAdvertiserName(), t.getPromotionLinkId(), p == null ? null : p.getLinkName(),
 				t.getMediaId(), m == null ? null : m.getMediaName(), t.getOperatorUserId(), t.getStatus(),
-				t.getConfigVersion(), url, t.getArchivedAt(), t.getCreateTime(), t.getUpdateTime());
+				t.getConfigVersion(), t.getShowUrl(), t.getClkUrl(), t.getUnitPrice(), t.getBizId(), t.getRemark(),
+				t.getArchivedAt(), t.getCreateTime(), t.getUpdateTime());
 	}
 
 }

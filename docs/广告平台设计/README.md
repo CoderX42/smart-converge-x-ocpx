@@ -1,6 +1,6 @@
 # Smart Converge X 广告平台文档中心
 
-> 当前源码基线：2026-08-12 最小 OCPX。源码变更不代表构建、测试、目标数据库、UAT 或生产发布已验收。
+> 当前源码基线：2026-08-13 最小 OCPX + SGYZ 对齐迁移（迁移号至 V101）。源码变更不代表构建、测试、目标数据库、UAT 或生产发布已验收。
 
 ## 当前广告业务
 
@@ -12,12 +12,13 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 | 推广链接 | `OcpxPromotionLink` | `scx_ocpx_promotion_link` |
 | 下游媒体 | `OcpxMedia` | `scx_ocpx_media` |
 | 监测任务 | `OcpxMonitorTask` | `scx_ocpx_monitor_task` |
+| 扣量规则 | `OcpxDeductionRule` | `scx_ocpx_deduction_rule` |
 
 广告域保留历史 `scx_ocpx_flow_log`，但 Engine 不再写入。当前数据层写入 Feedback/Callback 明细、Feedback 日明细、临时报表和最终报表五张新表。
 
-当前 `scx-ocpx-engine` 使用 Spring MVC，默认监听 `10000/ocpx`，已实现 `/feedback` 与 `/callback` 通用 GET 闭环、四实体内存索引、Redis 去重/分桶/扣量、StorageTask 落库和 Admin DataMergeTask 汇总。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 字符串主键。不包含合作方专用协议。
+当前 `scx-ocpx-engine` 使用 Spring MVC，默认监听 `10000/ocpx`，已实现 `/feedback` 与 `/callback` 通用 GET 闭环、四实体内存索引、Redis 去重/分桶/扣量、StorageTask 落库和 Admin DataMergeTask 汇总；另含小米（`/mi/feedback` 入站 + 签名回传）与 KIMI（`/kimi/callback` POST 入站 + 投递）两个合作方适配，按 `adapterCode` 分发。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 字符串主键。其余合作方专用协议未迁移。
 
-四个共享实体位于独立的 `scx-ocpx-core`；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine，也不使用 OCPX 组件扫描正则。
+五个共享实体（含 `OcpxDeductionRule`）位于独立的 `scx-ocpx-core`；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine，也不使用 OCPX 组件扫描正则。管理端另提供扣量规则 CRUD（写库后同步 Redis 扣量比例）、广告主充值/余额（Redis 单值，无流水表）、监测任务逻辑删除、时段报表与 CSV 导出。
 
 用户、角色、菜单、部门、字典、操作日志和登录日志仍由原系统管理框架承载。本次只调整广告业务菜单与权限。
 
@@ -31,7 +32,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 6. [上游广告主 Adapter 指南](OCPX上游广告主适配器开发指南.md)。
 7. `contracts/` 中的 OpenAPI、JSON Schema 和 Postman 集合。
 
-其余 MVP、竞品、ADR/RFC、旧模块规格和 V79–V95 文档是历史或规划资料，不代表当前运行能力。
+其余 MVP、竞品、ADR/RFC、旧模块规格、V72 点击计费/充值账务设计和 V79–V95 文档是历史或规划资料，不代表当前运行能力。
 
 ## 数据库与发布边界
 

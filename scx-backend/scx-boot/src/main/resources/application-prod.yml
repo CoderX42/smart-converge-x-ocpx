@@ -3,7 +3,7 @@ scx:
     public-base-url: https://ocpx.zhongsenyuedong.cn/ocpx
     admin:
       tracking:
-        public-base-url: https://ocpx.zhongsenyuedong.cn/ocpx
+        engine-base-url: https://ocpx.zhongsenyuedong.cn/ocpx
     partner-credentials:
       advertisers: {}
       media: {}

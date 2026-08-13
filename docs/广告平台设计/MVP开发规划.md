@@ -13,6 +13,21 @@
 
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
 
+## 执行快照增补（2026-08-13）：SGYZ 对齐迁移交付记录
+
+> 下文「执行快照（2026-07-17）」的 M1–M6 状态、第 12 节任务队列与第 15 节决策表均基于 V96 前已退役的旧广告架构（`scx-delivery`/`scx-tracking`/`scx-reporting` 等），仅作历史资料保留。2026-08 广告域经 V96 重置为最小 OCPX 基线后，又从参考系统 SGYZ（`/Users/karl/code/sgyz-ocpx`）平移了一批能力；这些交付不对应旧任务队列中的任何条目，单独登记在本节。状态以当前工作树代码、测试与 `tools/quality/` 门禁证据为准，不代表目标数据库、UAT 或生产已发布。
+
+| 编号 | 交付项 | 状态 | 关键证据 |
+|---|---|---|---|
+| P0-1 | 扣量规则 | 已交付 | V99 新表 `scx_ocpx_deduction_rule`（`media_id`+`promotion_link_id`+`ratio`，软删唯一）；Admin CRUD `/ocpx/deduction-rules`（权限 `ocpx:deduction-rule:*`）；写库后同步 Redis `ocpx:route:ratio:{lId}:{mId}`，变更/删除清理 `ocpx:route:original-count:`/`ocpx:route:delivered-count:`，删除复位 1.0；菜单种子「扣量规则」`/ocpx/deduction`；前端 `views/ocpx/deduction/index.vue`、`api/ocpx/deduction.ts`；`check-ocpx-four-entities.sh` 放宽为五业务表 |
+| P0-2 | 监测任务业务字段与双链接 | 已交付 | V100 为 `scx_ocpx_monitor_task` 增加 `unit_price`/`biz_id`/`show_url`/`clk_url`/`remark`；Admin 创建/更新时持久化生成 `show_url`/`clk_url`（`{engine-base}/feedback?{媒体宏参数}&event=IMP\|CLK&mId=&tId=&aId=&lId=`）；配置项 `scx.ocpx.admin.tracking.engine-base-url` yml 直写；旧 `/c/{taskCode}` trackingUrl 已移除；前端监测任务页对齐 SGYZ advertise/flow |
+| P1-3 | 充值/余额极简版与监测任务删除 | 已交付 | `POST /ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`），Redis key `ocpx:advertiser:balance:{aId}` 单值累加，列表/详情逐行回填 balance，无流水表；`DELETE /ocpx/monitor-tasks/{id}`（逻辑删，权限 `ocpx:monitor-task:delete`）；V101 权限种子；前端广告主页余额列 + 充值弹窗、监测任务删除按钮 |
+| P1-4 | 报表对齐 SGYZ | 已交付 | `GET /ocpx/reports/summary`（dateType 0时/1日/2月/3年、linkRadio 左联扣量规则、clickRate、snake_case 白名单排序、current/size 分页）、`GET /ocpx/reports/summary:export`（CSV 带 BOM，`时段报表.csv`）、`GET /ocpx/media:export`（`媒体管理报表.csv`）；前端报表页重写为 SGYZ AChannelTime 形态（`api/ocpx/report.ts`） |
+| P1-5 | 小米 + KIMI 合作方适配 | 已交付 | 引擎 `GET /mi/feedback`（固定响应 `{"code":0,"failMsg":"","success":true}`）与小米回传（`trail.e.mi.com/api/callback` + MD5 sign，`adapterCode=MI` 分发）；`POST /kimi/callback`（query `ext`/`s` + body `action_type`/`action_time`，响应 `{"code":0}`）与 KIMI 投递（`adapterCode=KIMI` 分发，回调地址 `{domain}/kimi/callback?ext=&s={lId}_{mId}`）；Admin adapterCode 白名单增加 `MI`/`KIMI`；GET-only 门禁对 `KimiCallbackController` 加白名单 |
+| P2-6 | 数据面运维回补 | 已交付 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实未改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
+
+仍未对齐（不得描述为已交付）：SGYZ 其余 11 个媒体与 19 个广告主合作方适配、RTA、渠道应用审核、自助账号体系、点击扣费/CPC、账务流水表。详见 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md)「2026-08 增补：已对齐能力」。
+
 ## 执行快照（2026-07-17）
 
 第 15 节推荐默认方案已全部接受，MVP-000A 已按负责人要求跳过。本轮已完成 M1–M5 的核心代码实现：主数据与媒体对象授权、版本化追踪链接、监测任务、沙箱事件接入、幂等与去重、最后点击归因、Outbox、沙箱回传、日报与事件明细，以及对应管理前端。

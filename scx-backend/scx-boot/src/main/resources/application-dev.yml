@@ -1,5 +1,8 @@
 scx:
   ocpx:
+    admin:
+      tracking:
+        engine-base-url: http://127.0.0.1:10000/ocpx
     partner-credentials:
       advertisers: {}
       media: {}

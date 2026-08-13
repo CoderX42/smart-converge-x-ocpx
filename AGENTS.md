@@ -7,7 +7,7 @@
 ## 1. 项目概述
 
 - **项目代号**：`Smart Converge X`，简称 `SCX`。
-- **产品定位**：面向单一企业内部业务线的精简广告服务管理平台，功能面收敛为渠道、广告主、监测链接、扣量、充值/点击账务、报表中心与权限管理；汽车线索域已退出。
+- **产品定位**：面向单一企业内部业务线的精简广告服务管理平台，功能面收敛为媒体（渠道）、广告主、推广链接、监测任务、扣量规则、充值/余额（SGYZ 对齐极简版：Redis 单值余额，无账务流水表，不含点击计费/CPC）、报表中心与权限管理；汽车线索域已退出。
 - **当前阶段**：OCPX 重构基线；原商业、财务/支付、媒体资源、创意、投放、监测归因、旧报表和运营中心已退出构建。
 - **权威文档入口**：`docs/广告平台设计/README.md`，其中规定了阅读顺序、文档权威级别（L0 基线 / L1 规范 / L2 执行 / L3 模板）以及 Agent 迭代治理规则。
 - **工程组织**：
@@ -183,9 +183,9 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-auth` | 登录、验证码、Sa-Token 认证。 |
 | `scx-system` | 用户、角色、菜单、部门、字典、日志；拆分为 `scx-system-api` + `scx-system-biz`。 |
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log-buffer`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。`log-buffer` 仅提供进程内有界脱敏日志缓冲，不包含系统日志落库自动配置。 |
-| `scx-ocpx-core` | OCPX 管理面与数据面共享的四个 MyBatis-Plus 实体及最小契约；不包含 Spring 运行组件。 |
-| `scx-ocpx-admin` | 精简广告管理业务：四实体 CRUD、流程日志查询、Dashboard 和报表。 |
-| `scx-ocpx-engine` | 独立 OCPX 数据面应用；实现通用 Feedback/Callback GET 闭环，默认监听 `10000/ocpx`。 |
+| `scx-ocpx-core` | OCPX 管理面与数据面共享的五个 MyBatis-Plus 实体（广告主、推广链接、媒体、监测任务、扣量规则）及最小契约；不包含 Spring 运行组件。 |
+| `scx-ocpx-admin` | 精简广告管理业务：五实体 CRUD、扣量规则（写库后同步 Redis 扣量比例）、广告主充值/余额（Redis 单值累加，无流水表）、流程日志查询、Dashboard、时段报表与 CSV 导出。 |
+| `scx-ocpx-engine` | 独立 OCPX 数据面应用；实现通用 Feedback/Callback GET 闭环，默认监听 `10000/ocpx`；另含小米（`/mi/feedback` 入站 + 签名回传）与 KIMI（`/kimi/callback` POST 入站 + 投递）adapterCode 适配、logback 分文件滚动日志、Feedback 日明细每日清理任务。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
 典型包结构（以 `scx-ocpx-admin` 为例）：
@@ -198,8 +198,8 @@ com.yzytech.scx.ocpx.admin
 └── resources/mapper/*.xml
 ```
 
-OCPX 的四个 `@TableName` 实体统一位于 `scx-ocpx-core` 的
-`com.yzytech.scx.ocpx.entity` 包；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine。
+OCPX 的五个 `@TableName` 实体统一位于 `scx-ocpx-core` 的
+`com.yzytech.scx.ocpx.entity` 包（含 `OcpxDeductionRule`）；Admin 与 Engine 分别依赖 Core，Boot 不依赖 Engine。
 
 数据库脚本约定：
 
@@ -319,7 +319,7 @@ Workspace 命名：业务包使用 `@boot/*`，核心基础包使用 `@boot-core
 ### 7.1 后端
 
 - **单元测试**：JUnit 5 + Mockito + AssertJ，位于各模块 `src/test/java`。
-- **示例**：`scx-ocpx-admin/src/test/java/.../OcpxCatalogServiceTest.java`、`OcpxReportServiceTest.java`。
+- **示例**：`scx-ocpx-admin/src/test/java/.../OcpxAdvertiserServiceTest.java`、`OcpxDeductionRuleServiceTest.java`、`OcpxUnifiedReportServiceTest.java`。
 - **运行**：`make backend-test` 或 `cd scx-backend && mvn -pl scx-boot -am test`。
 - **测试原则**：
   - 服务层优先测权限分支（管理员 vs 普通用户）。

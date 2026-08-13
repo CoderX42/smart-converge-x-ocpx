@@ -1,5 +1,5 @@
 -- SCX OCPX minimal current-state schema.
--- Advertising data consists of four business tables and one sanitized flow-log
+-- Advertising data consists of five business tables and one sanitized flow-log
 -- table. Core system-management users, roles, departments, dictionaries and
 -- logs remain owned by scx-system; this file only preserves their menu/RBAC
 -- metadata alongside the advertising menu seed.
@@ -97,6 +97,11 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   promotion_link_id VARCHAR(32) NOT NULL,
   media_id VARCHAR(32) NOT NULL,
   operator_user_id VARCHAR(64) NULL,
+  unit_price DECIMAL(18,6) NULL,
+  biz_id VARCHAR(64) NULL,
+  show_url VARCHAR(2000) NULL,
+  clk_url VARCHAR(2000) NULL,
+  remark VARCHAR(255) NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
   config_version BIGINT NOT NULL DEFAULT 1,
   archived_at DATETIME(3) NULL,
@@ -115,6 +120,22 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   CONSTRAINT ck_ocpx_monitor_task_status CHECK (status IN ('ACTIVE','PAUSED','ARCHIVED')),
   CONSTRAINT ck_ocpx_monitor_task_config_version CHECK (config_version>=1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: advertiser-link-media monitoring task';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_deduction_rule (
+  id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  ratio DOUBLE NOT NULL DEFAULT 1.0,
+  deleted TINYINT(1) NOT NULL DEFAULT 0,
+  active_marker TINYINT GENERATED ALWAYS AS (IF(deleted=0,1,NULL)) STORED,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_deduction_rule_route (media_id,promotion_link_id,active_marker),
+  KEY idx_ocpx_deduction_rule_link (promotion_link_id),
+  CONSTRAINT fk_ocpx_deduction_rule_promotion_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
+  CONSTRAINT fk_ocpx_deduction_rule_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: link-media deduction ratio rule';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   id VARCHAR(32) NOT NULL,
@@ -359,6 +380,7 @@ VALUES
   ('menu_ocpx_promotion_link','推广链接','/ocpx/promotion-link','0','lucide:link','ocpx/promotion-link/index','ocpx:promotion-link:view',20,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_media','媒体管理','/ocpx/media','0','lucide:radio-tower','ocpx/media/index','ocpx:media:view',30,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_monitor_task','监测任务','/ocpx/monitor-task','0','lucide:list-checks','ocpx/monitor-task/index','ocpx:monitor-task:view',40,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_ocpx_deduction_rule','扣量规则','/ocpx/deduction','0','lucide:percent','ocpx/deduction/index','ocpx:deduction-rule:list',45,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_report','报表中心','/ocpx/report','0','lucide:chart-column','ocpx/report/index','ocpx:report:view',50,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_flow_log','流程日志','/ocpx/flow-log','0','lucide:scroll-text','ocpx/flow-log/index','ocpx:flow-log:view',60,'0','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
@@ -372,6 +394,7 @@ VALUES
   ('perm_ocpx_advertiser_edit','编辑广告主','','menu_ocpx_advertiser','ocpx:advertiser:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_status','变更广告主状态','','menu_ocpx_advertiser','ocpx:advertiser:status',30,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_archive','归档广告主','','menu_ocpx_advertiser','ocpx:advertiser:archive',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_advertiser_recharge','广告主充值','','menu_ocpx_advertiser','ocpx:advertiser:recharge',50,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_add','新增推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_edit','编辑推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_status','变更推广链接状态','','menu_ocpx_promotion_link','ocpx:promotion-link:status',30,'1','app_base',NOW(),NOW(),'0'),
@@ -386,7 +409,12 @@ VALUES
   ('perm_ocpx_monitor_task_add','新增监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_edit','编辑监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_status','暂停恢复监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:status',30,'1','app_base',NOW(),NOW(),'0'),
-  ('perm_ocpx_monitor_task_archive','归档监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:archive',40,'1','app_base',NOW(),NOW(),'0')
+  ('perm_ocpx_monitor_task_archive','归档监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:archive',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_monitor_task_delete','删除监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:delete',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_deduction_rule_list','查询扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:list',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_deduction_rule_create','新增扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:create',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_deduction_rule_update','编辑扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:update',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_deduction_rule_delete','删除扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:delete',40,'1','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
   sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
 

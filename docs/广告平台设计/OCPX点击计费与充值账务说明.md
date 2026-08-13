@@ -1,5 +1,17 @@
 # OCPX 点击计费与充值账务说明
 
+> **状态标注（2026-08-13）：本文描述的 V72 设计已整体退役，不代表当前实现。**
+> `scx_ocpx_billing_entry` 不可变流水、CPC 点击扣费、`AUDIT_ONLY` 审计模式、
+> `ocpx:account:recharge` / `ocpx:account:read` 权限和账前/账后余额均已在
+> V96 广告域重置中退出，当前代码与当前态 schema 均不存在对应对象。
+>
+> 当前已交付的充值能力为 SGYZ 对齐极简版：
+> `POST /boot/ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`）
+> 将金额累加到 Redis 单值 `ocpx:advertiser:balance:{aId}`，广告主列表/详情逐行回填
+> balance；**无流水表、无点击扣费/CPC、无幂等 requestId、无账前/账后余额**。
+> 现行能力以 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md) 的
+> 「2026-08 增补：已对齐能力」一节为准；本文其余内容仅作历史设计资料保留。
+
 ## 1. 已实现范围
 
 SCX 使用 `scx_ocpx_advertiser.balance` 保存广告主可用余额，使用 `scx_ocpx_billing_entry` 保存不可变流水。当前支持：

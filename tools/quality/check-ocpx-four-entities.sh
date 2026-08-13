@@ -20,8 +20,9 @@ expected_business = {
     "scx_ocpx_promotion_link",
     "scx_ocpx_media",
     "scx_ocpx_monitor_task",
+    "scx_ocpx_deduction_rule",
 }
-if set(business) != expected_business or len(business) != 4:
+if set(business) != expected_business or len(business) != 5:
     raise SystemExit(f"four-entity gate failed: BUSINESS tables are {business!r}")
 
 expected_data = {
@@ -33,13 +34,13 @@ expected_data = {
     "scx_ocpx_report_mat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 10:
+if set(actual) != expected_business | expected_data or len(actual) != 11:
     raise SystemExit(f"four-entity gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
 
 retired = re.compile(
-    r"scx_ocpx_(channel|app_link|monitor_link|deduction_rule|hourly_report|product|media_account|media_credential|task)(?:\W|$)"
+    r"scx_ocpx_(channel|app_link|monitor_link|hourly_report|product|media_account|media_credential|task)(?:\W|$)"
 )
 for relative in (
     "scx-backend/scx-ocpx-core/src",
@@ -139,6 +140,7 @@ expected_mapped = {
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxPromotionLink.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMedia.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMonitorTask.java",
+    "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxDeductionRule.java",
 }
 if set(mapped) != expected_mapped:
     raise SystemExit(f"four-entity gate failed: shared entities are {sorted(mapped)!r}")
@@ -238,9 +240,15 @@ for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech
 if "com.yzytech.scx.ocpx.dao.mapper" in entrypoint:
     raise SystemExit("feature-package gate failed: retired MapperScan remains")
 
+# KIMI 协议迁移：KIMI 广告主以 POST + JSON body 回传转化（SGYZ KimiController 平移），
+# 因此仅 callback/web/kimi/KimiCallbackController.java 允许 @PostMapping，其余 Controller 仍为 GET-only。
+kimi_callback_controller = (java_root / "callback/web/kimi/KimiCallbackController.java").resolve()
 for file in java_root.rglob("*Controller.java"):
     source = file.read_text(encoding="utf-8")
-    if any(annotation in source for annotation in ("@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping")):
+    mutating = ["@PutMapping", "@PatchMapping", "@DeleteMapping"]
+    if file.resolve() != kimi_callback_controller:
+        mutating.append("@PostMapping")
+    if any(annotation in source for annotation in mutating):
         raise SystemExit(f"GET-only gate failed: mutating mapping found in {file}")
 
 rta_pattern = re.compile(

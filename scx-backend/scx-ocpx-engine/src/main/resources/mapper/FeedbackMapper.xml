@@ -38,4 +38,7 @@
              #{item.uniShowSmt},#{item.clkSmt},#{item.uniClkSmt},IFNULL(#{item.basePrice},0))
         </foreach>
     </insert>
+    <delete id="deleteFeedbackDay">
+        DELETE FROM scx_ocpx_log_feedback_day WHERE time_hour_res = #{time}
+    </delete>
 </mapper>

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
+import com.yzytech.scx.ocpx.admin.util.OcpxCsv;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
@@ -16,6 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -23,7 +27,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class OcpxMediaService {
 
-	private static final Set<String> ADAPTERS = Set.of("STANDARD", "TEMPLATE_GET_DOWNSTREAM");
+	private static final Set<String> ADAPTERS = Set.of("STANDARD", "TEMPLATE_GET_DOWNSTREAM", "MI");
 
 	private final OcpxMediaMapper mediaMapper;
 
@@ -42,6 +46,27 @@ public class OcpxMediaService {
 				.eq(StringUtils.hasText(status), OcpxMedia::getStatus, status)
 				.orderByDesc(OcpxMedia::getUpdateTime))
 			.convert(this::view);
+	}
+
+	public String exportCsv(String keyword, String adapterCode, String status) {
+		List<OcpxMedia> data = mediaMapper.selectList(Wrappers.<OcpxMedia>lambdaQuery()
+			.and(StringUtils.hasText(keyword),
+					q -> q.like(OcpxMedia::getMediaCode, keyword).or().like(OcpxMedia::getMediaName, keyword))
+			.eq(StringUtils.hasText(adapterCode), OcpxMedia::getAdapterCode, adapterCode)
+			.eq(StringUtils.hasText(status), OcpxMedia::getStatus, status)
+			.orderByDesc(OcpxMedia::getUpdateTime));
+		if (data.isEmpty()) {
+			return "";
+		}
+		return OcpxCsv.content(List.of("媒体ID", "媒体名称", "'uri'", "'宏参数'", "创建时间", "修改时间"),
+				data.stream()
+					.map(media -> Arrays.<Object>asList(media.getId(), media.getMediaName(), media.getIngressUri(),
+							media.getMacroParams(), csvTime(media.getCreateTime()), csvTime(media.getUpdateTime())))
+					.toList());
+	}
+
+	private String csvTime(LocalDateTime value) {
+		return value == null ? null : value.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 	}
 
 	public MediaViews.Item detail(String id) {

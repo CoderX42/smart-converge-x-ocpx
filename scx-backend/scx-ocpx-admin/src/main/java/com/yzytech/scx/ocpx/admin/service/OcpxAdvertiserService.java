@@ -11,18 +11,23 @@ import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class OcpxAdvertiserService {
 
-	private static final Set<String> ADAPTERS = Set.of("COCO", "TEMPLATE_GET");
+	private static final Set<String> ADAPTERS = Set.of("COCO", "TEMPLATE_GET", "KIMI");
+
+	/** 广告主余额 Redis 单值 key（对齐 SGYZ RedisHelper 的 ADVERTISER_BALANCE 累加语义，无流水表）。 */
+	private static final String BALANCE_PREFIX = "ocpx:advertiser:balance:";
 
 	private final OcpxAdvertiserMapper advertiserMapper;
 
@@ -31,6 +36,8 @@ public class OcpxAdvertiserService {
 	private final OcpxUrlPolicy urlPolicy;
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
+
+	private final StringRedisTemplate redis;
 
 	public IPage<AdvertiserViews.Item> list(Page<OcpxAdvertiser> page, String keyword, String adapterCode,
 			String status) {
@@ -116,6 +123,18 @@ public class OcpxAdvertiserService {
 		return new AdvertiserViews.Mutation(id, "ARCHIVED", current.getConfigVersion() + 1);
 	}
 
+	/** 充值：对 Redis 余额单值做数值累加（平移 SGYZ rechargeBalance，无流水表、无幂等键）。 */
+	public void recharge(String id, AdvertiserRequests.Recharge request) {
+		require(id);
+		redis.opsForValue().increment(BALANCE_PREFIX + id, request.balance().doubleValue());
+	}
+
+	/** 从 Redis 读余额，无 key 时为 0（平移 SGYZ getDspInfoList 逐行回填）。 */
+	private BigDecimal balance(String id) {
+		String raw = redis.opsForValue().get(BALANCE_PREFIX + id);
+		return StringUtils.hasText(raw) ? new BigDecimal(raw) : BigDecimal.ZERO;
+	}
+
 	private void apply(OcpxAdvertiser target, String name, String adapter, String key, Long version, String bidUrl,
 			String macros, String allowlist) {
 		String normalizedAdapter = adapter.trim().toUpperCase();
@@ -173,7 +192,7 @@ public class OcpxAdvertiserService {
 		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), value.getAdvertiserCode(),
 				value.getAdapterCode(), value.getCredentialConfigKey(), value.getCredentialVersion(), value.getBidUrl(),
 				value.getMacroParams(), value.getUpstreamHostAllowlist(), value.getStatus(), value.getConfigVersion(),
-				value.getCreateTime(), value.getUpdateTime());
+				balance(value.getId()), value.getCreateTime(), value.getUpdateTime());
 	}
 
 }

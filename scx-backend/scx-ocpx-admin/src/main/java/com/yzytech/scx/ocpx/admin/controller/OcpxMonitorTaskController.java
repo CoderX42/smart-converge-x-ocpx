@@ -12,6 +12,7 @@ import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -71,6 +72,16 @@ public class OcpxMonitorTaskController {
 	public Result<MonitorTaskViews.Mutation> archive(@PathVariable String id,
 			@Valid @RequestBody MonitorTaskRequests.VersionedAction request) {
 		return call(() -> service.archive(id, request));
+	}
+
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ocpx:monitor-task:delete")
+	@SysLog("删除监测任务")
+	public Result<Void> delete(@PathVariable String id) {
+		return call(() -> {
+			service.delete(id);
+			return null;
+		});
 	}
 
 	private <T> Result<T> call(Callable<T> action) {

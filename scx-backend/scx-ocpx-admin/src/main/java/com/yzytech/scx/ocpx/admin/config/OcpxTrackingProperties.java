@@ -11,14 +11,14 @@ import org.springframework.validation.annotation.Validated;
 public class OcpxTrackingProperties {
 
 	@NotBlank
-	private String publicBaseUrl = "https://tracking.invalid";
+	private String engineBaseUrl = "https://tracking.invalid";
 
-	public String getPublicBaseUrl() {
-		return publicBaseUrl;
+	public String getEngineBaseUrl() {
+		return engineBaseUrl;
 	}
 
-	public void setPublicBaseUrl(String publicBaseUrl) {
-		this.publicBaseUrl = publicBaseUrl;
+	public void setEngineBaseUrl(String engineBaseUrl) {
+		this.engineBaseUrl = engineBaseUrl;
 	}
 
 }

@@ -1,8 +1,12 @@
 <script lang="ts" setup>
 import type { PromotionLink } from '#/api/ocpx';
+
 import { onMounted, reactive, ref } from 'vue';
+
 import { Page } from '@boot/common-ui';
+
 import { ElMessage, ElMessageBox } from 'element-plus';
+
 import {
   archivePromotionLink,
   changePromotionLinkStatus,
@@ -75,8 +79,9 @@ async function save() {
     expectedVersion: editing.value?.configVersion,
     macroSet: '',
   };
-  if (editing.value) await updatePromotionLink(editing.value.id, data);
-  else await createPromotionLink(data);
+  await (editing.value
+    ? updatePromotionLink(editing.value.id, data)
+    : createPromotionLink(data));
   ElMessage.success('保存成功');
   open.value = false;
   await load();

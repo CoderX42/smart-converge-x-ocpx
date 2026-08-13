@@ -10,8 +10,10 @@ import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.admin.service.OcpxMediaService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,8 +23,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 
+@Slf4j
 @Validated
 @RestController
 @RequiredArgsConstructor
@@ -36,6 +41,21 @@ public class OcpxMediaController {
 	public Result<IPage<MediaViews.Item>> list(Page<OcpxMedia> page, String keyword, String adapterCode,
 			String status) {
 		return Result.success(mediaService.list(page, keyword, adapterCode, status));
+	}
+
+	@GetMapping(":export")
+	@SaCheckPermission("ocpx:media:view")
+	public void export(String keyword, String adapterCode, String status, HttpServletResponse response) {
+		try {
+			response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+			response.setContentType("text/csv;charset=UTF-8");
+			String fileName = URLEncoder.encode("媒体管理报表", StandardCharsets.UTF_8).replace("+", "%20");
+			response.setHeader("Content-Disposition", "attachment;filename*=UTF-8''" + fileName + ".csv");
+			response.getWriter().print("\ufeff" + mediaService.exportCsv(keyword, adapterCode, status));
+		}
+		catch (Exception error) {
+			log.error("Export csv error!!!", error);
+		}
 	}
 
 	@GetMapping("/{id}")

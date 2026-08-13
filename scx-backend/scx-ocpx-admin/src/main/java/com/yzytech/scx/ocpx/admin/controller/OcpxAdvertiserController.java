@@ -75,6 +75,16 @@ public class OcpxAdvertiserController {
 		return call(() -> advertiserService.archive(id, request));
 	}
 
+	@PostMapping("/{id}/recharge")
+	@SaCheckPermission("ocpx:advertiser:recharge")
+	@SysLog("广告主充值")
+	public Result<Void> recharge(@PathVariable String id, @Valid @RequestBody AdvertiserRequests.Recharge request) {
+		return call(() -> {
+			advertiserService.recharge(id, request);
+			return null;
+		});
+	}
+
 	private <T> Result<T> call(Callable<T> action) {
 		try {
 			return Result.success(action.call());

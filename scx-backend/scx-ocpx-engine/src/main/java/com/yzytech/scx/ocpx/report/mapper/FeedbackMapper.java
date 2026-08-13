@@ -17,4 +17,7 @@ public interface FeedbackMapper {
 	/** 将 Feedback 指标批量累加到临时报表。 */
 	void addReport(@Param("list") List<LogData> data);
 
+	/** 按响应小时（yyyyMMddHH）删除 Feedback 日明细。 */
+	void deleteFeedbackDay(@Param("time") Integer time);
+
 }

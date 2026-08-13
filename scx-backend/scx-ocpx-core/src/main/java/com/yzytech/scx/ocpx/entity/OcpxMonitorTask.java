@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -28,6 +29,16 @@ public class OcpxMonitorTask {
 	private String mediaId;
 
 	private String operatorUserId;
+
+	private BigDecimal unitPrice;
+
+	private String bizId;
+
+	private String showUrl;
+
+	private String clkUrl;
+
+	private String remark;
 
 	private String status;
 

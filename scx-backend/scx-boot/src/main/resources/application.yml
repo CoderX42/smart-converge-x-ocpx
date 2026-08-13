@@ -108,7 +108,7 @@ scx:
     allow-private-addresses: false
     admin:
       tracking:
-        public-base-url: https://tracking.invalid
+        engine-base-url: https://tracking.invalid
 
 boot:
   swagger:

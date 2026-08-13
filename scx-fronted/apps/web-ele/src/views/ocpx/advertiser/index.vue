@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import type { FormInstance, FormRules } from 'element-plus';
+
 import type { AdvertiserV2 } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
@@ -12,6 +14,7 @@ import {
   changeAdvertiserStatusV2,
   createAdvertiserV2,
   listAdvertisers,
+  rechargeAdvertiser,
   updateAdvertiserV2,
 } from '#/api/ocpx';
 
@@ -75,14 +78,10 @@ async function save() {
     name: form.advertiserName,
     upstreamHostAllowlist: form.upstreamHostAllowlist || undefined,
   };
-  if (editing.value) {
-    await updateAdvertiserV2(editing.value.id, {
+  await (editing.value ? updateAdvertiserV2(editing.value.id, {
       ...data,
       expectedVersion: editing.value.configVersion,
-    });
-  } else {
-    await createAdvertiserV2({ ...data, code: form.advertiserCode });
-  }
+    }) : createAdvertiserV2({ ...data, code: form.advertiserCode }));
   ElMessage.success('保存成功');
   open.value = false;
   await load();
@@ -100,6 +99,58 @@ async function archive(row: AdvertiserV2) {
   await ElMessageBox.confirm('确认归档该广告主？', '归档广告主');
   await archiveAdvertiser(row.id, { expectedVersion: row.configVersion });
   await load();
+}
+
+const rechargeOpen = ref(false);
+const rechargeId = ref('');
+const rechargeLoading = ref(false);
+const rechargeFormRef = ref<FormInstance>();
+const rechargeForm = reactive({ balance: '' });
+
+function validateBalance(
+  _rule: unknown,
+  value: string,
+  callback: (error?: Error) => void,
+) {
+  if (value === '' || value === undefined || value === null) {
+    callback(new Error('请输入金额'));
+    return;
+  }
+  if (/^\d+(?:\.\d+)?$/.test(String(value))) {
+    callback();
+  } else {
+    callback(new Error('请输入正确的数字格式'));
+  }
+}
+
+const rechargeRules: FormRules = {
+  balance: [
+    { message: '请输入金额', required: true, trigger: 'blur' },
+    { trigger: 'blur', validator: validateBalance },
+  ],
+};
+
+// 平移 SGYZ dsp/recharge.vue：弹窗只取行 id，提交后刷新列表
+function recharge(row: AdvertiserV2) {
+  rechargeId.value = row.id;
+  rechargeOpen.value = true;
+}
+
+async function submitRecharge() {
+  if (!(await rechargeFormRef.value?.validate().catch(() => false))) return;
+  rechargeLoading.value = true;
+  try {
+    await rechargeAdvertiser(rechargeId.value, Number(rechargeForm.balance));
+    ElMessage.success('充值成功');
+    rechargeOpen.value = false;
+    await load();
+  } finally {
+    rechargeLoading.value = false;
+  }
+}
+
+function handleRechargeClose() {
+  rechargeFormRef.value?.resetFields();
 }
 
 onMounted(load);
@@ -137,6 +188,9 @@ onMounted(load);
       <el-table v-loading="loading" :data="rows">
         <el-table-column label="编码" prop="advertiserCode" />
         <el-table-column label="名称" prop="advertiserName" />
+        <el-table-column label="余额" prop="balance">
+          <template #default="{ row }">{{ row.balance ?? 0 }}</template>
+        </el-table-column>
         <el-table-column label="Adapter" prop="adapterCode" />
         <el-table-column label="凭据引用" min-width="180">
           <template #default="{ row }">
@@ -144,7 +198,7 @@ onMounted(load);
           </template>
         </el-table-column>
         <el-table-column label="状态" prop="status" />
-        <el-table-column fixed="right" label="操作" width="220">
+        <el-table-column fixed="right" label="操作" width="300">
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
@@ -153,6 +207,14 @@ onMounted(load);
               @click="edit(row)"
             >
               编辑
+            </el-button>
+            <el-button
+              v-access:code="'ocpx:advertiser:recharge'"
+              link
+              type="primary"
+              @click="recharge(row)"
+            >
+              充值
             </el-button>
             <el-button
               v-access:code="'ocpx:advertiser:status'"
@@ -215,6 +277,35 @@ onMounted(load);
       <template #footer>
         <el-button @click="open = false">取消</el-button>
         <el-button type="primary" @click="save">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="rechargeOpen"
+      :close-on-click-modal="false"
+      title="广告主充值"
+      width="480px"
+      @close="handleRechargeClose"
+    >
+      <el-form
+        ref="rechargeFormRef"
+        :model="rechargeForm"
+        :rules="rechargeRules"
+        label-width="100px"
+      >
+        <el-form-item label="充值金额" prop="balance">
+          <el-input v-model="rechargeForm.balance" placeholder="请输入金额" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rechargeOpen = false">取消</el-button>
+        <el-button
+          :loading="rechargeLoading"
+          type="primary"
+          @click="submitRecharge"
+        >
+          确定
+        </el-button>
       </template>
     </el-dialog>
   </Page>

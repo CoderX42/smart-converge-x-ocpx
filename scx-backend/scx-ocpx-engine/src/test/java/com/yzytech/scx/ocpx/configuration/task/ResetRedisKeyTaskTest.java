@@ -2,14 +2,22 @@ package com.yzytech.scx.ocpx.configuration.task;
 
 import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.configuration.bootstrap.SystemMemory;
+import com.yzytech.scx.ocpx.report.mapper.FeedbackMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,7 +32,7 @@ class ResetRedisKeyTaskTest {
 		when(redis.opsForValue()).thenReturn(values);
 		when(values.setIfAbsent("rtb{clearKey}", "1", 15, TimeUnit.MINUTES)).thenReturn(true);
 
-		new ResetRedisKeyTask(redis, mock(SystemMemory.class)).clearKey();
+		new ResetRedisKeyTask(redis, mock(SystemMemory.class), mock(FeedbackMapper.class)).clearKey();
 
 		verify(redis, times(100)).unlink(org.mockito.ArgumentMatchers.startsWith(RedisConstants.REPEAT_REPORT));
 		verify(redis).unlink(RedisConstants.REPEAT_REPORT + "0");
@@ -37,7 +45,7 @@ class ResetRedisKeyTaskTest {
 		SystemMemory memory = mock(SystemMemory.class);
 		when(redis.hasKey(RedisConstants.DATA_REFRESH)).thenReturn(true);
 
-		new ResetRedisKeyTask(redis, memory).refreshMemoryData();
+		new ResetRedisKeyTask(redis, memory, mock(FeedbackMapper.class)).refreshMemoryData();
 
 		verify(memory).init();
 		verify(redis).unlink(RedisConstants.DATA_REFRESH);
@@ -51,10 +59,42 @@ class ResetRedisKeyTaskTest {
 		when(redis.keys(RedisConstants.ROUTE_ORIGINAL_COUNT_PREFIX + "*")).thenReturn(original);
 		when(redis.keys(RedisConstants.ROUTE_DELIVERED_COUNT_PREFIX + "*")).thenReturn(delivered);
 
-		new ResetRedisKeyTask(redis, mock(SystemMemory.class)).resetRouteCounters();
+		new ResetRedisKeyTask(redis, mock(SystemMemory.class), mock(FeedbackMapper.class)).resetRouteCounters();
 
 		verify(redis).delete(original);
 		verify(redis).delete(delivered);
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void deletesAllTwentyFourHoursOfThePreviousDayFromTheFeedbackDayTable() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		FeedbackMapper feedbackMapper = mock(FeedbackMapper.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent("rtb{deleteFeedbackDay}", "1", 15, TimeUnit.MINUTES)).thenReturn(true);
+
+		new ResetRedisKeyTask(redis, mock(SystemMemory.class), feedbackMapper).deleteFeedbackDay();
+
+		String yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+		verify(feedbackMapper, times(24)).deleteFeedbackDay(anyInt());
+		verify(feedbackMapper).deleteFeedbackDay(Integer.valueOf(yesterday + "00"));
+		verify(feedbackMapper).deleteFeedbackDay(Integer.valueOf(yesterday + "23"));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void skipsFeedbackDayCleanupWhenAnotherInstanceHoldsTheLock() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		FeedbackMapper feedbackMapper = mock(FeedbackMapper.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent(eq("rtb{deleteFeedbackDay}"), anyString(), anyLong(), eq(TimeUnit.MINUTES)))
+			.thenReturn(false);
+
+		new ResetRedisKeyTask(redis, mock(SystemMemory.class), feedbackMapper).deleteFeedbackDay();
+
+		verify(feedbackMapper, never()).deleteFeedbackDay(anyInt());
 	}
 
 }

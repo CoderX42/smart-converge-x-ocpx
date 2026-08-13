@@ -1,8 +1,12 @@
 <script lang="ts" setup>
 import type { Media } from '#/api/ocpx';
+
 import { onMounted, reactive, ref } from 'vue';
+
 import { Page } from '@boot/common-ui';
+
 import { ElMessage, ElMessageBox } from 'element-plus';
+
 import {
   archiveMedia,
   changeMediaStatus,
@@ -12,6 +16,7 @@ import {
   preflightMedia,
   updateMedia,
 } from '#/api/ocpx';
+
 defineOptions({ name: 'OcpxMediaManagement' });
 const rows = ref<Media[]>([]);
 const loading = ref(false);
@@ -66,8 +71,7 @@ async function save() {
       form.authType === 'NONE' ? undefined : form.credentialVersion,
     expectedVersion: editing.value?.configVersion,
   };
-  if (editing.value) await updateMedia(editing.value.id, data);
-  else await createMedia(data);
+  await (editing.value ? updateMedia(editing.value.id, data) : createMedia(data));
   ElMessage.success('保存成功');
   open.value = false;
   await load();
@@ -190,7 +194,9 @@ onMounted(load);
           ><el-select v-model="form.adapterCode"
             ><el-option label="标准协议" value="STANDARD" /><el-option
               label="GET 模板"
-              value="TEMPLATE_GET_DOWNSTREAM" /></el-select></el-form-item
+              value="TEMPLATE_GET_DOWNSTREAM" /><el-option
+              label="小米"
+              value="MI" /></el-select></el-form-item
         ><el-form-item label="鉴权类型"
           ><el-select v-model="form.authType"
             ><el-option

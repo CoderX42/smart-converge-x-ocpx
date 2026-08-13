@@ -1,6 +1,8 @@
 import { requestClient } from '#/api/request';
 
+export * from './ocpx/deduction';
 export * from './ocpx/four-entity';
+export * from './ocpx/report';
 
 export type ReportOption = {
   code: string;

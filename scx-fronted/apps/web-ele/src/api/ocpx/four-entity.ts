@@ -6,6 +6,7 @@ export type AdvertiserV2 = {
   adapterCode: string;
   advertiserCode: string;
   advertiserName: string;
+  balance?: number;
   bidUrl: string;
   configVersion: number;
   createTime: string;
@@ -62,6 +63,8 @@ export type MonitorTask = {
   advertiserId: string;
   advertiserName: string;
   archivedAt?: string;
+  bizId?: string;
+  clkUrl: string;
   configVersion: number;
   createTime: string;
   id: string;
@@ -70,10 +73,12 @@ export type MonitorTask = {
   operatorUserId?: string;
   promotionLinkId: string;
   promotionLinkName: string;
+  remark?: string;
+  showUrl: string;
   status: 'ACTIVE' | 'ARCHIVED' | 'PAUSED';
   taskCode: string;
   taskName: string;
-  trackingUrl: string;
+  unitPrice: number;
   updateTime: string;
 };
 
@@ -98,6 +103,9 @@ export function changeAdvertiserStatusV2(
 }
 export function archiveAdvertiser(id: string, data: VersionedAction) {
   return requestClient.post(`/ocpx/advertisers/${id}/archive`, data);
+}
+export function rechargeAdvertiser(id: string, balance: number) {
+  return requestClient.post(`/ocpx/advertisers/${id}/recharge`, { balance });
 }
 
 export function listPromotionLinks(params: Record<string, unknown>) {
@@ -166,6 +174,9 @@ export function listMonitorTasks(params: Record<string, unknown>) {
     params,
   });
 }
+export function getMonitorTask(id: string) {
+  return requestClient.get<MonitorTask>(`/ocpx/monitor-tasks/${id}`);
+}
 export function createMonitorTask(data: Record<string, unknown>) {
   return requestClient.post<MonitorTask>('/ocpx/monitor-tasks', data);
 }
@@ -180,4 +191,7 @@ export function changeMonitorTaskStatus(
 }
 export function archiveMonitorTask(id: string, data: VersionedAction) {
   return requestClient.post(`/ocpx/monitor-tasks/${id}/archive`, data);
+}
+export function deleteMonitorTask(id: string) {
+  return requestClient.delete(`/ocpx/monitor-tasks/${id}`);
 }
