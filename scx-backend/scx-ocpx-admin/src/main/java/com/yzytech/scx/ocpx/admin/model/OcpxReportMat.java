@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -71,6 +73,12 @@ public class OcpxReportMat extends Model<OcpxReportMat> {
 	private Integer placeOrder;
 
 	private Integer finishTheOrder;
+
+	private Integer firstActivation;
+
+	private Integer firstOrder;
+
+	private BigDecimal currencyAmount;
 
 	private Long basePrice;
 

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX Feedback/Callback GET data plane
-  version: 4.0.0
+  version: 5.0.0
   description: SCX OCPX Feedback and Callback data plane. All partner requests use HTTP GET Query String parameters.
 servers:
   - url: https://{domain}/ocpx
@@ -22,16 +22,19 @@ paths:
         - { name: request_id, in: query, required: false, description: Missing value falls back to request JSON MD5, schema: { type: string, maxLength: 128 } }
         - { name: callback_url, in: query, required: false, schema: { type: string, maxLength: 2000 } }
         - { name: caid, in: query, required: false, schema: { type: string } }
+        - { name: caid_list, in: query, required: false, schema: { type: string } }
         - { name: caid1, in: query, required: false, schema: { type: string } }
         - { name: last_caid, in: query, required: false, schema: { type: string } }
         - { name: prev_caid, in: query, required: false, schema: { type: string } }
         - { name: idfa, in: query, required: false, schema: { type: string } }
         - { name: idfa_md5, in: query, required: false, schema: { type: string } }
+        - { name: aaid, in: query, required: false, schema: { type: string } }
         - { name: imei, in: query, required: false, schema: { type: string } }
         - { name: imei_md5, in: query, required: false, schema: { type: string } }
         - { name: oaid, in: query, required: false, schema: { type: string } }
         - { name: oaid_md5, in: query, required: false, schema: { type: string } }
         - { name: androidid, in: query, required: false, schema: { type: string } }
+        - { name: androidid_md5, in: query, required: false, schema: { type: string } }
         - { name: mac, in: query, required: false, schema: { type: string } }
         - { name: mac_md5, in: query, required: false, schema: { type: string } }
         - { name: ip, in: query, required: false, schema: { type: string } }
@@ -65,17 +68,36 @@ paths:
       parameters:
         - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
         - { name: s, in: query, required: false, description: lId_tId state, schema: { type: string } }
-        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 17 } }
+        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 19 } }
         - { name: event_time, in: query, required: true, schema: { type: integer, format: int64 } }
       responses:
         '200': { description: Empty response after Callback handling }
         '500': { description: Callback parse or handling exception }
+  /aerim/callback:
+    get:
+      operationId: handleAerimCallback
+      description: AERIM string actions are normalized to SCX action numbers. The receive time is used as action_time.
+      parameters:
+        - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
+        - { name: s, in: query, required: true, description: lId_tId state, schema: { type: string } }
+        - name: action_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [activate, reactivation, register, purchase, new, day1retention, completeorder, firstreactivation, firstorder]
+        - { name: currency_amount, in: query, required: false, description: Optional purchase amount in the partner's original decimal unit, schema: { type: number, minimum: 0 } }
+      responses:
+        '200': { description: Empty response for success, duplicate, or deducted conversion }
+        '400': { description: Missing or unknown action, invalid amount, or invalid encrypted route context }
+        '500': { description: Internal handling exception }
 webhooks:
   downstreamConversionGet:
     get:
       operationId: deliverDownstreamConversion
-      description: SCX decodes the Feedback callback_url and appends event_type.
+      description: SCX decodes the Feedback callback_url and appends event_type plus optional currency_amount.
       parameters:
-        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 17 } }
+        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 19 } }
+        - { name: currency_amount, in: query, required: false, schema: { type: number, minimum: 0 } }
       responses:
         '200': { description: Response body is ignored }

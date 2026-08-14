@@ -22,6 +22,11 @@ app:
   callback-aes-key: rcDe7gFGzssGFEe_PuR2BRdl_kh87iFU
 
 ocpx:
+  protocols:
+    # 生产登记需在 UAT 通过并取得发布授权后填写。
+    advertisers: {}
+  aerim:
+    allowed-hosts: []
   partner-credentials:
     advertisers: {}
     media: {}

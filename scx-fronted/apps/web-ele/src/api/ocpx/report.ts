@@ -8,9 +8,12 @@ export type SummaryReportRow = {
   authentication: number;
   basePrice: number;
   clickRate: number;
+  currencyAmount: number;
   customerAcquisition: number;
   evoke: number;
   finishTheOrder: number;
+  firstActivation: number;
+  firstOrder: number;
   linkRadio: null | string;
   login: number;
   mediaId: string;

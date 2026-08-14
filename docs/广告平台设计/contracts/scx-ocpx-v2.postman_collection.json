@@ -17,6 +17,13 @@
         "method": "GET",
         "url": "{{baseUrl}}/ocpx/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event_type=1&event_time=1700000000"
       }
+    },
+    {
+      "name": "AERIM Callback GET",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/ocpx/aerim/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&action_type=purchase&currency_amount=123.45"
+      }
     }
   ],
   "variable": [

@@ -34,7 +34,7 @@ public class CallbackUrlDownstreamDeliveryService extends DownstreamDeliveryServ
 		// Feedback 入站时已严格 URL 编码，此处恢复媒体提供的原始地址。
 		String callbackUrl = URLDecoder.decode(request.getFeedback().getCallbackUrl(), StandardCharsets.UTF_8);
 		callbackUrl = callbackUrlPolicy.requirePublicHttpUrl(callbackUrl);
-		callbackUrl = callbackUrlPolicy.appendEventType(callbackUrl, eventType);
+		callbackUrl = callbackUrlPolicy.appendCallbackFields(callbackUrl, eventType, request.getCurrencyAmount());
 		String content = NetUtil.httpGet(callbackUrl, null);
 		if (StringUtils.hasText(content)) {
 			log.debug("downstream callback response length:{}", content.length());

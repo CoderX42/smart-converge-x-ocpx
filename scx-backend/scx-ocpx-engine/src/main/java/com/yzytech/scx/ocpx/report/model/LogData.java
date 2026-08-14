@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 /**
@@ -132,8 +133,18 @@ public class LogData {
 
 	private int finishTheOrder;
 
-	/** 转化发生时间和监测任务基础价格。 */
+	private int firstActivation;
+
+	private int firstOrder;
+
+	/** 合作方原始动作、标准动作编号、转化时间、订单金额和监测任务基础价格。 */
+	private String partnerActionType;
+
+	private Integer standardActionType;
+
 	private long actionTime;
+
+	private BigDecimal currencyAmount;
 
 	private BigInteger basePrice;
 
@@ -243,6 +254,10 @@ public class LogData {
 
 	public String getUserType() {
 		return StringUtil.checkStrLength(userType, 15);
+	}
+
+	public String getPartnerActionType() {
+		return StringUtil.checkStrLength(partnerActionType, 50);
 	}
 
 }

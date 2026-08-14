@@ -83,6 +83,16 @@ route_comment_count="$(scalar "SELECT COUNT(*) FROM information_schema.columns W
  AND table_name IN (${route_table_list}) AND column_name IN (${route_column_list}) AND column_comment<>''")"
 [[ "$route_comment_count" -eq "$expected_route_column_count" ]] || fail "OCPX route ID column comments are incomplete"
 
+aerim_callback_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name='scx_ocpx_log_callback'
+ AND column_name IN ('partner_action_type','standard_action_type','action_time','currency_amount')")"
+[[ "$aerim_callback_columns" -eq 4 ]] || fail "AERIM callback fidelity columns are incomplete"
+
+aerim_report_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN ('scx_ocpx_report_mat_temp','scx_ocpx_report_mat')
+ AND column_name IN ('first_activation','first_order','currency_amount')")"
+[[ "$aerim_report_columns" -eq 6 ]] || fail "AERIM report columns are incomplete"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

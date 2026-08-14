@@ -5,25 +5,29 @@
         INSERT INTO scx_ocpx_log_callback
         (time_key_req,time_key_res,time_hour_res,date_res,m_id,a_id,t_id,l_id,adv_id,group_id,
          plan_id,creative_id,imp_id,clk_id,req_id,ua,ip,device_os,device_did,device_oaid,device_dpid,device_mac,
-         device_idfa,device_caid,device_caid1,ts,ts_ms,userid,user_type)
+         device_idfa,device_caid,device_caid1,ts,ts_ms,userid,user_type,partner_action_type,
+         standard_action_type,action_time,currency_amount)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.timeKeyRes},#{item.timeKeyRes},LEFT(${item.timeKeyRes},10),LEFT(${item.timeKeyRes},8),
              #{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.advId},#{item.groupId},#{item.planId},
              #{item.creativeId},#{item.impresssId},#{item.clickId},#{item.reqId},#{item.ua},#{item.ip},#{item.os},
              #{item.imei},#{item.oaid},#{item.androidid},#{item.mac},#{item.idfa},#{item.caid},#{item.caid1},
-             #{item.ts},#{item.tsMs},#{item.userId},#{item.userType})
+             #{item.ts},#{item.tsMs},#{item.userId},#{item.userType},#{item.partnerActionType},
+             #{item.standardActionType},#{item.actionTime},#{item.currencyAmount})
         </foreach>
     </insert>
     <insert id="addReport">
         INSERT INTO scx_ocpx_report_mat_temp
         (time_hour,m_id,a_id,t_id,l_id,activate,evoke,login,register,payment,
-         customer_acquisition,next_stay,visits,authentication,place_order,finish_the_order)
+         customer_acquisition,next_stay,visits,authentication,place_order,finish_the_order,
+         first_activation,first_order,currency_amount)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (LEFT(${item.timeKeyRes},10),#{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.activate},
              #{item.evoke},#{item.login},#{item.register},#{item.payment},#{item.customerAcquisition},
-             #{item.nextStay},#{item.visits},#{item.authentication},#{item.placeOrder},#{item.finishTheOrder})
+             #{item.nextStay},#{item.visits},#{item.authentication},#{item.placeOrder},#{item.finishTheOrder},
+             #{item.firstActivation},#{item.firstOrder},#{item.currencyAmount})
         </foreach>
     </insert>
 </mapper>

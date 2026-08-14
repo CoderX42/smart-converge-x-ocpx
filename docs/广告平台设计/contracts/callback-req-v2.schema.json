@@ -7,7 +7,7 @@
   "properties": {
     "ext": { "type": "string", "minLength": 1 },
     "s": { "type": "string" },
-    "event_type": { "type": "integer", "minimum": 1, "maximum": 17 },
+    "event_type": { "type": "integer", "minimum": 1, "maximum": 19 },
     "event_time": { "type": "integer" }
   },
   "additionalProperties": false

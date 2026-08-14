@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 import java.net.IDN;
 import java.net.InetAddress;
 import java.net.URI;
+import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Set;
 
@@ -15,8 +16,8 @@ public class PublicCallbackUrlPolicy {
 
 	private static final int MAX_URL_LENGTH = 5000;
 
-	private static final Set<String> RESERVED_SUFFIXES = Set.of("localhost", "local", "internal", "home", "lan",
-			"test", "example", "invalid", "onion");
+	private static final Set<String> RESERVED_SUFFIXES = Set.of("localhost", "local", "internal", "home", "lan", "test",
+			"example", "invalid", "onion");
 
 	/**
 	 * 校验并规范化通用媒体回调地址。
@@ -58,6 +59,11 @@ public class PublicCallbackUrlPolicy {
 	String appendEventType(String callbackUrl, int eventType) {
 		String separator = callbackUrl.contains("?") ? "&" : "?";
 		return callbackUrl + separator + "event_type=" + eventType;
+	}
+
+	String appendCallbackFields(String callbackUrl, int eventType, BigDecimal currencyAmount) {
+		String value = appendEventType(callbackUrl, eventType);
+		return currencyAmount == null ? value : value + "&currency_amount=" + currencyAmount.toPlainString();
 	}
 
 	private String normalizeHost(String value) {

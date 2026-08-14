@@ -47,10 +47,11 @@ class OcpxUnifiedReportServiceTest {
 		when(resultSet.next()).thenReturn(true, false);
 		when(resultSet.getString(1)).thenReturn("2026081201");
 		when(resultSet.getString(2)).thenReturn("2026-08-12 01:00");
-		for (int index = 3; index <= 17; index++) {
+		for (int index = 3; index <= 19; index++) {
 			when(resultSet.getLong(index)).thenReturn((long) index - 2);
 		}
-		when(resultSet.getBigDecimal(18)).thenReturn(BigDecimal.valueOf(20_000_000));
+		when(resultSet.getBigDecimal(20)).thenReturn(BigDecimal.valueOf(20_000_000));
+		when(resultSet.getBigDecimal(21)).thenReturn(new BigDecimal("123.45"));
 		when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
 			.thenAnswer(invocation -> ((ResultSetExtractor) invocation.getArgument(1)).extractData(resultSet));
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
@@ -63,14 +64,19 @@ class OcpxUnifiedReportServiceTest {
 
 		assertThat(page.getTotal()).isEqualTo(1);
 		assertThat(page.getRecords()).hasSize(1);
-		assertThat(page.getRecords().get(0).getMetrics()).hasSize(16);
+		assertThat(page.getRecords().get(0).getMetrics()).hasSize(19);
 		assertThat(page.getRecords().get(0).getMetrics().get("SHOW").getCount()).isEqualTo(1);
 		assertThat(page.getRecords().get(0).getMetrics().get("FINISH_THE_ORDER").getCount()).isEqualTo(15);
+		assertThat(page.getRecords().get(0).getMetrics().get("FIRST_ACTIVATION").getCount()).isEqualTo(16);
+		assertThat(page.getRecords().get(0).getMetrics().get("FIRST_ORDER").getCount()).isEqualTo(17);
 		assertThat(page.getRecords().get(0).getMetrics().get("BASE_PRICE").getAmount())
 			.isEqualByComparingTo(new BigDecimal("2.00"));
-		assertThat(page.getSummary().keySet()).containsAll(List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK",
-				"ACTIVATE", "EVOKE", "LOGIN", "REGISTER", "PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS",
-				"AUTHENTICATION", "PLACE_ORDER", "FINISH_THE_ORDER", "BASE_PRICE"));
+		assertThat(page.getRecords().get(0).getMetrics().get("CURRENCY_AMOUNT").getAmount())
+			.isEqualByComparingTo(new BigDecimal("123.45"));
+		assertThat(page.getSummary().keySet()).containsAll(
+				List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK", "ACTIVATE", "EVOKE", "LOGIN", "REGISTER",
+						"PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS", "AUTHENTICATION", "PLACE_ORDER",
+						"FINISH_THE_ORDER", "FIRST_ACTIVATION", "FIRST_ORDER", "BASE_PRICE", "CURRENCY_AMOUNT"));
 	}
 
 }

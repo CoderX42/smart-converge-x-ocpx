@@ -85,6 +85,8 @@ public class FeedbackReq {
 
 	private String androidid;
 
+	private String androididMd5;
+
 	private String mac;
 
 	private String ip;

@@ -17,6 +17,7 @@ required = [
     "openapi.yaml",
     "feedback-req-v2.schema.json",
     "callback-req-v2.schema.json",
+    "aerim-callback-req-v1.schema.json",
     "scx-ocpx-v2.postman_collection.json",
 ]
 missing = [name for name in required if not (root / name).is_file()]
@@ -30,7 +31,7 @@ server_urls = {server.get("url") for server in openapi.get("servers", [])}
 assert "https://{domain}/ocpx" in server_urls
 assert "http://localhost:10000/ocpx" in server_urls
 assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
-assert set(paths) == {"/feedback", "/callback"}
+assert set(paths) == {"/feedback", "/callback", "/aerim/callback"}
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -44,7 +45,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -59,11 +60,13 @@ postman_variables = {item.get("key"): item.get("value") for item in postman.get(
 assert postman_variables.get("baseUrl") == "http://localhost:10000"
 assert "/rtb" not in json.dumps(postman, ensure_ascii=False), "retired /rtb path must not return"
 item_names = {item.get("name") for item in postman.get("item", [])}
-assert {"媒体 Feedback GET", "广告主 Callback GET"} <= item_names
+assert {"媒体 Feedback GET", "广告主 Callback GET", "AERIM Callback GET"} <= item_names
 assert all(item.get("request", {}).get("method") == "GET" for item in postman.get("item", []))
 serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
+assert "/ocpx/aerim/callback" in serialized
+assert "currency_amount=123.45" in serialized
 assert "mId={{mediaId}}" in serialized
 assert "tId={{monitorTaskId}}" in serialized
 assert "aId={{advertiserId}}" in serialized

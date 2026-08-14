@@ -32,7 +32,6 @@ public final class AesUtil {
 			return Base64.getUrlEncoder().encodeToString(cipher.doFinal(clearText.getBytes(StandardCharsets.UTF_8)));
 		}
 		catch (Exception exception) {
-			exception.printStackTrace();
 			return null;
 		}
 	}
@@ -48,7 +47,6 @@ public final class AesUtil {
 			return new String(cipher.doFinal(Base64.getUrlDecoder().decode(cipherText)), StandardCharsets.UTF_8);
 		}
 		catch (Exception exception) {
-			exception.printStackTrace();
 			return null;
 		}
 	}

@@ -49,14 +49,18 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
   请求 ID MD5 回退和成功 JSON。
 - `GET /ocpx/callback`：接收广告主转化，保持 `ext/s/event_type/event_time`；
   成功返回空 `200`，解析异常返回 `500`。
+- `GET /ocpx/aerim/callback`：接收 AERIM 的 `action_type/currency_amount`；
+  成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
 
-正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 按
-`OcpxAdvertiser.bidUrl` 替换宏 → 生成 AES `ext` 回调地址 → 使用
-`credentialConfigKey` 追加 MD5 `signature` → 广告主 GET。
+正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 按广告主主键
+选择协议 → 按 `OcpxAdvertiser.bidUrl + macroParams` 替换宏 → 广告主 GET。通用模板
+使用 `credentialConfigKey` 追加 MD5 `signature`；AERIM 只处理点击，生成
+`/aerim/callback` 地址，不追加签名，并要求正式 HTTPS 域名命中 `ocpx.aerim.allowed-hosts`。
 
 反向链路为：解密 `ext` → Callback 去重 → Callback 队列 → 按
 `lId + mId` 读取 Redis 扣量数组 → 对允许回传的数据解码原 `callback_url`、
-追加 `event_type` 后执行媒体 GET。
+追加 `event_type` 与可选 `currency_amount` 后执行媒体 GET。AERIM 的九类字符串动作
+映射为 SCX 编号 `1/2/4/5/6/7/11/18/19`，金额只允许随 `purchase` 出现。
 
 配置由四个 Mapper 启动加载到 `ConcurrentHashMap` 索引。Admin 写入
 `r:da:refresh` 后，Engine 的分钟任务等待五秒、重载四索引并删除标记。
@@ -87,7 +91,7 @@ Admin 的 `OcpxDataMergeTask` 每分钟合并临时报表为 `mark=0`，每小�
 - Feedback 重复事件仍入队并转发上游，只影响去重指标。
 - 两个 Delivery Dispatcher 均使用 `500/500` 固定线程、容量 `100` 和
   `CallerRunsPolicy`，异步异常按原方式吞掉。
-- Redis 扣量数组长度固定为 `11`，读改写非原子；第 12 类及更高 Action 仍会越界。
+- Redis 扣量数组长度为 `19`，读取历史 11 位状态时自动补零；读改写仍非原子。
 - List 消费没有事务、processing 队列、所有者锁校验、重试或 DLQ。
 - 不迁移爱奇艺、百度、OPPO、华为、快手等合作方专用 Controller、枚举或协议。
 
@@ -100,7 +104,22 @@ Admin 的 `OcpxDataMergeTask` 每分钟合并临时报表为 `mark=0`，每小�
 - `application-prod.yml`：线上 MySQL、Redis 和公网回调域名；生产数据库密码、Redis
   密码和 AES Key 必须由生产使用者在部署机私下替换后重新打包。
 
-配置全部使用 yml 字面量，不依赖环境变量占位符。生产启动必须显式激活 `prod`：
+配置全部使用 yml 字面量，不依赖环境变量占位符。AERIM 的登记示例：
+
+```yaml
+ocpx:
+  protocols:
+    advertisers:
+      "<AERIM广告主主键>": AERIM
+  aerim:
+    allowed-hosts:
+      - <商务提供的正式监测域名>
+```
+
+`credentialConfigKey` 对 AERIM 保持为空；未登记广告主或白名单为空时拒绝转发。修改
+profile yml 后必须重新打包并重启。生产登记、V106 执行和发布均需单独授权。
+
+生产启动必须显式激活 `prod`：
 
 ```bash
 java -jar scx-ocpx-engine-exec.jar --spring.profiles.active=prod

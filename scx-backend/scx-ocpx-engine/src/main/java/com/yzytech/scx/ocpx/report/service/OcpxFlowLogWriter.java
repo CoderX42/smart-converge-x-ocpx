@@ -22,6 +22,16 @@ public class OcpxFlowLogWriter {
 	private final JdbcTemplate jdbcTemplate;
 
 	public void rejectedAdvertiser(FeedbackReq request) {
+		write(request, false, null, "ADVERTISER_PROTOCOL_NOT_REGISTERED", 0L);
+	}
+
+	/** 记录 AERIM 出站结果，不保存请求 URL、响应正文或设备标识。 */
+	public void upstreamDelivery(FeedbackReq request, boolean success, Integer httpStatus, String message,
+			long durationMs) {
+		write(request, success, httpStatus, message, durationMs);
+	}
+
+	private void write(FeedbackReq request, boolean success, Integer httpStatus, String message, long durationMs) {
 		try {
 			String eventId = StringUtils.hasText(request.getReqId()) ? limit(request.getReqId(), 128)
 					: UUID.randomUUID().toString();
@@ -34,11 +44,11 @@ public class OcpxFlowLogWriter {
 					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					""", uuid(), "FEEDBACK", eventId, null,
 					request.getEvent() == null ? "UNKNOWN" : request.getEvent().getKey(), fingerprint, request.getAId(),
-					request.getLId(), request.getMId(), request.getTId(), "FAILED", null,
-					"ADVERTISER_PROTOCOL_NOT_REGISTERED", 0L, LocalDateTime.now());
+					request.getLId(), request.getMId(), request.getTId(), success ? "SUCCESS" : "FAILED", httpStatus,
+					limit(safe(message), 500), durationMs, LocalDateTime.now());
 		}
 		catch (RuntimeException error) {
-			log.warn("Unable to persist rejected advertiser protocol audit for aId:{}", request.getAId());
+			log.warn("Unable to persist advertiser delivery audit for aId:{}", request.getAId());
 		}
 	}
 
@@ -47,7 +57,8 @@ public class OcpxFlowLogWriter {
 			String value = String.join("|", safe(request.getAId()), safe(request.getLId()), safe(request.getMId()),
 					safe(request.getTId()), request.getEvent() == null ? "" : request.getEvent().name(),
 					safe(request.getReqId()));
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+			return HexFormat.of()
+				.formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
 		}
 		catch (Exception error) {
 			throw new IllegalStateException("Unable to hash flow audit", error);

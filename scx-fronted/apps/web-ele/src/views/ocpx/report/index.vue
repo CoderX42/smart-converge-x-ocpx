@@ -72,6 +72,19 @@ const columns: SummaryColumn[] = [
   { field: 'authentication', key: 'authentication', label: '认证', width: 90 },
   { field: 'placeOrder', key: 'placeOrder', label: '下单', width: 90 },
   { field: 'finishTheOrder', key: 'finishTheOrder', label: '完单', width: 90 },
+  {
+    field: 'firstActivation',
+    key: 'firstActivation',
+    label: '首活',
+    width: 90,
+  },
+  { field: 'firstOrder', key: 'firstOrder', label: '首购', width: 90 },
+  {
+    field: 'currencyAmount',
+    key: 'currencyAmount',
+    label: '订单金额',
+    width: 120,
+  },
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const sortableFields = new Set(['reportTime', 'uniClkSmt', 'uniShowSmt']);
@@ -79,9 +92,12 @@ const additiveFields = new Set<keyof SummaryReportRow>([
   'activate',
   'authentication',
   'basePrice',
+  'currencyAmount',
   'customerAcquisition',
   'evoke',
   'finishTheOrder',
+  'firstActivation',
+  'firstOrder',
   'login',
   'nextStay',
   'payment',

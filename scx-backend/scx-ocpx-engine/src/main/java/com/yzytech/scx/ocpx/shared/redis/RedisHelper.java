@@ -9,16 +9,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Callback 扣量状态的 Redis 访问封装。
  *
  * <p>
- * 状态以“推广链接 ID + 媒体 ID”为维度保存：目标比例是标量，原始量和实际回传量是固定 11 位数组。 数组的读取、修改和写回不是原子操作，属于当前兼容实现的并发限制。
+ * 状态以“推广链接 ID + 媒体 ID”为维度保存：目标比例是标量，原始量和实际回传量是固定 19 位数组。历史 11 位数组读取时补零；数组的读取、修改和写回不是原子操作。
  */
 @Slf4j
 @Service
 public class RedisHelper {
+
+	public static final int ACTION_CAPACITY = 19;
 
 	private final StringRedisTemplate redis;
 
@@ -43,15 +46,15 @@ public class RedisHelper {
 
 	/**
 	 * 读取各标准动作的上游原始转化计数。
-	 * @return 未配置或无法解析时返回 11 位零数组
+	 * @return 未配置或无法解析时返回 19 位零数组；历史 11 位数组自动补零
 	 */
 	public int[] getRouteOriginalCounts(String lId, String mId) {
-		int[] original = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int[] original = new int[ACTION_CAPACITY];
 		String routeOriginalCounts = redis.opsForValue()
 			.get(routeKey(RedisConstants.ROUTE_ORIGINAL_COUNT_PREFIX, lId, mId));
 		if (StringUtils.hasText(routeOriginalCounts)) {
 			try {
-				original = objectMapper.readValue(routeOriginalCounts, int[].class);
+				original = normalize(objectMapper.readValue(routeOriginalCounts, int[].class));
 			}
 			catch (IOException exception) {
 				exception.printStackTrace();
@@ -62,15 +65,15 @@ public class RedisHelper {
 
 	/**
 	 * 读取各标准动作的实际媒体回传计数。
-	 * @return 未配置或无法解析时返回 11 位零数组
+	 * @return 未配置或无法解析时返回 19 位零数组；历史 11 位数组自动补零
 	 */
 	public int[] getRouteDeliveredCounts(String lId, String mId) {
-		int[] delivered = new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		int[] delivered = new int[ACTION_CAPACITY];
 		String routeDeliveredCounts = redis.opsForValue()
 			.get(routeKey(RedisConstants.ROUTE_DELIVERED_COUNT_PREFIX, lId, mId));
 		if (StringUtils.hasText(routeDeliveredCounts)) {
 			try {
-				delivered = objectMapper.readValue(routeDeliveredCounts, int[].class);
+				delivered = normalize(objectMapper.readValue(routeDeliveredCounts, int[].class));
 			}
 			catch (IOException exception) {
 				exception.printStackTrace();
@@ -82,7 +85,7 @@ public class RedisHelper {
 	/** 将各标准动作的原始转化计数数组整体写回 Redis。 */
 	public void setRouteOriginalCounts(String lId, String mId, int[] values) {
 		try {
-			String json = objectMapper.writeValueAsString(values);
+			String json = objectMapper.writeValueAsString(normalize(values));
 			redis.opsForValue().set(routeKey(RedisConstants.ROUTE_ORIGINAL_COUNT_PREFIX, lId, mId), json);
 		}
 		catch (JsonProcessingException exception) {
@@ -93,7 +96,7 @@ public class RedisHelper {
 	/** 将各标准动作的实际回传计数数组整体写回 Redis。 */
 	public void setRouteDeliveredCounts(String lId, String mId, int[] values) {
 		try {
-			String json = objectMapper.writeValueAsString(values);
+			String json = objectMapper.writeValueAsString(normalize(values));
 			redis.opsForValue().set(routeKey(RedisConstants.ROUTE_DELIVERED_COUNT_PREFIX, lId, mId), json);
 		}
 		catch (JsonProcessingException exception) {
@@ -103,6 +106,10 @@ public class RedisHelper {
 
 	private static String routeKey(String prefix, String lId, String mId) {
 		return prefix + lId + ":" + mId;
+	}
+
+	private int[] normalize(int[] values) {
+		return values == null ? new int[ACTION_CAPACITY] : Arrays.copyOf(values, ACTION_CAPACITY);
 	}
 
 }

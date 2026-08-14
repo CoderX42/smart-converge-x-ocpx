@@ -14,7 +14,9 @@
                IFNULL(SUM(payment),0) payment,IFNULL(SUM(customer_acquisition),0) customer_acquisition,
                IFNULL(SUM(next_stay),0) next_stay,IFNULL(SUM(visits),0) visits,
                IFNULL(SUM(authentication),0) authentication,IFNULL(SUM(place_order),0) place_order,
-               IFNULL(SUM(finish_the_order),0) finish_the_order,IFNULL(SUM(base_price),0) base_price,
+               IFNULL(SUM(finish_the_order),0) finish_the_order,
+               IFNULL(SUM(first_activation),0) first_activation,IFNULL(SUM(first_order),0) first_order,
+               IFNULL(SUM(currency_amount),0) currency_amount,IFNULL(SUM(base_price),0) base_price,
                IFNULL(SUM(win_price),0) win_price,0 mark
         FROM scx_ocpx_report_mat_temp
         WHERE mark=#{mark} AND create_time &lt;= #{groupTime}
@@ -30,7 +32,9 @@
                IFNULL(SUM(payment),0) payment,IFNULL(SUM(customer_acquisition),0) customer_acquisition,
                IFNULL(SUM(next_stay),0) next_stay,IFNULL(SUM(visits),0) visits,
                IFNULL(SUM(authentication),0) authentication,IFNULL(SUM(place_order),0) place_order,
-               IFNULL(SUM(finish_the_order),0) finish_the_order,IFNULL(SUM(base_price),0) base_price,
+               IFNULL(SUM(finish_the_order),0) finish_the_order,
+               IFNULL(SUM(first_activation),0) first_activation,IFNULL(SUM(first_order),0) first_order,
+               IFNULL(SUM(currency_amount),0) currency_amount,IFNULL(SUM(base_price),0) base_price,
                IFNULL(SUM(win_price),0) win_price,1 mark
         FROM scx_ocpx_report_mat
         WHERE mark=#{mark} AND time_hour &lt;= #{groupTime}

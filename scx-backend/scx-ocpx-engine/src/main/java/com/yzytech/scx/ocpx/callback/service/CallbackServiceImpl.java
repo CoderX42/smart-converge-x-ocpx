@@ -46,7 +46,7 @@ public class CallbackServiceImpl implements CallbackService {
 
 	@Override
 	public CallbackHandleResult handleCallback(CallbackReq request) {
-		impressionLog.info("cb-->{}", JSON.toJSONString(request));
+		impressionLog.info("callback reqId:{} action:{}", request.getFeedback().getReqId(), request.getActionType());
 		if (request.getActionType() == null) {
 			return new CallbackHandleResult(false, CallbackDecision.NOT_APPLICABLE);
 		}
@@ -64,6 +64,9 @@ public class CallbackServiceImpl implements CallbackService {
 		// Callback 报表复用 Feedback 维度，并将本次动作映射为对应的 0/1 指标列。
 		LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
 		logData.setActionTime(request.getActionTime());
+		logData.setPartnerActionType(request.getPartnerActionType());
+		logData.setStandardActionType(request.getActionType().getIndex());
+		logData.setCurrencyAmount(request.getCurrencyAmount());
 		logData.setCallbackUrl("");
 		logData.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
 		setActionType(logData, request.getActionType());
@@ -71,7 +74,7 @@ public class CallbackServiceImpl implements CallbackService {
 
 		String lId = request.getFeedback().getLId();
 		String mId = request.getFeedback().getMId();
-		// 历史扣量数组固定为 11 位，因此仅覆盖索引 1..11 的标准转化动作。
+		// 19 位数组覆盖全部已编号动作；RedisHelper 会把历史 11 位状态自动补零。
 		int typeIndex = request.getActionType().getIndex() - 1;
 		double ratio = redisHelper.getRouteRatio(lId, mId);
 		int[] originalCounts = redisHelper.getRouteOriginalCounts(lId, mId);
@@ -103,9 +106,8 @@ public class CallbackServiceImpl implements CallbackService {
 			float a = (deliveredCounts[typeIndex] + 1) * 1.0F / (originalCounts[typeIndex] + 1);
 			float b = (deliveredCounts[typeIndex] + 2) * 1.0F / (originalCounts[typeIndex] + 1);
 			if ((a + b) / 2 < ratio) {
-				impressionLog.info("cb-->{}",
-						"skip add:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex] + "="
-								+ (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
+				impressionLog.info("cb-->{}", "skip add:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex]
+						+ "=" + (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
 			}
 			else {
 				impressionLog.info("cb-->{}",
@@ -136,6 +138,8 @@ public class CallbackServiceImpl implements CallbackService {
 			case AUTHENTICATION -> logData.setAuthentication(1);
 			case ORDER -> logData.setPlaceOrder(1);
 			case FINISH_THE_ORDER -> logData.setFinishTheOrder(1);
+			case FIRST_ACTIVATION -> logData.setFirstActivation(1);
+			case FIRST_ORDER -> logData.setFirstOrder(1);
 			default -> {
 			}
 		}

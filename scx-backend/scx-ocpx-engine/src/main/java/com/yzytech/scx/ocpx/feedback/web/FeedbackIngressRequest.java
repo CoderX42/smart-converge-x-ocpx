@@ -52,6 +52,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
 	private String androidid;
 
+	private String androidid_md5;
+
 	private String mac;
 
 	private String mac_md5;
@@ -187,6 +189,13 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return androidid;
+	}
+
+	public String getAndroidid_md5() {
+		if (StringUtils.hasText(androidid_md5) && "__ANDROIDID_MD5__".equals(androidid_md5)) {
+			return null;
+		}
+		return androidid_md5;
 	}
 
 	public String getMac() {

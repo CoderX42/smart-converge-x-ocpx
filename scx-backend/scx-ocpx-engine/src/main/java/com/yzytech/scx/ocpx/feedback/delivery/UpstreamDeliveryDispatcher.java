@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.delivery;
 
 import com.yzytech.scx.ocpx.feedback.delivery.kimi.KimiUpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.aerim.AerimUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
@@ -19,7 +20,7 @@ import java.util.concurrent.TimeUnit;
  * 线程池参数属于历史协议链路的兼容约束。队列满时使用调用方线程执行，避免默默丢弃请求，但会增加 入站请求延迟。
  *
  * <p>
- * 广告主主键必须显式登记为通用模板或 KIMI；未登记主键拒绝上游转发并写脱敏流程日志。
+	 * 广告主主键必须显式登记为通用模板、KIMI 或 AERIM；未登记主键拒绝上游转发并写脱敏流程日志。
  */
 @Slf4j
 @Component
@@ -33,15 +34,18 @@ public class UpstreamDeliveryDispatcher {
 
 	private static KimiUpstreamDeliveryService kimiDeliveryService;
 
+	private static AerimUpstreamDeliveryService aerimDeliveryService;
+
 	private static AdvertiserProtocolRegistry protocolRegistry;
 
 	private static OcpxFlowLogWriter flowLogWriter;
 
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
-			KimiUpstreamDeliveryService kimiDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
-			OcpxFlowLogWriter flowLogWriter) {
+			KimiUpstreamDeliveryService kimiDeliveryService, AerimUpstreamDeliveryService aerimDeliveryService,
+			AdvertiserProtocolRegistry protocolRegistry, OcpxFlowLogWriter flowLogWriter) {
 		UpstreamDeliveryDispatcher.deliveryService = deliveryService;
 		UpstreamDeliveryDispatcher.kimiDeliveryService = kimiDeliveryService;
+		UpstreamDeliveryDispatcher.aerimDeliveryService = aerimDeliveryService;
 		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
 	}
@@ -76,9 +80,11 @@ public class UpstreamDeliveryDispatcher {
 		if (protocolRegistry == null) {
 			return null;
 		}
-		return protocolRegistry.resolve(request.getAId())
-			.map(protocol -> protocol == AdvertiserProtocolRegistry.Protocol.KIMI ? kimiDeliveryService : deliveryService)
-			.orElse(null);
+		return protocolRegistry.resolve(request.getAId()).map(protocol -> switch (protocol) {
+			case KIMI -> kimiDeliveryService;
+			case AERIM -> aerimDeliveryService;
+			case TEMPLATE_GET -> deliveryService;
+		}).orElse(null);
 	}
 
 }

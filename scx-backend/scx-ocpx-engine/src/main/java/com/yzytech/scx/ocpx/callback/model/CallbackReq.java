@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 /**
  * Engine 内部统一的转化回调模型。
  *
@@ -27,5 +29,11 @@ public class CallbackReq {
 
 	/** 上游传入的动作发生时间戳。 */
 	private Long actionTime;
+
+	/** 合作方原始动作名称，用于协议忠实度审计。 */
+	private String partnerActionType;
+
+	/** AERIM purchase 原始十进制金额，不推断币种或换算单位。 */
+	private BigDecimal currencyAmount;
 
 }

@@ -43,13 +43,16 @@ public class OcpxUnifiedReportService {
 			new MetricColumn("CUSTOMER_ACQUISITION", "customer_acquisition"),
 			new MetricColumn("NEXT_STAY", "next_stay"), new MetricColumn("VISITS", "visits"),
 			new MetricColumn("AUTHENTICATION", "authentication"), new MetricColumn("PLACE_ORDER", "place_order"),
-			new MetricColumn("FINISH_THE_ORDER", "finish_the_order"));
+			new MetricColumn("FINISH_THE_ORDER", "finish_the_order"),
+			new MetricColumn("FIRST_ACTIVATION", "first_activation"), new MetricColumn("FIRST_ORDER", "first_order"));
 
 	private static final List<String> SUMMARY_ACTIONS = List.of("activate", "evoke", "login", "register", "payment",
-			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order");
+			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order",
+			"first_activation", "first_order");
 
 	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "链接扣量",
-			"去重展示数", "去重点击数", "点击率", "支出", "激活", "唤起", "登录", "注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单");
+			"去重展示数", "去重点击数", "点击率", "支出", "激活", "唤起", "登录", "注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单", "首活", "首购",
+			"订单金额");
 
 	private static final Map<String, String> SUMMARY_SORT_COLUMNS = Map.ofEntries(
 			Map.entry("report_time", "reportTime"), Map.entry("uni_show_smt", "uni_show_smt"),
@@ -58,7 +61,9 @@ public class OcpxUnifiedReportService {
 			Map.entry("login", "login"), Map.entry("register", "register"), Map.entry("payment", "payment"),
 			Map.entry("customer_acquisition", "customer_acquisition"), Map.entry("next_stay", "next_stay"),
 			Map.entry("visits", "visits"), Map.entry("authentication", "authentication"),
-			Map.entry("place_order", "place_order"), Map.entry("finish_the_order", "finish_the_order"));
+			Map.entry("place_order", "place_order"), Map.entry("finish_the_order", "finish_the_order"),
+			Map.entry("first_activation", "first_activation"), Map.entry("first_order", "first_order"),
+			Map.entry("currency_amount", "currency_amount"));
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -116,6 +121,7 @@ public class OcpxUnifiedReportService {
 		for (String action : SUMMARY_ACTIONS) {
 			stat.append(",IFNULL(SUM(r.").append(action).append("),0) AS ").append(action);
 		}
+		stat.append(",IFNULL(SUM(r.currency_amount),0) AS currency_amount");
 		stat.append(",IFNULL(ROUND(SUM(r.base_price)/10000000,2),0) AS base_price")
 			.append(",IFNULL(ROUND(SUM(r.uni_clk_smt)/SUM(r.uni_show_smt)*100,2),0) AS clickRate")
 			.append(" FROM scx_ocpx_report_mat r WHERE r.time_hour BETWEEN ? AND ?");
@@ -156,7 +162,8 @@ public class OcpxUnifiedReportService {
 				rs.getDouble("clickRate"), rs.getBigDecimal("base_price"), rs.getLong("activate"), rs.getLong("evoke"),
 				rs.getLong("login"), rs.getLong("register"), rs.getLong("payment"), rs.getLong("customer_acquisition"),
 				rs.getLong("next_stay"), rs.getLong("visits"), rs.getLong("authentication"), rs.getLong("place_order"),
-				rs.getLong("finish_the_order"));
+				rs.getLong("finish_the_order"), rs.getLong("first_activation"), rs.getLong("first_order"),
+				rs.getBigDecimal("currency_amount"));
 	}
 
 	private List<Object> summaryCsvRow(SummaryReportViews.Row row) {
@@ -164,7 +171,8 @@ public class OcpxUnifiedReportService {
 				row.getPromotionLinkName(), row.getLinkRadio(), row.getUniShowSmt(), row.getUniClkSmt(),
 				row.getClickRate(), row.getBasePrice(), row.getActivate(), row.getEvoke(), row.getLogin(),
 				row.getRegister(), row.getPayment(), row.getCustomerAcquisition(), row.getNextStay(), row.getVisits(),
-				row.getAuthentication(), row.getPlaceOrder(), row.getFinishTheOrder());
+				row.getAuthentication(), row.getPlaceOrder(), row.getFinishTheOrder(), row.getFirstActivation(),
+				row.getFirstOrder(), row.getCurrencyAmount());
 	}
 
 	private SummaryReportQuery normalizeSummary(SummaryReportQuery input) {
@@ -238,7 +246,7 @@ public class OcpxUnifiedReportService {
 		for (MetricColumn metric : METRICS) {
 			sql.append(",IFNULL(SUM(r.").append(metric.getColumn()).append("),0)");
 		}
-		sql.append(",IFNULL(SUM(r.base_price),0) FROM scx_ocpx_report_mat r ")
+		sql.append(",IFNULL(SUM(r.base_price),0),IFNULL(SUM(r.currency_amount),0) FROM scx_ocpx_report_mat r ")
 			.append(dimension.getJoins())
 			.append(" WHERE r.time_hour>=? AND r.time_hour<=?");
 		List<Object> args = new ArrayList<>();
@@ -275,6 +283,7 @@ public class OcpxUnifiedReportService {
 			BigDecimal amount = resultSet.getBigDecimal(METRICS.size() + 3)
 				.divide(BigDecimal.valueOf(10_000_000), 2, RoundingMode.HALF_UP);
 			rows.add(new MetricRow(key, name, "BASE_PRICE", 0, amount));
+			rows.add(new MetricRow(key, name, "CURRENCY_AMOUNT", 0, resultSet.getBigDecimal(METRICS.size() + 4)));
 		}
 		return rows;
 	}

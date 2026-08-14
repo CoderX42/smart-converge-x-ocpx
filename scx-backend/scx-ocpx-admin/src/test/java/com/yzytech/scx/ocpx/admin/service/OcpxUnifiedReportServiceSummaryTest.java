@@ -92,6 +92,9 @@ class OcpxUnifiedReportServiceSummaryTest {
 		assertThat(row.getBasePrice()).isEqualByComparingTo(new BigDecimal("2.00"));
 		assertThat(row.getActivate()).isEqualTo(11);
 		assertThat(row.getFinishTheOrder()).isEqualTo(21);
+		assertThat(row.getFirstActivation()).isEqualTo(22);
+		assertThat(row.getFirstOrder()).isEqualTo(23);
+		assertThat(row.getCurrencyAmount()).isEqualByComparingTo("123.45");
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), any(Object[].class));
@@ -199,10 +202,10 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		String[] lines = csv.split("\n");
 		assertThat(lines).hasSize(2);
-		assertThat(lines[0])
-			.isEqualTo("报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起," + "登录,注册,付费,获客,次留,访问,认证,下单,完单");
-		assertThat(lines[1])
-			.isEqualTo("20260812,小米,任务一,KIMI,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21");
+		assertThat(lines[0]).isEqualTo(
+				"报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起," + "登录,注册,付费,获客,次留,访问,认证,下单,完单,首活,首购,订单金额");
+		assertThat(lines[1]).isEqualTo(
+				"20260812,小米,任务一,KIMI,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21,22,23,123.45");
 	}
 
 	@Test
@@ -235,9 +238,11 @@ class OcpxUnifiedReportServiceSummaryTest {
 		lenient().when(rs.getBigDecimal("base_price")).thenReturn(new BigDecimal("2.00"));
 		long action = 11;
 		for (String column : List.of("activate", "evoke", "login", "register", "payment", "customer_acquisition",
-				"next_stay", "visits", "authentication", "place_order", "finish_the_order")) {
+				"next_stay", "visits", "authentication", "place_order", "finish_the_order", "first_activation",
+				"first_order")) {
 			lenient().when(rs.getLong(column)).thenReturn(action++);
 		}
+		lenient().when(rs.getBigDecimal("currency_amount")).thenReturn(new BigDecimal("123.45"));
 		return rs;
 	}
 

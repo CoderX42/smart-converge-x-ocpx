@@ -112,8 +112,10 @@ required = {
     "feedback/service/FeedbackServiceImpl.java",
     "feedback/delivery/UpstreamDeliveryDispatcher.java",
     "feedback/delivery/TemplateGetUpstreamDeliveryService.java",
+	"feedback/delivery/aerim/AerimUpstreamDeliveryService.java",
     "callback/model/CallbackReq.java",
     "callback/web/UpstreamCallbackController.java",
+	"callback/web/aerim/AerimCallbackController.java",
     "callback/service/CallbackServiceImpl.java",
     "callback/delivery/DownstreamDeliveryDispatcher.java",
     "callback/delivery/CallbackUrlDownstreamDeliveryService.java",
@@ -268,6 +270,31 @@ if "role_advertiser" in v104.lower():
     raise SystemExit("V104 migration gate failed: advertiser role must remain read-only")
 if "scx_schema_migration" in v104:
     raise SystemExit("V104 migration gate failed: retired migration ledger is referenced")
+
+v106 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V106__add_aerim_callback_fidelity.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "partner_action_type VARCHAR(50)",
+    "standard_action_type TINYINT UNSIGNED",
+    "action_time BIGINT",
+    "currency_amount DECIMAL(20,6)",
+    "first_activation INT",
+    "first_order INT",
+):
+    if required_fragment not in v106:
+        raise SystemExit(f"V106 migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v106:
+    raise SystemExit("V106 migration gate failed: retired migration ledger is referenced")
+for table, columns in {
+    "scx_ocpx_log_callback": ("partner_action_type", "standard_action_type", "action_time", "currency_amount"),
+    "scx_ocpx_report_mat_temp": ("first_activation", "first_order", "currency_amount"),
+    "scx_ocpx_report_mat": ("first_activation", "first_order", "currency_amount"),
+}.items():
+    body = table_body(table)
+    for column in columns:
+        if column not in body:
+            raise SystemExit(f"V106 schema gate failed: {table} missing {column}")
 
 admin_pom = (root / "scx-backend/scx-ocpx-admin/pom.xml").read_text(encoding="utf-8")
 engine_pom = (root / "scx-backend/scx-ocpx-engine/pom.xml").read_text(encoding="utf-8")

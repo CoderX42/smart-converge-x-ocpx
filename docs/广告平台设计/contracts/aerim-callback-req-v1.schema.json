@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aerim-callback-req-v1.schema.json",
+  "title": "AERIM Callback GET query parameters",
+  "type": "object",
+  "required": ["ext", "s", "action_type"],
+  "properties": {
+    "ext": { "type": "string", "minLength": 1 },
+    "s": { "type": "string", "minLength": 1 },
+    "action_type": {
+      "type": "string",
+      "enum": [
+        "activate",
+        "reactivation",
+        "register",
+        "purchase",
+        "new",
+        "day1retention",
+        "completeorder",
+        "firstreactivation",
+        "firstorder"
+      ]
+    },
+    "currency_amount": { "type": "number", "minimum": 0 }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["currency_amount"] },
+      "then": { "properties": { "action_type": { "const": "purchase" } } }
+    }
+  ],
+  "additionalProperties": false
+}

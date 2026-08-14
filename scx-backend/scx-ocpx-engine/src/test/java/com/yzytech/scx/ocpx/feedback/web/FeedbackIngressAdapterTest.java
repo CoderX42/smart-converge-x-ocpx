@@ -22,6 +22,7 @@ class FeedbackIngressAdapterTest {
 		request.setIdfa_md5("idfa-md5-1");
 		request.setCaid_list("caid-list-1");
 		request.setAaid("aaid-1");
+		request.setAndroidid_md5("androidid-md5-1");
 		request.setClickid("click-1");
 		request.setOs("0");
 
@@ -36,6 +37,7 @@ class FeedbackIngressAdapterTest {
 		assertThat(result.getIdfaMd5()).isEqualTo("idfa-md5-1");
 		assertThat(result.getCaidList()).isEqualTo("caid-list-1");
 		assertThat(result.getAaid()).isEqualTo("aaid-1");
+		assertThat(result.getAndroididMd5()).isEqualTo("androidid-md5-1");
 		assertThat(result.getClickId()).isEqualTo("click-1");
 		assertThat(result.getCallbackUrl()).isEqualTo("https%3A%2F%2Fmedia.example%2Fcallback%3Fa%3D1");
 	}
@@ -49,6 +51,7 @@ class FeedbackIngressAdapterTest {
 		request.setIdfa_md5("__IDFA_MD5__");
 		request.setCaid_list("__CAID_LIST__");
 		request.setAaid("__AAID__");
+		request.setAndroidid_md5("__ANDROIDID_MD5__");
 		request.setClickid("__CLICKID__");
 
 		FeedbackReq result = new FeedbackIngressAdapter().toFeedback(request);
@@ -58,6 +61,7 @@ class FeedbackIngressAdapterTest {
 		assertThat(result.getIdfaMd5()).isNull();
 		assertThat(result.getCaidList()).isNull();
 		assertThat(result.getAaid()).isNull();
+		assertThat(result.getAndroididMd5()).isNull();
 		assertThat(result.getClickId()).isNull();
 	}
 

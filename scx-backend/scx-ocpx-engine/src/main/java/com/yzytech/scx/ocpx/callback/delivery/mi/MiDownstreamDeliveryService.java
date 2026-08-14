@@ -1,6 +1,5 @@
 package com.yzytech.scx.ocpx.callback.delivery.mi;
 
-import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.delivery.DownstreamDeliveryService;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
@@ -13,6 +12,7 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+
 /**
  * 小米媒体转化回传实现（SGYZ MiServiceImpl 平移）。
  *
@@ -35,7 +35,8 @@ public class MiDownstreamDeliveryService extends DownstreamDeliveryService {
 	public void deliver(CallbackReq request) {
 		String eventType = matchEventType(request.getActionType());
 		if (eventType == null) {
-			log.info("mi event null:{}", JSON.toJSONString(request));
+			log.warn("mi callback action is unsupported action:{} mId:{} lId:{}", request.getActionType(),
+					request.getFeedback().getMId(), request.getFeedback().getLId());
 			return;
 		}
 

@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.delivery;
 
 import com.yzytech.scx.ocpx.feedback.delivery.kimi.KimiUpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.aerim.AerimUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
@@ -18,18 +19,22 @@ class UpstreamDeliveryDispatcherTest {
 
 	private final KimiUpstreamDeliveryService kimiDelivery = mock(KimiUpstreamDeliveryService.class);
 
+	private final AerimUpstreamDeliveryService aerimDelivery = mock(AerimUpstreamDeliveryService.class);
+
 	private final AdvertiserProtocolRegistry registry = mock(AdvertiserProtocolRegistry.class);
 
 	@Test
 	void routesOnlyExplicitlyRegisteredAdvertisers() {
-		new UpstreamDeliveryDispatcher(templateDelivery, kimiDelivery, registry, mock(OcpxFlowLogWriter.class));
+		new UpstreamDeliveryDispatcher(templateDelivery, kimiDelivery, aerimDelivery, registry,
+				mock(OcpxFlowLogWriter.class));
 		when(registry.resolve("kimi-id")).thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.KIMI));
-		when(registry.resolve("template-id"))
-			.thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.TEMPLATE_GET));
+		when(registry.resolve("template-id")).thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.TEMPLATE_GET));
+		when(registry.resolve("aerim-id")).thenReturn(Optional.of(AdvertiserProtocolRegistry.Protocol.AERIM));
 		when(registry.resolve("missing-id")).thenReturn(Optional.empty());
 
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("kimi-id"))).isSameAs(kimiDelivery);
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("template-id"))).isSameAs(templateDelivery);
+		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("aerim-id"))).isSameAs(aerimDelivery);
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("missing-id"))).isNull();
 	}
 

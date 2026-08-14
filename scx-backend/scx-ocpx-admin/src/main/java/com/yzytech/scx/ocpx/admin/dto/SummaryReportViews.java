@@ -67,6 +67,12 @@ public final class SummaryReportViews {
 
 		private long finishTheOrder;
 
+		private long firstActivation;
+
+		private long firstOrder;
+
+		private BigDecimal currencyAmount;
+
 	}
 
 	@Data
