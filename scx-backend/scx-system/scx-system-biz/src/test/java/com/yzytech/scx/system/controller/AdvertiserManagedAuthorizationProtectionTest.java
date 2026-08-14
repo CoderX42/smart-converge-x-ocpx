@@ -1,6 +1,7 @@
 package com.yzytech.scx.system.controller;
 
 import com.yzytech.scx.system.api.dto.SysRoleMenuDTO;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import com.yzytech.scx.system.api.entity.SysRole;
 import com.yzytech.scx.system.api.entity.SysUser;
 import com.yzytech.scx.system.service.ISysRoleMenuService;
@@ -41,6 +42,28 @@ class AdvertiserManagedAuthorizationProtectionTest {
 	}
 
 	@Test
+	void genericRoleEndpointsAlsoProtectAndHideFixedSharedAdvertiserRole() {
+		ISysRoleService roleService = mock(ISysRoleService.class);
+		ISysUserRoleService userRoleService = mock(ISysUserRoleService.class);
+		ISysRoleMenuService roleMenuService = mock(ISysRoleMenuService.class);
+		SysRole fixed = new SysRole();
+		fixed.setId(SystemAccountConstants.ROLE_ADVERTISER_ID);
+		fixed.setRoleCode(SystemAccountConstants.ROLE_ADVERTISER_CODE);
+		fixed.setType("0");
+		when(roleService.getById(fixed.getId())).thenReturn(fixed);
+		SysRoleController controller = new SysRoleController(roleService, userRoleService, roleMenuService);
+		SysRoleMenuDTO menuRequest = new SysRoleMenuDTO();
+		menuRequest.setRoleId(fixed.getId());
+
+		assertThat(controller.getById(fixed.getId()).getMsg()).contains("广告主");
+		assertThat(controller.edit(fixed).getMsg()).contains("系统托管");
+		assertThat(controller.edit(fixed.getId()).getMsg()).contains("系统托管");
+		assertThat(controller.saveRoleMenu(menuRequest).getMsg()).contains("系统托管");
+		verify(roleService, never()).updateById(fixed);
+		verify(roleMenuService, never()).saveRoleMenu(menuRequest);
+	}
+
+	@Test
 	void genericUserEndpointRejectsAdvertiserRoleReplacementAndDeletion() {
 		ISysUserService userService = mock(ISysUserService.class);
 		ISysRoleService roleService = mock(ISysRoleService.class);
@@ -62,6 +85,27 @@ class AdvertiserManagedAuthorizationProtectionTest {
 		assertThat(controller.del(persisted.getId()).getMsg()).contains("不可在通用用户管理中删除");
 		verify(userService, never()).updateUser(request);
 		verify(userService, never()).delUser(persisted);
+	}
+
+	@Test
+	void genericUserCreateRejectsAdvertiserTypeAndFixedRoleAssignment() {
+		ISysUserService userService = mock(ISysUserService.class);
+		ISysRoleService roleService = mock(ISysRoleService.class);
+		SysUserController controller = new SysUserController(userService, roleService, mock(ISysUserRoleService.class),
+				mock(StringRedisTemplate.class));
+		SysUser advertiserType = new SysUser();
+		advertiserType.setType(SystemAccountConstants.USER_TYPE_ADVERTISER);
+		advertiserType.setRoles(List.of("role-other"));
+		advertiserType.setPassword("Abc1!x");
+		SysUser fixedRole = new SysUser();
+		fixedRole.setType("0");
+		fixedRole.setRoles(List.of(SystemAccountConstants.ROLE_ADVERTISER_ID));
+		fixedRole.setPassword("Abc1!x");
+
+		assertThat(controller.add(advertiserType).getMsg()).contains("广告主开户流程");
+		assertThat(controller.add(fixedRole).getMsg()).contains("广告主开户流程");
+		verify(userService, never()).saveUser(advertiserType);
+		verify(userService, never()).saveUser(fixedRole);
 	}
 
 }

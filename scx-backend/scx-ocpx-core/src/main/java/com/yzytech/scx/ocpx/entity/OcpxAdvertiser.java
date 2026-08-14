@@ -24,6 +24,8 @@ public class OcpxAdvertiser {
 
 	private String macroParams;
 
+	private String accountUserId;
+
 	@TableField(fill = FieldFill.INSERT)
 	private LocalDateTime createTime;
 

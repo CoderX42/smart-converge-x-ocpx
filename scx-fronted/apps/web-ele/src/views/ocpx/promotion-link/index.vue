@@ -3,8 +3,9 @@ import type { FormInstance, FormRules } from 'element-plus';
 
 import type { EntityOption, PlatformCode, PromotionLink } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -22,6 +23,7 @@ import RightToolbar from '#/components/right-toolbar/index.vue';
 import LongText from '../long-text.vue';
 import {
   allColumnKeys,
+  createLatestRequestGuard,
   PAGE_SIZES,
   platformLabel,
   platformOptions,
@@ -79,12 +81,19 @@ const rules: FormRules = {
   linkUrl: [{ message: '请输入投放链接', required: true, trigger: 'blur' }],
   platform: [{ message: '请选择平台', required: true, trigger: 'blur' }],
 };
+const { hasAccessByCodes } = useAccess();
+const canOperate = computed(() =>
+  hasAccessByCodes(['ocpx:promotion-link:edit', 'ocpx:promotion-link:delete']),
+);
+const loadGuard = createLatestRequestGuard();
+const linkOptionGuard = createLatestRequestGuard();
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await listPromotionLinks({
@@ -93,16 +102,20 @@ async function load() {
       promotionLinkId: query.promotionLinkId || undefined,
       size: query.size,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
 async function loadLinkSelects(advertiserId: string, reset = true) {
   if (reset) query.promotionLinkId = '';
-  linkSelects.value = await promotionLinkOptions(advertiserId || undefined);
+  const requestSequence = linkOptionGuard.begin();
+  const result = await promotionLinkOptions(advertiserId || undefined);
+  if (linkOptionGuard.isLatest(requestSequence)) linkSelects.value = result;
 }
 
 function search() {
@@ -123,29 +136,49 @@ function edit(row?: PromotionLink) {
     remark: row?.remark || '',
   });
   dialogOpen.value = true;
+  void nextTick(() => formRef.value?.clearValidate());
 }
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
+    const editingId = editing.value?.id;
     const payload = {
-      ...form,
+      advertiserId: form.advertiserId,
       deeplink: form.deeplink || undefined,
       linkChannel: form.linkChannel || undefined,
       linkExt: form.linkExt || undefined,
+      linkName: form.linkName,
+      linkUrl: form.linkUrl,
+      platform: form.platform!,
       remark: form.remark || undefined,
     };
-    await (editing.value
-      ? updatePromotionLink(editing.value.id, payload)
+    await (editingId
+      ? updatePromotionLink(editingId, payload)
       : createPromotionLink(payload));
-    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
+    ElMessage.success(editingId ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
     await loadLinkSelects(query.advertiserId, false);
     await load();
   } finally {
     saving.value = false;
   }
+}
+
+function handleDialogClose() {
+  editing.value = undefined;
+  formRef.value?.resetFields();
+  Object.assign(form, {
+    advertiserId: '',
+    deeplink: '',
+    linkChannel: '',
+    linkExt: '',
+    linkName: '',
+    linkUrl: '',
+    platform: undefined,
+    remark: '',
+  });
 }
 
 async function remove(row: PromotionLink) {
@@ -303,7 +336,12 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column fixed="right" label="操作" width="130">
+        <el-table-column
+          v-if="canOperate"
+          fixed="right"
+          label="操作"
+          width="130"
+        >
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:promotion-link:edit'"
@@ -338,8 +376,10 @@ onMounted(async () => {
 
     <el-dialog
       v-model="dialogOpen"
+      :close-on-click-modal="false"
       :title="editing ? '编辑推广链接' : '新增推广链接'"
       width="700px"
+      @close="handleDialogClose"
     >
       <el-form
         ref="formRef"

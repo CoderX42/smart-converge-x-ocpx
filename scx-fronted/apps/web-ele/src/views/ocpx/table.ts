@@ -12,6 +12,22 @@ export function resetPage<T extends { current: number }>(query: T) {
   query.current = 1;
 }
 
+/**
+ * 返回一个轻量序号门闩，确保快速切换筛选时只有最后一次请求能回写页面。
+ */
+export function createLatestRequestGuard() {
+  let sequence = 0;
+  return {
+    begin() {
+      sequence += 1;
+      return sequence;
+    },
+    isLatest(requestSequence: number) {
+      return requestSequence === sequence;
+    },
+  };
+}
+
 export async function copyLongText(value?: null | string) {
   if (!value) return;
   try {

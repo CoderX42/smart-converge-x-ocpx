@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.mapper;
 
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
@@ -30,6 +29,13 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 	IPage<SysUser> adminPage(Page page, @Param("query") SysUser sysUser);
 
 	SysUser selectUserByName(@Param("username") String username);
+
+	/**
+	 * 查询用户名是否被任意账号占用，包含逻辑删除账号。
+	 * @param username 规范化后的用户名
+	 * @return 占用数量
+	 */
+	int countByUsernameIncludingDeleted(@Param("username") String username);
 
 	int selectCount(@Param("query") SysUser sysUser);
 

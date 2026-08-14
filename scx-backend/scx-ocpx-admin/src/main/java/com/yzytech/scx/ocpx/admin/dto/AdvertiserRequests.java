@@ -12,8 +12,9 @@ public final class AdvertiserRequests {
 	private AdvertiserRequests() {
 	}
 
-	public record Create(@NotBlank @Size(max = 128) String name, @Size(max = 128) String credentialConfigKey,
-			@NotBlank @Size(max = 5000) String bidUrl, @Size(max = 4000) String macroParams) {
+	public record Create(@NotBlank @Size(max = 100) String name, @Size(max = 128) String credentialConfigKey,
+			@NotBlank @Size(max = 5000) String bidUrl, @Size(max = 4000) String macroParams,
+			@NotBlank @Size(max = 100) String username, @NotBlank @Size(min = 6, max = 32) String password) {
 	}
 
 	public record Update(@NotBlank @Size(max = 128) String name, @Size(max = 128) String credentialConfigKey,

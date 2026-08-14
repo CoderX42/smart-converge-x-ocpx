@@ -8,8 +8,8 @@ public final class AdvertiserViews {
 	private AdvertiserViews() {
 	}
 
-	public record Item(String id, String advertiserName, String credentialConfigKey, String bidUrl, String macroParams,
-			BigDecimal balance, LocalDateTime createTime, LocalDateTime updateTime) {
+	public record Item(String id, String advertiserName, String username, String credentialConfigKey, String bidUrl,
+			String macroParams, BigDecimal balance, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
 	public record Option(String id, String name) {

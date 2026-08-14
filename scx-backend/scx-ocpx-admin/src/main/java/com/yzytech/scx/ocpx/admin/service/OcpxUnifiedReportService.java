@@ -60,6 +60,8 @@ public class OcpxUnifiedReportService {
 
 	private final JdbcTemplate jdbcTemplate;
 
+	private final AdvertiserScope advertiserScope;
+
 	public UnifiedReportViews.Page query(UnifiedReportQuery input) {
 		UnifiedReportQuery query = normalize(input);
 		List<MetricRow> rows = aggregate(query, false);
@@ -177,7 +179,8 @@ public class OcpxUnifiedReportService {
 				|| query.startTime().compareTo(query.endTime()) > 0) {
 			throw new IllegalArgumentException("报表时间范围无效");
 		}
-		return new SummaryReportQuery(dateType, query.mediaId(), query.monitorTaskId(), query.advertiserId(),
+		return new SummaryReportQuery(dateType, query.mediaId(), query.monitorTaskId(),
+				advertiserScope.constrain(query.advertiserId()),
 				query.promotionLinkId(), query.startTime(), query.endTime(), query.asc(), query.desc(),
 				query.current() == null ? 1 : Math.max(1, query.current()),
 				query.size() == null ? 30 : Math.min(100, Math.max(1, query.size())));
@@ -196,6 +199,18 @@ public class OcpxUnifiedReportService {
 	}
 
 	public UnifiedReportViews.Options options() {
+		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
+		if (StringUtils.hasText(scopedAdvertiserId)) {
+			return new UnifiedReportViews.Options(
+					options("SELECT id,advertiser_name FROM scx_ocpx_advertiser WHERE id=? ORDER BY advertiser_name",
+							scopedAdvertiserId),
+					options("SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 AND advertiser_id=? ORDER BY link_name",
+							scopedAdvertiserId),
+					options("SELECT DISTINCT m.id,m.media_name FROM scx_ocpx_media m JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0 WHERE t.advertiser_id=? ORDER BY m.media_name",
+							scopedAdvertiserId),
+					options("SELECT id,monitor_name FROM scx_ocpx_monitor_task WHERE is_delete=0 AND advertiser_id=? ORDER BY monitor_name",
+							scopedAdvertiserId));
+		}
 		return new UnifiedReportViews.Options(options("scx_ocpx_advertiser", "advertiser_name", null),
 				options("scx_ocpx_promotion_link", "link_name", "is_delete=0"),
 				options("scx_ocpx_media", "media_name", null),
@@ -297,6 +312,12 @@ public class OcpxUnifiedReportService {
 				(resultSet, rowNum) -> new UnifiedReportViews.Option(resultSet.getString(1), resultSet.getString(2)));
 	}
 
+	private List<UnifiedReportViews.Option> options(String sql, String advertiserId) {
+		return jdbcTemplate.query(sql,
+				(resultSet, rowNum) -> new UnifiedReportViews.Option(resultSet.getString(1), resultSet.getString(2)),
+				advertiserId);
+	}
+
 	private void filter(StringBuilder sql, List<Object> args, String column, String value) {
 		if (StringUtils.hasText(value)) {
 			sql.append(" AND ").append(column).append("=?");
@@ -319,7 +340,8 @@ public class OcpxUnifiedReportService {
 		if (!GROUPS.contains(groupBy)) {
 			throw new IllegalArgumentException("groupBy 仅支持 TIME/ADVERTISER/PROMOTION_LINK/MEDIA/MONITOR_TASK");
 		}
-		return new UnifiedReportQuery(start, end, groupBy, query == null ? null : query.advertiserId(),
+		return new UnifiedReportQuery(start, end, groupBy,
+				advertiserScope.constrain(query == null ? null : query.advertiserId()),
 				query == null ? null : query.promotionLinkId(), query == null ? null : query.mediaId(),
 				query == null ? null : query.monitorTaskId(), query == null ? 1 : Math.max(1, query.current()),
 				query == null ? 30 : Math.min(100, Math.max(1, query.size())));

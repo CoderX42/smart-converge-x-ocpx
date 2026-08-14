@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
@@ -8,6 +7,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import com.yzytech.scx.system.api.dto.SysRoleMenuDTO;
 import com.yzytech.scx.system.api.entity.SysRole;
 import com.yzytech.scx.system.api.entity.SysRoleMenu;
@@ -55,6 +55,7 @@ public class SysRoleController {
 		return Result.success(sysRoleService.list(Wrappers.query(sysRole)
 			.lambda()
 			.and(role -> role.isNull(SysRole::getType).or().ne(SysRole::getType, "2"))
+			.ne(SysRole::getRoleCode, SystemAccountConstants.ROLE_ADVERTISER_CODE)
 			.select(SysRole::getRoleName, SysRole::getId)));
 	}
 
@@ -63,7 +64,7 @@ public class SysRoleController {
 	@GetMapping("/{id}")
 	public Result getById(@PathVariable String id) {
 		SysRole role = sysRoleService.getById(id);
-		if (isManaged(role)) {
+		if (isProtected(role)) {
 			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中查看或编辑");
 		}
 		return Result.success(role);
@@ -74,7 +75,7 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:add")
 	@PostMapping
 	public Result add(@RequestBody SysRole sysRole) {
-		if ("2".equals(sysRole.getType())) {
+		if ("2".equals(sysRole.getType()) || isFixedAdvertiserRole(sysRole)) {
 			return Result.fail("系统托管角色只能由广告主账号授权流程创建");
 		}
 		if (sysRoleService.checkRole(new SysRole(null, sysRole.getRoleCode()))) {
@@ -91,7 +92,8 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:edit")
 	@PutMapping
 	public Result edit(@RequestBody SysRole sysRole) {
-		if (isManaged(sysRoleService.getById(sysRole.getId())) || "2".equals(sysRole.getType())) {
+		if (isProtected(sysRoleService.getById(sysRole.getId())) || "2".equals(sysRole.getType())
+				|| isFixedAdvertiserRole(sysRole)) {
 			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中编辑");
 		}
 		if (sysRoleService.checkRole(new SysRole(sysRole.getId(), sysRole.getRoleName(), null))) {
@@ -104,7 +106,7 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:del")
 	@DeleteMapping("/{id}")
 	public Result edit(@PathVariable String id) {
-		if (isManaged(sysRoleService.getById(id))) {
+		if (isProtected(sysRoleService.getById(id))) {
 			return Result.fail("系统托管的广告主专属角色不可在通用角色管理中删除");
 		}
 		long count = sysUserRoleService.count(Wrappers.<SysUserRole>lambdaQuery().eq(SysUserRole::getRoleId, id));
@@ -120,7 +122,7 @@ public class SysRoleController {
 	@SaCheckPermission("system:sysrole:update")
 	@PostMapping("/role/menu")
 	public Result saveRoleMenu(@RequestBody SysRoleMenuDTO request) {
-		if (isManaged(sysRoleService.getById(request.getRoleId()))) {
+		if (isProtected(sysRoleService.getById(request.getRoleId()))) {
 			return Result.fail("系统托管的广告主专属角色菜单只能由广告主账号授权流程维护");
 		}
 		return Result.success(sysRoleMenuService.saveRoleMenu(request));
@@ -128,6 +130,15 @@ public class SysRoleController {
 
 	private boolean isManaged(SysRole role) {
 		return role != null && "2".equals(role.getType());
+	}
+
+	private boolean isFixedAdvertiserRole(SysRole role) {
+		return role != null && (SystemAccountConstants.ROLE_ADVERTISER_ID.equals(role.getId())
+				|| SystemAccountConstants.ROLE_ADVERTISER_CODE.equals(role.getRoleCode()));
+	}
+
+	private boolean isProtected(SysRole role) {
+		return isManaged(role) || isFixedAdvertiserRole(role);
 	}
 
 }

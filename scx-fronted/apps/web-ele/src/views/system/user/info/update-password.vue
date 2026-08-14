@@ -9,15 +9,6 @@ import {
   PASSWORD_COMPLEXITY_HINT,
 } from '#/utils/password-rules';
 
-const props = withDefaults(
-  defineProps<{
-    userId: string;
-  }>(),
-  {
-    userId: '',
-  },
-);
-
 const emit = defineEmits(['upSuccess']);
 
 const formRef = ref();
@@ -47,7 +38,6 @@ const validatePass2 = (rule: any, value: any, callback: any) => {
 
 const state = reactive({
   form: {
-    id: props.userId,
     password: '',
     checkPassword: '',
     newPassword: '',

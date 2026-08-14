@@ -57,6 +57,11 @@
         where sys_user.username = #{username}
         AND sys_user.del_flag = '0'
     </select>
+    <select id="countByUsernameIncludingDeleted" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM sys_user
+        WHERE TRIM(username) = #{username}
+    </select>
     <select id="selectCount" resultType="java.lang.Integer">
         SELECT
         COUNT( 1 )

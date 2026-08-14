@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
@@ -39,7 +40,8 @@ public class OcpxMediaController {
 	}
 
 	@GetMapping("/options")
-	@SaCheckPermission("ocpx:media:view")
+	@SaCheckPermission(value = { "ocpx:media:view", "ocpx:monitor-task:view", "ocpx:report:view",
+			"ocpx:dashboard:view" }, mode = SaMode.OR)
 	public Result<List<MediaViews.Option>> options() {
 		return Result.success(mediaService.options());
 	}

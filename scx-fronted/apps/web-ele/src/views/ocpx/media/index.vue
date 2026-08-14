@@ -3,8 +3,9 @@ import type { FormInstance, FormRules } from 'element-plus';
 
 import type { EntityOption, Media } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import { ElMessage } from 'element-plus';
@@ -13,7 +14,12 @@ import { createMedia, listMedia, mediaOptions, updateMedia } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -50,12 +56,16 @@ const rules: FormRules = {
   mediaName: [{ message: '请输入渠道名称', required: true, trigger: 'blur' }],
   uri: [{ message: '请输入 URI', required: true, trigger: 'blur' }],
 };
+const { hasAccessByCodes } = useAccess();
+const canOperate = computed(() => hasAccessByCodes(['ocpx:media:edit']));
+const loadGuard = createLatestRequestGuard();
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await listMedia({
@@ -63,10 +73,12 @@ async function load() {
       mediaId: query.mediaId || undefined,
       size: query.size,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -84,28 +96,39 @@ function edit(row?: Media) {
     uri: row?.uri || '',
   });
   dialogOpen.value = true;
+  void nextTick(() => formRef.value?.clearValidate());
 }
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
+    const editingId = editing.value?.id;
     const payload = {
       credentialConfigKey: form.credentialConfigKey || undefined,
-      macroParams: form.macroParams || undefined,
+      macroParams: form.macroParams,
       mediaName: form.mediaName,
       uri: form.uri,
     };
-    await (editing.value
-      ? updateMedia(editing.value.id, payload)
-      : createMedia(payload));
-    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
+    await (editingId ? updateMedia(editingId, payload) : createMedia(payload));
+    ElMessage.success(editingId ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
     mediaSelects.value = await mediaOptions();
     await load();
   } finally {
     saving.value = false;
   }
+}
+
+function handleDialogClose() {
+  editing.value = undefined;
+  formRef.value?.resetFields();
+  Object.assign(form, {
+    credentialConfigKey: '',
+    macroParams: '',
+    mediaName: '',
+    uri: '',
+  });
 }
 
 onMounted(async () => {
@@ -206,7 +229,7 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column fixed="right" label="操作" width="90"
+        <el-table-column v-if="canOperate" fixed="right" label="操作" width="90"
           ><template #default="{ row }"
             ><el-button
               v-access:code="'ocpx:media:edit'"
@@ -232,8 +255,10 @@ onMounted(async () => {
 
     <el-dialog
       v-model="dialogOpen"
+      :close-on-click-modal="false"
       :title="editing ? '编辑媒体' : '新增媒体'"
       width="640px"
+      @close="handleDialogClose"
     >
       <el-form
         ref="formRef"

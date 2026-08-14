@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -29,10 +30,14 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 	private OcpxUnifiedReportService service;
 
+	private AdvertiserScope advertiserScope;
+
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
-		service = new OcpxUnifiedReportService(jdbcTemplate);
+		advertiserScope = mock(AdvertiserScope.class);
+		when(advertiserScope.constrain(nullable(String.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope);
 	}
 
 	@Test
@@ -146,6 +151,21 @@ class OcpxUnifiedReportServiceSummaryTest {
 		Object[] values = args.getValue();
 		assertThat(values).startsWith(2026080100, 2026081223, "media-1", "task-1", "advertiser-1", "link-1");
 		assertThat(values).endsWith(10, 10);
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void advertiserScopeOverridesForgedReportFilter() {
+		when(advertiserScope.constrain("advertiser-other")).thenReturn("advertiser-own");
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+
+		service.summary(new SummaryReportQuery(1, null, null, "advertiser-other", null, "20260801", "20260812",
+				null, null, 1L, 10L));
+
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).query(anyString(), any(RowMapper.class), args.capture());
+		assertThat(args.getValue()).contains("advertiser-own").doesNotContain("advertiser-other");
 	}
 
 	@Test

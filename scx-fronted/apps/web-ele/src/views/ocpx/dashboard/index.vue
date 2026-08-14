@@ -9,6 +9,8 @@ import dayjs from 'dayjs';
 
 import { getDashboardOptions, getDashboardSummary } from '#/api/ocpx';
 
+import { createLatestRequestGuard } from '../table';
+
 defineOptions({ name: 'OcpxDashboard' });
 
 const loading = ref(false);
@@ -19,11 +21,21 @@ const filters = reactive({
   dates: [
     dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
     dayjs().format('YYYY-MM-DD'),
-  ] as [string, string],
+  ] as [string, string] | null,
   mediaId: '',
   monitorTaskId: '',
   promotionLinkId: '',
 });
+const loadGuard = createLatestRequestGuard();
+
+function currentDates(): [string, string] {
+  if (filters.dates?.[0] && filters.dates[1]) return filters.dates;
+  filters.dates = [
+    dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
+    dayjs().format('YYYY-MM-DD'),
+  ];
+  return filters.dates;
+}
 
 const cards = computed(() =>
   Object.entries(dashboard.value?.summary ?? {}).map(([code, value]) => ({
@@ -34,18 +46,22 @@ const cards = computed(() =>
 );
 
 async function load() {
+  const requestSequence = loadGuard.begin();
+  const dates = currentDates();
   loading.value = true;
   try {
-    dashboard.value = await getDashboardSummary({
+    const result = await getDashboardSummary({
       advertiserId: filters.advertiserId || undefined,
-      endDate: filters.dates[1],
+      endDate: dates[1],
       mediaId: filters.mediaId || undefined,
       monitorTaskId: filters.monitorTaskId || undefined,
       promotionLinkId: filters.promotionLinkId || undefined,
-      startDate: filters.dates[0],
+      startDate: dates[0],
     });
+    if (!loadGuard.isLatest(requestSequence)) return;
+    dashboard.value = result;
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -65,6 +81,7 @@ onMounted(async () => {
       <div class="mb-4 flex flex-wrap gap-3">
         <el-date-picker
           v-model="filters.dates"
+          :clearable="false"
           end-placeholder="结束日期"
           start-placeholder="开始日期"
           type="daterange"

@@ -35,6 +35,8 @@ class OcpxPromotionLinkServiceTest {
 
 	private OcpxConfigRefreshPublisher refreshPublisher;
 
+	private AdvertiserScope advertiserScope;
+
 	private OcpxPromotionLinkService service;
 
 	@BeforeEach
@@ -44,8 +46,9 @@ class OcpxPromotionLinkServiceTest {
 		deductionRuleMapper = mock(OcpxDeductionRuleMapper.class);
 		refreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		advertiserMapper = mock(OcpxAdvertiserMapper.class);
+		advertiserScope = mock(AdvertiserScope.class);
 		service = new OcpxPromotionLinkService(linkMapper, advertiserMapper, taskMapper, deductionRuleMapper,
-				refreshPublisher);
+				refreshPublisher, advertiserScope);
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		link.setId("link-1");
 		when(linkMapper.selectById("link-1")).thenReturn(link);

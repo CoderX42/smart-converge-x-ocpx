@@ -4,12 +4,12 @@ export const PASSWORD_MIN_LEN = 6;
 export const PASSWORD_MAX_LEN = 32;
 
 /** 提示文案，用于表单项下方说明 */
-export const PASSWORD_COMPLEXITY_HINT = `密码 ${PASSWORD_MIN_LEN}-${PASSWORD_MAX_LEN} 位，需同时包含字母、数字和特殊字符（如 !@#$%^&*. 等）`;
+export const PASSWORD_COMPLEXITY_HINT = `密码 ${PASSWORD_MIN_LEN}-${PASSWORD_MAX_LEN} 位，不含空白字符，需同时包含字母、数字和特殊字符（如 !@#$%^&*. 等）`;
 
-const HAS_LETTER = /[A-Z]/i;
-const HAS_DIGIT = /\d/;
-/** 常见特殊字符，避免空格等易误输入字符 */
-const HAS_SPECIAL = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/;
+const HAS_LETTER = /\p{Letter}/u;
+const HAS_DIGIT = /\p{Decimal_Number}/u;
+const HAS_WHITESPACE = /\p{White_Space}/u;
+const HAS_SPECIAL = /[^\p{Decimal_Number}\p{Letter}\p{White_Space}]/u;
 
 export type PasswordStrengthOptions = {
   /** 是否必填（空串视为不通过） */
@@ -34,6 +34,9 @@ export function getPasswordStrengthError(
     return `密码长度需在 ${PASSWORD_MIN_LEN}-${PASSWORD_MAX_LEN} 位之间`;
   }
 
+  if (HAS_WHITESPACE.test(v)) {
+    return '密码不能包含空白字符';
+  }
   if (!HAS_LETTER.test(v)) {
     return '密码需包含字母';
   }

@@ -480,7 +480,6 @@ onMounted(() => {
     >
       <UpdatePassword
         v-if="passwordDialogVisible"
-        :user-id="state.userInfo.id"
         @up-success="handlePasswordUpdateSuccess"
       />
     </ElDialog>

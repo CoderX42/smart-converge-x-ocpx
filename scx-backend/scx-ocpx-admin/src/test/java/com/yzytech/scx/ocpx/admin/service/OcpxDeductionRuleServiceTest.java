@@ -1,6 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
 import com.yzytech.scx.ocpx.admin.dto.DeductionRuleRequests;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.entity.OcpxDeductionRule;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
@@ -15,6 +17,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -33,6 +36,8 @@ class OcpxDeductionRuleServiceTest {
 
 	private OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private AdvertiserScope advertiserScope;
+
 	private OcpxDeductionRuleService service;
 
 	@BeforeEach
@@ -44,8 +49,26 @@ class OcpxDeductionRuleServiceTest {
 		redis = mock(StringRedisTemplate.class);
 		values = mock(ValueOperations.class);
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
+		advertiserScope = mock(AdvertiserScope.class);
 		when(redis.opsForValue()).thenReturn(values);
-		service = new OcpxDeductionRuleService(ruleMapper, mediaMapper, linkMapper, redis, configRefreshPublisher);
+		service = new OcpxDeductionRuleService(ruleMapper, mediaMapper, linkMapper, redis, configRefreshPublisher,
+				advertiserScope);
+	}
+
+	@Test
+	void advertiserAccountIsRejectedByEveryDeductionEntryPoint() {
+		doThrow(new BootBusinessException(403, "广告主账号无权执行该操作")).when(advertiserScope)
+			.requireAdministrator();
+
+		assertThatThrownBy(() -> service.list(new Page<>(1, 10), null)).isInstanceOf(BootBusinessException.class);
+		assertThatThrownBy(() -> service.detail("rule-1")).isInstanceOf(BootBusinessException.class);
+		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
+			.isInstanceOf(BootBusinessException.class);
+		assertThatThrownBy(
+				() -> service.update("rule-1", new DeductionRuleRequests.Update("media-1", "link-1", 0.6)))
+			.isInstanceOf(BootBusinessException.class);
+		assertThatThrownBy(() -> service.delete("rule-1")).isInstanceOf(BootBusinessException.class);
+		verifyNoInteractions(ruleMapper, mediaMapper, linkMapper, redis);
 	}
 
 	@Test

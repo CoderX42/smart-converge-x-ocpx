@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
+import com.yzytech.scx.ocpx.admin.controller.OcpxMediaController;
 import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
@@ -7,6 +10,7 @@ import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,13 +27,16 @@ class OcpxMediaServiceTest {
 
 	private OcpxConfigRefreshPublisher refreshPublisher;
 
+	private AdvertiserScope advertiserScope;
+
 	private OcpxMediaService service;
 
 	@BeforeEach
 	void setUp() {
 		mediaMapper = mock(OcpxMediaMapper.class);
 		refreshPublisher = mock(OcpxConfigRefreshPublisher.class);
-		service = new OcpxMediaService(mediaMapper, refreshPublisher);
+		advertiserScope = mock(AdvertiserScope.class);
+		service = new OcpxMediaService(mediaMapper, refreshPublisher, advertiserScope);
 	}
 
 	@Test
@@ -72,6 +79,16 @@ class OcpxMediaServiceTest {
 		assertThatThrownBy(() -> service.create(new MediaRequests.Create("小米", null, "/feedback", null)))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("媒体名称已存在");
+	}
+
+	@Test
+	void mediaOptionsAllowReadOnlyConsumersWithOrPermission() throws NoSuchMethodException {
+		SaCheckPermission permission = OcpxMediaController.class.getMethod("options")
+			.getAnnotation(SaCheckPermission.class);
+
+		assertThat(permission.mode()).isEqualTo(SaMode.OR);
+		assertThat(Arrays.asList(permission.value())).contains("ocpx:media:view", "ocpx:monitor-task:view",
+				"ocpx:report:view", "ocpx:dashboard:view");
 	}
 
 }

@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.service.impl;
 
 import cn.hutool.core.util.StrUtil;
@@ -10,6 +9,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import com.yzytech.scx.system.api.dto.SysUserDTO;
 import com.yzytech.scx.system.api.dto.SysUserReqDTO;
 import com.yzytech.scx.system.api.entity.*;
@@ -87,6 +87,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public boolean saveUser(SysUser sysUser) {
+		assertGenericCreateAllowed(sysUser);
 		if (Objects.nonNull(this.findUserByName(sysUser.getUsername()))) {
 			throw new BootBusinessException("用户已存在");
 		}
@@ -102,6 +103,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public boolean updateUser(SysUser sysUser) {
+		assertGenericUpdateAllowed(sysUser);
 		sysUserRoleMapper.delete(Wrappers.<SysUserRole>lambdaQuery().eq(SysUserRole::getUserId, sysUser.getId()));
 		baseMapper.updateById(sysUser);
 		saveUserRole(sysUser);
@@ -130,6 +132,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 	@Override
 	@Transactional(rollbackFor = Exception.class)
 	public boolean createUser(SysUserReqDTO sysUserReqDTO) {
+		if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(sysUserReqDTO.getType())) {
+			throw new BootBusinessException("广告主账号只能由广告主开户流程创建");
+		}
 		SysUser sysUser = this.findUserByName(sysUserReqDTO.getUsername());
 		if (Objects.nonNull(sysUser)) {
 			log.error("username already exists !");
@@ -184,6 +189,42 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 		sysUserRole.setRoleId(sysRole.getId());
 		sysUserRoleMapper.insert(sysUserRole);
 		return Boolean.TRUE;
+	}
+
+	private void assertGenericCreateAllowed(SysUser sysUser) {
+		if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(sysUser.getType())
+				|| containsAdvertiserRole(sysUser.getRoles())) {
+			throw new BootBusinessException("广告主账号及固定角色只能由广告主开户流程创建和分配");
+		}
+	}
+
+	private void assertGenericUpdateAllowed(SysUser requested) {
+		SysUser persisted = baseMapper.selectById(requested.getId());
+		if (persisted == null) {
+			throw new BootBusinessException("用户不存在或已删除");
+		}
+		if (!SystemAccountConstants.USER_TYPE_ADVERTISER.equals(persisted.getType())) {
+			assertGenericCreateAllowed(requested);
+			return;
+		}
+
+		List<String> currentRoleIds = sysRoleMapper.listRoleIdsByUserId(persisted.getId());
+		if (!SystemAccountConstants.USER_TYPE_ADVERTISER.equals(requested.getType())
+				|| !Objects.equals(requested.getUsername(), persisted.getUsername())
+				|| !Objects.equals(requested.getShopId(), persisted.getShopId())
+				|| !sameRoles(currentRoleIds, requested.getRoles())) {
+			throw new BootBusinessException("广告主账号身份及角色不能由通用用户服务修改");
+		}
+	}
+
+	private boolean sameRoles(List<String> currentRoleIds, List<String> requestedRoleIds) {
+		return currentRoleIds != null && requestedRoleIds != null
+				&& new HashSet<>(currentRoleIds).equals(new HashSet<>(requestedRoleIds));
+	}
+
+	private boolean containsAdvertiserRole(List<String> roleIds) {
+		return roleIds != null && (roleIds.contains(SystemAccountConstants.ROLE_ADVERTISER_ID)
+				|| roleIds.contains(SystemAccountConstants.ROLE_ADVERTISER_CODE));
 	}
 
 	@Override

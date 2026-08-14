@@ -29,14 +29,38 @@ expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_deduction_rule,scx_ocpx_flow_
 assert_exact_columns() {
   local table="$1" expected="$2" actual
   actual="$(scalar "SELECT GROUP_CONCAT(column_name ORDER BY ordinal_position) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='${table}'")"
-  [[ "$actual" == "$expected" ]] || fail "${table} columns do not match the V102 management model"
+  [[ "$actual" == "$expected" ]] || fail "${table} columns do not match the current management model"
 }
 
-assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,credential_config_key,bid_url,macro_params,create_time,update_time'
+assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,account_user_id,credential_config_key,bid_url,macro_params,create_time,update_time'
 assert_exact_columns scx_ocpx_promotion_link 'id,advertiser_id,link_name,platform,link_channel,link_url,deeplink,link_ext,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,macro_params,create_time,update_time'
 assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
+
+advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
+ AND column_name='account_user_id' AND data_type='varchar'
+ AND character_maximum_length=64 AND is_nullable='YES'")"
+[[ "$advertiser_account_column" -eq 1 ]] || fail "advertiser account_user_id must be nullable VARCHAR(64)"
+
+advertiser_account_unique="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
+ AND index_name='uk_ocpx_advertiser_account_user' AND non_unique=0
+ AND column_name='account_user_id'")"
+[[ "$advertiser_account_unique" -eq 1 ]] || fail "advertiser account_user_id unique index is missing"
+
+advertiser_account_fk="$(scalar "SELECT COUNT(*) FROM information_schema.key_column_usage
+ WHERE constraint_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
+ AND constraint_name='fk_ocpx_advertiser_account_user'
+ AND column_name='account_user_id' AND referenced_table_name='sys_user'
+ AND referenced_column_name='id'")"
+[[ "$advertiser_account_fk" -eq 1 ]] || fail "advertiser account_user_id foreign key is missing"
+
+monitor_text_urls="$(scalar "SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_monitor_task'
+ AND column_name IN ('show_url','clk_url') AND data_type='text'")"
+[[ "$monitor_text_urls" -eq 2 ]] || fail "monitor show_url and clk_url must both be TEXT"
 
 invalid_platforms="$(scalar "SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE platform NOT IN (1,2,3,4)")"
 [[ "$invalid_platforms" -eq 0 ]] || fail "promotion-link platform must be one of 1 Android, 2 iOS, 3 Android+iOS, 4 quick app"
@@ -64,8 +88,17 @@ debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE tab
 
 secret_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
  AND table_name IN ('scx_ocpx_advertiser','scx_ocpx_promotion_link','scx_ocpx_media','scx_ocpx_monitor_task','scx_ocpx_deduction_rule','scx_ocpx_flow_log','scx_ocpx_log_feedback','scx_ocpx_log_feedback_day','scx_ocpx_log_callback')
- AND column_name REGEXP '(^|_)(account|password|secret)(_|$)'")"
+ AND column_name REGEXP '(^|_)(account|password|secret)(_|$)'
+ AND NOT (table_name='scx_ocpx_advertiser' AND column_name='account_user_id')")"
 [[ "$secret_columns" -eq 0 ]] || fail "OCPX tables expose account/password/secret columns"
+
+invalid_advertiser_accounts="$(scalar "SELECT COUNT(*)
+ FROM scx_ocpx_advertiser a
+ LEFT JOIN sys_user u ON u.id=a.account_user_id
+ WHERE a.account_user_id IS NOT NULL
+ AND (u.id IS NULL OR u.type<>'2' OR u.status<>'0' OR u.del_flag<>'0'
+      OR u.shop_id IS NULL OR BINARY u.shop_id<>BINARY a.id)")"
+[[ "$invalid_advertiser_accounts" -eq 0 ]] || fail "advertiser account bindings must reference active type-2 users scoped to the advertiser"
 
 invalid_link_owner="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task t JOIN scx_ocpx_promotion_link l ON l.id=t.promotion_link_id WHERE BINARY l.advertiser_id<>BINARY t.advertiser_id")"
 [[ "$invalid_link_owner" -eq 0 ]] || fail "monitor task references a promotion link owned by another advertiser"
@@ -76,7 +109,7 @@ composite_fk="$(scalar "SELECT COUNT(*) FROM information_schema.referential_cons
 retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' AND
  (permission LIKE CONCAT('ad','x:%') OR permission REGEXP '^ocpx:(channel|product|app-link|media-account|task|monitor|deduction|event|runtime|api-debug|scope|account):'
   OR permission IN (
-    'ocpx:monitor-task:publish','ocpx:report:export','ocpx:advertiser:grant',
+    'ocpx:monitor-task:publish','ocpx:advertiser:grant',
     'ocpx:advertiser:status','ocpx:advertiser:archive',
     'ocpx:promotion-link:status','ocpx:promotion-link:archive','ocpx:promotion-link:validate',
     'ocpx:media:status','ocpx:media:archive','ocpx:media:preflight','ocpx:media:connectivity','ocpx:media:export',
@@ -84,8 +117,27 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:promotion-link:delete','ocpx:monitor-task:delete')")"
-[[ "$required_permissions" -eq 3 ]] || fail "required recharge and delete permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:promotion-link:delete','ocpx:monitor-task:delete','ocpx:report:export')")"
+[[ "$required_permissions" -eq 4 ]] || fail "required recharge, delete and report-export permissions are incomplete"
+
+advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
+ WHERE BINARY id=BINARY 'role_advertiser'
+ AND BINARY role_code=BINARY 'ROLE_ADVERTISER'
+ AND type='0' AND shop_id IS NULL AND del_flag='0'")"
+[[ "$advertiser_role" -eq 1 ]] || fail "the protected shared ROLE_ADVERTISER role is missing or invalid"
+
+advertiser_role_menus="$(scalar "SELECT COALESCE(GROUP_CONCAT(menu_id ORDER BY menu_id),'')
+ FROM sys_role_menu WHERE role_id='role_advertiser'")"
+expected_advertiser_role_menus='menu_ocpx_advertiser,menu_ocpx_flow_log,menu_ocpx_home,menu_ocpx_monitor_task,menu_ocpx_promotion_link,menu_ocpx_report,perm_ocpx_report_export'
+[[ "$advertiser_role_menus" == "$expected_advertiser_role_menus" ]] || fail "ROLE_ADVERTISER must have exactly six read-only pages and report export"
+
+admin_report_export="$(scalar "SELECT COUNT(*)
+ FROM sys_role r
+ JOIN sys_role_menu rm ON rm.role_id=r.id
+ JOIN sys_menu m ON m.id=rm.menu_id
+ WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
+ AND m.permission='ocpx:report:export' AND m.del_flag='0'")"
+[[ "$admin_report_export" -eq 1 ]] || fail "system administrator report-export grant is missing"
 
 system_admin="$(scalar "SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='system' AND u.del_flag='0' AND r.role_code='ROLE_ADMIN' AND r.del_flag='0'")"
 [[ "$system_admin" -eq 1 ]] || fail "system administrator role mapping changed"

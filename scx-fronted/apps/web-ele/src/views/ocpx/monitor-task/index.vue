@@ -3,8 +3,9 @@ import type { FormInstance, FormRules } from 'element-plus';
 
 import type { EntityOption, MonitorTask } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -22,7 +23,13 @@ import {
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, platformLabel, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  platformLabel,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -101,12 +108,20 @@ const rules: FormRules = {
     { trigger: 'blur', validator: validateNumber },
   ],
 };
+const { hasAccessByCodes } = useAccess();
+const canOperate = computed(() =>
+  hasAccessByCodes(['ocpx:monitor-task:edit', 'ocpx:monitor-task:delete']),
+);
+const loadGuard = createLatestRequestGuard();
+const monitorOptionGuard = createLatestRequestGuard();
+const promotionOptionGuard = createLatestRequestGuard();
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await listMonitorTasks({
@@ -115,25 +130,34 @@ async function load() {
       monitorTaskId: query.monitorTaskId || undefined,
       size: query.size,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
 async function loadMonitorSelects(reset = true) {
   if (reset) query.monitorTaskId = '';
-  monitorSelects.value = await monitorTaskOptions(query.mediaId || undefined);
+  const requestSequence = monitorOptionGuard.begin();
+  const result = await monitorTaskOptions(query.mediaId || undefined);
+  if (monitorOptionGuard.isLatest(requestSequence)) {
+    monitorSelects.value = result;
+  }
 }
 
 async function loadPromotionOptions(advertiserId: string, keepId = false) {
   if (!keepId) form.promotionLinkId = '';
+  const requestSequence = promotionOptionGuard.begin();
   if (!advertiserId) {
     promotionOptions.value = [];
     return;
   }
-  promotionOptions.value = await promotionLinkOptions(advertiserId);
+  const result = await promotionLinkOptions(advertiserId);
+  if (!promotionOptionGuard.isLatest(requestSequence)) return;
+  promotionOptions.value = result;
   if (
     form.promotionLinkId &&
     !promotionOptions.value.some(({ id }) => id === form.promotionLinkId)
@@ -160,28 +184,48 @@ async function edit(row?: MonitorTask) {
   });
   await loadPromotionOptions(form.advertiserId, true);
   dialogOpen.value = true;
+  void nextTick(() => formRef.value?.clearValidate());
 }
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
+    const editingId = editing.value?.id;
     const payload = {
-      ...form,
+      advertiserId: form.advertiserId,
       bizId: form.bizId || undefined,
+      mediaId: form.mediaId,
+      monitorName: form.monitorName,
+      promotionLinkId: form.promotionLinkId,
       remark: form.remark || undefined,
       unitPrice: Number(form.unitPrice),
     };
-    await (editing.value
-      ? updateMonitorTask(editing.value.id, payload)
+    await (editingId
+      ? updateMonitorTask(editingId, payload)
       : createMonitorTask(payload));
-    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
+    ElMessage.success(editingId ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
     await loadMonitorSelects(false);
     await load();
   } finally {
     saving.value = false;
   }
+}
+
+function handleDialogClose() {
+  editing.value = undefined;
+  formRef.value?.resetFields();
+  promotionOptions.value = [];
+  Object.assign(form, {
+    advertiserId: '',
+    bizId: '',
+    mediaId: '',
+    monitorName: '',
+    promotionLinkId: '',
+    remark: '',
+    unitPrice: '',
+  });
 }
 
 async function remove(row: MonitorTask) {
@@ -351,7 +395,11 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column fixed="right" label="操作" width="130"
+        <el-table-column
+          v-if="canOperate"
+          fixed="right"
+          label="操作"
+          width="130"
           ><template #default="{ row }"
             ><el-button
               v-access:code="'ocpx:monitor-task:edit'"
@@ -385,8 +433,10 @@ onMounted(async () => {
 
     <el-dialog
       v-model="dialogOpen"
+      :close-on-click-modal="false"
       :title="editing ? '编辑监测任务' : '新增监测任务'"
       width="680px"
+      @close="handleDialogClose"
     >
       <el-form
         ref="formRef"

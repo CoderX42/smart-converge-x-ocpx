@@ -2,6 +2,8 @@
 
 本文件固定 V102 管理端字段边界。请求和响应不接受旧字段别名。
 
+> 当前源码的广告主开户和数据范围由 [V103 增量契约](management-v103.md) 覆盖；下表继续描述其余 V102 业务字段。
+
 | 资源 | 写入字段 | 列表/详情附加字段 | 删除 |
 |---|---|---|---|
 | advertiser | `name,bidUrl,credentialConfigKey,macro` | `id,balance,createTime,updateTime` | 无 |

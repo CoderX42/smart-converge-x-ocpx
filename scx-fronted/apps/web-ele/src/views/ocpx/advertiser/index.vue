@@ -3,8 +3,9 @@ import type { FormInstance, FormRules } from 'element-plus';
 
 import type { AdvertiserV2, EntityOption } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import { ElMessage } from 'element-plus';
@@ -17,9 +18,18 @@ import {
   updateAdvertiserV2,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
+import {
+  getPasswordStrengthError,
+  PASSWORD_COMPLEXITY_HINT,
+} from '#/utils/password-rules';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -28,6 +38,7 @@ defineOptions({ name: 'OcpxAdvertiserManagement' });
 const columns = [
   { key: 'id', label: '广告主编号' },
   { key: 'name', label: '名称' },
+  { key: 'username', label: '用户名' },
   { key: 'balance', label: '余额' },
   { key: 'credential', label: '凭据引用' },
   { key: 'bidUrl', label: '请求地址' },
@@ -52,12 +63,39 @@ const form = reactive({
   bidUrl: '',
   credentialConfigKey: '',
   macroParams: '',
+  password: '',
+  username: '',
 });
+const { hasAccessByCodes } = useAccess();
+const canOperate = computed(() =>
+  hasAccessByCodes(['ocpx:advertiser:edit', 'ocpx:advertiser:recharge']),
+);
+const loadGuard = createLatestRequestGuard();
+
+function validatePassword(
+  _rule: unknown,
+  value: string,
+  callback: (error?: Error) => void,
+) {
+  const error = getPasswordStrengthError(value, { required: true });
+  callback(error ? new Error(error) : undefined);
+}
+
 const rules: FormRules = {
   advertiserName: [
     { message: '请输入广告主名称', required: true, trigger: 'blur' },
   ],
   bidUrl: [{ message: '请输入请求地址', required: true, trigger: 'blur' }],
+  password: [{ trigger: 'blur', validator: validatePassword }],
+  username: [
+    {
+      message: '请输入用户名',
+      pattern: /\S/,
+      required: true,
+      trigger: 'blur',
+    },
+    { max: 100, message: '用户名不能超过 100 个字符', trigger: 'blur' },
+  ],
 };
 
 const rechargeOpen = ref(false);
@@ -80,6 +118,7 @@ function hasColumn(key: string) {
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await listAdvertisers({
@@ -87,10 +126,12 @@ async function load() {
       current: query.current,
       size: query.size,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -106,24 +147,32 @@ function edit(row?: AdvertiserV2) {
     bidUrl: row?.bidUrl || '',
     credentialConfigKey: row?.credentialConfigKey || '',
     macroParams: row?.macroParams || '',
+    password: '',
+    username: '',
   });
   dialogOpen.value = true;
+  void nextTick(() => formRef.value?.clearValidate());
 }
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
-    const payload = {
+    const editingId = editing.value?.id;
+    const businessPayload = {
       bidUrl: form.bidUrl,
       credentialConfigKey: form.credentialConfigKey || undefined,
       macroParams: form.macroParams || undefined,
       name: form.advertiserName,
     };
-    await (editing.value
-      ? updateAdvertiserV2(editing.value.id, payload)
-      : createAdvertiserV2(payload));
-    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
+    await (editingId
+      ? updateAdvertiserV2(editingId, businessPayload)
+      : createAdvertiserV2({
+          ...businessPayload,
+          password: form.password,
+          username: form.username.trim(),
+        }));
+    ElMessage.success(editingId ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
     advertiserSelects.value = await advertiserOptions();
     await load();
@@ -132,10 +181,30 @@ async function save() {
   }
 }
 
+function handleDialogClose() {
+  editing.value = undefined;
+  formRef.value?.resetFields();
+  Object.assign(form, {
+    advertiserName: '',
+    bidUrl: '',
+    credentialConfigKey: '',
+    macroParams: '',
+    password: '',
+    username: '',
+  });
+}
+
 function recharge(row: AdvertiserV2) {
   rechargeId.value = row.id;
   rechargeForm.balance = '';
   rechargeOpen.value = true;
+  void nextTick(() => rechargeFormRef.value?.clearValidate());
+}
+
+function handleRechargeClose() {
+  rechargeId.value = '';
+  rechargeFormRef.value?.resetFields();
+  rechargeForm.balance = '';
 }
 
 async function submitRecharge() {
@@ -222,6 +291,13 @@ onMounted(async () => {
           prop="advertiserName"
         />
         <el-table-column
+          v-if="hasColumn('username')"
+          label="用户名"
+          min-width="140"
+        >
+          <template #default="{ row }">{{ row.username || '—' }}</template>
+        </el-table-column>
+        <el-table-column
           v-if="hasColumn('balance')"
           label="余额"
           min-width="110"
@@ -267,7 +343,12 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column fixed="right" label="操作" width="130">
+        <el-table-column
+          v-if="canOperate"
+          fixed="right"
+          label="操作"
+          width="130"
+        >
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
@@ -301,8 +382,10 @@ onMounted(async () => {
 
     <el-dialog
       v-model="dialogOpen"
+      :close-on-click-modal="false"
       :title="editing ? '编辑广告主' : '新增广告主'"
       width="680px"
+      @close="handleDialogClose"
     >
       <el-form
         ref="formRef"
@@ -323,6 +406,27 @@ onMounted(async () => {
             placeholder="请输入请求地址"
             type="textarea"
         /></el-form-item>
+        <template v-if="!editing">
+          <el-form-item label="用户名" prop="username">
+            <el-input
+              v-model="form.username"
+              autocomplete="username"
+              maxlength="100"
+              placeholder="请输入登录用户名"
+            />
+          </el-form-item>
+          <el-form-item label="密码" prop="password">
+            <el-input
+              v-model="form.password"
+              autocomplete="new-password"
+              maxlength="32"
+              placeholder="请输入登录密码"
+              show-password
+              type="password"
+            />
+            <div class="password-hint">{{ PASSWORD_COMPLEXITY_HINT }}</div>
+          </el-form-item>
+        </template>
         <el-form-item label="凭据引用" prop="credentialConfigKey"
           ><el-input
             v-model="form.credentialConfigKey"
@@ -346,7 +450,13 @@ onMounted(async () => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="rechargeOpen" title="广告主充值" width="460px">
+    <el-dialog
+      v-model="rechargeOpen"
+      :close-on-click-modal="false"
+      title="广告主充值"
+      width="460px"
+      @close="handleRechargeClose"
+    >
       <el-form
         ref="rechargeFormRef"
         :model="rechargeForm"
@@ -371,3 +481,12 @@ onMounted(async () => {
     </el-dialog>
   </Page>
 </template>
+
+<style scoped>
+.password-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+}
+</style>

@@ -4,6 +4,8 @@ import com.yzytech.scx.ocpx.admin.dto.UnifiedReportQuery;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowMapper;
+import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
@@ -15,8 +17,27 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 class OcpxUnifiedReportServiceTest {
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void advertiserOptionsUseOnlyOwnedEntities() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		when(advertiserScope.currentAdvertiserId()).thenReturn("advertiser-own");
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+
+		new OcpxUnifiedReportService(jdbcTemplate, advertiserScope).options();
+
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, times(4)).query(sql.capture(), any(RowMapper.class), args.capture());
+		assertThat(sql.getAllValues()).allMatch(value -> value.contains("advertiser_id=?") || value.contains("id=?"));
+		assertThat(args.getAllValues()).allMatch(value -> List.of(value).contains("advertiser-own"));
+	}
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -32,7 +53,9 @@ class OcpxUnifiedReportServiceTest {
 		when(resultSet.getBigDecimal(18)).thenReturn(BigDecimal.valueOf(20_000_000));
 		when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
 			.thenAnswer(invocation -> ((ResultSetExtractor) invocation.getArgument(1)).extractData(resultSet));
-		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		when(advertiserScope.constrain("advertiser-id")).thenReturn("advertiser-id");
+		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope);
 		UnifiedReportQuery query = new UnifiedReportQuery(LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 12), "TIME",
 				"advertiser-id", "link-id", "media-id", "task-id", 1, 20);
 

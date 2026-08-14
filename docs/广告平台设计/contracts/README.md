@@ -1,6 +1,6 @@
 # SCX OCPX 契约包
 
-本目录描述 SCX 通用 Feedback/Callback、KIMI POST 例外和 V102 管理端字段边界。
+本目录描述 SCX 通用 Feedback/Callback、KIMI POST 例外和当前管理端字段边界。
 
 | 文件 | 用途 |
 |---|---|
@@ -10,6 +10,7 @@
 | `scx-ocpx-v2.postman_collection.json` | 本机 GET 示例 |
 | `historical-contracts.md` | 已退出接口，不属于当前能力 |
 | `management-v102.md` | V102 管理 API 请求/响应字段和废弃操作边界 |
+| `management-v103.md` | 广告主开户、只读数据范围和 V103 接口增量 |
 
 `mId/tId/aId/lId` 分别直接使用 `OcpxMedia`、`OcpxMonitorTask`、
 `OcpxAdvertiser`、`OcpxPromotionLink` 的 SCX 字符串主键。`aId` 是 SCX 广告主主键；

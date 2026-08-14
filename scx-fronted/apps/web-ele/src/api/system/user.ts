@@ -61,10 +61,22 @@ export async function checkPhoneCount(query: any) {
 /**
  * 修改密码
  */
-export async function editPassword(data: any) {
-  return requestClient.post('/system/user/password', data, {
-    headers: {},
-  });
+export type SelfPasswordPayload = {
+  checkPassword: string;
+  newPassword: string;
+  password: string;
+};
+
+export async function editPassword(data: SelfPasswordPayload) {
+  return requestClient.post(
+    '/system/user/password',
+    {
+      checkPassword: data.checkPassword,
+      newPassword: data.newPassword,
+      password: data.password,
+    },
+    { headers: {} },
+  );
 }
 
 /**

@@ -22,6 +22,8 @@ public class OcpxFlowLogService {
 
 	private final JdbcTemplate jdbcTemplate;
 
+	private final AdvertiserScope advertiserScope;
+
 	public FlowLogViews.Page query(LocalDate startDate, LocalDate endDate, String flowType, String resultStatus,
 			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId, String eventId,
 			Long currentValue, Long sizeValue) {
@@ -32,6 +34,7 @@ public class OcpxFlowLogService {
 		}
 		String normalizedType = normalize(flowType, FLOW_TYPES, "flowType");
 		String normalizedStatus = normalize(resultStatus, STATUSES, "resultStatus");
+		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
 		long current = currentValue == null ? 1 : Math.max(1, currentValue);
 		long size = sizeValue == null ? 30 : Math.min(100, Math.max(1, sizeValue));
 		StringBuilder where = new StringBuilder(" WHERE f.event_time>=? AND f.event_time<?");
@@ -40,7 +43,7 @@ public class OcpxFlowLogService {
 		args.add(end.plusDays(1).atStartOfDay());
 		filter(where, args, "f.flow_type", normalizedType);
 		filter(where, args, "f.result_status", normalizedStatus);
-		filter(where, args, "f.advertiser_id", advertiserId);
+		filter(where, args, "f.advertiser_id", scopedAdvertiserId);
 		filter(where, args, "f.promotion_link_id", promotionLinkId);
 		filter(where, args, "f.media_id", mediaId);
 		filter(where, args, "f.monitor_task_id", monitorTaskId);

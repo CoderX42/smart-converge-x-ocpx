@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,25 +39,31 @@ public class OcpxPromotionLinkService {
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private final AdvertiserScope advertiserScope;
+
 	public IPage<PromotionLinkViews.Item> list(Page<OcpxPromotionLink> page, String keyword, String advertiserId,
 			String promotionLinkId, Integer platform) {
-		return linkMapper
-			.selectPage(page,
+		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
+		IPage<OcpxPromotionLink> result = linkMapper.selectPage(page,
 					Wrappers.<OcpxPromotionLink>lambdaQuery()
 						.eq(StringUtils.hasText(promotionLinkId), OcpxPromotionLink::getId, promotionLinkId)
 						.and(StringUtils.hasText(keyword) && !StringUtils.hasText(promotionLinkId),
 								q -> q.like(OcpxPromotionLink::getId, keyword)
 									.or()
 									.like(OcpxPromotionLink::getLinkName, keyword))
-						.eq(StringUtils.hasText(advertiserId), OcpxPromotionLink::getAdvertiserId, advertiserId)
+						.eq(StringUtils.hasText(scopedAdvertiserId), OcpxPromotionLink::getAdvertiserId,
+								scopedAdvertiserId)
 						.eq(platform != null, OcpxPromotionLink::getPlatform, platform)
-						.orderByDesc(OcpxPromotionLink::getUpdateTime))
-			.convert(this::view);
+						.orderByDesc(OcpxPromotionLink::getUpdateTime));
+		Map<String, OcpxAdvertiser> advertisers = advertisers(result.getRecords());
+		return result.convert(link -> view(link, advertisers.get(link.getAdvertiserId())));
 	}
 
 	public List<PromotionLinkViews.AdvertiserOption> advertiserOptions(String keyword) {
+		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
 		return advertiserMapper
 			.selectList(Wrappers.<OcpxAdvertiser>lambdaQuery()
+				.eq(StringUtils.hasText(scopedAdvertiserId), OcpxAdvertiser::getId, scopedAdvertiserId)
 				.and(StringUtils.hasText(keyword),
 						q -> q.like(OcpxAdvertiser::getId, keyword)
 							.or()
@@ -67,9 +76,10 @@ public class OcpxPromotionLinkService {
 
 	/** 对齐 SGYZ getLinkName：按广告主过滤推广链接下拉。 */
 	public List<PromotionLinkViews.Option> options(String advertiserId) {
+		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
 		return linkMapper
 			.selectList(Wrappers.<OcpxPromotionLink>lambdaQuery()
-				.eq(StringUtils.hasText(advertiserId), OcpxPromotionLink::getAdvertiserId, advertiserId)
+				.eq(StringUtils.hasText(scopedAdvertiserId), OcpxPromotionLink::getAdvertiserId, scopedAdvertiserId)
 				.orderByDesc(OcpxPromotionLink::getId))
 			.stream()
 			.map(item -> new PromotionLinkViews.Option(item.getId(), item.getLinkName()))
@@ -77,11 +87,14 @@ public class OcpxPromotionLinkService {
 	}
 
 	public PromotionLinkViews.Item detail(String id) {
-		return view(require(id));
+		OcpxPromotionLink link = require(id);
+		advertiserScope.requireOwner(link.getAdvertiserId());
+		return view(link, advertiserMapper.selectById(link.getAdvertiserId()));
 	}
 
 	@Transactional
 	public PromotionLinkViews.Item create(PromotionLinkRequests.Create request) {
+		advertiserScope.requireOwner(request.advertiserId());
 		requireAdvertiser(request.advertiserId());
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		apply(link, request.advertiserId(), request.linkName(), request.platform(), request.linkChannel(),
@@ -95,6 +108,8 @@ public class OcpxPromotionLinkService {
 	@Transactional
 	public PromotionLinkViews.Item update(String id, PromotionLinkRequests.Update request) {
 		OcpxPromotionLink current = require(id);
+		advertiserScope.requireOwner(current.getAdvertiserId());
+		advertiserScope.requireOwner(request.advertiserId());
 		requireAdvertiser(request.advertiserId());
 		if (!current.getAdvertiserId().equals(request.advertiserId()) && taskMapper
 			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0) {
@@ -111,7 +126,8 @@ public class OcpxPromotionLinkService {
 
 	@Transactional
 	public void delete(String id) {
-		require(id);
+		OcpxPromotionLink current = require(id);
+		advertiserScope.requireOwner(current.getAdvertiserId());
 		if (taskMapper
 			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0) {
 			throw new IllegalArgumentException("推广链接仍被监测任务引用");
@@ -153,8 +169,21 @@ public class OcpxPromotionLinkService {
 		return StringUtils.hasText(value) ? value.trim() : null;
 	}
 
-	private PromotionLinkViews.Item view(OcpxPromotionLink link) {
-		OcpxAdvertiser a = advertiserMapper.selectById(link.getAdvertiserId());
+	private Map<String, OcpxAdvertiser> advertisers(List<OcpxPromotionLink> links) {
+		List<String> ids = links.stream()
+			.map(OcpxPromotionLink::getAdvertiserId)
+			.filter(StringUtils::hasText)
+			.distinct()
+			.toList();
+		if (ids.isEmpty()) {
+			return Map.of();
+		}
+		return advertiserMapper.selectBatchIds(ids)
+			.stream()
+			.collect(Collectors.toMap(OcpxAdvertiser::getId, Function.identity()));
+	}
+
+	private PromotionLinkViews.Item view(OcpxPromotionLink link, OcpxAdvertiser a) {
 		return new PromotionLinkViews.Item(link.getId(), link.getAdvertiserId(),
 				a == null ? null : a.getAdvertiserName(), link.getLinkName(), link.getPlatform(), link.getLinkChannel(),
 				link.getLinkUrl(), link.getDeeplink(), link.getLinkExt(), link.getRemark(), link.getCreateTime(),

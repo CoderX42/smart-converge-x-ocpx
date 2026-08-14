@@ -51,7 +51,7 @@ def table_body(table: str) -> str:
 
 v102_columns = {
     "scx_ocpx_advertiser": {
-        "required": ("advertiser_name", "credential_config_key", "bid_url", "macro_params"),
+        "required": ("advertiser_name", "account_user_id varchar(64)", "credential_config_key", "bid_url", "macro_params"),
         "retired": ("advertiser_code", "adapter_code", "credential_version", "status", "deleted", "active_marker"),
     },
     "scx_ocpx_promotion_link": {
@@ -63,7 +63,7 @@ v102_columns = {
         "retired": ("media_code", "adapter_code", "auth_type", "credential_version", "ingress_uri", "callback_url", "status", "deleted", "active_marker"),
     },
     "scx_ocpx_monitor_task": {
-        "required": ("monitor_name", "biz_id", "show_url", "clk_url", "is_delete"),
+        "required": ("monitor_name", "biz_id", "show_url text", "clk_url text", "is_delete"),
         "retired": ("task_code", "task_name", "operator_user_id", "status", "config_version", "archived_at", "active_marker"),
     },
     "scx_ocpx_deduction_rule": {
@@ -234,6 +234,23 @@ for required_fragment in (
         raise SystemExit(f"V102 migration gate failed: missing {required_fragment}")
 if "scx_schema_migration" in v102:
     raise SystemExit("V102 migration gate failed: retired migration ledger is referenced")
+
+v103 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V103__add_advertiser_account_scope.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "ADD COLUMN account_user_id VARCHAR(64) NULL",
+    "uk_ocpx_advertiser_account_user",
+    "FOREIGN KEY (account_user_id) REFERENCES sys_user(id)",
+    "MODIFY COLUMN show_url TEXT NULL",
+    "MODIFY COLUMN clk_url TEXT NULL",
+    "'role_advertiser','广告主','ROLE_ADVERTISER'",
+    "perm_ocpx_report_export",
+):
+    if required_fragment not in v103:
+        raise SystemExit(f"V103 migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v103:
+    raise SystemExit("V103 migration gate failed: retired migration ledger is referenced")
 
 admin_pom = (root / "scx-backend/scx-ocpx-admin/pom.xml").read_text(encoding="utf-8")
 engine_pom = (root / "scx-backend/scx-ocpx-engine/pom.xml").read_text(encoding="utf-8")

@@ -9,13 +9,16 @@ SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser (
   id VARCHAR(32) NOT NULL,
   advertiser_name VARCHAR(128) NOT NULL,
+  account_user_id VARCHAR(64) NULL,
   credential_config_key VARCHAR(128) NULL,
   bid_url VARCHAR(5000) NOT NULL,
   macro_params VARCHAR(4000) NULL,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  UNIQUE KEY uk_ocpx_advertiser_name (advertiser_name)
+  UNIQUE KEY uk_ocpx_advertiser_name (advertiser_name),
+  UNIQUE KEY uk_ocpx_advertiser_account_user (account_user_id),
+  CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: upstream advertiser';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_promotion_link (
@@ -59,8 +62,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   media_id VARCHAR(32) NOT NULL,
   unit_price DECIMAL(18,6) NULL,
   biz_id VARCHAR(64) NULL,
-  show_url VARCHAR(2000) NULL,
-  clk_url VARCHAR(2000) NULL,
+  show_url TEXT NULL,
+  clk_url TEXT NULL,
   remark VARCHAR(255) NULL,
   is_delete TINYINT(1) NOT NULL DEFAULT 0,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -323,6 +326,14 @@ WHERE r.role_code = 'ROLE_ADMIN'
   );
 
 -- Seed only the retained advertising menus below.
+INSERT INTO sys_role
+  (id,role_name,role_code,role_desc,type,shop_id,create_time,update_time,del_flag)
+VALUES
+  ('role_advertiser','广告主','ROLE_ADVERTISER','广告主自助账号共享只读角色',
+   '0',NULL,NOW(),NOW(),'0')
+ON DUPLICATE KEY UPDATE role_name=VALUES(role_name),role_desc=VALUES(role_desc),type='0',shop_id=NULL,
+  update_time=NOW(),del_flag='0';
+
 INSERT INTO sys_menu
   (id,name,path,parent_id,icon,component,permission,sort,type,application_key,create_time,update_time,del_flag)
 VALUES
@@ -352,6 +363,7 @@ VALUES
   ('perm_ocpx_monitor_task_add','新增监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_edit','编辑监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_delete','删除监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:delete',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_report_export','导出报表','','menu_ocpx_report','ocpx:report:export',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_list','查询扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:list',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_create','新增扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:create',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_update','编辑扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:update',30,'1','app_base',NOW(),NOW(),'0'),
@@ -363,3 +375,17 @@ INSERT IGNORE INTO sys_role_menu(id,role_id,menu_id)
 SELECT CONCAT('v96_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id
 FROM sys_role r JOIN sys_menu m ON (m.id LIKE 'menu_ocpx_%' OR m.id LIKE 'perm_ocpx_%')
 WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0' AND m.id<>'menu_ocpx_system';
+
+DELETE FROM sys_role_menu
+WHERE role_id = 'role_advertiser';
+
+INSERT INTO sys_role_menu (id,role_id,menu_id)
+SELECT CONCAT('current_',LEFT(SHA2(CONCAT('role_advertiser','|',m.id),256),52)),
+       'role_advertiser',m.id
+FROM sys_menu m
+WHERE m.id IN (
+  'menu_ocpx_home','menu_ocpx_advertiser','menu_ocpx_promotion_link',
+  'menu_ocpx_monitor_task','menu_ocpx_report','menu_ocpx_flow_log',
+  'perm_ocpx_report_export'
+)
+  AND m.del_flag='0';

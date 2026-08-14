@@ -40,7 +40,10 @@ public class OcpxDeductionRuleService {
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private final AdvertiserScope advertiserScope;
+
 	public IPage<DeductionRuleViews.Item> list(Page<OcpxDeductionRule> page, String promotionLinkId) {
+		advertiserScope.requireAdministrator();
 		return ruleMapper
 			.selectPage(page,
 					Wrappers.<OcpxDeductionRule>lambdaQuery()
@@ -51,11 +54,13 @@ public class OcpxDeductionRuleService {
 	}
 
 	public DeductionRuleViews.Item detail(String id) {
+		advertiserScope.requireAdministrator();
 		return view(require(id));
 	}
 
 	@Transactional
 	public DeductionRuleViews.Item create(DeductionRuleRequests.Create request) {
+		advertiserScope.requireAdministrator();
 		requireMedia(request.mediaId());
 		requirePromotionLink(request.promotionLinkId());
 		ensureUnique(null, request.mediaId(), request.promotionLinkId());
@@ -72,6 +77,7 @@ public class OcpxDeductionRuleService {
 
 	@Transactional
 	public DeductionRuleViews.Item update(String id, DeductionRuleRequests.Update request) {
+		advertiserScope.requireAdministrator();
 		OcpxDeductionRule current = require(id);
 		requireMedia(request.mediaId());
 		requirePromotionLink(request.promotionLinkId());
@@ -93,6 +99,7 @@ public class OcpxDeductionRuleService {
 
 	@Transactional
 	public void delete(String id) {
+		advertiserScope.requireAdministrator();
 		OcpxDeductionRule current = require(id);
 		ruleMapper.deleteById(id);
 		syncRouteRatio(current.getPromotionLinkId(), current.getMediaId(), 1.0);

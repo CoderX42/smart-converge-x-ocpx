@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -69,20 +70,19 @@ public class OcpxReportController {
 	}
 
 	@GetMapping("/reports/summary:export")
-	@SaCheckPermission("ocpx:report:view")
+	@SaCheckPermission("ocpx:report:export")
 	public void exportSummary(Integer dateType, String mediaId, String monitorTaskId, String advertiserId,
 			String promotionLinkId, String startTime, String endTime, HttpServletResponse response) {
+		String csv = service.summaryCsv(new SummaryReportQuery(dateType, mediaId, monitorTaskId, advertiserId,
+				promotionLinkId, startTime, endTime, null, null, null, null));
 		try {
 			response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 			response.setContentType("text/csv;charset=UTF-8");
 			String fileName = URLEncoder.encode("时段报表", StandardCharsets.UTF_8).replace("+", "%20");
 			response.setHeader("Content-Disposition", "attachment;filename*=UTF-8''" + fileName + ".csv");
-			response.getWriter()
-				.print("\ufeff"
-						+ service.summaryCsv(new SummaryReportQuery(dateType, mediaId, monitorTaskId, advertiserId,
-								promotionLinkId, startTime, endTime, null, null, null, null)));
+			response.getWriter().print("\ufeff" + csv);
 		}
-		catch (Exception error) {
+		catch (IOException error) {
 			log.error("Export csv error!!!", error);
 		}
 	}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   allColumnKeys,
   copyLongText,
+  createLatestRequestGuard,
   PAGE_SIZES,
   platformLabel,
   platformOptions,
@@ -38,6 +39,14 @@ describe('ocpx table interaction helpers', () => {
     const query = { current: 8, keyword: 'media' };
     resetPage(query);
     expect(query.current).toBe(1);
+  });
+
+  it('accepts only the latest request sequence', () => {
+    const guard = createLatestRequestGuard();
+    const first = guard.begin();
+    const second = guard.begin();
+    expect(guard.isLatest(first)).toBe(false);
+    expect(guard.isLatest(second)).toBe(true);
   });
 
   it('copies long text and reports success', async () => {

@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
@@ -14,11 +13,13 @@ import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import com.yzytech.scx.system.api.dto.SysUserDTO;
 import com.yzytech.scx.system.api.dto.SysUserMobileDTO;
 import com.yzytech.scx.system.api.entity.SysRole;
 import com.yzytech.scx.system.api.entity.SysUser;
 import com.yzytech.scx.system.api.entity.SysUserRole;
+import com.yzytech.scx.system.api.util.SystemPasswordPolicy;
 import com.yzytech.scx.system.service.ISysRoleService;
 import com.yzytech.scx.system.service.ISysUserRoleService;
 import com.yzytech.scx.system.service.ISysUserService;
@@ -95,6 +96,10 @@ public class SysUserController {
 		if (ArrayUtil.isEmpty(sysUser.getRoles())) {
 			return Result.fail("角色不能为空");
 		}
+		if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(sysUser.getType())
+				|| containsAdvertiserRole(sysUser.getRoles())) {
+			return Result.fail("广告主账号及固定角色只能由广告主开户流程创建和分配");
+		}
 		sysUser.setPassword(BCrypt.hashpw(sysUser.getPassword()));
 		return Result.success(sysUserService.saveUser(sysUser));
 	}
@@ -113,7 +118,7 @@ public class SysUserController {
 		if (persisted == null) {
 			return Result.fail("用户不存在或已删除");
 		}
-		if ("2".equals(persisted.getType())) {
+		if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(persisted.getType())) {
 			List<String> currentRoleIds = sysRoleService.findRoleIdsByUserId(persisted.getId());
 			if (!new HashSet<>(currentRoleIds).equals(new HashSet<>(sysUser.getRoles()))) {
 				return Result.fail("广告主账号角色请在广告主管理的账号授权中维护");
@@ -121,6 +126,10 @@ public class SysUserController {
 			sysUser.setUsername(persisted.getUsername());
 			sysUser.setType(persisted.getType());
 			sysUser.setShopId(persisted.getShopId());
+		}
+		else if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(sysUser.getType())
+				|| containsAdvertiserRole(sysUser.getRoles())) {
+			return Result.fail("通用用户管理不可创建广告主账号或分配固定广告主角色");
 		}
 		return Result.success(sysUserService.updateUser(sysUser));
 	}
@@ -135,7 +144,7 @@ public class SysUserController {
 		if (ObjectUtil.isNull(sysUser)) {
 			return Result.fail("用户不存在或已删除");
 		}
-		if ("2".equals(sysUser.getType())) {
+		if (SystemAccountConstants.USER_TYPE_ADVERTISER.equals(sysUser.getType())) {
 			return Result.fail("广告主绑定账号不可在通用用户管理中删除");
 		}
 		// 查询管理员角色
@@ -159,20 +168,26 @@ public class SysUserController {
 
 	@SysLog("修改密码")
 	@Operation(summary = "密码修改")
-	@SaCheckPermission("system:sysuser:password")
 	@PostMapping("/password")
 	public Result editPwd(@RequestBody SysUserDTO sysUserDTO) {
-		SysUser sysUser = sysUserService.getById(sysUserDTO.getId());
+		SysUser sysUser = sysUserService.getById(SecurityUtils.getUserId());
 		if (ObjectUtil.isNull(sysUser)) {
 			return Result.fail("用户不存在或已删除");
 		}
-		if (!BCrypt.checkpw(sysUserDTO.getPassword(), sysUser.getPassword())) {
+		if (!StringUtils.hasText(sysUserDTO.getPassword())
+				|| !BCrypt.checkpw(sysUserDTO.getPassword(), sysUser.getPassword())) {
 			return Result.fail("旧密码错误");
 		}
-		if (!sysUserDTO.getNewPassword().equals(sysUserDTO.getCheckPassword())) {
+		if (!Objects.equals(sysUserDTO.getNewPassword(), sysUserDTO.getCheckPassword())) {
 			return Result.fail("新密码与确认密码不一致");
 		}
-		sysUser.setPassword(BCrypt.hashpw(sysUserDTO.getCheckPassword()));
+		try {
+			SystemPasswordPolicy.validate(sysUserDTO.getNewPassword());
+		}
+		catch (IllegalArgumentException error) {
+			return Result.fail(error.getMessage());
+		}
+		sysUser.setPassword(BCrypt.hashpw(sysUserDTO.getNewPassword()));
 		return Result.success(sysUserService.updateById(sysUser));
 	}
 
@@ -229,11 +244,22 @@ public class SysUserController {
 		if (ObjectUtil.isNull(sysUser)) {
 			return Result.fail("用户不存在或已删除");
 		}
-		if (!sysUserDTO.getPassword().equals(sysUserDTO.getCheckPassword())) {
+		if (!Objects.equals(sysUserDTO.getPassword(), sysUserDTO.getCheckPassword())) {
 			return Result.fail("密码与确认密码不一致");
+		}
+		try {
+			SystemPasswordPolicy.validate(sysUserDTO.getPassword());
+		}
+		catch (IllegalArgumentException error) {
+			return Result.fail(error.getMessage());
 		}
 		sysUser.setPassword(BCrypt.hashpw(sysUserDTO.getPassword()));
 		return Result.success(sysUserService.updateById(sysUser));
+	}
+
+	private boolean containsAdvertiserRole(List<String> roleIds) {
+		return roleIds != null && (roleIds.contains(SystemAccountConstants.ROLE_ADVERTISER_ID)
+				|| roleIds.contains(SystemAccountConstants.ROLE_ADVERTISER_CODE));
 	}
 
 }

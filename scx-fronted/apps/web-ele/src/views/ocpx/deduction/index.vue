@@ -3,8 +3,9 @@ import type { FormInstance, FormRules } from 'element-plus';
 
 import type { DeductionRule, EntityOption } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -20,7 +21,12 @@ import {
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -83,18 +89,29 @@ const rules: FormRules = {
     { trigger: 'blur', validator: validateRatio },
   ],
 };
+const { hasAccessByCodes } = useAccess();
+const canOperate = computed(() =>
+  hasAccessByCodes([
+    'ocpx:deduction-rule:update',
+    'ocpx:deduction-rule:delete',
+  ]),
+);
+const loadGuard = createLatestRequestGuard();
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await listDeductionRules({
       ...query,
       promotionLinkId: query.promotionLinkId || undefined,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -262,7 +279,12 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column fixed="right" label="操作" width="160">
+        <el-table-column
+          v-if="canOperate"
+          fixed="right"
+          label="操作"
+          width="160"
+        >
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:deduction-rule:update'"

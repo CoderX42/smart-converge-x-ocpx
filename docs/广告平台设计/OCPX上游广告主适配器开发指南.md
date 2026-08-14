@@ -13,7 +13,7 @@ SCX 不再从广告主表读取 Adapter 字段。上游协议由 `AdvertiserProt
 
 ## 接入步骤
 
-1. 在管理端创建广告主，保存名称、请求地址、凭据引用和宏。
+1. 在管理端创建广告主，保存名称、请求地址、凭据引用和宏，并设置一次性的登录用户名与密码；系统原子创建只读广告主账号，编辑广告主时不再提交账号密码。
 2. 获取管理端生成的广告主主键。
 3. 在 `AdvertiserProtocolRegistry.REGISTRATIONS` 中把该主键显式映射到 `TEMPLATE_GET` 或 `KIMI`。
 4. 在 Engine 对应 profile 的 `ocpx.partner-credentials.advertisers.<credentialConfigKey>` 填写服务端字面量凭据。

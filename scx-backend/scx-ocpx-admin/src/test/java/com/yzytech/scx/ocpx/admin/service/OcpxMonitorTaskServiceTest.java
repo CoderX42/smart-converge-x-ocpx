@@ -49,6 +49,8 @@ class OcpxMonitorTaskServiceTest {
 
 	private OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private AdvertiserScope advertiserScope;
+
 	private OcpxMonitorTaskService service;
 
 	@BeforeEach
@@ -60,8 +62,9 @@ class OcpxMonitorTaskServiceTest {
 		trackingProperties = new OcpxTrackingProperties();
 		trackingProperties.setEngineBaseUrl("http://127.0.0.1:10000/ocpx");
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
+		advertiserScope = mock(AdvertiserScope.class);
 		service = new OcpxMonitorTaskService(taskMapper, advertiserMapper, linkMapper, mediaMapper, trackingProperties,
-				configRefreshPublisher);
+				configRefreshPublisher, advertiserScope);
 	}
 
 	@Test
@@ -99,26 +102,16 @@ class OcpxMonitorTaskServiceTest {
 	}
 
 	@Test
-	void createRequiresOnlyMediaLikeSgyzAndStillGeneratesUrls() {
+	void createRejectsMissingAdvertiserAndLinkInsteadOfPersistingDanglingTask() {
 		when(mediaMapper.selectById("media-1")).thenReturn(media("media-1"));
 		when(advertiserMapper.selectById(anyString())).thenReturn(null);
 		when(linkMapper.selectById(anyString())).thenReturn(null);
-		AtomicReference<OcpxMonitorTask> stored = new AtomicReference<>();
-		doAnswer(invocation -> {
-			OcpxMonitorTask task = invocation.getArgument(0);
-			task.setId("task-1");
-			stored.set(task);
-			return 1;
-		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
-		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
 
-		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
-				"media-1", BigDecimal.ONE, null, null));
-
-		assertThat(item.showUrl()).contains("event=IMP");
-		assertThat(item.clkUrl()).contains("event=CLK");
-		assertThat(item.showUrl()).contains("&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
-		verify(configRefreshPublisher).mark();
+		assertThatThrownBy(() -> service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
+				"media-1", BigDecimal.ONE, null, null))).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("广告主不存在");
+		verify(taskMapper, never()).insert(any(OcpxMonitorTask.class));
+		verify(configRefreshPublisher, never()).mark();
 	}
 
 	@Test

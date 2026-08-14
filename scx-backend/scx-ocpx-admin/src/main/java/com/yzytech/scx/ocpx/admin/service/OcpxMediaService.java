@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
+import com.yzytech.scx.ocpx.admin.dto.ManagementRows;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,10 @@ public class OcpxMediaService {
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private final AdvertiserScope advertiserScope;
+
 	public IPage<MediaViews.Item> list(Page<OcpxMedia> page, String keyword, String mediaId) {
+		advertiserScope.requireAdministrator();
 		return mediaMapper
 			.selectPage(page, Wrappers.<OcpxMedia>lambdaQuery()
 				.eq(StringUtils.hasText(mediaId), OcpxMedia::getId, mediaId)
@@ -36,6 +40,13 @@ public class OcpxMediaService {
 
 	/** 对齐 SGYZ getChannelName：下拉只返回渠道编号和名称。 */
 	public List<MediaViews.Option> options() {
+		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
+		if (StringUtils.hasText(scopedAdvertiserId)) {
+			return mediaMapper.selectOptionsForAdvertiser(scopedAdvertiserId)
+				.stream()
+				.map(item -> new MediaViews.Option(item.getId(), item.getName()))
+				.toList();
+		}
 		return mediaMapper.selectList(Wrappers.<OcpxMedia>lambdaQuery().orderByDesc(OcpxMedia::getId))
 			.stream()
 			.map(item -> new MediaViews.Option(item.getId(), item.getMediaName()))
@@ -43,11 +54,13 @@ public class OcpxMediaService {
 	}
 
 	public MediaViews.Item detail(String id) {
+		advertiserScope.requireAdministrator();
 		return view(require(id));
 	}
 
 	@Transactional
 	public MediaViews.Item create(MediaRequests.Create request) {
+		advertiserScope.requireAdministrator();
 		ensureUnique(null, request.mediaName());
 		OcpxMedia media = new OcpxMedia();
 		apply(media, request.mediaName(), request.credentialConfigKey(), request.uri(), request.macroParams());
@@ -58,6 +71,7 @@ public class OcpxMediaService {
 
 	@Transactional
 	public MediaViews.Item update(String id, MediaRequests.Update request) {
+		advertiserScope.requireAdministrator();
 		require(id);
 		ensureUnique(id, request.mediaName());
 		OcpxMedia update = new OcpxMedia();

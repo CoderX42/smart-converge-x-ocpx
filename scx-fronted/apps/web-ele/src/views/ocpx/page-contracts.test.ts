@@ -9,7 +9,10 @@ const page = (name: string) =>
 
 describe('vientiane-aligned OCPX page contracts', () => {
   it.each([
-    ['advertiser', ['广告主编号', '凭据引用', '请求地址', '宏参数', '充值']],
+    [
+      'advertiser',
+      ['广告主编号', '用户名', '凭据引用', '请求地址', '宏参数', '充值'],
+    ],
     [
       'promotion-link',
       ['链接编号', '渠道号', '投放链接', '唤起链接', '扩展信息', '删除'],
@@ -46,6 +49,24 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).not.toMatch(/v-model="form\.(showUrl|clkUrl)"/);
   });
 
+  it('keeps advertiser credentials create-only and resets every core dialog', () => {
+    const advertiser = page('advertiser');
+    expect(advertiser).toContain('请输入登录用户名');
+    expect(advertiser).toContain('请输入登录密码');
+    expect(advertiser).toContain('v-if="!editing"');
+    expect(advertiser).toContain('username: form.username.trim()');
+    expect(advertiser).not.toMatch(/updateAdvertiserV2\([^)]*password/);
+    for (const name of [
+      'advertiser',
+      'promotion-link',
+      'media',
+      'monitor-task',
+    ]) {
+      expect(page(name)).toContain(':close-on-click-modal="false"');
+      expect(page(name)).toContain('@close="handleDialogClose"');
+    }
+  });
+
   it('clears invalid child filters and form values after parent changes', () => {
     const monitor = page('monitor-task');
     const report = page('report');
@@ -67,5 +88,40 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(page('media')).toContain('请选择渠道');
     expect(page('monitor-task')).toContain('所属渠道');
     expect(page('monitor-task')).toContain('投放链接');
+  });
+
+  it('guards every page against stale list responses', () => {
+    for (const name of [
+      'advertiser',
+      'dashboard',
+      'deduction',
+      'flow-log',
+      'media',
+      'monitor-task',
+      'promotion-link',
+      'report',
+    ]) {
+      const source = page(name);
+      expect(source).toContain('createLatestRequestGuard');
+      expect(source).toContain('loadGuard.begin()');
+      expect(source).toContain('loadGuard.isLatest(requestSequence)');
+    }
+  });
+
+  it('shows operation and export affordances only with matching codes', () => {
+    for (const name of [
+      'advertiser',
+      'deduction',
+      'media',
+      'monitor-task',
+      'promotion-link',
+    ]) {
+      const source = page(name);
+      expect(source).toContain('const canOperate = computed');
+      expect(source).toMatch(/v-if="canOperate"[\s\S]*label="操作"/);
+    }
+    const report = page('report');
+    expect(report).toContain("hasAccessByCodes(['ocpx:report:export'])");
+    expect(report).toContain(':export-btn="canExport"');
   });
 });

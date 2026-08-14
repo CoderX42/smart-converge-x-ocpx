@@ -49,7 +49,7 @@ SCX 保留旧 Redis Key、去重算法、队列分桶、扣量数组、StorageTa
 
 ## 2026-08 增补：已对齐能力
 
-本节登记 2026-08-13 从 SGYZ 继续平移并已在当前工作树交付的能力（迁移 V99–V102）。
+本节登记 2026-08-13 至 2026-08-14 从 SGYZ 继续平移并已在当前工作树交付的能力（迁移 V99–V103）。
 「现状」以代码、测试与门禁脚本证据为准，不代表目标数据库或生产已发布。
 
 | # | 已对齐能力 | SGYZ 来源 | SCX 落地 |
@@ -61,7 +61,8 @@ SCX 保留旧 Redis Key、去重算法、队列分桶、扣量数组、StorageTa
 | 5 | 小米 + KIMI 合作方适配 | mi/kimi Controller 与投递协议 | 引擎保留 `GET /mi/feedback`、小米签名回传、`POST /kimi/callback` 和 KIMI CLICK 投递；V102 删除表内 Adapter 字段，改由广告主/媒体主键 Java 固定注册表分发，签名材料从服务端凭据引用解析。未登记广告主拒绝并写脱敏失败日志，未登记媒体走通用 Callback URL |
 | 6 | 数据面运维回补 | 日志拆分与清理任务 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实无需改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
 | 7 | vientiane 管理端硬替换对齐 | `vientiane-frontend/src/views` | V102 精简五实体字段、数值平台、删列改名、函数唯一索引与 RBAC；删除状态/归档/预检/连通性/媒体导出等旧接口；七个列表页统一列控制、复制、级联和分页；详见 [V102 基线](OCPX管理端vientiane对齐V102.md) |
+| 8 | 广告主开户与只读账号 | DSP 新增时同步创建账号 | V103 使用 SCX `sys_user`/`sys_user_role` 原子开户，BCrypt 保存密码，固定 `ROLE_ADVERTISER`；type=2 账号以 `shop_id` 强制限制为自身广告主，只读六页与报表 CSV，既有广告主不自动开户；详见 [V103 基线](OCPX管理端开户与数据范围V103.md) |
 
 仍未对齐（维持原排除）：SGYZ 其余 11 个媒体与 19 个广告主合作方适配、RTA、
-渠道应用审核、自助账号体系、点击扣费/CPC、账务流水表，以及智能出价、预算、
+渠道应用审核、广告主自助增删改运营、点击扣费/CPC、账务流水表，以及智能出价、预算、
 重试与 DLQ。

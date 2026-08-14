@@ -23,6 +23,9 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,23 +43,33 @@ public class OcpxMonitorTaskService {
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
+	private final AdvertiserScope advertiserScope;
+
 	public IPage<MonitorTaskViews.Item> list(Page<OcpxMonitorTask> page, String keyword, String advertiserId,
 			String promotionLinkId, String mediaId, String monitorTaskId) {
-		return taskMapper.selectPage(page, Wrappers.<OcpxMonitorTask>lambdaQuery()
+		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
+		IPage<OcpxMonitorTask> result = taskMapper.selectPage(page, Wrappers.<OcpxMonitorTask>lambdaQuery()
 			.and(StringUtils.hasText(keyword),
 					q -> q.like(OcpxMonitorTask::getId, keyword).or().like(OcpxMonitorTask::getMonitorName, keyword))
-			.eq(StringUtils.hasText(advertiserId), OcpxMonitorTask::getAdvertiserId, advertiserId)
+			.eq(StringUtils.hasText(scopedAdvertiserId), OcpxMonitorTask::getAdvertiserId, scopedAdvertiserId)
 			.eq(StringUtils.hasText(promotionLinkId), OcpxMonitorTask::getPromotionLinkId, promotionLinkId)
 			.eq(StringUtils.hasText(mediaId), OcpxMonitorTask::getMediaId, mediaId)
 			.eq(StringUtils.hasText(monitorTaskId), OcpxMonitorTask::getId, monitorTaskId)
-			.orderByDesc(OcpxMonitorTask::getUpdateTime)).convert(this::view);
+			.orderByDesc(OcpxMonitorTask::getUpdateTime));
+		Map<String, OcpxAdvertiser> advertisers = advertisers(result.getRecords());
+		Map<String, OcpxPromotionLink> links = links(result.getRecords());
+		Map<String, OcpxMedia> media = media(result.getRecords());
+		return result.convert(task -> view(task, advertisers.get(task.getAdvertiserId()),
+				links.get(task.getPromotionLinkId()), media.get(task.getMediaId())));
 	}
 
 	/** 对齐 SGYZ getMonitorName：按媒体过滤监测任务下拉。 */
 	public List<MonitorTaskViews.Option> options(String mediaId) {
+		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
 		return taskMapper
 			.selectList(Wrappers.<OcpxMonitorTask>lambdaQuery()
 				.eq(StringUtils.hasText(mediaId), OcpxMonitorTask::getMediaId, mediaId)
+				.eq(StringUtils.hasText(scopedAdvertiserId), OcpxMonitorTask::getAdvertiserId, scopedAdvertiserId)
 				.orderByDesc(OcpxMonitorTask::getId))
 			.stream()
 			.map(item -> new MonitorTaskViews.Option(item.getId(), item.getMonitorName()))
@@ -64,14 +77,16 @@ public class OcpxMonitorTaskService {
 	}
 
 	public MonitorTaskViews.Item detail(String id) {
-		return view(require(id));
+		OcpxMonitorTask task = require(id);
+		advertiserScope.requireOwner(task.getAdvertiserId());
+		return view(task, advertiserMapper.selectById(task.getAdvertiserId()),
+				linkMapper.selectById(task.getPromotionLinkId()), mediaMapper.selectById(task.getMediaId()));
 	}
 
 	@Transactional
 	public MonitorTaskViews.Item create(MonitorTaskRequests.Create request) {
-		if (mediaMapper.selectById(request.mediaId()) == null) {
-			throw new IllegalArgumentException("媒体不存在");
-		}
+		advertiserScope.requireOwner(request.advertiserId());
+		validateRelation(request.advertiserId(), request.promotionLinkId(), request.mediaId());
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		apply(task, request.monitorName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
 				request.unitPrice(), request.bizId(), request.remark());
@@ -89,7 +104,9 @@ public class OcpxMonitorTaskService {
 
 	@Transactional
 	public MonitorTaskViews.Item update(String id, MonitorTaskRequests.Update request) {
-		require(id);
+		OcpxMonitorTask current = require(id);
+		advertiserScope.requireOwner(current.getAdvertiserId());
+		advertiserScope.requireOwner(request.advertiserId());
 		validateRelation(request.advertiserId(), request.promotionLinkId(), request.mediaId());
 		OcpxMonitorTask update = new OcpxMonitorTask();
 		update.setId(id);
@@ -104,7 +121,8 @@ public class OcpxMonitorTaskService {
 	/** 逻辑删（对齐 SGYZ channel/monitor/delete/{monitorId}，实体 @TableLogic 生效，URL 不做特殊处理）。 */
 	@Transactional
 	public void delete(String id) {
-		require(id);
+		OcpxMonitorTask current = require(id);
+		advertiserScope.requireOwner(current.getAdvertiserId());
 		taskMapper.deleteById(id);
 		configRefreshPublisher.mark();
 	}
@@ -169,10 +187,37 @@ public class OcpxMonitorTaskService {
 		return v;
 	}
 
-	private MonitorTaskViews.Item view(OcpxMonitorTask t) {
-		OcpxAdvertiser a = advertiserMapper.selectById(t.getAdvertiserId());
-		OcpxPromotionLink p = linkMapper.selectById(t.getPromotionLinkId());
-		OcpxMedia m = mediaMapper.selectById(t.getMediaId());
+	private Map<String, OcpxAdvertiser> advertisers(List<OcpxMonitorTask> tasks) {
+		List<String> ids = tasks.stream().map(OcpxMonitorTask::getAdvertiserId).filter(StringUtils::hasText).distinct()
+			.toList();
+		return ids.isEmpty() ? Map.of()
+				: advertiserMapper.selectBatchIds(ids)
+					.stream()
+					.collect(Collectors.toMap(OcpxAdvertiser::getId, Function.identity()));
+	}
+
+	private Map<String, OcpxPromotionLink> links(List<OcpxMonitorTask> tasks) {
+		List<String> ids = tasks.stream()
+			.map(OcpxMonitorTask::getPromotionLinkId)
+			.filter(StringUtils::hasText)
+			.distinct()
+			.toList();
+		return ids.isEmpty() ? Map.of()
+				: linkMapper.selectBatchIds(ids)
+					.stream()
+					.collect(Collectors.toMap(OcpxPromotionLink::getId, Function.identity()));
+	}
+
+	private Map<String, OcpxMedia> media(List<OcpxMonitorTask> tasks) {
+		List<String> ids = tasks.stream().map(OcpxMonitorTask::getMediaId).filter(StringUtils::hasText).distinct()
+			.toList();
+		return ids.isEmpty() ? Map.of()
+				: mediaMapper.selectBatchIds(ids)
+					.stream()
+					.collect(Collectors.toMap(OcpxMedia::getId, Function.identity()));
+	}
+
+	private MonitorTaskViews.Item view(OcpxMonitorTask t, OcpxAdvertiser a, OcpxPromotionLink p, OcpxMedia m) {
 		return new MonitorTaskViews.Item(t.getId(), t.getMonitorName(), t.getAdvertiserId(),
 				a == null ? null : a.getAdvertiserName(), t.getPromotionLinkId(), p == null ? null : p.getLinkName(),
 				p == null ? null : p.getPlatform(), t.getMediaId(), m == null ? null : m.getMediaName(), t.getShowUrl(),

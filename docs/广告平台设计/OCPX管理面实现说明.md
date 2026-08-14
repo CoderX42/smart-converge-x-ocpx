@@ -14,7 +14,7 @@
 
 | 对象 | 业务字段 | 删除语义 |
 |---|---|---|
-| 广告主 | `name/bidUrl/credentialConfigKey/macro` | 不提供删除 |
+| 广告主 | `name/bidUrl/credentialConfigKey/macro`；新增时另带 `username/password` 开户 | 不提供删除 |
 | 推广链接 | `advertiserId/name/platform/channelId/linkUrl/deeplink/linkExt/remark` | `is_delete` 逻辑删除 |
 | 媒体 | `name/uri/credentialConfigKey/macro` | 不提供删除 |
 | 监测任务 | `monitorName/mediaId/advertiserId/promotionLinkId/unitPrice/bizId/showUrl/clkUrl/remark` | `is_delete` 逻辑删除 |
@@ -22,7 +22,7 @@
 
 所有对象另有主键和创建/修改时间。平台为数值：`1 Android`、`2 iOS`、`3 Android+iOS`、`4 快应用`。监测 URL 由后端生成，前端不提交。
 
-广告主 `bidUrl`、推广链接 URL 统一使用 `OcpxUrlPolicy` 校验，只允许安全的 HTTP/HTTPS 地址并拒绝本机、内网、链路本地地址、危险协议和非法模板。媒体 `uri` 是接入标识，不作为服务端请求目的地址。
+广告主 `bidUrl` 和推广链接 URL 按 V103 产品决策仅做必填、长度和首尾空白处理，允许任意 scheme、本机和内网地址。广告主 `bidUrl` 会被 Engine 用作服务端出站目的地址，因此该决策保留明确的 SSRF 风险；它不应被描述为安全校验。媒体 `uri` 是接入标识，不作为服务端请求目的地址；Engine 其他回调和协议安全边界不因本决策放宽。
 
 ## 管理 API
 
@@ -44,7 +44,9 @@
 
 Dashboard 保留 SCX 指标卡和四维排行，不使用列表页工具栏。流程日志没有参考页面，因此保留现有业务字段，仅统一列表交互。
 
-按钮同时受权限控制，并提供加载禁用、键盘焦点和可访问名称。浏览器只读写 `credentialConfigKey` 引用，永远不读写真实账号或密钥。
+按钮同时受权限控制，并提供加载禁用、键盘焦点和可访问名称。浏览器只读写 `credentialConfigKey` 引用；广告主登录密码仅在新增弹窗提交一次，编辑、列表和详情均不返回或提交密码。
+
+广告主开户同时创建 `sys_user.type=2` 账号、绑定系统托管的共享 `ROLE_ADVERTISER`，并用 `shop_id` 固定自身广告主数据范围。该角色只能读取自己的广告主、推广链接、监测任务、Dashboard、报表、CSV 和流程日志；不能管理媒体、扣量、充值或任何业务对象。服务端覆盖客户端提交的数据范围，前端隐藏只读账号无权使用的按钮和空操作列。
 
 ## 报表和日志
 

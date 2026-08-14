@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import type { EntityOption, ReportOption, SummaryReportRow } from '#/api/ocpx';
 
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import dayjs from 'dayjs';
@@ -16,7 +17,12 @@ import {
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
-import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -121,35 +127,47 @@ const mediaOptions = ref<ReportOption[]>([]);
 const advertiserOptions = ref<ReportOption[]>([]);
 const monitorOptions = ref<EntityOption[]>([]);
 const linkOptions = ref<EntityOption[]>([]);
+const { hasAccessByCodes } = useAccess();
+const canExport = computed(() => hasAccessByCodes(['ocpx:report:export']));
 const filters = reactive({
   advertiserId: '',
   asc: '',
   current: 1,
   dateType: 1,
-  dates: [dayjs().format('YYYYMMDD'), dayjs().format('YYYYMMDD')] as [
-    string,
-    string,
-  ],
+  dates: [dayjs().format('YYYYMMDD'), dayjs().format('YYYYMMDD')] as
+    [string, string] | null,
   desc: '',
   mediaId: '',
   monitorTaskId: '',
   promotionLinkId: '',
   size: 30,
 });
+const loadGuard = createLatestRequestGuard();
+const monitorOptionGuard = createLatestRequestGuard();
+const linkOptionGuard = createLatestRequestGuard();
+
+function currentDates(): [string, string] {
+  if (filters.dates?.[0] && filters.dates[1]) return filters.dates;
+  const today = dayjs().format('YYYYMMDD');
+  filters.dates = [today, today];
+  return filters.dates;
+}
 
 function currentParams() {
+  const dates = currentDates();
   return {
     advertiserId: filters.advertiserId || undefined,
     dateType: filters.dateType,
-    endTime: filters.dates[1],
+    endTime: dates[1],
     mediaId: filters.mediaId || undefined,
     monitorTaskId: filters.monitorTaskId || undefined,
     promotionLinkId: filters.promotionLinkId || undefined,
-    startTime: filters.dates[0],
+    startTime: dates[0],
   };
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
   loading.value = true;
   try {
     const result = await getSummaryReport({
@@ -159,10 +177,12 @@ async function load() {
       desc: filters.desc || undefined,
       size: filters.size,
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -219,16 +239,18 @@ function tableSummary({
 
 async function loadMonitors() {
   filters.monitorTaskId = '';
-  monitorOptions.value = await monitorTaskOptions(
-    filters.mediaId || undefined,
-  );
+  const requestSequence = monitorOptionGuard.begin();
+  const result = await monitorTaskOptions(filters.mediaId || undefined);
+  if (monitorOptionGuard.isLatest(requestSequence)) {
+    monitorOptions.value = result;
+  }
 }
 
 async function loadLinks() {
   filters.promotionLinkId = '';
-  linkOptions.value = await promotionLinkOptions(
-    filters.advertiserId || undefined,
-  );
+  const requestSequence = linkOptionGuard.begin();
+  const result = await promotionLinkOptions(filters.advertiserId || undefined);
+  if (linkOptionGuard.isLatest(requestSequence)) linkOptions.value = result;
 }
 
 watch(
@@ -324,6 +346,7 @@ onMounted(async () => {
         <el-date-picker
           v-model="filters.dates"
           aria-label="报表日期范围"
+          :clearable="false"
           end-placeholder="结束日期"
           range-separator="至"
           start-placeholder="开始日期"
@@ -342,7 +365,7 @@ onMounted(async () => {
         <RightToolbar
           v-model:visible-columns="visibleColumns"
           :columns="columns"
-          export-btn
+          :export-btn="canExport"
           :loading="loading || exporting"
           refresh-btn
           search-btn

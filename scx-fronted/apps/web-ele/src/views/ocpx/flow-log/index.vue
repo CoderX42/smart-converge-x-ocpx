@@ -11,7 +11,12 @@ import { getFlowLogs } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, resetPage } from '../table';
+import {
+  allColumnKeys,
+  createLatestRequestGuard,
+  PAGE_SIZES,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -40,33 +45,47 @@ const filters = reactive({
   dates: [
     dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
     dayjs().format('YYYY-MM-DD'),
-  ] as [string, string],
+  ] as [string, string] | null,
   eventId: '',
   flowType: '',
   resultStatus: '',
   size: 30,
 });
+const loadGuard = createLatestRequestGuard();
+
+function currentDates(): [string, string] {
+  if (filters.dates?.[0] && filters.dates[1]) return filters.dates;
+  filters.dates = [
+    dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
+    dayjs().format('YYYY-MM-DD'),
+  ];
+  return filters.dates;
+}
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
 }
 
 async function load() {
+  const requestSequence = loadGuard.begin();
+  const dates = currentDates();
   loading.value = true;
   try {
     const result = await getFlowLogs({
       current: filters.current,
-      endDate: filters.dates[1],
+      endDate: dates[1],
       eventId: filters.eventId || undefined,
       flowType: filters.flowType || undefined,
       resultStatus: filters.resultStatus || undefined,
       size: filters.size,
-      startDate: filters.dates[0],
+      startDate: dates[0],
     });
-    rows.value = result.records;
-    total.value = result.total;
+    if (loadGuard.isLatest(requestSequence)) {
+      rows.value = result.records;
+      total.value = result.total;
+    }
   } finally {
-    loading.value = false;
+    if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
 }
 
@@ -98,6 +117,7 @@ onMounted(load);
         <el-date-picker
           v-model="filters.dates"
           aria-label="流程日志日期范围"
+          :clearable="false"
           end-placeholder="结束日期"
           range-separator="至"
           start-placeholder="开始日期"
