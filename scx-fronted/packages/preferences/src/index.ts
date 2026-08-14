@@ -11,7 +11,7 @@ import type { DeepPartial } from '@boot-core/typings';
 function defineOverridesPreferences(preferences: DeepPartial<Preferences>) {
   preferences.app = {
     accessMode: 'backend',
-    name: '智汇广告平台',
+    name: 'OmniLink',
   };
   preferences.theme = {
     mode: 'light',
@@ -21,7 +21,7 @@ function defineOverridesPreferences(preferences: DeepPartial<Preferences>) {
     source: '/static/logo.png',
   };
   preferences.copyright = {
-    companyName: '智汇广告平台',
+    companyName: 'OmniLink',
     companySiteLink: 'https://example.com',
     date: '2025',
     enable: true,

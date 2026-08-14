@@ -97,7 +97,7 @@ async function login(browser: Browser, role: RoleName): Promise<RoleSession> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   await page.goto('/#/auth/login');
-  await expect(page.getByText('智汇广告平台', { exact: true })).toBeVisible();
+  await expect(page.getByText('OmniLink', { exact: true })).toBeVisible();
   await page.getByPlaceholder('请输入用户名').fill(roleCredentials.username);
   await page
     .getByRole('textbox', { name: '密码', exact: true })

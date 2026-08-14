@@ -30,7 +30,7 @@ async function viteLicensePlugin(
       handler: (_options: NormalizedOutputOptions, bundle: OutputBundle) => {
         const date = dateUtil().format('YYYY-MM-DD ');
         const copyrightText = `/*!
-  * Smart Converge X
+  * OmniLink
   * Version: ${version}
   * License: MIT License
   * Description: ${description}

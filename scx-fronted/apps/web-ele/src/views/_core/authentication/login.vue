@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 
 import { AuthenticationLogin, z } from '@boot/common-ui';
 import { $t } from '@boot/locales';
+import { preferences } from '@boot/preferences';
 
 import { ElMessage } from 'element-plus';
 
@@ -108,7 +109,7 @@ const wxCodeLogin = async (code: string) => {
   };
   authStore.authSocialLogin(params);
 };
-const loginTitle = computed(() => '智汇广告平台');
+const loginTitle = computed(() => preferences.app.name);
 </script>
 
 <template>

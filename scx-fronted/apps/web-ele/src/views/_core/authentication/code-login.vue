@@ -6,6 +6,7 @@ import { computed } from 'vue';
 
 import { AuthenticationCodeLogin, z } from '@boot/common-ui';
 import { $t } from '@boot/locales';
+import { preferences } from '@boot/preferences';
 
 import { ElMessage } from 'element-plus';
 
@@ -89,7 +90,7 @@ async function handleLogin(values: Recordable<any>) {
     console.error(error);
   }
 }
-const loginTitle = computed(() => '智汇广告平台');
+const loginTitle = computed(() => preferences.app.name);
 </script>
 
 <template>

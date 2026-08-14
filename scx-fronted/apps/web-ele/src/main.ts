@@ -1,4 +1,4 @@
-import { initPreferences } from '@boot/preferences';
+import { initPreferences, updatePreferences } from '@boot/preferences';
 import { unmountGlobalLoading } from '@boot/utils';
 
 import { overridesPreferences } from './preferences';
@@ -19,6 +19,14 @@ async function initApplication() {
   await initPreferences({
     namespace,
     overrides: overridesPreferences,
+  });
+
+  // 品牌名称不属于用户偏好。每次启动都以当前构建配置为准，避免旧缓存
+  // 在改名后继续覆盖导航、标题或版权区域，同时保留主题和布局等设置。
+  const appTitle = import.meta.env.VITE_APP_TITLE || 'OmniLink';
+  updatePreferences({
+    app: { name: appTitle },
+    copyright: { companyName: appTitle },
   });
 
   // 启动应用并挂载

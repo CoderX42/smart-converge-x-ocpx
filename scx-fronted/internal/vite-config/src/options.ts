@@ -6,8 +6,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 const getDefaultPwaOptions = (name: string): Partial<PwaPluginOptions> => ({
   manifest: {
-    description:
-      'Smart Converge X is a white-label admin dashboard template based on Vue 3. ',
+    description: 'OmniLink',
     icons: [
       {
         sizes: '192x192',

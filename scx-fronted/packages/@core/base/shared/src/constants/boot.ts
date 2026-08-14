@@ -14,7 +14,7 @@ export const BOOT_DOC_URL = 'https://example.com/docs';
 export const BOOT_LOGO_URL = '/static/logo.svg';
 
 /**
- * @zh_CN Smart Converge X 首页地址
+ * @zh_CN OmniLink 首页地址
  */
 export const BOOT_PREVIEW_URL = 'https://example.com';
 

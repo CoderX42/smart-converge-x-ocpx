@@ -25,7 +25,7 @@ const defaultPreferences: Preferences = {
     layout: 'sidebar-nav',
     locale: 'zh-CN',
     loginExpiredMode: 'page',
-    name: 'Smart Converge X',
+    name: 'OmniLink',
     preferencesButtonPosition: 'auto',
     watermark: false,
     zIndex: 200,

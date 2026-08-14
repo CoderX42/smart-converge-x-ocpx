@@ -117,7 +117,7 @@ const { authPanelCenter, authPanelLeft, authPanelRight, isDark } =
           <div class="text-1xl text-foreground mt-6 font-sans lg:text-2xl">
             {{ pageTitle }}
           </div>
-          <div class="dark:text-muted-foreground mt-2">
+          <div v-if="pageDescription" class="dark:text-muted-foreground mt-2">
             {{ pageDescription }}
           </div>
         </div>

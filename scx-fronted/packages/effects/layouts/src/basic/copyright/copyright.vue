@@ -12,7 +12,7 @@ defineOptions({
 });
 
 withDefaults(defineProps<Props>(), {
-  companyName: 'Smart Converge X',
+  companyName: 'OmniLink',
   companySiteLink: '',
   date: '2024',
   icp: '',
