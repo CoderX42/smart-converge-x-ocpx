@@ -5,10 +5,13 @@ import {
   createMedia,
   createMonitorTask,
   createPromotionLink,
+  deleteAdvertiserV2,
+  deleteMedia,
   updateAdvertiserV2,
 } from './four-entity';
 
 const requestClient = vi.hoisted(() => ({
+  delete: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
 }));
@@ -110,5 +113,19 @@ describe('ocpx four-entity write contracts', () => {
       remark: undefined,
       unitPrice: 1.2,
     });
+  });
+
+  it('uses the aligned delete endpoints for advertiser and media', async () => {
+    await deleteAdvertiserV2('advertiser-1');
+    await deleteMedia('media-1');
+
+    expect(requestClient.delete).toHaveBeenNthCalledWith(
+      1,
+      '/ocpx/advertisers/advertiser-1',
+    );
+    expect(requestClient.delete).toHaveBeenNthCalledWith(
+      2,
+      '/ocpx/media/media-1',
+    );
   });
 });

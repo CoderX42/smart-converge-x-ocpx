@@ -29,7 +29,8 @@ class OcpxManagementApiV102ContractTest {
 	void controllersDoNotExposeRetiredManagementActions() {
 		for (Class<?> controller : Set.of(OcpxAdvertiserController.class, OcpxPromotionLinkController.class,
 				OcpxMediaController.class, OcpxMonitorTaskController.class)) {
-			Set<String> methods = Arrays.stream(controller.getDeclaredMethods()).map(method -> method.getName())
+			Set<String> methods = Arrays.stream(controller.getDeclaredMethods())
+				.map(method -> method.getName())
 				.collect(Collectors.toSet());
 			assertThat(methods).doesNotContainAnyElementsOf(RETIRED_METHODS);
 		}
@@ -37,10 +38,10 @@ class OcpxManagementApiV102ContractTest {
 
 	@Test
 	void writeDtosContainOnlyV102Fields() {
-		assertThat(componentNames(AdvertiserRequests.Create.class))
-			.containsExactly("name", "credentialConfigKey", "bidUrl", "macroParams", "username", "password");
-		assertThat(componentNames(MediaRequests.Create.class))
-			.containsExactly("mediaName", "credentialConfigKey", "uri", "macroParams");
+		assertThat(componentNames(AdvertiserRequests.Create.class)).containsExactly("name", "credentialConfigKey",
+				"bidUrl", "macroParams", "username", "password");
+		assertThat(componentNames(MediaRequests.Create.class)).containsExactly("mediaName", "credentialConfigKey",
+				"uri", "macroParams");
 		assertThat(componentNames(PromotionLinkRequests.Create.class)).containsExactly("advertiserId", "linkName",
 				"platform", "linkChannel", "linkUrl", "deeplink", "linkExt", "remark");
 		assertThat(componentNames(MonitorTaskRequests.Create.class)).containsExactly("monitorName", "advertiserId",

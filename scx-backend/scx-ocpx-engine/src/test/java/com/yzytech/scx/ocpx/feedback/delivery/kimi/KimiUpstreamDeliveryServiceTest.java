@@ -54,9 +54,9 @@ class KimiUpstreamDeliveryServiceTest {
 		task.setBizId("{\"secretKey\":\"s\",\"trackingId\":\"trk 1\"}");
 		monitorTaskIndex.add(task.getId(), task);
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		advertiser
-			.setBidUrl("https://kimi.example/click?rid=__REQUEST_ID__&oaid=__OAID__&ua=__UA__&os=__OS__&missing=__IMEI__"
-					+ "&biz=__BIZ_ID__&cb=__CALLBACK_URL__");
+		advertiser.setBidUrl(
+				"https://kimi.example/click?rid=__REQUEST_ID__&oaid=__OAID__&ua=__UA__&os=__OS__&missing=__IMEI__"
+						+ "&biz=__BIZ_ID__&cb=__CALLBACK_URL__");
 		FeedbackReq feedback = feedback(EventTypeEnum.CLICK);
 
 		String requestUrl = service.getReqUrl(advertiser, feedback);
@@ -66,6 +66,21 @@ class KimiUpstreamDeliveryServiceTest {
 		assertThat(requestUrl)
 			.isEqualTo("https://kimi.example/click?rid=request-1&oaid=oaid-1&ua=ua%20x&os=android&missing=__IMEI__"
 					+ "&biz=trk%201&cb=" + expectedCallback);
+	}
+
+	@Test
+	void appendsAdvertiserMacroParamsToAKimiBaseUrl() {
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setBidUrl("custom://kimi/feedback?tenant=1");
+		advertiser.setMacroParams("clickid=__CLICKID__&callback=__CALLBACK__");
+		FeedbackReq feedback = feedback(EventTypeEnum.CLICK);
+		feedback.setClickId("click-1");
+
+		String requestUrl = service.getReqUrl(advertiser, feedback);
+
+		assertThat(requestUrl)
+			.startsWith("custom://kimi/feedback?tenant=1&clickid=click-1&callback=http%3A%2F%2F127.0.0.1")
+			.doesNotContain("__CLICKID__", "__CALLBACK__");
 	}
 
 	@Test

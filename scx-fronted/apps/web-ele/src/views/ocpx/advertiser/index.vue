@@ -8,11 +8,13 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   advertiserOptions,
+  appendAdvertiserMacroParams,
   createAdvertiserV2,
+  deleteAdvertiserV2,
   listAdvertisers,
   rechargeAdvertiser,
   updateAdvertiserV2,
@@ -51,6 +53,7 @@ const rows = ref<AdvertiserV2[]>([]);
 const advertiserSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const deletingId = ref('');
 const total = ref(0);
 const showSearch = ref(true);
 const query = reactive({ advertiserId: '', current: 1, size: 30 });
@@ -68,7 +71,11 @@ const form = reactive({
 });
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
-  hasAccessByCodes(['ocpx:advertiser:edit', 'ocpx:advertiser:recharge']),
+  hasAccessByCodes([
+    'ocpx:advertiser:edit',
+    'ocpx:advertiser:recharge',
+    'ocpx:advertiser:delete',
+  ]),
 );
 const loadGuard = createLatestRequestGuard();
 
@@ -159,16 +166,16 @@ async function save() {
   saving.value = true;
   try {
     const editingId = editing.value?.id;
-    const businessPayload = {
+    const createPayload = {
       bidUrl: form.bidUrl,
       credentialConfigKey: form.credentialConfigKey || undefined,
       macroParams: form.macroParams || undefined,
       name: form.advertiserName,
     };
     await (editingId
-      ? updateAdvertiserV2(editingId, businessPayload)
+      ? updateAdvertiserV2(editingId, createPayload)
       : createAdvertiserV2({
-          ...businessPayload,
+          ...createPayload,
           password: form.password,
           username: form.username.trim(),
         }));
@@ -220,6 +227,27 @@ async function submitRecharge() {
   }
 }
 
+async function remove(row: AdvertiserV2) {
+  await ElMessageBox.confirm(
+    '仅未被推广链接、监测任务或历史数据引用的广告主可删除，绑定登录账号也会同步注销。确认继续？',
+    '删除广告主',
+    {
+      confirmButtonText: '确认删除',
+      type: 'warning',
+    },
+  );
+  deletingId.value = row.id;
+  try {
+    await deleteAdvertiserV2(row.id);
+    ElMessage.success('删除成功');
+    advertiserSelects.value = await advertiserOptions();
+    if (query.advertiserId === row.id) query.advertiserId = '';
+    await load();
+  } finally {
+    deletingId.value = '';
+  }
+}
+
 onMounted(async () => {
   advertiserSelects.value = await advertiserOptions();
   await load();
@@ -252,7 +280,7 @@ onMounted(async () => {
       <div class="ocpx-actions">
         <el-button
           v-access:code="'ocpx:advertiser:add'"
-          :disabled="loading || saving"
+          :disabled="loading || saving || Boolean(deletingId)"
           type="primary"
           @click="edit()"
         >
@@ -319,7 +347,8 @@ onMounted(async () => {
           min-width="240"
         >
           <template #default="{ row }"
-            ><LongText :value="row.bidUrl"
+            ><LongText
+              :value="appendAdvertiserMacroParams(row.bidUrl, row.macroParams)"
           /></template>
         </el-table-column>
         <el-table-column
@@ -347,12 +376,12 @@ onMounted(async () => {
           v-if="canOperate"
           fixed="right"
           label="操作"
-          width="130"
+          width="190"
         >
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
-              :disabled="saving || rechargeLoading"
+              :disabled="saving || rechargeLoading || Boolean(deletingId)"
               link
               type="primary"
               @click="edit(row)"
@@ -360,11 +389,20 @@ onMounted(async () => {
             >
             <el-button
               v-access:code="'ocpx:advertiser:recharge'"
-              :disabled="saving || rechargeLoading"
+              :disabled="saving || rechargeLoading || Boolean(deletingId)"
               link
               type="primary"
               @click="recharge(row)"
               >充值</el-button
+            >
+            <el-button
+              v-access:code="'ocpx:advertiser:delete'"
+              :disabled="saving || rechargeLoading || Boolean(deletingId)"
+              :loading="deletingId === row.id"
+              link
+              type="danger"
+              @click="remove(row)"
+              >删除</el-button
             >
           </template>
         </el-table-column>
@@ -406,6 +444,19 @@ onMounted(async () => {
             placeholder="请输入请求地址"
             type="textarea"
         /></el-form-item>
+        <el-form-item label="凭据引用" prop="credentialConfigKey"
+          ><el-input
+            v-model="form.credentialConfigKey"
+            placeholder="请输入凭据引用"
+        /></el-form-item>
+        <el-form-item label="宏参数" prop="macroParams">
+          <el-input
+            v-model="form.macroParams"
+            autosize
+            placeholder="请输入宏参数"
+            type="textarea"
+          />
+        </el-form-item>
         <template v-if="!editing">
           <el-form-item label="用户名" prop="username">
             <el-input
@@ -424,21 +475,9 @@ onMounted(async () => {
               show-password
               type="password"
             />
-            <div class="password-hint">{{ PASSWORD_COMPLEXITY_HINT }}</div>
+            <div class="field-hint">{{ PASSWORD_COMPLEXITY_HINT }}</div>
           </el-form-item>
         </template>
-        <el-form-item label="凭据引用" prop="credentialConfigKey"
-          ><el-input
-            v-model="form.credentialConfigKey"
-            placeholder="请输入凭据引用"
-        /></el-form-item>
-        <el-form-item label="宏参数" prop="macroParams"
-          ><el-input
-            v-model="form.macroParams"
-            autosize
-            placeholder="请输入宏参数"
-            type="textarea"
-        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button :disabled="saving" @click="dialogOpen = false"
@@ -483,7 +522,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.password-hint {
+.field-hint {
   margin-top: 4px;
   font-size: 12px;
   line-height: 1.4;

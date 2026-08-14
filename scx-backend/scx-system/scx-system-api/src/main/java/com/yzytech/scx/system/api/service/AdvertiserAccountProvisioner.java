@@ -19,6 +19,13 @@ public interface AdvertiserAccountProvisioner {
 	 */
 	ProvisionedAccount provision(String advertiserId, String advertiserName, String username, String rawPassword);
 
+	/**
+	 * 删除广告主时注销其托管登录账号。
+	 * @param advertiserId 广告主主键，用于校验账号数据范围
+	 * @param userId 已绑定的系统用户主键
+	 */
+	void deprovision(String advertiserId, String userId);
+
 	/** 已创建账号的非敏感结果。 */
 	record ProvisionedAccount(String userId, String username) {
 	}

@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.feedback.delivery.kimi;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
 import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
+import com.yzytech.scx.ocpx.contract.AdvertiserMacroContract;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
@@ -14,6 +15,7 @@ import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import com.yzytech.scx.ocpx.shared.util.StringUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.Map;
 
@@ -21,8 +23,8 @@ import java.util.Map;
  * KIMI 广告主点击投递实现（SGYZ KimiServiceImpl + KimiParamAdapter 出站半平移）。
  *
  * <p>
- * 仅点击事件投递；请求地址为广告主 {@code bidUrl} 宏替换结果，平台回调地址为
- * {@code {domain}/kimi/callback?ext={AES 加密的 Feedback JSON}&s={lId}_{mId}}。
+ * 仅点击事件投递；请求地址为广告主 {@code bidUrl} 宏替换结果，平台回调地址为 {@code {domain}/kimi/callback?ext={AES
+ * 加密的 Feedback JSON}&s={lId}_{mId}}。
  */
 @Component
 public class KimiUpstreamDeliveryService extends UpstreamDeliveryService {
@@ -88,7 +90,7 @@ public class KimiUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (advertiser == null) {
 			return null;
 		}
-		String bidUrl = advertiser.getBidUrl();
+		String bidUrl = AdvertiserMacroContract.appendToBidUrl(advertiser.getBidUrl(), advertiser.getMacroParams());
 		OcpxMonitorTask monitorTask = monitorTaskIndex.get(feedback.getTId());
 		String bizId = "__BIZ_ID__";
 		if (monitorTask != null) {
@@ -98,13 +100,19 @@ public class KimiUpstreamDeliveryService extends UpstreamDeliveryService {
 				bizId = (String) map.get("trackingId");
 			}
 		}
-		return bidUrl
-			.replace("__REQUEST_ID__", StringUtil.replaceDefault(feedback.getReqId(), "__REQUEST_ID__"))
+		String callbackUrl = StringUtil.replaceDefaultEncode(getCallbackUrl(feedback), "__CALLBACK_URL__");
+		String clickId = StringUtils.hasText(feedback.getClickId()) ? feedback.getClickId() : feedback.getReqId();
+		String caidList = StringUtils.hasText(feedback.getCaidList()) ? feedback.getCaidList() : feedback.getCaid();
+		return bidUrl.replace("__REQUEST_ID__", StringUtil.replaceDefault(feedback.getReqId(), "__REQUEST_ID__"))
+			.replace("__CLICKID__", StringUtil.replaceDefault(clickId, "__CLICKID__"))
 			.replace("__IMEI__", StringUtil.replaceDefault(feedback.getImei(), "__IMEI__"))
 			.replace("__OAID__", StringUtil.replaceDefault(feedback.getOaid(), "__OAID__"))
 			.replace("__OAID_MD5__", StringUtil.replaceDefault(feedback.getOaidMd5(), "__OAID_MD5__"))
 			.replace("__IDFA__", StringUtil.replaceDefault(feedback.getIdfa(), "__IDFA__"))
+			.replace("__IDFA_MD5__", StringUtil.replaceDefault(feedback.getIdfaMd5(), "__IDFA_MD5__"))
 			.replace("__IMEI_MD5__", StringUtil.replaceDefault(feedback.getImeiMd5(), "__IMEI_MD5__"))
+			.replace("__CAID_LIST__", StringUtil.replaceDefaultEncode(caidList, "__CAID_LIST__"))
+			.replace("__AAID__", StringUtil.replaceDefault(feedback.getAaid(), "__AAID__"))
 			.replace("__IP__", StringUtil.replaceDefault(feedback.getIp(), "__IP__"))
 			.replace("__UA__", StringUtil.replaceDefaultEncode(feedback.getUa(), "__UA__"))
 			.replace("__MODEL__", StringUtil.replaceDefaultEncode(feedback.getModel(), "__MODEL__"))
@@ -112,8 +120,16 @@ public class KimiUpstreamDeliveryService extends UpstreamDeliveryService {
 			.replace("__MAC__", StringUtil.replaceDefault(feedback.getMac(), "__MAC__"))
 			.replace("__CAID__", StringUtil.replaceDefault(feedback.getCaid(), "__CAID__"))
 			.replace("__MTS__", StringUtil.replaceDefault(feedback.getTsMs(), "__MTS__"))
-			.replace("__CALLBACK_URL__",
-					StringUtil.replaceDefaultEncode(getCallbackUrl(feedback), "__CALLBACK_URL__"))
+			.replace("__CALLBACK_URL__", callbackUrl)
+			.replace("__CALLBACK__", callbackUrl)
+			.replace("__CAMPAIGNID__", StringUtil.replaceDefault(feedback.getPlanId(), "__CAMPAIGNID__"))
+			.replace("__ADGROUPID__", StringUtil.replaceDefault(feedback.getGroupId(), "__ADGROUPID__"))
+			.replace("__CREATIVEID__", StringUtil.replaceDefault(feedback.getCreativeId(), "__CREATIVEID__"))
+			.replace("__ADVERTISERID__", StringUtil.replaceDefault(feedback.getAdvId(), "__ADVERTISERID__"))
+			.replace("__ORDER_PLAN_ID__", StringUtil.replaceDefault(feedback.getPlanId(), "__ORDER_PLAN_ID__"))
+			.replace("__ORDER_GROUP_ID__", StringUtil.replaceDefault(feedback.getGroupId(), "__ORDER_GROUP_ID__"))
+			.replace("__CREATIVE_ID__", StringUtil.replaceDefault(feedback.getCreativeId(), "__CREATIVE_ID__"))
+			.replace("__ADVERTISER_ID__", StringUtil.replaceDefault(feedback.getAdvId(), "__ADVERTISER_ID__"))
 			.replace("__BIZ_ID__", StringUtil.replaceDefaultEncode(bizId, "__BIZ_ID__"));
 	}
 

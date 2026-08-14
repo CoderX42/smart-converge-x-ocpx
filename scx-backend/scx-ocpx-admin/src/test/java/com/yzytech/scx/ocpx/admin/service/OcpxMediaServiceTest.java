@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -89,6 +90,34 @@ class OcpxMediaServiceTest {
 		assertThat(permission.mode()).isEqualTo(SaMode.OR);
 		assertThat(Arrays.asList(permission.value())).contains("ocpx:media:view", "ocpx:monitor-task:view",
 				"ocpx:report:view", "ocpx:dashboard:view");
+	}
+
+	@Test
+	void deleteUnusedMediaPublishesRefresh() {
+		OcpxMedia media = new OcpxMedia();
+		media.setId("media-1");
+		when(mediaMapper.selectById("media-1")).thenReturn(media);
+		when(mediaMapper.countReferences("media-1")).thenReturn(0);
+		when(mediaMapper.deleteById("media-1")).thenReturn(1);
+
+		service.delete("media-1");
+
+		verify(advertiserScope).requireAdministrator();
+		verify(mediaMapper).deleteById("media-1");
+		verify(refreshPublisher).mark();
+	}
+
+	@Test
+	void deleteRejectsMediaWithBusinessOrHistoricalReferences() {
+		OcpxMedia media = new OcpxMedia();
+		media.setId("media-1");
+		when(mediaMapper.selectById("media-1")).thenReturn(media);
+		when(mediaMapper.countReferences("media-1")).thenReturn(1);
+
+		assertThatThrownBy(() -> service.delete("media-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("历史数据");
+		verify(mediaMapper, never()).deleteById("media-1");
+		verify(refreshPublisher, never()).mark();
 	}
 
 }

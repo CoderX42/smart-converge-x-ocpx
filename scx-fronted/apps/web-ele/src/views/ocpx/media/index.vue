@@ -8,9 +8,15 @@ import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
-import { createMedia, listMedia, mediaOptions, updateMedia } from '#/api/ocpx';
+import {
+  createMedia,
+  deleteMedia,
+  listMedia,
+  mediaOptions,
+  updateMedia,
+} from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
@@ -39,6 +45,7 @@ const rows = ref<Media[]>([]);
 const mediaSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const deletingId = ref('');
 const total = ref(0);
 const showSearch = ref(true);
 const query = reactive({ current: 1, mediaId: '', size: 30 });
@@ -57,7 +64,9 @@ const rules: FormRules = {
   uri: [{ message: '请输入 URI', required: true, trigger: 'blur' }],
 };
 const { hasAccessByCodes } = useAccess();
-const canOperate = computed(() => hasAccessByCodes(['ocpx:media:edit']));
+const canOperate = computed(() =>
+  hasAccessByCodes(['ocpx:media:edit', 'ocpx:media:delete']),
+);
 const loadGuard = createLatestRequestGuard();
 
 function hasColumn(key: string) {
@@ -131,6 +140,27 @@ function handleDialogClose() {
   });
 }
 
+async function remove(row: Media) {
+  await ElMessageBox.confirm(
+    '仅未被监测任务、扣量规则或历史数据引用的媒体可删除。确认继续？',
+    '删除媒体',
+    {
+      confirmButtonText: '确认删除',
+      type: 'warning',
+    },
+  );
+  deletingId.value = row.id;
+  try {
+    await deleteMedia(row.id);
+    ElMessage.success('删除成功');
+    mediaSelects.value = await mediaOptions();
+    if (query.mediaId === row.id) query.mediaId = '';
+    await load();
+  } finally {
+    deletingId.value = '';
+  }
+}
+
 onMounted(async () => {
   mediaSelects.value = await mediaOptions();
   await load();
@@ -162,7 +192,7 @@ onMounted(async () => {
       <div class="ocpx-actions">
         <el-button
           v-access:code="'ocpx:media:add'"
-          :disabled="loading || saving"
+          :disabled="loading || saving || Boolean(deletingId)"
           type="primary"
           @click="edit()"
           >新增媒体</el-button
@@ -229,18 +259,32 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column v-if="canOperate" fixed="right" label="操作" width="90"
-          ><template #default="{ row }"
-            ><el-button
+        <el-table-column
+          v-if="canOperate"
+          fixed="right"
+          label="操作"
+          width="130"
+        >
+          <template #default="{ row }">
+            <el-button
               v-access:code="'ocpx:media:edit'"
-              :disabled="saving"
+              :disabled="saving || Boolean(deletingId)"
               link
               type="primary"
               @click="edit(row)"
               >编辑</el-button
-            ></template
-          ></el-table-column
-        >
+            >
+            <el-button
+              v-access:code="'ocpx:media:delete'"
+              :disabled="saving || Boolean(deletingId)"
+              :loading="deletingId === row.id"
+              link
+              type="danger"
+              @click="remove(row)"
+              >删除</el-button
+            >
+          </template>
+        </el-table-column>
       </el-table>
       <el-pagination
         v-model:current-page="query.current"

@@ -46,9 +46,10 @@ class AdvertiserAccountRbacMigrationContractTest {
 		String grant = sql.substring(grantStart);
 		assertThat(grant).contains(ADVERTISER_MENU_IDS)
 			.doesNotContain("menu_ocpx_media", "menu_ocpx_deduction_rule", "perm_ocpx_advertiser_add",
-					"perm_ocpx_advertiser_edit", "perm_ocpx_advertiser_recharge", "perm_ocpx_promotion_link_add",
-					"perm_ocpx_promotion_link_edit", "perm_ocpx_promotion_link_delete", "perm_ocpx_monitor_task_add",
-					"perm_ocpx_monitor_task_edit", "perm_ocpx_monitor_task_delete");
+					"perm_ocpx_advertiser_edit", "perm_ocpx_advertiser_recharge", "perm_ocpx_advertiser_delete",
+					"perm_ocpx_promotion_link_add", "perm_ocpx_promotion_link_edit", "perm_ocpx_promotion_link_delete",
+					"perm_ocpx_monitor_task_add", "perm_ocpx_monitor_task_edit", "perm_ocpx_monitor_task_delete",
+					"perm_ocpx_media_delete");
 	}
 
 	private String resource(String path) throws Exception {

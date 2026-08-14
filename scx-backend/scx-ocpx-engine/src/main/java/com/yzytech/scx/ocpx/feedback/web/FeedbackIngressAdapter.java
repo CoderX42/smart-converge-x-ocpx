@@ -33,8 +33,11 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.reqId(request.getRequest_id())
 			.callbackUrl(request.getCallback_url())
 			.caid(request.getCaid())
+			.caidList(request.getCaid_list())
 			.caid1(request.getCaid1())
 			.idfa(request.getIdfa())
+			.idfaMd5(request.getIdfa_md5())
+			.aaid(request.getAaid())
 			.imei(request.getImei())
 			.imeiMd5(request.getImei_md5())
 			.oaid(request.getOaid())
@@ -51,6 +54,7 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.planId(request.getPlan_id())
 			.creativeId(request.getCreative_id())
 			.impresssId(request.getImpresss_id())
+			.clickId(request.getClickid())
 			.os(matchOs(request.getOs()))
 			.build();
 		if (!StringUtils.hasText(data.getReqId())) {

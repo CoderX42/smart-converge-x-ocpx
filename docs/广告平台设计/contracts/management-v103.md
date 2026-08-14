@@ -4,10 +4,12 @@ V103 继承 `management-v102.md` 的四实体业务字段，仅增加广告主�
 
 ## 广告主
 
-- `POST /ocpx/advertisers`：`name`、`bidUrl`、`username`、`password` 必填，`credentialConfigKey`、`macroParams` 可选。
+- `POST /ocpx/advertisers`：`name`、`bidUrl`、`username`、`password` 必填，`credentialConfigKey`、`macroParams` 可选；新增弹窗展示空白宏参数，不自动补默认值。
 - `PUT /ocpx/advertisers/{id}`：只接受 `name`、`bidUrl`、`credentialConfigKey`、`macroParams`，不能修改或提交用户名、密码。
 - 列表、详情和创建/编辑响应在 V102 字段上增加 nullable `username`；既有未开户广告主返回 `null`。响应永不包含 `accountUserId`、原始密码或密码摘要。
 - 广告主开户原子创建 `sys_user.type=2` 用户并绑定 `ROLE_ADVERTISER`；失败不得留下半成品广告主、用户或角色关系。
+- 新增广告主可选配宏参数；未填写时保存为空且不拼接任何默认宏。请求地址和宏参数分别存储，Engine 出站时才把实际配置的宏参数作为 query 拼接到请求地址。
+- 拼接会根据原地址选择 `?` 或 `&`、保留 URL fragment，并跳过原地址中已经存在的同名 query key。列表“请求地址”展示和复制与 Engine 一致的最终组合地址；历史逗号分隔且不含 `=` 的宏名列表不参与 query 拼接。
 
 ## 数据范围
 

@@ -12,10 +12,13 @@ class MiReqTest {
 		req.setRequest_id("__REQUEST_ID__");
 		req.setCallback_url("__CALLBACK_URL__");
 		req.setCaid("__CAID__");
+		req.setCaid_list("__CAID_LIST__");
 		req.setCaid1("__CAID1__");
 		req.setLast_caid("__LAST_CAID__");
 		req.setPrev_caid("__PREV_CAID__");
 		req.setIdfa("__IDFA__");
+		req.setIdfa_md5("__IDFA_MD5__");
+		req.setAaid("__AAID__");
 		req.setImei("__IMEI__");
 		req.setOaid("__OAID__");
 		req.setOaid_md5("__OAID_MD5__");
@@ -31,15 +34,19 @@ class MiReqTest {
 		req.setPlan_id("__ORDER_PLAN_ID__");
 		req.setCreative_id("__CREATIVE_ID__");
 		req.setImpresss_id("__IMPRESSS_ID__");
+		req.setClickid("__CLICKID__");
 		req.setCallback("__CALLBACK__");
 
 		assertThat(req.getRequest_id()).isNull();
 		assertThat(req.getCallback_url()).isNull();
 		assertThat(req.getCaid()).isNull();
+		assertThat(req.getCaid_list()).isNull();
 		assertThat(req.getCaid1()).isNull();
 		assertThat(req.getLast_caid()).isNull();
 		assertThat(req.getPrev_caid()).isNull();
 		assertThat(req.getIdfa()).isNull();
+		assertThat(req.getIdfa_md5()).isNull();
+		assertThat(req.getAaid()).isNull();
 		assertThat(req.getImei()).isNull();
 		assertThat(req.getOaid()).isNull();
 		assertThat(req.getOaid_md5()).isNull();
@@ -55,6 +62,7 @@ class MiReqTest {
 		assertThat(req.getPlan_id()).isNull();
 		assertThat(req.getCreative_id()).isNull();
 		assertThat(req.getImpresss_id()).isNull();
+		assertThat(req.getClickid()).isNull();
 		assertThat(req.getCallback()).isNull();
 	}
 
@@ -75,7 +83,6 @@ class MiReqTest {
 	void keepsFieldsWithoutMacroCleaningGettersUntouched() {
 		MiReq req = new MiReq();
 		req.setImei_md5("__IMEI_MD5__");
-		req.setIdfa_md5("__IDFA_MD5__");
 		req.setMac_md5("__MAC_MD5__");
 		req.setMac1_md5("__MAC1_MD5__");
 		req.setModel("__MODEL__");
@@ -84,7 +91,6 @@ class MiReqTest {
 
 		// SGYZ 未为这些字段提供清洗 getter，宏文本按原样透传。
 		assertThat(req.getImei_md5()).isEqualTo("__IMEI_MD5__");
-		assertThat(req.getIdfa_md5()).isEqualTo("__IDFA_MD5__");
 		assertThat(req.getMac_md5()).isEqualTo("__MAC_MD5__");
 		assertThat(req.getMac1_md5()).isEqualTo("__MAC1_MD5__");
 		assertThat(req.getModel()).isEqualTo("__MODEL__");

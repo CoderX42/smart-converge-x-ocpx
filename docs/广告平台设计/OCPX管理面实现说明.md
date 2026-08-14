@@ -14,9 +14,9 @@
 
 | 对象 | 业务字段 | 删除语义 |
 |---|---|---|
-| 广告主 | `name/bidUrl/credentialConfigKey/macro`；新增时另带 `username/password` 开户 | 不提供删除 |
+| 广告主 | `name/bidUrl/credentialConfigKey/macro`；新增时另带 `username/password` 开户 | 无任何业务或历史引用时物理删除，并注销托管账号 |
 | 推广链接 | `advertiserId/name/platform/channelId/linkUrl/deeplink/linkExt/remark` | `is_delete` 逻辑删除 |
-| 媒体 | `name/uri/credentialConfigKey/macro` | 不提供删除 |
+| 媒体 | `name/uri/credentialConfigKey/macro` | 无任何业务或历史引用时物理删除 |
 | 监测任务 | `monitorName/mediaId/advertiserId/promotionLinkId/unitPrice/bizId/showUrl/clkUrl/remark` | `is_delete` 逻辑删除 |
 | 扣量规则 | `mediaId/promotionLinkId/ratio` | `is_delete` 逻辑删除；函数唯一索引保证同一路由只有一条生效规则 |
 
@@ -28,9 +28,9 @@
 
 | 前缀 | 保留操作 |
 |---|---|
-| `/ocpx/advertisers` | 列表、详情、新增、编辑、`POST /{id}/recharge` |
+| `/ocpx/advertisers` | 列表、详情、新增、编辑、删除、`POST /{id}/recharge` |
 | `/ocpx/promotion-links` | 列表、选项、详情、新增、编辑、逻辑删除 |
-| `/ocpx/media` | 列表、详情、新增、编辑 |
+| `/ocpx/media` | 列表、详情、新增、编辑、删除 |
 | `/ocpx/monitor-tasks` | 列表、详情、新增、编辑、逻辑删除 |
 | `/ocpx/deduction-rules` | 列表、详情、新增、编辑、逻辑删除并同步 Redis 比例 |
 | `/ocpx/reports` | 选项、小时明细、时段汇总、CSV 导出 |
@@ -44,7 +44,7 @@
 
 Dashboard 保留 SCX 指标卡和四维排行，不使用列表页工具栏。流程日志没有参考页面，因此保留现有业务字段，仅统一列表交互。
 
-按钮同时受权限控制，并提供加载禁用、键盘焦点和可访问名称。浏览器只读写 `credentialConfigKey` 引用；广告主登录密码仅在新增弹窗提交一次，编辑、列表和详情均不返回或提交密码。
+按钮同时受权限控制，并提供加载禁用、键盘焦点和可访问名称。`ROLE_ADMIN` 对五个管理对象拥有完整 CRUD；`ROLE_ADVERTISER` 保持只读。浏览器只读写 `credentialConfigKey` 引用；广告主登录密码仅在新增弹窗提交一次，编辑、列表和详情均不返回或提交密码。
 
 广告主开户同时创建 `sys_user.type=2` 账号、绑定系统托管的共享 `ROLE_ADVERTISER`，并用 `shop_id` 固定自身广告主数据范围。该角色只能读取自己的广告主、推广链接、监测任务、Dashboard、报表、CSV 和流程日志；不能管理媒体、扣量、充值或任何业务对象。服务端覆盖客户端提交的数据范围，前端隐藏只读账号无权使用的按钮和空操作列。
 

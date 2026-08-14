@@ -1,5 +1,6 @@
 package com.yzytech.scx.system.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
@@ -13,12 +14,14 @@ import com.yzytech.scx.system.mapper.SysUserRoleMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -132,6 +135,38 @@ class AdvertiserAccountProvisionerImplTest {
 		assertThatThrownBy(() -> provisioner.provision("adv-1", "广告主一", "login", "Abc1!x"))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("角色绑定失败");
+	}
+
+	@Test
+	void deprovisionsOnlyTheAccountBoundToTheAdvertiserAndLogsOutItsSessions() {
+		SysUser user = new SysUser();
+		user.setId("user-1");
+		user.setType(SystemAccountConstants.USER_TYPE_ADVERTISER);
+		user.setShopId("adv-1");
+		when(userMapper.selectById("user-1")).thenReturn(user);
+		when(userMapper.deleteById("user-1")).thenReturn(1);
+
+		try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+			provisioner.deprovision(" adv-1 ", " user-1 ");
+
+			verify(userRoleMapper).delete(any());
+			verify(userMapper).deleteById("user-1");
+			stp.verify(() -> StpUtil.logout("user-1"));
+		}
+	}
+
+	@Test
+	void rejectsDeprovisionWhenAccountIsNotBoundToTheAdvertiser() {
+		SysUser user = new SysUser();
+		user.setId("user-1");
+		user.setType(SystemAccountConstants.USER_TYPE_ADVERTISER);
+		user.setShopId("adv-other");
+		when(userMapper.selectById("user-1")).thenReturn(user);
+
+		assertThatThrownBy(() -> provisioner.deprovision("adv-1", "user-1")).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("绑定关系无效");
+		verify(userRoleMapper, never()).delete(any());
+		verify(userMapper, never()).deleteById(any());
 	}
 
 	private SysRole advertiserRole() {

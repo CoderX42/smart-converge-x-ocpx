@@ -11,13 +11,21 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it.each([
     [
       'advertiser',
-      ['广告主编号', '用户名', '凭据引用', '请求地址', '宏参数', '充值'],
+      [
+        '广告主编号',
+        '用户名',
+        '凭据引用',
+        '请求地址',
+        '宏参数',
+        '充值',
+        '删除',
+      ],
     ],
     [
       'promotion-link',
       ['链接编号', '渠道号', '投放链接', '唤起链接', '扩展信息', '删除'],
     ],
-    ['media', ['渠道 ID', '渠道名称', 'URI', '凭据引用', '宏参数']],
+    ['media', ['渠道 ID', '渠道名称', 'URI', '凭据引用', '宏参数', '删除']],
     [
       'monitor-task',
       ['监测编号', '业务编号', '展示监测链接', '点击监测链接', '删除'],
@@ -56,6 +64,9 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('v-if="!editing"');
     expect(advertiser).toContain('username: form.username.trim()');
     expect(advertiser).not.toMatch(/updateAdvertiserV2\([^)]*password/);
+    expect(advertiser).toContain('appendAdvertiserMacroParams(');
+    expect(advertiser).toContain('<el-form-item label="宏参数"');
+    expect(advertiser).not.toContain('DEFAULT_ADVERTISER_MACRO_PARAMS');
     for (const name of [
       'advertiser',
       'promotion-link',
@@ -123,5 +134,12 @@ describe('vientiane-aligned OCPX page contracts', () => {
     const report = page('report');
     expect(report).toContain("hasAccessByCodes(['ocpx:report:export'])");
     expect(report).toContain(':export-btn="canExport"');
+  });
+
+  it('guards advertiser and media delete actions with dedicated codes', () => {
+    expect(page('advertiser')).toContain("'ocpx:advertiser:delete'");
+    expect(page('advertiser')).toContain('deleteAdvertiserV2(row.id)');
+    expect(page('media')).toContain("'ocpx:media:delete'");
+    expect(page('media')).toContain('deleteMedia(row.id)');
   });
 });

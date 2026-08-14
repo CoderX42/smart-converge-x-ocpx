@@ -81,8 +81,7 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of(username("adv-1", "adv-user")));
 
 		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " mi-signing ",
-				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user",
-				"Pass@123"));
+				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
 
 		assertThat(result.advertiserName()).isEqualTo("广告主一");
 		assertThat(result.credentialConfigKey()).isEqualTo("mi-signing");
@@ -90,26 +89,29 @@ class OcpxAdvertiserServiceTest {
 		assertThat(result.macroParams()).isEqualTo("oaid=__OAID__");
 		assertThat(result.username()).isEqualTo("adv-user");
 		verify(accountProvisioner).provision("adv-1", "广告主一", "adv-user", "Pass@123");
-		verify(advertiserMapper).updateById(org.mockito.ArgumentMatchers.<OcpxAdvertiser>argThat(
-				item -> "adv-1".equals(item.getId()) && "user-1".equals(item.getAccountUserId())));
+		verify(advertiserMapper).updateById(org.mockito.ArgumentMatchers
+			.<OcpxAdvertiser>argThat(item -> "adv-1".equals(item.getId()) && "user-1".equals(item.getAccountUserId())));
 		verify(configRefreshPublisher).mark();
 	}
 
 	@Test
 	void provisioningFailureDoesNotPublishRefreshOrBindAccount() {
 		when(advertiserMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxAdvertiser> inserted = new AtomicReference<>();
 		doAnswer(invocation -> {
 			OcpxAdvertiser advertiser = invocation.getArgument(0);
 			advertiser.setId("adv-1");
+			inserted.set(advertiser);
 			return 1;
 		}).when(advertiserMapper).insert(any(OcpxAdvertiser.class));
 		when(accountProvisioner.provision(anyString(), anyString(), anyString(), anyString()))
 			.thenThrow(new IllegalArgumentException("用户名已存在"));
 
-		assertThatThrownBy(() -> service.create(new AdvertiserRequests.Create("广告主一", null,
-				"custom://private/callback", null, "adv-user", "Pass@123")))
+		assertThatThrownBy(() -> service.create(
+				new AdvertiserRequests.Create("广告主一", null, "custom://private/callback", null, "adv-user", "Pass@123")))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("用户名已存在");
+		assertThat(inserted.get().getMacroParams()).isNull();
 		verify(advertiserMapper, never()).updateById(any(OcpxAdvertiser.class));
 		verify(configRefreshPublisher, never()).mark();
 	}
@@ -126,8 +128,8 @@ class OcpxAdvertiserServiceTest {
 			.thenReturn(new AdvertiserAccountProvisioner.ProvisionedAccount("user-1", "adv-user"));
 		when(advertiserMapper.updateById(any(OcpxAdvertiser.class))).thenReturn(0);
 
-		assertThatThrownBy(() -> service.create(new AdvertiserRequests.Create("广告主一", null,
-				"custom://private/callback", null, "adv-user", "Pass@123")))
+		assertThatThrownBy(() -> service.create(
+				new AdvertiserRequests.Create("广告主一", null, "custom://private/callback", null, "adv-user", "Pass@123")))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("绑定失败");
 		verify(configRefreshPublisher, never()).mark();
@@ -178,8 +180,7 @@ class OcpxAdvertiserServiceTest {
 			.thenReturn(List.of(username("adv-1", null), username("adv-2", null)));
 		when(values.multiGet(any())).thenReturn(Arrays.asList("123.45", null));
 
-		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
-			.list(new Page<>(1, 10), null, null)
+		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
 		assertThat(records.get(0).balance()).isEqualByComparingTo("123.45");
@@ -194,6 +195,35 @@ class OcpxAdvertiserServiceTest {
 		assertThat(service.options()).extracting(AdvertiserViews.Option::id, AdvertiserViews.Option::name)
 			.containsExactly(org.assertj.core.groups.Tuple.tuple("adv-1", "广告主一"),
 					org.assertj.core.groups.Tuple.tuple("adv-2", "广告主一"));
+	}
+
+	@Test
+	void deleteUnusedAdvertiserDeprovisionsAccountAndClearsRuntimeState() {
+		OcpxAdvertiser advertiser = advertiser("adv-1");
+		advertiser.setAccountUserId("user-1");
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
+		when(advertiserMapper.countReferences("adv-1")).thenReturn(0);
+		when(advertiserMapper.deleteById("adv-1")).thenReturn(1);
+
+		service.delete("adv-1");
+
+		verify(advertiserScope).requireAdministrator();
+		verify(accountProvisioner).deprovision("adv-1", "user-1");
+		verify(redis).delete("ocpx:advertiser:balance:adv-1");
+		verify(configRefreshPublisher).mark();
+	}
+
+	@Test
+	void deleteRejectsAdvertiserWithBusinessOrHistoricalReferences() {
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser("adv-1"));
+		when(advertiserMapper.countReferences("adv-1")).thenReturn(1);
+
+		assertThatThrownBy(() -> service.delete("adv-1")).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("历史数据");
+		verify(advertiserMapper, never()).deleteById(anyString());
+		verify(accountProvisioner, never()).deprovision(anyString(), anyString());
+		verify(redis, never()).delete(anyString());
+		verify(configRefreshPublisher, never()).mark();
 	}
 
 	@Test

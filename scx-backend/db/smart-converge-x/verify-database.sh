@@ -117,8 +117,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:promotion-link:delete','ocpx:monitor-task:delete','ocpx:report:export')")"
-[[ "$required_permissions" -eq 4 ]] || fail "required recharge, delete and report-export permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:report:export')")"
+[[ "$required_permissions" -eq 6 ]] || fail "required recharge, delete and report-export permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -138,6 +138,20 @@ admin_report_export="$(scalar "SELECT COUNT(*)
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
  AND m.permission='ocpx:report:export' AND m.del_flag='0'")"
 [[ "$admin_report_export" -eq 1 ]] || fail "system administrator report-export grant is missing"
+
+admin_ocpx_crud="$(scalar "SELECT COUNT(DISTINCT m.permission)
+ FROM sys_role r
+ JOIN sys_role_menu rm ON rm.role_id=r.id
+ JOIN sys_menu m ON m.id=rm.menu_id
+ WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0'
+ AND m.permission IN (
+   'ocpx:advertiser:view','ocpx:advertiser:add','ocpx:advertiser:edit','ocpx:advertiser:delete',
+   'ocpx:promotion-link:view','ocpx:promotion-link:add','ocpx:promotion-link:edit','ocpx:promotion-link:delete',
+   'ocpx:media:view','ocpx:media:add','ocpx:media:edit','ocpx:media:delete',
+   'ocpx:monitor-task:view','ocpx:monitor-task:add','ocpx:monitor-task:edit','ocpx:monitor-task:delete',
+   'ocpx:deduction-rule:list','ocpx:deduction-rule:create','ocpx:deduction-rule:update','ocpx:deduction-rule:delete'
+ )")"
+[[ "$admin_ocpx_crud" -eq 20 ]] || fail "ROLE_ADMIN must have complete CRUD permissions for all five OCPX resources"
 
 system_admin="$(scalar "SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='system' AND u.del_flag='0' AND r.role_code='ROLE_ADMIN' AND r.del_flag='0'")"
 [[ "$system_admin" -eq 1 ]] || fail "system administrator role mapping changed"

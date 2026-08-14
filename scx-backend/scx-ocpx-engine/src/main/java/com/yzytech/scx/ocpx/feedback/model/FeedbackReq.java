@@ -59,6 +59,8 @@ public class FeedbackReq {
 	/** 设备标识与设备环境信息。 */
 	private String caid;
 
+	private String caidList;
+
 	private String caidVersion;
 
 	private String caid1;
@@ -68,6 +70,10 @@ public class FeedbackReq {
 	private String prevCaid;
 
 	private String idfa;
+
+	private String idfaMd5;
+
+	private String aaid;
 
 	private String imei;
 

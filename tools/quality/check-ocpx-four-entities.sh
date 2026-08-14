@@ -252,6 +252,23 @@ for required_fragment in (
 if "scx_schema_migration" in v103:
     raise SystemExit("V103 migration gate failed: retired migration ledger is referenced")
 
+v104 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V104__grant_admin_full_ocpx_crud.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "perm_ocpx_advertiser_delete",
+    "ocpx:advertiser:delete",
+    "perm_ocpx_media_delete",
+    "ocpx:media:delete",
+    "r.role_code='ROLE_ADMIN'",
+):
+    if required_fragment not in v104:
+        raise SystemExit(f"V104 migration gate failed: missing {required_fragment}")
+if "role_advertiser" in v104.lower():
+    raise SystemExit("V104 migration gate failed: advertiser role must remain read-only")
+if "scx_schema_migration" in v104:
+    raise SystemExit("V104 migration gate failed: retired migration ledger is referenced")
+
 admin_pom = (root / "scx-backend/scx-ocpx-admin/pom.xml").read_text(encoding="utf-8")
 engine_pom = (root / "scx-backend/scx-ocpx-engine/pom.xml").read_text(encoding="utf-8")
 boot_pom = (root / "scx-backend/scx-boot/pom.xml").read_text(encoding="utf-8")

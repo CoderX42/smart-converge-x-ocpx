@@ -31,10 +31,12 @@ export type AdvertiserCreatePayload = {
   username: string;
 };
 
-export type AdvertiserUpdatePayload = Omit<
-  AdvertiserCreatePayload,
-  'password' | 'username'
->;
+export type AdvertiserUpdatePayload = {
+  bidUrl: string;
+  credentialConfigKey?: string;
+  macroParams?: string;
+  name: string;
+};
 
 export type PromotionLink = {
   advertiserId: string;
@@ -162,6 +164,9 @@ export function updateAdvertiserV2(id: string, data: AdvertiserUpdatePayload) {
     name: data.name,
   });
 }
+export function deleteAdvertiserV2(id: string) {
+  return requestClient.delete(`/ocpx/advertisers/${id}`);
+}
 export function rechargeAdvertiser(id: string, balance: number) {
   return requestClient.post(`/ocpx/advertisers/${id}/recharge`, { balance });
 }
@@ -234,6 +239,9 @@ export function createMedia(data: MediaCreatePayload) {
 }
 export function updateMedia(id: string, data: MediaUpdatePayload) {
   return requestClient.put<Media>(`/ocpx/media/${id}`, mediaBody(data));
+}
+export function deleteMedia(id: string) {
+  return requestClient.delete(`/ocpx/media/${id}`);
 }
 
 export function listMonitorTasks(params: MonitorTaskQuery) {

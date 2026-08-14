@@ -24,4 +24,18 @@ public interface OcpxAdvertiserMapper extends BaseMapper<OcpxAdvertiser> {
 			""")
 	List<ManagementRows.AdvertiserUsername> selectUsernamesByAdvertiserIds(@Param("ids") Collection<String> ids);
 
+	@Select("""
+			SELECT CASE WHEN
+			  EXISTS(SELECT 1 FROM scx_ocpx_promotion_link WHERE advertiser_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_monitor_task WHERE advertiser_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_flow_log WHERE advertiser_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_log_feedback WHERE a_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_log_feedback_day WHERE a_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_log_callback WHERE a_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_report_mat_temp WHERE a_id=#{id})
+			  OR EXISTS(SELECT 1 FROM scx_ocpx_report_mat WHERE a_id=#{id})
+			THEN 1 ELSE 0 END
+			""")
+	int countReferences(@Param("id") String id);
+
 }

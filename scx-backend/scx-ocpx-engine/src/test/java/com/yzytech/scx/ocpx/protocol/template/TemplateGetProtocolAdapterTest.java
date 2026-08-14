@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialProperties;
 import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
+import com.yzytech.scx.ocpx.contract.AdvertiserMacroContract;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
@@ -47,8 +48,7 @@ class TemplateGetProtocolAdapterTest {
 		assertThat(callbackUrl).startsWith("http://127.0.0.1:10000/ocpx/callback?ext=");
 		assertThat(callbackUrl).endsWith("&s=link-id_task-id");
 		assertThat(clearText)
-			.contains("\"mId\":\"media-id\"", "\"tId\":\"task-id\"", "\"aId\":\"advertiser-id\"",
-					"\"lId\":\"link-id\"")
+			.contains("\"mId\":\"media-id\"", "\"tId\":\"task-id\"", "\"aId\":\"advertiser-id\"", "\"lId\":\"link-id\"")
 			.doesNotContain("\"MId\"", "\"TId\"", "\"AId\"", "\"LId\"", "\"chid\"", "\"mid\"", "\"dspid\"",
 					"\"linkid\"");
 		assertThat(JSON.parseObject(clearText, FeedbackReq.class))
@@ -79,9 +79,56 @@ class TemplateGetProtocolAdapterTest {
 
 		String result = adapter.buildUpstreamRequestUrl(advertiser, feedback);
 
-		assertThat(result).isEqualTo("https://adv.example/click?rid=request-1&oaid=oaid-1&biz=BIZ-1"
-				+ "&signature=c3bd8e8cc706ed27f9cff9a0cc0df0fe")
+		assertThat(result)
+			.isEqualTo("https://adv.example/click?rid=request-1&oaid=oaid-1&biz=BIZ-1"
+					+ "&signature=c3bd8e8cc706ed27f9cff9a0cc0df0fe")
 			.doesNotContain("local-signing-key", "advertiser-signing");
+	}
+
+	@Test
+	void appendsAndReplacesConfiguredAdvertiserMacrosWithoutDuplicatingExistingKeys() {
+		TemplateGetProtocolAdapter adapter = adapter();
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setBidUrl("custom://advertiser/feedback?idfa=fixed-idfa");
+		advertiser.setMacroParams(
+				String.join("&", "idfa=__IDFA__", "idfa_md5=__IDFA_MD5__", "caid_list=__CAID_LIST__", "aaid=__AAID__",
+						"ua=__UA__", "callback=__CALLBACK__", "clickid=__CLICKID__", "campaign_id=__CAMPAIGNID__",
+						"adgroup_id=__ADGROUPID__", "creative_id=__CREATIVEID__", "advertiser_id=__ADVERTISERID__"));
+		advertiser.setCredentialConfigKey("advertiser-signing");
+		FeedbackReq feedback = FeedbackReq.builder()
+			.reqId("request-1")
+			.tId("task-1")
+			.clickId("click-1")
+			.idfaMd5("idfa-md5-1")
+			.caidList("caid 1")
+			.aaid("aaid-1")
+			.ip("127.0.0.1")
+			.ua("ua x")
+			.os(com.yzytech.scx.ocpx.shared.enums.OsTypeEnum.ANDROID)
+			.model("model x")
+			.planId("campaign-1")
+			.groupId("group-1")
+			.creativeId("creative-1")
+			.advId("external-advertiser-1")
+			.build();
+
+		String result = adapter.buildUpstreamRequestUrl(advertiser, feedback);
+
+		assertThat(result)
+			.contains("idfa=fixed-idfa&idfa_md5=idfa-md5-1", "caid_list=caid%201", "aaid=aaid-1", "ua=ua%20x",
+					"callback=http%3A%2F%2F127.0.0.1%3A10000%2Focpx%2Fcallback%3Fext%3D", "clickid=click-1",
+					"campaign_id=campaign-1", "adgroup_id=group-1", "creative_id=creative-1",
+					"advertiser_id=external-advertiser-1", "&signature=")
+			.doesNotContain("__IDFA_MD5__", "__CAID_LIST__", "__CALLBACK__", "__CLICKID__")
+			.containsOnlyOnce("idfa=fixed-idfa");
+	}
+
+	@Test
+	void appendsOnlyMissingQueryPairsBeforeFragmentsAndIgnoresLegacyMacroLists() {
+		assertThat(AdvertiserMacroContract.appendToBidUrl("raw://host/path?ip=fixed#part", "?ip=__IP__&ua=__UA__&"))
+			.isEqualTo("raw://host/path?ip=fixed&ua=__UA__#part");
+		assertThat(AdvertiserMacroContract.appendToBidUrl("raw://host/path", "__IDFA__,__IP__"))
+			.isEqualTo("raw://host/path");
 	}
 
 	@Test
@@ -105,8 +152,7 @@ class TemplateGetProtocolAdapterTest {
 		callback.setEvent_type(4);
 		callback.setEvent_time(1700000000L);
 
-		assertThatThrownBy(() -> adapter.toCallback(callback))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> adapter.toCallback(callback)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessage("callback ext is missing SCX route ids");
 	}
 
@@ -132,8 +178,7 @@ class TemplateGetProtocolAdapterTest {
 			callback.setEvent_type(4);
 			callback.setEvent_time(1700000000L);
 
-			assertThatThrownBy(() -> adapter.toCallback(callback))
-				.isInstanceOf(IllegalArgumentException.class)
+			assertThatThrownBy(() -> adapter.toCallback(callback)).isInstanceOf(IllegalArgumentException.class)
 				.hasMessage("callback ext has invalid SCX route id: " + oversized);
 		}
 	}

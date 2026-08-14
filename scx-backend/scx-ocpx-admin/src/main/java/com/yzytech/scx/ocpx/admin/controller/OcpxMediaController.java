@@ -14,6 +14,7 @@ import com.yzytech.scx.ocpx.admin.service.OcpxMediaService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,8 +41,9 @@ public class OcpxMediaController {
 	}
 
 	@GetMapping("/options")
-	@SaCheckPermission(value = { "ocpx:media:view", "ocpx:monitor-task:view", "ocpx:report:view",
-			"ocpx:dashboard:view" }, mode = SaMode.OR)
+	@SaCheckPermission(
+			value = { "ocpx:media:view", "ocpx:monitor-task:view", "ocpx:report:view", "ocpx:dashboard:view" },
+			mode = SaMode.OR)
 	public Result<List<MediaViews.Option>> options() {
 		return Result.success(mediaService.options());
 	}
@@ -64,6 +66,16 @@ public class OcpxMediaController {
 	@SysLog("修改媒体")
 	public Result<MediaViews.Item> update(@PathVariable String id, @Valid @RequestBody MediaRequests.Update request) {
 		return call(() -> mediaService.update(id, request));
+	}
+
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ocpx:media:delete")
+	@SysLog("删除媒体")
+	public Result<Void> delete(@PathVariable String id) {
+		return call(() -> {
+			mediaService.delete(id);
+			return null;
+		});
 	}
 
 	private <T> Result<T> call(Callable<T> action) {

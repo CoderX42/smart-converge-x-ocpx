@@ -13,6 +13,7 @@ import com.yzytech.scx.ocpx.admin.service.OcpxAdvertiserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,6 +64,16 @@ public class OcpxAdvertiserController {
 	public Result<AdvertiserViews.Item> update(@PathVariable String id,
 			@Valid @RequestBody AdvertiserRequests.Update request) {
 		return call(() -> advertiserService.update(id, request));
+	}
+
+	@DeleteMapping("/{id}")
+	@SaCheckPermission("ocpx:advertiser:delete")
+	@SysLog("删除广告主")
+	public Result<Void> delete(@PathVariable String id) {
+		return call(() -> {
+			advertiserService.delete(id);
+			return null;
+		});
 	}
 
 	@PostMapping("/{id}/recharge")

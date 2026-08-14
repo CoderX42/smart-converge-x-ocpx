@@ -1,5 +1,6 @@
 package com.yzytech.scx.system.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
@@ -68,6 +69,23 @@ public class AdvertiserAccountProvisionerImpl implements AdvertiserAccountProvis
 			throw new IllegalStateException("广告主登录账号角色绑定失败");
 		}
 		return new ProvisionedAccount(user.getId(), normalizedUsername);
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
+	public void deprovision(String advertiserId, String userId) {
+		String normalizedAdvertiserId = required(advertiserId, "广告主编号不能为空", 64);
+		String normalizedUserId = required(userId, "广告主账号编号不能为空", 64);
+		SysUser user = userMapper.selectById(normalizedUserId);
+		if (user == null || !SystemAccountConstants.USER_TYPE_ADVERTISER.equals(user.getType())
+				|| !normalizedAdvertiserId.equals(user.getShopId())) {
+			throw new IllegalStateException("广告主账号不存在或绑定关系无效");
+		}
+		userRoleMapper.delete(Wrappers.<SysUserRole>lambdaQuery().eq(SysUserRole::getUserId, normalizedUserId));
+		if (userMapper.deleteById(normalizedUserId) != 1) {
+			throw new IllegalStateException("广告主账号注销失败");
+		}
+		StpUtil.logout(normalizedUserId);
 	}
 
 	private String required(String value, String message, int maxLength) {

@@ -23,6 +23,7 @@ const menus = [
 const emptyPage = { current: 1, records: [], size: 30, total: 0 };
 const defaultPermissions = [
   'ocpx:advertiser:add',
+  'ocpx:advertiser:delete',
   'ocpx:advertiser:edit',
   'ocpx:advertiser:recharge',
   'ocpx:advertiser:view',
@@ -33,6 +34,7 @@ const defaultPermissions = [
   'ocpx:deduction-rule:update',
   'ocpx:flow-log:view',
   'ocpx:media:add',
+  'ocpx:media:delete',
   'ocpx:media:edit',
   'ocpx:media:view',
   'ocpx:monitor-task:add',
@@ -49,6 +51,7 @@ const defaultPermissions = [
 
 type MockManagementOptions = {
   advertiserRows?: Record<string, unknown>[];
+  mediaRows?: Record<string, unknown>[];
   permissions?: string[];
 };
 
@@ -64,6 +67,7 @@ async function mockManagementApi(
   page: Page,
   {
     advertiserRows = [],
+    mediaRows = [],
     permissions = defaultPermissions,
   }: MockManagementOptions = {},
 ) {
@@ -158,6 +162,13 @@ async function mockManagementApi(
       url.pathname.endsWith('/ocpx/advertisers')
     ) {
       await fulfill(route, { ...emptyPage, records: advertiserRows });
+      return;
+    }
+    if (
+      route.request().method() === 'GET' &&
+      url.pathname.endsWith('/ocpx/media')
+    ) {
+      await fulfill(route, { ...emptyPage, records: mediaRows });
       return;
     }
     await fulfill(route, emptyPage);
@@ -256,6 +267,7 @@ test('advertiser create dialog validates and submits the exact onboarding payloa
   await expect(page.getByRole('dialog', { name: '新增广告主' })).toBeVisible();
   await expect(page.getByPlaceholder('请输入登录用户名')).toBeVisible();
   await expect(page.getByPlaceholder('请输入登录密码')).toBeVisible();
+  await expect(page.getByPlaceholder('请输入宏参数')).toHaveValue('');
 
   await page.getByRole('dialog').getByRole('button', { name: '确定' }).click();
   await expect(page.getByText('请输入广告主名称')).toBeVisible();
@@ -269,6 +281,7 @@ test('advertiser create dialog validates and submits the exact onboarding payloa
   await expect(page.getByText('密码需包含特殊字符')).toBeVisible();
   await page.getByPlaceholder('请输入登录用户名').fill('advertiser_test');
   await page.getByPlaceholder('请输入登录密码').fill('Advertiser1!');
+  await page.getByPlaceholder('请输入宏参数').fill('clickid=__CLICKID__');
 
   const requestPromise = page.waitForRequest((request) => {
     const url = new URL(request.url());
@@ -280,6 +293,7 @@ test('advertiser create dialog validates and submits the exact onboarding payloa
   const request = await requestPromise;
   expect(request.postDataJSON()).toEqual({
     bidUrl: 'custom://127.0.0.1/bid',
+    macroParams: 'clickid=__CLICKID__',
     name: '测试广告主',
     password: 'Advertiser1!',
     username: 'advertiser_test',
@@ -298,12 +312,16 @@ test('advertiser edit never renders or submits account credentials', async ({
         bidUrl: 'custom://127.0.0.1/bid',
         createTime: '2026-08-14 10:00:00',
         id: 'advertiser-1',
+        macroParams: 'clickid=__CLICKID__',
         updateTime: '2026-08-14 10:00:00',
         username: 'advertiser_a',
       },
     ],
   });
   await page.goto('/#/ocpx/advertiser');
+  await expect(
+    page.getByText('custom://127.0.0.1/bid?clickid=__CLICKID__'),
+  ).toBeVisible();
   await page.getByRole('button', { name: '编辑' }).click();
 
   const dialog = page.getByRole('dialog', { name: '编辑广告主' });
@@ -323,6 +341,57 @@ test('advertiser edit never renders or submits account credentials', async ({
   const request = await requestPromise;
   expect(request.postDataJSON()).toEqual({
     bidUrl: 'custom://127.0.0.1/bid',
+    macroParams: 'clickid=__CLICKID__',
     name: '广告主甲-更新',
   });
+});
+
+test('ROLE_ADMIN delete actions call the aligned advertiser and media APIs', async ({
+  page,
+}) => {
+  await mockManagementApi(page, {
+    advertiserRows: [
+      {
+        advertiserName: '待删除广告主',
+        balance: 0,
+        bidUrl: 'custom://delete/bid',
+        createTime: '2026-08-14 10:00:00',
+        id: 'advertiser-delete',
+        updateTime: '2026-08-14 10:00:00',
+      },
+    ],
+    mediaRows: [
+      {
+        createTime: '2026-08-14 10:00:00',
+        id: 'media-delete',
+        mediaName: '待删除媒体',
+        uri: '/feedback',
+        updateTime: '2026-08-14 10:00:00',
+      },
+    ],
+  });
+
+  await page.goto('/#/ocpx/advertiser');
+  const advertiserDelete = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      request.method() === 'DELETE' &&
+      url.pathname.endsWith('/ocpx/advertisers/advertiser-delete')
+    );
+  });
+  await page.getByRole('button', { exact: true, name: '删除' }).click();
+  await page.getByRole('button', { name: '确认删除' }).click();
+  await advertiserDelete;
+
+  await page.goto('/#/ocpx/media');
+  const mediaDelete = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      request.method() === 'DELETE' &&
+      url.pathname.endsWith('/ocpx/media/media-delete')
+    );
+  });
+  await page.getByRole('button', { exact: true, name: '删除' }).click();
+  await page.getByRole('button', { name: '确认删除' }).click();
+  await mediaDelete;
 });

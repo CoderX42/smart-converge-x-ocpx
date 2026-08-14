@@ -41,14 +41,11 @@ public class OcpxAdvertiserService {
 
 	public IPage<AdvertiserViews.Item> list(Page<OcpxAdvertiser> page, String keyword, String advertiserId) {
 		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
-		IPage<OcpxAdvertiser> result = advertiserMapper.selectPage(page,
-				Wrappers.<OcpxAdvertiser>lambdaQuery()
-					.eq(StringUtils.hasText(scopedAdvertiserId), OcpxAdvertiser::getId, scopedAdvertiserId)
-					.and(StringUtils.hasText(keyword) && !StringUtils.hasText(scopedAdvertiserId),
-								q -> q.like(OcpxAdvertiser::getId, keyword)
-									.or()
-									.like(OcpxAdvertiser::getAdvertiserName, keyword))
-					.orderByDesc(OcpxAdvertiser::getUpdateTime));
+		IPage<OcpxAdvertiser> result = advertiserMapper.selectPage(page, Wrappers.<OcpxAdvertiser>lambdaQuery()
+			.eq(StringUtils.hasText(scopedAdvertiserId), OcpxAdvertiser::getId, scopedAdvertiserId)
+			.and(StringUtils.hasText(keyword) && !StringUtils.hasText(scopedAdvertiserId),
+					q -> q.like(OcpxAdvertiser::getId, keyword).or().like(OcpxAdvertiser::getAdvertiserName, keyword))
+			.orderByDesc(OcpxAdvertiser::getUpdateTime));
 		Map<String, String> usernames = usernames(result.getRecords());
 		Map<String, BigDecimal> balances = balances(result.getRecords());
 		return result.convert(value -> view(value, usernames.get(value.getId()), balances.get(value.getId())));
@@ -109,6 +106,23 @@ public class OcpxAdvertiserService {
 		return detail(id);
 	}
 
+	@Transactional
+	public void delete(String id) {
+		advertiserScope.requireAdministrator();
+		OcpxAdvertiser current = require(id);
+		if (advertiserMapper.countReferences(id) > 0) {
+			throw new IllegalArgumentException("广告主仍有推广链接、监测任务或历史数据，不能删除");
+		}
+		if (advertiserMapper.deleteById(id) != 1) {
+			throw new IllegalStateException("广告主删除失败");
+		}
+		if (StringUtils.hasText(current.getAccountUserId())) {
+			accountProvisioner.deprovision(id, current.getAccountUserId());
+		}
+		redis.delete(BALANCE_PREFIX + id);
+		configRefreshPublisher.mark();
+	}
+
 	/** 充值：对 Redis 余额单值做数值累加（平移 SGYZ rechargeBalance，无流水表、无幂等键）。 */
 	public void recharge(String id, AdvertiserRequests.Recharge request) {
 		OcpxAdvertiser current = require(id);
@@ -141,8 +155,7 @@ public class OcpxAdvertiserService {
 		if (advertisers.isEmpty()) {
 			return Map.of();
 		}
-		return advertiserMapper
-			.selectUsernamesByAdvertiserIds(advertisers.stream().map(OcpxAdvertiser::getId).toList())
+		return advertiserMapper.selectUsernamesByAdvertiserIds(advertisers.stream().map(OcpxAdvertiser::getId).toList())
 			.stream()
 			.filter(row -> StringUtils.hasText(row.getAdvertiserId()) && StringUtils.hasText(row.getUsername()))
 			.collect(java.util.stream.Collectors.toMap(ManagementRows.AdvertiserUsername::getAdvertiserId,
@@ -186,8 +199,8 @@ public class OcpxAdvertiserService {
 
 	private AdvertiserViews.Item view(OcpxAdvertiser value, String username, BigDecimal balance) {
 		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), username,
-				value.getCredentialConfigKey(), value.getBidUrl(), value.getMacroParams(), balance, value.getCreateTime(),
-				value.getUpdateTime());
+				value.getCredentialConfigKey(), value.getBidUrl(), value.getMacroParams(), balance,
+				value.getCreateTime(), value.getUpdateTime());
 	}
 
 }

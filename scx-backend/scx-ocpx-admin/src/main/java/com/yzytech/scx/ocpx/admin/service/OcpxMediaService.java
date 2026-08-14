@@ -30,11 +30,12 @@ public class OcpxMediaService {
 	public IPage<MediaViews.Item> list(Page<OcpxMedia> page, String keyword, String mediaId) {
 		advertiserScope.requireAdministrator();
 		return mediaMapper
-			.selectPage(page, Wrappers.<OcpxMedia>lambdaQuery()
-				.eq(StringUtils.hasText(mediaId), OcpxMedia::getId, mediaId)
-				.and(StringUtils.hasText(keyword) && !StringUtils.hasText(mediaId),
-						q -> q.like(OcpxMedia::getId, keyword).or().like(OcpxMedia::getMediaName, keyword))
-				.orderByDesc(OcpxMedia::getUpdateTime))
+			.selectPage(page,
+					Wrappers.<OcpxMedia>lambdaQuery()
+						.eq(StringUtils.hasText(mediaId), OcpxMedia::getId, mediaId)
+						.and(StringUtils.hasText(keyword) && !StringUtils.hasText(mediaId),
+								q -> q.like(OcpxMedia::getId, keyword).or().like(OcpxMedia::getMediaName, keyword))
+						.orderByDesc(OcpxMedia::getUpdateTime))
 			.convert(this::view);
 	}
 
@@ -80,6 +81,19 @@ public class OcpxMediaService {
 		mediaMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
+	}
+
+	@Transactional
+	public void delete(String id) {
+		advertiserScope.requireAdministrator();
+		require(id);
+		if (mediaMapper.countReferences(id) > 0) {
+			throw new IllegalArgumentException("媒体仍有监测任务、扣量规则或历史数据，不能删除");
+		}
+		if (mediaMapper.deleteById(id) != 1) {
+			throw new IllegalStateException("媒体删除失败");
+		}
+		configRefreshPublisher.mark();
 	}
 
 	private void apply(OcpxMedia media, String name, String key, String uri, String macros) {

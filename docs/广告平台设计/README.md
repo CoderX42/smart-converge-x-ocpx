@@ -1,6 +1,6 @@
 # Smart Converge X 广告平台文档中心
 
-> 当前源码基线：2026-08-14 最小 OCPX + vientiane 管理端及广告主开户闭环（迁移号至 V103）。源码变更不代表目标数据库、UAT 或生产发布已验收。
+> 当前源码基线：2026-08-14 最小 OCPX + vientiane 管理端、广告主开户及超级管理员五对象 CRUD 闭环（迁移号至 V104）。源码变更不代表目标数据库、UAT 或生产发布已验收。
 
 ## 当前广告业务
 
@@ -23,20 +23,21 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 ## 推荐阅读顺序
 
 1. 仓库根目录 `AGENTS.md`。
-2. [V103 广告主开户与数据范围](OCPX管理端开户与数据范围V103.md)。
-3. [V102 vientiane 管理端对齐基线](OCPX管理端vientiane对齐V102.md)。
-4. [OCPX 管理面实现说明](OCPX管理面实现说明.md)。
-5. [OCPX Engine 实现说明](OCPX双向转发引擎实现说明.md)。
-6. [sgyz-ocpx 核心流程对照](sgyz-ocpx基础能力兼容基线.md)。
-7. [下游媒体 API 接入文档](OCPX下游渠道API接入文档.md)。
-8. [上游广告主接入指南](OCPX上游广告主适配器开发指南.md)。
-9. `contracts/` 中的 OpenAPI、JSON Schema、Postman 和管理端字段契约。
+2. [V104 超级管理员五对象 CRUD](OCPX超级管理员CRUDV104.md)。
+3. [V103 广告主开户与数据范围](OCPX管理端开户与数据范围V103.md)。
+4. [V102 vientiane 管理端对齐基线](OCPX管理端vientiane对齐V102.md)。
+5. [OCPX 管理面实现说明](OCPX管理面实现说明.md)。
+6. [OCPX Engine 实现说明](OCPX双向转发引擎实现说明.md)。
+7. [sgyz-ocpx 核心流程对照](sgyz-ocpx基础能力兼容基线.md)。
+8. [下游媒体 API 接入文档](OCPX下游渠道API接入文档.md)。
+9. [上游广告主接入指南](OCPX上游广告主适配器开发指南.md)。
+10. `contracts/` 中的 OpenAPI、JSON Schema、Postman 和管理端字段契约。
 
 其余 MVP、竞品、ADR/RFC、旧模块规格、V72 点击计费/充值账务设计和 V79–V95 文档是历史或规划资料，不代表当前运行能力。
 
 ## 数据库与发布边界
 
-- 空库结构以 `scx_current_schema.sql` 为准；已有 V101 库先人工审核并前向执行 V102，再执行 `V103__add_advertiser_account_scope.sql`；已是 V102 的库只执行 V103。
+- 空库结构以 `scx_current_schema.sql` 为准；已有库按当前版本依次人工审核并前向执行 V102、V103、V104，不得跳过前置版本。
 - V102 预检会拒绝无法映射的平台值和已软删的广告主/媒体，不静默删除或复活数据。
 - V96–V102 保持不变；所有当前和未来 SQL 都不读写已退役的 `scx_schema_migration`。
 - Engine profile 中只保存服务端凭据映射；生产值不得出现在浏览器、日志、文档或对外差异中。

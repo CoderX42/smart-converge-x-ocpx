@@ -27,6 +27,10 @@ class MiParamAdapterTest {
 		req.setImei_md5("imei-md5-1");
 		req.setOaid("oaid-1");
 		req.setOaid_md5("oaid-md5-1");
+		req.setIdfa_md5("idfa-md5-1");
+		req.setCaid_list("caid-list-1");
+		req.setAaid("aaid-1");
+		req.setClickid("click-1");
 		req.setMts("1700000000000");
 		req.setAdv_id("adv-1");
 
@@ -44,6 +48,10 @@ class MiParamAdapterTest {
 		assertThat(result.getExt()).isEqualTo("mi-callback-ext");
 		assertThat(result.getOs()).isEqualTo(OsTypeEnum.ANDROID);
 		assertThat(result.getImeiMd5()).isEqualTo("imei-md5-1");
+		assertThat(result.getIdfaMd5()).isEqualTo("idfa-md5-1");
+		assertThat(result.getCaidList()).isEqualTo("caid-list-1");
+		assertThat(result.getAaid()).isEqualTo("aaid-1");
+		assertThat(result.getClickId()).isEqualTo("click-1");
 		assertThat(result.getTsMs()).isEqualTo("1700000000000");
 		assertThat(result.getAdvId()).isEqualTo("adv-1");
 		assertThat(result.getCallbackUrl()).isEqualTo("https%3A%2F%2Fmedia.example%2Fcallback%3Fa%3D1%26b%3D2");

@@ -28,6 +28,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 	/** 设备标识及其散列或历史版本。 */
 	private String caid;
 
+	private String caid_list;
+
 	private String caid1;
 
 	private String last_caid;
@@ -37,6 +39,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 	private String idfa;
 
 	private String idfa_md5;
+
+	private String aaid;
 
 	private String imei;
 
@@ -80,6 +84,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
 	private String impresss_id;
 
+	private String clickid;
+
 	/** 兼容旧媒体协议的扩展参数，当前通用适配器不消费。 */
 	private String once_encode_sua;
 
@@ -104,6 +110,13 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return caid;
+	}
+
+	public String getCaid_list() {
+		if (StringUtils.hasText(caid_list) && "__CAID_LIST__".equals(caid_list)) {
+			return null;
+		}
+		return caid_list;
 	}
 
 	public String getCaid1() {
@@ -132,6 +145,20 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return idfa;
+	}
+
+	public String getIdfa_md5() {
+		if (StringUtils.hasText(idfa_md5) && "__IDFA_MD5__".equals(idfa_md5)) {
+			return null;
+		}
+		return idfa_md5;
+	}
+
+	public String getAaid() {
+		if (StringUtils.hasText(aaid) && "__AAID__".equals(aaid)) {
+			return null;
+		}
+		return aaid;
 	}
 
 	public String getImei() {
@@ -245,6 +272,13 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return impresss_id;
+	}
+
+	public String getClickid() {
+		if (StringUtils.hasText(clickid) && "__CLICKID__".equals(clickid)) {
+			return null;
+		}
+		return clickid;
 	}
 
 }
