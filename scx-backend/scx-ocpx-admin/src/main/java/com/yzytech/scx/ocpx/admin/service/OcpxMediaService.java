@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,13 +24,22 @@ public class OcpxMediaService {
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
-	public IPage<MediaViews.Item> list(Page<OcpxMedia> page, String keyword) {
+	public IPage<MediaViews.Item> list(Page<OcpxMedia> page, String keyword, String mediaId) {
 		return mediaMapper
 			.selectPage(page, Wrappers.<OcpxMedia>lambdaQuery()
-				.and(StringUtils.hasText(keyword),
+				.eq(StringUtils.hasText(mediaId), OcpxMedia::getId, mediaId)
+				.and(StringUtils.hasText(keyword) && !StringUtils.hasText(mediaId),
 						q -> q.like(OcpxMedia::getId, keyword).or().like(OcpxMedia::getMediaName, keyword))
 				.orderByDesc(OcpxMedia::getUpdateTime))
 			.convert(this::view);
+	}
+
+	/** 对齐 SGYZ getChannelName：下拉只返回渠道编号和名称。 */
+	public List<MediaViews.Option> options() {
+		return mediaMapper.selectList(Wrappers.<OcpxMedia>lambdaQuery().orderByDesc(OcpxMedia::getId))
+			.stream()
+			.map(item -> new MediaViews.Option(item.getId(), item.getMediaName()))
+			.toList();
 	}
 
 	public MediaViews.Item detail(String id) {

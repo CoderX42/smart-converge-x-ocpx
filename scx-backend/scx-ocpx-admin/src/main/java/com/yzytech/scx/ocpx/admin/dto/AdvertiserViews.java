@@ -12,4 +12,7 @@ public final class AdvertiserViews {
 			BigDecimal balance, LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
+	public record Option(String id, String name) {
+	}
+
 }

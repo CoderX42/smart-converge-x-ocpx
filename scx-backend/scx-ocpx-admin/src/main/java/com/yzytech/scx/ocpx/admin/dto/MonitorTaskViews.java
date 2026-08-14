@@ -14,4 +14,7 @@ public final class MonitorTaskViews {
 			LocalDateTime updateTime) {
 	}
 
+	public record Option(String id, String name) {
+	}
+
 }

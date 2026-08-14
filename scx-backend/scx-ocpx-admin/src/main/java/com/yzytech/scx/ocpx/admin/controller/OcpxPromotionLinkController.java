@@ -36,14 +36,20 @@ public class OcpxPromotionLinkController {
 	@GetMapping
 	@SaCheckPermission("ocpx:promotion-link:view")
 	public Result<IPage<PromotionLinkViews.Item>> list(Page<OcpxPromotionLink> page, String keyword,
-			String advertiserId, Integer platform) {
-		return Result.success(promotionLinkService.list(page, keyword, advertiserId, platform));
+			String advertiserId, String promotionLinkId, Integer platform) {
+		return Result.success(promotionLinkService.list(page, keyword, advertiserId, promotionLinkId, platform));
 	}
 
 	@GetMapping("/advertiser-options")
 	@SaCheckPermission("ocpx:promotion-link:view")
 	public Result<List<PromotionLinkViews.AdvertiserOption>> advertiserOptions(String keyword) {
 		return Result.success(promotionLinkService.advertiserOptions(keyword));
+	}
+
+	@GetMapping("/options")
+	@SaCheckPermission("ocpx:promotion-link:view")
+	public Result<List<PromotionLinkViews.Option>> options(String advertiserId) {
+		return Result.success(promotionLinkService.options(advertiserId));
 	}
 
 	@GetMapping("/{id}")

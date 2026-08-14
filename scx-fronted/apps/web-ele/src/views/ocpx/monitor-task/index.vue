@@ -1,12 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type {
-  EntityOption,
-  Media,
-  MonitorTask,
-  PromotionLink,
-} from '#/api/ocpx';
+import type { EntityOption, MonitorTask } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
 
@@ -17,10 +12,11 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createMonitorTask,
   deleteMonitorTask,
-  listMedia,
   listMonitorTasks,
-  listPromotionLinks,
+  mediaOptions,
+  monitorTaskOptions,
   promotionLinkAdvertisers,
+  promotionLinkOptions,
   updateMonitorTask,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
@@ -48,10 +44,10 @@ const columns = [
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<MonitorTask[]>([]);
-const mediaOptions = ref<Media[]>([]);
-const advertiserOptions = ref<EntityOption[]>([]);
-const promotionOptions = ref<PromotionLink[]>([]);
-const monitorOptions = ref<MonitorTask[]>([]);
+const mediaSelects = ref<EntityOption[]>([]);
+const advertiserSelects = ref<EntityOption[]>([]);
+const promotionOptions = ref<EntityOption[]>([]);
+const monitorSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const deletingId = ref('');
@@ -74,14 +70,36 @@ const form = reactive({
   monitorName: '',
   promotionLinkId: '',
   remark: '',
-  unitPrice: 0,
+  unitPrice: '' as number | string,
 });
+
+function validateNumber(
+  _rule: unknown,
+  value: number | string,
+  callback: (error?: Error) => void,
+) {
+  if (value === '' || value === undefined || value === null) {
+    callback(new Error('输入不能为空'));
+    return;
+  }
+  if (/^\d+(?:\.\d+)?$/.test(String(value))) {
+    callback();
+  } else {
+    callback(new Error('请输入正确的数字格式'));
+  }
+}
+
 const rules: FormRules = {
-  advertiserId: [{ message: '请选择广告主', required: true }],
-  mediaId: [{ message: '请选择媒体', required: true }],
-  monitorName: [{ message: '请输入监测名称', required: true }],
-  promotionLinkId: [{ message: '请选择所属链接', required: true }],
-  unitPrice: [{ message: '请输入单价', required: true }],
+  advertiserId: [{ message: '请选择广告主', required: true, trigger: 'blur' }],
+  mediaId: [{ message: '请选择渠道', required: true, trigger: 'blur' }],
+  monitorName: [{ message: '请输入监测名称', required: true, trigger: 'blur' }],
+  promotionLinkId: [
+    { message: '请选择投放链接', required: true, trigger: 'blur' },
+  ],
+  unitPrice: [
+    { message: '请输入投放单价', required: true, trigger: 'blur' },
+    { trigger: 'blur', validator: validateNumber },
+  ],
 };
 
 function hasColumn(key: string) {
@@ -104,16 +122,9 @@ async function load() {
   }
 }
 
-async function loadMonitorOptions() {
-  query.monitorTaskId = '';
-  const result = await listMonitorTasks({
-    current: 1,
-    mediaId: query.mediaId || undefined,
-    size: 100,
-  });
-  monitorOptions.value = result.records;
-  resetPage(query);
-  await load();
+async function loadMonitorSelects(reset = true) {
+  if (reset) query.monitorTaskId = '';
+  monitorSelects.value = await monitorTaskOptions(query.mediaId || undefined);
 }
 
 async function loadPromotionOptions(advertiserId: string, keepId = false) {
@@ -122,12 +133,7 @@ async function loadPromotionOptions(advertiserId: string, keepId = false) {
     promotionOptions.value = [];
     return;
   }
-  const result = await listPromotionLinks({
-    advertiserId,
-    current: 1,
-    size: 100,
-  });
-  promotionOptions.value = result.records;
+  promotionOptions.value = await promotionLinkOptions(advertiserId);
   if (
     form.promotionLinkId &&
     !promotionOptions.value.some(({ id }) => id === form.promotionLinkId)
@@ -150,7 +156,7 @@ async function edit(row?: MonitorTask) {
     monitorName: row?.monitorName || '',
     promotionLinkId: row?.promotionLinkId || '',
     remark: row?.remark || '',
-    unitPrice: row?.unitPrice ?? 0,
+    unitPrice: row?.unitPrice ?? '',
   });
   await loadPromotionOptions(form.advertiserId, true);
   dialogOpen.value = true;
@@ -164,12 +170,14 @@ async function save() {
       ...form,
       bizId: form.bizId || undefined,
       remark: form.remark || undefined,
+      unitPrice: Number(form.unitPrice),
     };
     await (editing.value
       ? updateMonitorTask(editing.value.id, payload)
       : createMonitorTask(payload));
-    ElMessage.success('保存成功');
+    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
+    await loadMonitorSelects(false);
     await load();
   } finally {
     saving.value = false;
@@ -196,14 +204,14 @@ async function remove(row: MonitorTask) {
 }
 
 onMounted(async () => {
-  const [mediaResult, advertisers, monitors] = await Promise.all([
-    listMedia({ current: 1, size: 100 }),
+  const [media, advertisers, monitors] = await Promise.all([
+    mediaOptions(),
     promotionLinkAdvertisers(),
-    listMonitorTasks({ current: 1, size: 100 }),
+    monitorTaskOptions(),
   ]);
-  mediaOptions.value = mediaResult.records;
-  advertiserOptions.value = advertisers;
-  monitorOptions.value = monitors.records;
+  mediaSelects.value = media;
+  advertiserSelects.value = advertisers;
+  monitorSelects.value = monitors;
   await load();
 });
 </script>
@@ -217,13 +225,13 @@ onMounted(async () => {
           aria-label="按媒体查询监测任务"
           clearable
           filterable
-          placeholder="媒体"
-          @change="loadMonitorOptions"
+          placeholder="请选择渠道"
+          @change="loadMonitorSelects()"
         >
           <el-option
-            v-for="item in mediaOptions"
+            v-for="item in mediaSelects"
             :key="item.id"
-            :label="item.mediaName"
+            :label="item.name"
             :value="item.id"
           />
         </el-select>
@@ -232,26 +240,17 @@ onMounted(async () => {
           aria-label="按监测任务查询"
           clearable
           filterable
-          placeholder="监测任务"
-          @change="search"
+          placeholder="请选择监测任务"
         >
           <el-option
-            v-for="item in monitorOptions"
+            v-for="item in monitorSelects"
             :key="item.id"
-            :label="item.monitorName"
+            :label="item.name"
             :value="item.id"
           />
         </el-select>
         <el-button :disabled="loading" type="primary" @click="search"
-          >查询</el-button
-        >
-        <el-button
-          :disabled="loading"
-          @click="
-            Object.assign(query, { mediaId: '', monitorTaskId: '' });
-            loadMonitorOptions();
-          "
-          >重置</el-button
+          >搜索</el-button
         >
       </div>
       <div class="ocpx-actions">
@@ -396,44 +395,60 @@ onMounted(async () => {
         :rules="rules"
         label-width="110px"
       >
-        <el-form-item label="媒体" prop="mediaId"
-          ><el-select v-model="form.mediaId" filterable
+        <el-form-item label="所属渠道" prop="mediaId"
+          ><el-select v-model="form.mediaId" filterable placeholder="请选择渠道"
             ><el-option
-              v-for="item in mediaOptions"
-              :key="item.id"
-              :label="item.mediaName"
-              :value="item.id" /></el-select
-        ></el-form-item>
-        <el-form-item label="广告主" prop="advertiserId"
-          ><el-select
-            v-model="form.advertiserId"
-            filterable
-            @change="loadPromotionOptions(form.advertiserId)"
-            ><el-option
-              v-for="item in advertiserOptions"
+              v-for="item in mediaSelects"
               :key="item.id"
               :label="item.name"
               :value="item.id" /></el-select
         ></el-form-item>
-        <el-form-item label="所属链接" prop="promotionLinkId"
-          ><el-select v-model="form.promotionLinkId" filterable
+        <el-form-item label="所属广告主" prop="advertiserId"
+          ><el-select
+            v-model="form.advertiserId"
+            filterable
+            placeholder="请选择广告主"
+            @change="loadPromotionOptions(form.advertiserId)"
+            ><el-option
+              v-for="item in advertiserSelects"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id" /></el-select
+        ></el-form-item>
+        <el-form-item label="投放链接" prop="promotionLinkId"
+          ><el-select
+            v-model="form.promotionLinkId"
+            filterable
+            placeholder="请选择投放链接"
             ><el-option
               v-for="item in promotionOptions"
               :key="item.id"
-              :label="item.linkName"
+              :label="item.name"
               :value="item.id" /></el-select
         ></el-form-item>
         <el-form-item label="监测名称" prop="monitorName"
-          ><el-input v-model="form.monitorName"
+          ><el-input
+            v-model="form.monitorName"
+            autosize
+            placeholder="请输入监测名称"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="业务编号" prop="bizId"
-          ><el-input v-model="form.bizId"
+          ><el-input
+            v-model="form.bizId"
+            autosize
+            placeholder="请输入业务编号"
+            type="textarea"
         /></el-form-item>
-        <el-form-item label="单价" prop="unitPrice"
-          ><el-input-number v-model="form.unitPrice" :min="0" :precision="6"
+        <el-form-item label="投放单价" prop="unitPrice"
+          ><el-input v-model="form.unitPrice" placeholder="请输入投放单价"
         /></el-form-item>
         <el-form-item label="备注" prop="remark"
-          ><el-input v-model="form.remark" :rows="3" type="textarea"
+          ><el-input
+            v-model="form.remark"
+            autosize
+            placeholder="请输入备注"
+            type="textarea"
         /></el-form-item>
         <el-alert
           :closable="false"
@@ -445,7 +460,7 @@ onMounted(async () => {
         ><el-button :disabled="saving" @click="dialogOpen = false"
           >取消</el-button
         ><el-button :loading="saving" type="primary" @click="save"
-          >保存</el-button
+          >确定</el-button
         ></template
       >
     </el-dialog>

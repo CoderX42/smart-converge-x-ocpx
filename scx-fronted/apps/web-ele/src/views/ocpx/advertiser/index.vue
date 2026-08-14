@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { AdvertiserV2 } from '#/api/ocpx';
+import type { AdvertiserV2, EntityOption } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
 
@@ -10,6 +10,7 @@ import { Page } from '@boot/common-ui';
 import { ElMessage } from 'element-plus';
 
 import {
+  advertiserOptions,
   createAdvertiserV2,
   listAdvertisers,
   rechargeAdvertiser,
@@ -36,11 +37,12 @@ const columns = [
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<AdvertiserV2[]>([]);
+const advertiserSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const total = ref(0);
 const showSearch = ref(true);
-const query = reactive({ current: 1, keyword: '', size: 30 });
+const query = reactive({ advertiserId: '', current: 1, size: 30 });
 
 const dialogOpen = ref(false);
 const editing = ref<AdvertiserV2>();
@@ -52,8 +54,10 @@ const form = reactive({
   macroParams: '',
 });
 const rules: FormRules = {
-  advertiserName: [{ message: '请输入广告主名称', required: true }],
-  bidUrl: [{ message: '请输入请求地址', required: true }],
+  advertiserName: [
+    { message: '请输入广告主名称', required: true, trigger: 'blur' },
+  ],
+  bidUrl: [{ message: '请输入请求地址', required: true, trigger: 'blur' }],
 };
 
 const rechargeOpen = ref(false);
@@ -78,7 +82,11 @@ function hasColumn(key: string) {
 async function load() {
   loading.value = true;
   try {
-    const result = await listAdvertisers({ ...query });
+    const result = await listAdvertisers({
+      advertiserId: query.advertiserId || undefined,
+      current: query.current,
+      size: query.size,
+    });
     rows.value = result.records;
     total.value = result.total;
   } finally {
@@ -115,8 +123,9 @@ async function save() {
     await (editing.value
       ? updateAdvertiserV2(editing.value.id, payload)
       : createAdvertiserV2(payload));
-    ElMessage.success('保存成功');
+    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
+    advertiserSelects.value = await advertiserOptions();
     await load();
   } finally {
     saving.value = false;
@@ -142,33 +151,33 @@ async function submitRecharge() {
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  advertiserSelects.value = await advertiserOptions();
+  await load();
+});
 </script>
 
 <template>
   <Page auto-content-height title="广告主管理">
     <el-card shadow="never">
       <div v-show="showSearch" class="ocpx-query">
-        <el-input
-          v-model="query.keyword"
+        <el-select
+          v-model="query.advertiserId"
           aria-label="按广告主查询"
           clearable
-          placeholder="广告主编号 / 名称"
-          @clear="search"
-          @keyup.enter="search"
-        />
+          filterable
+          placeholder="请选择广告主"
+        >
+          <el-option
+            v-for="item in advertiserSelects"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
         <el-button :disabled="loading" type="primary" @click="search"
-          >查询</el-button
+          >搜索</el-button
         >
-        <el-button
-          :disabled="loading"
-          @click="
-            Object.assign(query, { keyword: '' });
-            search();
-          "
-        >
-          重置
-        </el-button>
       </div>
 
       <div class="ocpx-actions">
@@ -302,17 +311,29 @@ onMounted(load);
         :rules="rules"
         label-width="110px"
       >
-        <el-form-item label="名称" prop="advertiserName"
-          ><el-input v-model="form.advertiserName"
+        <el-form-item label="广告主名称" prop="advertiserName"
+          ><el-input
+            v-model="form.advertiserName"
+            placeholder="请输入广告主名称"
         /></el-form-item>
         <el-form-item label="请求地址" prop="bidUrl"
-          ><el-input v-model="form.bidUrl" type="textarea"
+          ><el-input
+            v-model="form.bidUrl"
+            autosize
+            placeholder="请输入请求地址"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="凭据引用" prop="credentialConfigKey"
-          ><el-input v-model="form.credentialConfigKey"
+          ><el-input
+            v-model="form.credentialConfigKey"
+            placeholder="请输入凭据引用"
         /></el-form-item>
         <el-form-item label="宏参数" prop="macroParams"
-          ><el-input v-model="form.macroParams" :rows="4" type="textarea"
+          ><el-input
+            v-model="form.macroParams"
+            autosize
+            placeholder="请输入宏参数"
+            type="textarea"
         /></el-form-item>
       </el-form>
       <template #footer>
@@ -320,7 +341,7 @@ onMounted(load);
           >取消</el-button
         >
         <el-button :loading="saving" type="primary" @click="save"
-          >保存</el-button
+          >确定</el-button
         >
       </template>
     </el-dialog>

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { allColumnKeys, copyLongText, PAGE_SIZES, resetPage } from './table';
+import {
+  allColumnKeys,
+  copyLongText,
+  PAGE_SIZES,
+  platformLabel,
+  platformOptions,
+  resetPage,
+} from './table';
 
 const message = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock('element-plus', () => ({ ElMessage: message }));
@@ -18,6 +25,13 @@ describe('ocpx table interaction helpers', () => {
       ]),
     ).toEqual(['id', 'name']);
     expect(PAGE_SIZES).toEqual([10, 30, 60]);
+    expect(platformOptions.map(({ label, value }) => [value, label])).toEqual([
+      [1, 'Android'],
+      [2, 'IOS'],
+      [3, 'Android+IOS'],
+      [4, '快应用'],
+    ]);
+    expect(platformLabel[2]).toBe('IOS');
   });
 
   it('resets pagination when a query or parent filter changes', () => {

@@ -15,4 +15,7 @@ public final class PromotionLinkViews {
 	public record AdvertiserOption(String id, String name) {
 	}
 
+	public record Option(String id, String name) {
+	}
+
 }

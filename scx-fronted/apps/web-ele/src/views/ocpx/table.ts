@@ -22,9 +22,16 @@ export async function copyLongText(value?: null | string) {
   }
 }
 
+export const platformOptions = [
+  { label: 'Android', value: 1 },
+  { label: 'IOS', value: 2 },
+  { label: 'Android+IOS', value: 3 },
+  { label: '快应用', value: 4 },
+] as const;
+
 export const platformLabel: Record<number, string> = {
   1: 'Android',
-  2: 'iOS',
-  3: 'Android+iOS',
+  2: 'IOS',
+  3: 'Android+IOS',
   4: '快应用',
 };

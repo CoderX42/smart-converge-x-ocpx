@@ -14,12 +14,19 @@ import {
   deletePromotionLink,
   listPromotionLinks,
   promotionLinkAdvertisers,
+  promotionLinkOptions,
   updatePromotionLink,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
-import { allColumnKeys, PAGE_SIZES, platformLabel, resetPage } from '../table';
+import {
+  allColumnKeys,
+  PAGE_SIZES,
+  platformLabel,
+  platformOptions,
+  resetPage,
+} from '../table';
 
 import '../table.scss';
 
@@ -41,12 +48,18 @@ const columns = [
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<PromotionLink[]>([]);
 const advertisers = ref<EntityOption[]>([]);
+const linkSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const deletingId = ref('');
 const total = ref(0);
 const showSearch = ref(true);
-const query = reactive({ advertiserId: '', current: 1, keyword: '', size: 30 });
+const query = reactive({
+  advertiserId: '',
+  current: 1,
+  promotionLinkId: '',
+  size: 30,
+});
 const dialogOpen = ref(false);
 const editing = ref<PromotionLink>();
 const formRef = ref<FormInstance>();
@@ -57,14 +70,14 @@ const form = reactive({
   linkExt: '',
   linkName: '',
   linkUrl: '',
-  platform: 1 as PlatformCode,
+  platform: undefined as PlatformCode | undefined,
   remark: '',
 });
 const rules: FormRules = {
-  advertiserId: [{ message: '请选择广告主', required: true }],
-  linkName: [{ message: '请输入链接名称', required: true }],
-  linkUrl: [{ message: '请输入投放链接', required: true }],
-  platform: [{ message: '请选择平台', required: true }],
+  advertiserId: [{ message: '请选择广告主', required: true, trigger: 'blur' }],
+  linkName: [{ message: '请输入名称', required: true, trigger: 'blur' }],
+  linkUrl: [{ message: '请输入投放链接', required: true, trigger: 'blur' }],
+  platform: [{ message: '请选择平台', required: true, trigger: 'blur' }],
 };
 
 function hasColumn(key: string) {
@@ -77,7 +90,7 @@ async function load() {
     const result = await listPromotionLinks({
       advertiserId: query.advertiserId || undefined,
       current: query.current,
-      keyword: query.keyword || undefined,
+      promotionLinkId: query.promotionLinkId || undefined,
       size: query.size,
     });
     rows.value = result.records;
@@ -85,6 +98,11 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+async function loadLinkSelects(advertiserId: string, reset = true) {
+  if (reset) query.promotionLinkId = '';
+  linkSelects.value = await promotionLinkOptions(advertiserId || undefined);
 }
 
 function search() {
@@ -101,7 +119,7 @@ function edit(row?: PromotionLink) {
     linkExt: row?.linkExt || '',
     linkName: row?.linkName || '',
     linkUrl: row?.linkUrl || '',
-    platform: row?.platform || 1,
+    platform: row?.platform,
     remark: row?.remark || '',
   });
   dialogOpen.value = true;
@@ -121,8 +139,9 @@ async function save() {
     await (editing.value
       ? updatePromotionLink(editing.value.id, payload)
       : createPromotionLink(payload));
-    ElMessage.success('保存成功');
+    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
+    await loadLinkSelects(query.advertiserId, false);
     await load();
   } finally {
     saving.value = false;
@@ -150,6 +169,7 @@ async function remove(row: PromotionLink) {
 
 onMounted(async () => {
   advertisers.value = await promotionLinkAdvertisers();
+  await loadLinkSelects('');
   await load();
 });
 </script>
@@ -163,8 +183,8 @@ onMounted(async () => {
           aria-label="按广告主查询推广链接"
           clearable
           filterable
-          placeholder="广告主"
-          @change="search"
+          placeholder="请选择广告主"
+          @change="loadLinkSelects(query.advertiserId)"
         >
           <el-option
             v-for="item in advertisers"
@@ -173,24 +193,22 @@ onMounted(async () => {
             :value="item.id"
           />
         </el-select>
-        <el-input
-          v-model="query.keyword"
-          aria-label="按链接查询"
+        <el-select
+          v-model="query.promotionLinkId"
+          aria-label="按推广链接查询"
           clearable
-          placeholder="链接编号 / 名称"
-          @clear="search"
-          @keyup.enter="search"
-        />
-        <el-button :disabled="loading" type="primary" @click="search"
-          >查询</el-button
+          filterable
+          placeholder="请选择广告主应用链接"
         >
-        <el-button
-          :disabled="loading"
-          @click="
-            Object.assign(query, { advertiserId: '', keyword: '' });
-            search();
-          "
-          >重置</el-button
+          <el-option
+            v-for="item in linkSelects"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
+        <el-button :disabled="loading" type="primary" @click="search"
+          >搜索</el-button
         >
       </div>
       <div class="ocpx-actions">
@@ -330,46 +348,75 @@ onMounted(async () => {
         :rules="rules"
         label-width="110px"
       >
-        <el-form-item label="广告主" prop="advertiserId"
-          ><el-select v-model="form.advertiserId" filterable
+        <el-form-item label="所属广告主" prop="advertiserId"
+          ><el-select
+            v-model="form.advertiserId"
+            filterable
+            placeholder="请选择广告主"
             ><el-option
               v-for="item in advertisers"
               :key="item.id"
               :label="item.name"
               :value="item.id" /></el-select
         ></el-form-item>
-        <el-form-item label="平台" prop="platform"
-          ><el-select v-model="form.platform"
-            ><el-option
-              v-for="(label, value) in platformLabel"
-              :key="value"
-              :label="label"
-              :value="Number(value)" /></el-select
-        ></el-form-item>
+        <el-form-item label="平台" prop="platform">
+          <el-radio-group v-model="form.platform">
+            <el-radio
+              v-for="item in platformOptions"
+              :key="item.value"
+              :value="item.value"
+              >{{ item.label }}</el-radio
+            >
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="名称" prop="linkName"
-          ><el-input v-model="form.linkName"
+          ><el-input
+            v-model="form.linkName"
+            autosize
+            placeholder="请输入名称"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="渠道号" prop="linkChannel"
-          ><el-input v-model="form.linkChannel"
+          ><el-input
+            v-model="form.linkChannel"
+            autosize
+            placeholder="请输入渠道号"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="投放链接" prop="linkUrl"
-          ><el-input v-model="form.linkUrl" :rows="3" type="textarea"
+          ><el-input
+            v-model="form.linkUrl"
+            autosize
+            placeholder="请输入投放链接"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="唤起链接" prop="deeplink"
-          ><el-input v-model="form.deeplink"
+          ><el-input
+            v-model="form.deeplink"
+            autosize
+            placeholder="请输入唤起链接"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="扩展参数" prop="linkExt"
-          ><el-input v-model="form.linkExt" :rows="3" type="textarea"
+          ><el-input
+            v-model="form.linkExt"
+            autosize
+            placeholder="请输入参数"
+            type="textarea"
         /></el-form-item>
         <el-form-item label="备注" prop="remark"
-          ><el-input v-model="form.remark" :rows="3" type="textarea"
+          ><el-input
+            v-model="form.remark"
+            autosize
+            placeholder="请输入备注"
+            type="textarea"
         /></el-form-item>
       </el-form>
       <template #footer
         ><el-button :disabled="saving" @click="dialogOpen = false"
           >取消</el-button
         ><el-button :loading="saving" type="primary" @click="save"
-          >保存</el-button
+          >确定</el-button
         ></template
       >
     </el-dialog>

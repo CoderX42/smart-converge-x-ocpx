@@ -66,6 +66,9 @@ export function listAdvertisers(params: Record<string, unknown>) {
     params,
   });
 }
+export function advertiserOptions() {
+  return requestClient.get<EntityOption[]>('/ocpx/advertisers/options');
+}
 export function createAdvertiserV2(data: Record<string, unknown>) {
   return requestClient.post<AdvertiserV2>('/ocpx/advertisers', data);
 }
@@ -87,6 +90,11 @@ export function promotionLinkAdvertisers(keyword?: string) {
     { params: { keyword } },
   );
 }
+export function promotionLinkOptions(advertiserId?: string) {
+  return requestClient.get<EntityOption[]>('/ocpx/promotion-links/options', {
+    params: { advertiserId },
+  });
+}
 export function createPromotionLink(data: Record<string, unknown>) {
   return requestClient.post<PromotionLink>('/ocpx/promotion-links', data);
 }
@@ -100,6 +108,9 @@ export function deletePromotionLink(id: string) {
 export function listMedia(params: Record<string, unknown>) {
   return requestClient.get<PageResult<Media>>('/ocpx/media', { params });
 }
+export function mediaOptions() {
+  return requestClient.get<EntityOption[]>('/ocpx/media/options');
+}
 export function createMedia(data: Record<string, unknown>) {
   return requestClient.post<Media>('/ocpx/media', data);
 }
@@ -110,6 +121,11 @@ export function updateMedia(id: string, data: Record<string, unknown>) {
 export function listMonitorTasks(params: Record<string, unknown>) {
   return requestClient.get<PageResult<MonitorTask>>('/ocpx/monitor-tasks', {
     params,
+  });
+}
+export function monitorTaskOptions(mediaId?: string) {
+  return requestClient.get<EntityOption[]>('/ocpx/monitor-tasks/options', {
+    params: { mediaId },
   });
 }
 export function getMonitorTask(id: string) {

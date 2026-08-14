@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { Media } from '#/api/ocpx';
+import type { EntityOption, Media } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
 
@@ -9,7 +9,7 @@ import { Page } from '@boot/common-ui';
 
 import { ElMessage } from 'element-plus';
 
-import { createMedia, listMedia, updateMedia } from '#/api/ocpx';
+import { createMedia, listMedia, mediaOptions, updateMedia } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
@@ -30,11 +30,12 @@ const columns = [
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<Media[]>([]);
+const mediaSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const total = ref(0);
 const showSearch = ref(true);
-const query = reactive({ current: 1, keyword: '', size: 30 });
+const query = reactive({ current: 1, mediaId: '', size: 30 });
 const dialogOpen = ref(false);
 const editing = ref<Media>();
 const formRef = ref<FormInstance>();
@@ -45,11 +46,9 @@ const form = reactive({
   uri: '',
 });
 const rules: FormRules = {
-  mediaName: [{ message: '请输入渠道名称', required: true }],
-  uri: [
-    { message: '请输入 URI', required: true },
-    { message: 'URI 必须是以 / 开头的站内路径', pattern: /^\/[\w/-]*$/ },
-  ],
+  macroParams: [{ message: '请输入宏参数', required: true, trigger: 'blur' }],
+  mediaName: [{ message: '请输入渠道名称', required: true, trigger: 'blur' }],
+  uri: [{ message: '请输入 URI', required: true, trigger: 'blur' }],
 };
 
 function hasColumn(key: string) {
@@ -59,7 +58,11 @@ function hasColumn(key: string) {
 async function load() {
   loading.value = true;
   try {
-    const result = await listMedia({ ...query });
+    const result = await listMedia({
+      current: query.current,
+      mediaId: query.mediaId || undefined,
+      size: query.size,
+    });
     rows.value = result.records;
     total.value = result.total;
   } finally {
@@ -96,39 +99,41 @@ async function save() {
     await (editing.value
       ? updateMedia(editing.value.id, payload)
       : createMedia(payload));
-    ElMessage.success('保存成功');
+    ElMessage.success(editing.value ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
+    mediaSelects.value = await mediaOptions();
     await load();
   } finally {
     saving.value = false;
   }
 }
 
-onMounted(load);
+onMounted(async () => {
+  mediaSelects.value = await mediaOptions();
+  await load();
+});
 </script>
 
 <template>
   <Page auto-content-height title="媒体管理">
     <el-card shadow="never">
       <div v-show="showSearch" class="ocpx-query">
-        <el-input
-          v-model="query.keyword"
+        <el-select
+          v-model="query.mediaId"
           aria-label="按媒体查询"
           clearable
-          placeholder="渠道 ID / 渠道名称"
-          @clear="search"
-          @keyup.enter="search"
-        />
-        <el-button :disabled="loading" type="primary" @click="search"
-          >查询</el-button
+          filterable
+          placeholder="请选择渠道"
         >
-        <el-button
-          :disabled="loading"
-          @click="
-            Object.assign(query, { keyword: '' });
-            search();
-          "
-          >重置</el-button
+          <el-option
+            v-for="item in mediaSelects"
+            :key="item.id"
+            :label="item.name"
+            :value="item.id"
+          />
+        </el-select>
+        <el-button :disabled="loading" type="primary" @click="search"
+          >搜索</el-button
         >
       </div>
       <div class="ocpx-actions">
@@ -237,24 +242,30 @@ onMounted(load);
         :rules="rules"
         label-width="110px"
       >
-        <el-form-item label="名称" prop="mediaName"
-          ><el-input v-model="form.mediaName"
+        <el-form-item label="渠道名称" prop="mediaName"
+          ><el-input v-model="form.mediaName" placeholder="请输入渠道名称"
         /></el-form-item>
         <el-form-item label="URI" prop="uri"
-          ><el-input v-model="form.uri" placeholder="例如 /feedback"
+          ><el-input v-model="form.uri" placeholder="请输入URI"
         /></el-form-item>
         <el-form-item label="凭据引用" prop="credentialConfigKey"
-          ><el-input v-model="form.credentialConfigKey"
+          ><el-input
+            v-model="form.credentialConfigKey"
+            placeholder="请输入凭据引用"
         /></el-form-item>
         <el-form-item label="宏参数" prop="macroParams"
-          ><el-input v-model="form.macroParams" :rows="4" type="textarea"
+          ><el-input
+            v-model="form.macroParams"
+            autosize
+            placeholder="请输入宏参数"
+            type="textarea"
         /></el-form-item>
       </el-form>
       <template #footer
         ><el-button :disabled="saving" @click="dialogOpen = false"
           >取消</el-button
         ><el-button :loading="saving" type="primary" @click="save"
-          >保存</el-button
+          >确定</el-button
         ></template
       >
     </el-dialog>

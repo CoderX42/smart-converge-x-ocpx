@@ -99,6 +99,29 @@ class OcpxMonitorTaskServiceTest {
 	}
 
 	@Test
+	void createRequiresOnlyMediaLikeSgyzAndStillGeneratesUrls() {
+		when(mediaMapper.selectById("media-1")).thenReturn(media("media-1"));
+		when(advertiserMapper.selectById(anyString())).thenReturn(null);
+		when(linkMapper.selectById(anyString())).thenReturn(null);
+		AtomicReference<OcpxMonitorTask> stored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxMonitorTask task = invocation.getArgument(0);
+			task.setId("task-1");
+			stored.set(task);
+			return 1;
+		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
+		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
+
+		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
+				"media-1", BigDecimal.ONE, null, null));
+
+		assertThat(item.showUrl()).contains("event=IMP");
+		assertThat(item.clkUrl()).contains("event=CLK");
+		assertThat(item.showUrl()).contains("&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+		verify(configRefreshPublisher).mark();
+	}
+
+	@Test
 	void createWithoutMacroParamsBuildsUrlsFromEventAndRouteIdsOnly() {
 		stubActiveRelations();
 		when(taskMapper.selectCount(any())).thenReturn(0L);
@@ -169,6 +192,15 @@ class OcpxMonitorTaskServiceTest {
 			.validate(new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1",
 					new BigDecimal("-1"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
+	}
+
+	@Test
+	void optionsReturnTasksForMediaCascade() {
+		OcpxMonitorTask current = task("task-1", "adv-1", "link-1", "media-1");
+		when(taskMapper.selectList(any())).thenReturn(java.util.List.of(current));
+
+		assertThat(service.options("media-1")).extracting(MonitorTaskViews.Option::id, MonitorTaskViews.Option::name)
+			.containsExactly(org.assertj.core.groups.Tuple.tuple("task-1", "任务一"));
 	}
 
 	@Test

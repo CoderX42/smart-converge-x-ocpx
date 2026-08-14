@@ -49,9 +49,23 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it('clears invalid child filters and form values after parent changes', () => {
     const monitor = page('monitor-task');
     const report = page('report');
+    const promotion = page('promotion-link');
     expect(monitor).toContain("query.monitorTaskId = ''");
     expect(monitor).toContain("form.promotionLinkId = ''");
+    expect(promotion).toContain("query.promotionLinkId = ''");
     expect(report).toContain("filters.monitorTaskId = ''");
     expect(report).toContain("filters.promotionLinkId = ''");
+  });
+
+  it('uses vientiane-style entity selects instead of keyword search', () => {
+    expect(page('advertiser')).toContain('query.advertiserId');
+    expect(page('advertiser')).toContain('请选择广告主');
+    expect(page('promotion-link')).toContain('query.promotionLinkId');
+    expect(page('promotion-link')).toContain('所属广告主');
+    expect(page('promotion-link')).toContain('platformOptions');
+    expect(page('media')).toContain('query.mediaId');
+    expect(page('media')).toContain('请选择渠道');
+    expect(page('monitor-task')).toContain('所属渠道');
+    expect(page('monitor-task')).toContain('投放链接');
   });
 });

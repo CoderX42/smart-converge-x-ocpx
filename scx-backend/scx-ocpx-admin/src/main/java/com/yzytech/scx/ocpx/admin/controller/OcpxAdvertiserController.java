@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 
 @Validated
@@ -33,8 +34,14 @@ public class OcpxAdvertiserController {
 
 	@GetMapping
 	@SaCheckPermission("ocpx:advertiser:view")
-	public Result<IPage<AdvertiserViews.Item>> list(Page<OcpxAdvertiser> page, String keyword) {
-		return Result.success(advertiserService.list(page, keyword));
+	public Result<IPage<AdvertiserViews.Item>> list(Page<OcpxAdvertiser> page, String keyword, String advertiserId) {
+		return Result.success(advertiserService.list(page, keyword, advertiserId));
+	}
+
+	@GetMapping("/options")
+	@SaCheckPermission("ocpx:advertiser:view")
+	public Result<List<AdvertiserViews.Option>> options() {
+		return Result.success(advertiserService.options());
 	}
 
 	@GetMapping("/{id}")

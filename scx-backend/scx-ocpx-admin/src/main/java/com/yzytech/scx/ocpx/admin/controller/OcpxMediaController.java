@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 
 @Validated
@@ -33,8 +34,14 @@ public class OcpxMediaController {
 
 	@GetMapping
 	@SaCheckPermission("ocpx:media:view")
-	public Result<IPage<MediaViews.Item>> list(Page<OcpxMedia> page, String keyword) {
-		return Result.success(mediaService.list(page, keyword));
+	public Result<IPage<MediaViews.Item>> list(Page<OcpxMedia> page, String keyword, String mediaId) {
+		return Result.success(mediaService.list(page, keyword, mediaId));
+	}
+
+	@GetMapping("/options")
+	@SaCheckPermission("ocpx:media:view")
+	public Result<List<MediaViews.Option>> options() {
+		return Result.success(mediaService.options());
 	}
 
 	@GetMapping("/{id}")

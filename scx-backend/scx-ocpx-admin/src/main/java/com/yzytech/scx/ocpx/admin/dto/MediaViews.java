@@ -11,4 +11,7 @@ public final class MediaViews {
 			LocalDateTime createTime, LocalDateTime updateTime) {
 	}
 
+	public record Option(String id, String name) {
+	}
+
 }

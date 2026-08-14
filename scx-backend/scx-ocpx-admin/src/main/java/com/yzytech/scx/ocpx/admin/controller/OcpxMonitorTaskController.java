@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 
 @RestController
@@ -35,6 +36,12 @@ public class OcpxMonitorTaskController {
 	public Result<IPage<MonitorTaskViews.Item>> list(Page<OcpxMonitorTask> page, String keyword,
 			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId) {
 		return Result.success(service.list(page, keyword, advertiserId, promotionLinkId, mediaId, monitorTaskId));
+	}
+
+	@GetMapping("/options")
+	@SaCheckPermission("ocpx:monitor-task:view")
+	public Result<List<MonitorTaskViews.Option>> options(String mediaId) {
+		return Result.success(service.options(mediaId));
 	}
 
 	@GetMapping("/{id}")

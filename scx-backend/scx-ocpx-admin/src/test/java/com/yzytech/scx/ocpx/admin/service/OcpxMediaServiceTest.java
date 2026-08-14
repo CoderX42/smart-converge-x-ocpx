@@ -55,6 +55,17 @@ class OcpxMediaServiceTest {
 	}
 
 	@Test
+	void optionsReturnIdAndNameForQuerySelect() {
+		OcpxMedia media = new OcpxMedia();
+		media.setId("media-1");
+		media.setMediaName("小米");
+		when(mediaMapper.selectList(any())).thenReturn(java.util.List.of(media));
+
+		assertThat(service.options()).extracting(MediaViews.Option::id, MediaViews.Option::name)
+			.containsExactly(org.assertj.core.groups.Tuple.tuple("media-1", "小米"));
+	}
+
+	@Test
 	void createRejectsDuplicateName() {
 		when(mediaMapper.selectCount(any())).thenReturn(1L);
 

@@ -34,16 +34,15 @@ public class OcpxPromotionLinkService {
 
 	private final OcpxDeductionRuleMapper deductionRuleMapper;
 
-	private final OcpxUrlPolicy urlPolicy;
-
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	public IPage<PromotionLinkViews.Item> list(Page<OcpxPromotionLink> page, String keyword, String advertiserId,
-			Integer platform) {
+			String promotionLinkId, Integer platform) {
 		return linkMapper
 			.selectPage(page,
 					Wrappers.<OcpxPromotionLink>lambdaQuery()
-						.and(StringUtils.hasText(keyword),
+						.eq(StringUtils.hasText(promotionLinkId), OcpxPromotionLink::getId, promotionLinkId)
+						.and(StringUtils.hasText(keyword) && !StringUtils.hasText(promotionLinkId),
 								q -> q.like(OcpxPromotionLink::getId, keyword)
 									.or()
 									.like(OcpxPromotionLink::getLinkName, keyword))
@@ -63,6 +62,17 @@ public class OcpxPromotionLinkService {
 				.orderByAsc(OcpxAdvertiser::getAdvertiserName))
 			.stream()
 			.map(a -> new PromotionLinkViews.AdvertiserOption(a.getId(), a.getAdvertiserName()))
+			.toList();
+	}
+
+	/** 对齐 SGYZ getLinkName：按广告主过滤推广链接下拉。 */
+	public List<PromotionLinkViews.Option> options(String advertiserId) {
+		return linkMapper
+			.selectList(Wrappers.<OcpxPromotionLink>lambdaQuery()
+				.eq(StringUtils.hasText(advertiserId), OcpxPromotionLink::getAdvertiserId, advertiserId)
+				.orderByDesc(OcpxPromotionLink::getId))
+			.stream()
+			.map(item -> new PromotionLinkViews.Option(item.getId(), item.getLinkName()))
 			.toList();
 	}
 
@@ -114,24 +124,15 @@ public class OcpxPromotionLinkService {
 		configRefreshPublisher.mark();
 	}
 
+	/** 对齐 SGYZ addLink：投放/唤起链接按提交值落库，允许自定义 scheme。 */
 	private void apply(OcpxPromotionLink link, String advertiserId, String name, Integer platform, String channel,
 			String url, String deeplink, String linkExt, String remark) {
-		OcpxUrlPolicy.Result result = urlPolicy.validate(url);
-		if (!"PASS".equals(result.status()))
-			throw new IllegalArgumentException("推广 URL 校验失败: " + String.join(",", result.issues()));
-		String normalizedDeeplink = trim(deeplink);
-		if (StringUtils.hasText(normalizedDeeplink)) {
-			OcpxUrlPolicy.Result deeplinkResult = urlPolicy.validate(normalizedDeeplink);
-			if (!"PASS".equals(deeplinkResult.status()))
-				throw new IllegalArgumentException("唤起 URL 校验失败: " + String.join(",", deeplinkResult.issues()));
-			normalizedDeeplink = deeplinkResult.normalizedUrl();
-		}
 		link.setAdvertiserId(advertiserId);
 		link.setLinkName(name.trim());
 		link.setPlatform(platform);
 		link.setLinkChannel(trim(channel));
-		link.setLinkUrl(result.normalizedUrl());
-		link.setDeeplink(normalizedDeeplink);
+		link.setLinkUrl(url.trim());
+		link.setDeeplink(trim(deeplink));
 		link.setLinkExt(trim(linkExt));
 		link.setRemark(trim(remark));
 	}

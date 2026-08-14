@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,22 +27,30 @@ public class OcpxAdvertiserService {
 
 	private final OcpxAdvertiserMapper advertiserMapper;
 
-	private final OcpxUrlPolicy urlPolicy;
-
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	private final StringRedisTemplate redis;
 
-	public IPage<AdvertiserViews.Item> list(Page<OcpxAdvertiser> page, String keyword) {
+	public IPage<AdvertiserViews.Item> list(Page<OcpxAdvertiser> page, String keyword, String advertiserId) {
 		return advertiserMapper
 			.selectPage(page,
 					Wrappers.<OcpxAdvertiser>lambdaQuery()
-						.and(StringUtils.hasText(keyword),
+						.eq(StringUtils.hasText(advertiserId), OcpxAdvertiser::getId, advertiserId)
+						.and(StringUtils.hasText(keyword) && !StringUtils.hasText(advertiserId),
 								q -> q.like(OcpxAdvertiser::getId, keyword)
 									.or()
 									.like(OcpxAdvertiser::getAdvertiserName, keyword))
 						.orderByDesc(OcpxAdvertiser::getUpdateTime))
 			.convert(this::view);
+	}
+
+	/** 对齐 SGYZ getDspName：下拉只返回编号和名称。 */
+	public List<AdvertiserViews.Option> options() {
+		return advertiserMapper
+			.selectList(Wrappers.<OcpxAdvertiser>lambdaQuery().orderByDesc(OcpxAdvertiser::getId))
+			.stream()
+			.map(item -> new AdvertiserViews.Option(item.getId(), item.getAdvertiserName()))
+			.toList();
 	}
 
 	public AdvertiserViews.Item detail(String id) {
@@ -82,14 +91,11 @@ public class OcpxAdvertiserService {
 		return StringUtils.hasText(raw) ? new BigDecimal(raw) : BigDecimal.ZERO;
 	}
 
+	/** 对齐 SGYZ addDspInfo：请求地址按提交值落库，不做 URL 预检。 */
 	private void apply(OcpxAdvertiser target, String name, String key, String bidUrl, String macros) {
-		OcpxUrlPolicy.Result validation = urlPolicy.validate(bidUrl);
-		if (!"PASS".equals(validation.status())) {
-			throw new IllegalArgumentException("上游 URL 校验失败: " + String.join(",", validation.issues()));
-		}
 		target.setAdvertiserName(name.trim());
 		target.setCredentialConfigKey(trim(key));
-		target.setBidUrl(validation.normalizedUrl());
+		target.setBidUrl(bidUrl.trim());
 		target.setMacroParams(trim(macros));
 	}
 

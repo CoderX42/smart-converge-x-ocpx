@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -51,13 +52,26 @@ public class OcpxMonitorTaskService {
 			.orderByDesc(OcpxMonitorTask::getUpdateTime)).convert(this::view);
 	}
 
+	/** 对齐 SGYZ getMonitorName：按媒体过滤监测任务下拉。 */
+	public List<MonitorTaskViews.Option> options(String mediaId) {
+		return taskMapper
+			.selectList(Wrappers.<OcpxMonitorTask>lambdaQuery()
+				.eq(StringUtils.hasText(mediaId), OcpxMonitorTask::getMediaId, mediaId)
+				.orderByDesc(OcpxMonitorTask::getId))
+			.stream()
+			.map(item -> new MonitorTaskViews.Option(item.getId(), item.getMonitorName()))
+			.toList();
+	}
+
 	public MonitorTaskViews.Item detail(String id) {
 		return view(require(id));
 	}
 
 	@Transactional
 	public MonitorTaskViews.Item create(MonitorTaskRequests.Create request) {
-		validateRelation(request.advertiserId(), request.promotionLinkId(), request.mediaId());
+		if (mediaMapper.selectById(request.mediaId()) == null) {
+			throw new IllegalArgumentException("媒体不存在");
+		}
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		apply(task, request.monitorName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
 				request.unitPrice(), request.bizId(), request.remark());

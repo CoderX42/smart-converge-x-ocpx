@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { DeductionRule, Media, PromotionLink } from '#/api/ocpx';
+import type { DeductionRule, EntityOption } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
 
@@ -13,8 +13,8 @@ import {
   createDeductionRule,
   deleteDeductionRule,
   listDeductionRules,
-  listMedia,
-  listPromotionLinks,
+  mediaOptions,
+  promotionLinkOptions,
   updateDeductionRule,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
@@ -27,8 +27,8 @@ import '../table.scss';
 defineOptions({ name: 'OcpxDeductionRuleManagement' });
 
 const rows = ref<DeductionRule[]>([]);
-const links = ref<PromotionLink[]>([]);
-const media = ref<Media[]>([]);
+const links = ref<EntityOption[]>([]);
+const media = ref<EntityOption[]>([]);
 const loading = ref(false);
 const deletingId = ref('');
 const total = ref(0);
@@ -100,11 +100,11 @@ async function load() {
 
 async function loadOptions() {
   const [linkPage, mediaPage] = await Promise.all([
-    listPromotionLinks({ current: 1, size: 500 }),
-    listMedia({ current: 1, size: 500 }),
+    promotionLinkOptions(),
+    mediaOptions(),
   ]);
-  links.value = linkPage.records;
-  media.value = mediaPage.records;
+  links.value = linkPage;
+  media.value = mediaPage;
 }
 
 function toQuery() {
@@ -194,7 +194,7 @@ onMounted(async () => {
           <el-option
             v-for="item in links"
             :key="item.id"
-            :label="item.linkName"
+            :label="item.name"
             :value="item.id"
           />
         </el-select>
@@ -316,7 +316,7 @@ onMounted(async () => {
             <el-option
               v-for="item in media"
               :key="item.id"
-              :label="item.mediaName"
+              :label="item.name"
               :value="item.id"
             />
           </el-select>
@@ -326,7 +326,7 @@ onMounted(async () => {
             <el-option
               v-for="item in links"
               :key="item.id"
-              :label="item.linkName"
+              :label="item.name"
               :value="item.id"
             />
           </el-select>

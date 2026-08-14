@@ -1,10 +1,5 @@
 <script lang="ts" setup>
-import type {
-  MonitorTask,
-  PromotionLink,
-  ReportOption,
-  SummaryReportRow,
-} from '#/api/ocpx';
+import type { EntityOption, ReportOption, SummaryReportRow } from '#/api/ocpx';
 
 import { onMounted, reactive, ref, watch } from 'vue';
 
@@ -16,8 +11,8 @@ import {
   exportSummaryReport,
   getSummaryReport,
   getUnifiedReportOptions,
-  listMonitorTasks,
-  listPromotionLinks,
+  monitorTaskOptions,
+  promotionLinkOptions,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
@@ -124,8 +119,8 @@ const exporting = ref(false);
 const showSearch = ref(true);
 const mediaOptions = ref<ReportOption[]>([]);
 const advertiserOptions = ref<ReportOption[]>([]);
-const monitorOptions = ref<MonitorTask[]>([]);
-const linkOptions = ref<PromotionLink[]>([]);
+const monitorOptions = ref<EntityOption[]>([]);
+const linkOptions = ref<EntityOption[]>([]);
 const filters = reactive({
   advertiserId: '',
   asc: '',
@@ -224,22 +219,16 @@ function tableSummary({
 
 async function loadMonitors() {
   filters.monitorTaskId = '';
-  const page = await listMonitorTasks({
-    current: 1,
-    mediaId: filters.mediaId || undefined,
-    size: 500,
-  });
-  monitorOptions.value = page.records;
+  monitorOptions.value = await monitorTaskOptions(
+    filters.mediaId || undefined,
+  );
 }
 
 async function loadLinks() {
   filters.promotionLinkId = '';
-  const page = await listPromotionLinks({
-    advertiserId: filters.advertiserId || undefined,
-    current: 1,
-    size: 500,
-  });
-  linkOptions.value = page.records;
+  linkOptions.value = await promotionLinkOptions(
+    filters.advertiserId || undefined,
+  );
 }
 
 watch(
@@ -304,7 +293,7 @@ onMounted(async () => {
           ><el-option
             v-for="item in monitorOptions"
             :key="item.id"
-            :label="item.monitorName"
+            :label="item.name"
             :value="item.id"
         /></el-select>
         <el-select
@@ -329,7 +318,7 @@ onMounted(async () => {
           ><el-option
             v-for="item in linkOptions"
             :key="item.id"
-            :label="item.linkName"
+            :label="item.name"
             :value="item.id"
         /></el-select>
         <el-date-picker

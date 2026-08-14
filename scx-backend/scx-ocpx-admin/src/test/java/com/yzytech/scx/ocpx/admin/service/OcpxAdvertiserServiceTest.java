@@ -19,11 +19,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -32,8 +34,6 @@ import static org.mockito.Mockito.when;
 class OcpxAdvertiserServiceTest {
 
 	private OcpxAdvertiserMapper advertiserMapper;
-
-	private OcpxUrlPolicy urlPolicy;
 
 	private OcpxConfigRefreshPublisher configRefreshPublisher;
 
@@ -47,12 +47,33 @@ class OcpxAdvertiserServiceTest {
 	@SuppressWarnings("unchecked")
 	void setUp() {
 		advertiserMapper = mock(OcpxAdvertiserMapper.class);
-		urlPolicy = mock(OcpxUrlPolicy.class);
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		redis = mock(StringRedisTemplate.class);
 		values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		service = new OcpxAdvertiserService(advertiserMapper, urlPolicy, configRefreshPublisher, redis);
+		service = new OcpxAdvertiserService(advertiserMapper, configRefreshPublisher, redis);
+	}
+
+	@Test
+	void createPersistsSubmittedFieldsWithoutUrlPolicy() {
+		when(advertiserMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxAdvertiser> stored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxAdvertiser advertiser = invocation.getArgument(0);
+			advertiser.setId("adv-1");
+			stored.set(advertiser);
+			return 1;
+		}).when(advertiserMapper).insert(any(OcpxAdvertiser.class));
+		when(advertiserMapper.selectById("adv-1")).thenAnswer(invocation -> stored.get());
+
+		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " mi-signing ",
+				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ "));
+
+		assertThat(result.advertiserName()).isEqualTo("广告主一");
+		assertThat(result.credentialConfigKey()).isEqualTo("mi-signing");
+		assertThat(result.bidUrl()).isEqualTo("http://127.0.0.1:8080/callback?oaid=__OAID__");
+		assertThat(result.macroParams()).isEqualTo("oaid=__OAID__");
+		verify(configRefreshPublisher).mark();
 	}
 
 	@Test
@@ -100,11 +121,20 @@ class OcpxAdvertiserServiceTest {
 		when(values.get("ocpx:advertiser:balance:adv-2")).thenReturn(null);
 
 		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
-			.list(new Page<>(1, 10), null)
+			.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
 		assertThat(records.get(0).balance()).isEqualByComparingTo("123.45");
 		assertThat(records.get(1).balance()).isEqualByComparingTo(BigDecimal.ZERO);
+	}
+
+	@Test
+	void optionsReturnIdAndNameForQuerySelect() {
+		when(advertiserMapper.selectList(any())).thenReturn(List.of(advertiser("adv-1"), advertiser("adv-2")));
+
+		assertThat(service.options()).extracting(AdvertiserViews.Option::id, AdvertiserViews.Option::name)
+			.containsExactly(org.assertj.core.groups.Tuple.tuple("adv-1", "广告主一"),
+					org.assertj.core.groups.Tuple.tuple("adv-2", "广告主一"));
 	}
 
 	@Test
