@@ -10,4 +10,4 @@ V104 继承 V102 的五对象字段契约和 V103 的广告主开户/数据范�
 | 监测任务 | `GET /ocpx/monitor-tasks`、`GET /{id}`；`ocpx:monitor-task:view` | `POST /ocpx/monitor-tasks`；`ocpx:monitor-task:add` | `PUT /ocpx/monitor-tasks/{id}`；`ocpx:monitor-task:edit` | `DELETE /ocpx/monitor-tasks/{id}`；`ocpx:monitor-task:delete` |
 | 扣量规则 | `GET /ocpx/deduction-rules`、`GET /{id}`；`ocpx:deduction-rule:list` | `POST /ocpx/deduction-rules`；`ocpx:deduction-rule:create` | `PUT /ocpx/deduction-rules/{id}`；`ocpx:deduction-rule:update` | `DELETE /ocpx/deduction-rules/{id}`；`ocpx:deduction-rule:delete` |
 
-广告主和媒体执行物理删除前必须确认不存在业务及历史引用；存在引用时返回失败结果且不删除任何数据。广告主删除还必须在同一数据库事务中注销其托管账号。`ROLE_ADVERTISER` 不拥有上述写权限。
+广告主删除会物理级联清理其推广链接、监测任务、扣量规则、流程日志、Feedback/Callback 明细和报表数据，并在同一数据库事务中注销托管账号；共享媒体不级联删除。媒体执行物理删除前仍必须确认不存在业务及历史引用。`ROLE_ADVERTISER` 不拥有上述写权限。

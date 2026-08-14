@@ -229,7 +229,7 @@ async function submitRecharge() {
 
 async function remove(row: AdvertiserV2) {
   await ElMessageBox.confirm(
-    '仅未被推广链接、监测任务或历史数据引用的广告主可删除，绑定登录账号也会同步注销。确认继续？',
+    '将永久删除该广告主及其推广链接、监测任务、扣量规则、流程日志、Feedback/Callback 明细和报表数据，同时注销绑定账号并清理余额。共享媒体不会删除，此操作不可恢复。确认继续？',
     '删除广告主',
     {
       confirmButtonText: '确认删除',

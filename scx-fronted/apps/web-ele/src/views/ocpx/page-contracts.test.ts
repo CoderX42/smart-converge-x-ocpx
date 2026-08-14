@@ -139,6 +139,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it('guards advertiser and media delete actions with dedicated codes', () => {
     expect(page('advertiser')).toContain("'ocpx:advertiser:delete'");
     expect(page('advertiser')).toContain('deleteAdvertiserV2(row.id)');
+    expect(page('advertiser')).toContain('此操作不可恢复');
     expect(page('media')).toContain("'ocpx:media:delete'");
     expect(page('media')).toContain('deleteMedia(row.id)');
   });

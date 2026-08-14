@@ -14,12 +14,15 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -198,31 +202,52 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
-	void deleteUnusedAdvertiserDeprovisionsAccountAndClearsRuntimeState() {
+	@SuppressWarnings("unchecked")
+	void deleteAdvertiserCascadesInForeignKeySafeOrderAndClearsRuntimeState() {
 		OcpxAdvertiser advertiser = advertiser("adv-1");
 		advertiser.setAccountUserId("user-1");
-		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
-		when(advertiserMapper.countReferences("adv-1")).thenReturn(0);
+		ManagementRows.RouteKey route = route("link-1", "media-1");
+		when(advertiserMapper.selectByIdForUpdate("adv-1")).thenReturn(advertiser);
+		when(advertiserMapper.selectCascadeRoutes("adv-1")).thenReturn(List.of(route));
 		when(advertiserMapper.deleteById("adv-1")).thenReturn(1);
 
 		service.delete("adv-1");
 
 		verify(advertiserScope).requireAdministrator();
+		InOrder deletion = inOrder(advertiserMapper);
+		deletion.verify(advertiserMapper).selectByIdForUpdate("adv-1");
+		deletion.verify(advertiserMapper).selectCascadeRoutes("adv-1");
+		deletion.verify(advertiserMapper).deleteReportMatTemp("adv-1");
+		deletion.verify(advertiserMapper).deleteReportMat("adv-1");
+		deletion.verify(advertiserMapper).deleteCallbackLogs("adv-1");
+		deletion.verify(advertiserMapper).deleteFeedbackDayLogs("adv-1");
+		deletion.verify(advertiserMapper).deleteFeedbackLogs("adv-1");
+		deletion.verify(advertiserMapper).deleteFlowLogs("adv-1");
+		deletion.verify(advertiserMapper).deleteDeductionRules("adv-1");
+		deletion.verify(advertiserMapper).deleteMonitorTasks("adv-1");
+		deletion.verify(advertiserMapper).deletePromotionLinks("adv-1");
+		deletion.verify(advertiserMapper).deleteById("adv-1");
 		verify(accountProvisioner).deprovision("adv-1", "user-1");
-		verify(redis).delete("ocpx:advertiser:balance:adv-1");
+		ArgumentCaptor<Collection<String>> keys = ArgumentCaptor.forClass(Collection.class);
+		verify(redis).delete(keys.capture());
+		assertThat(keys.getValue()).containsExactlyInAnyOrder("ocpx:advertiser:balance:adv-1",
+				"ocpx:route:ratio:link-1:media-1", "ocpx:route:original-count:link-1:media-1",
+				"ocpx:route:delivered-count:link-1:media-1");
 		verify(configRefreshPublisher).mark();
 	}
 
 	@Test
-	void deleteRejectsAdvertiserWithBusinessOrHistoricalReferences() {
-		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser("adv-1"));
-		when(advertiserMapper.countReferences("adv-1")).thenReturn(1);
+	void deleteFailureDoesNotDeprovisionAccountOrPublishRuntimeRefresh() {
+		OcpxAdvertiser advertiser = advertiser("adv-1");
+		advertiser.setAccountUserId("user-1");
+		when(advertiserMapper.selectByIdForUpdate("adv-1")).thenReturn(advertiser);
+		when(advertiserMapper.selectCascadeRoutes("adv-1")).thenReturn(List.of());
+		when(advertiserMapper.deleteById("adv-1")).thenReturn(0);
 
-		assertThatThrownBy(() -> service.delete("adv-1")).isInstanceOf(IllegalArgumentException.class)
-			.hasMessageContaining("历史数据");
-		verify(advertiserMapper, never()).deleteById(anyString());
+		assertThatThrownBy(() -> service.delete("adv-1")).isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("删除失败");
 		verify(accountProvisioner, never()).deprovision(anyString(), anyString());
-		verify(redis, never()).delete(anyString());
+		verify(redis, never()).delete(org.mockito.ArgumentMatchers.<Collection<String>>any());
 		verify(configRefreshPublisher, never()).mark();
 	}
 
@@ -250,6 +275,13 @@ class OcpxAdvertiserServiceTest {
 		row.setAdvertiserId(advertiserId);
 		row.setUsername(username);
 		return row;
+	}
+
+	private ManagementRows.RouteKey route(String promotionLinkId, String mediaId) {
+		ManagementRows.RouteKey route = new ManagementRows.RouteKey();
+		route.setPromotionLinkId(promotionLinkId);
+		route.setMediaId(mediaId);
+		return route;
 	}
 
 }

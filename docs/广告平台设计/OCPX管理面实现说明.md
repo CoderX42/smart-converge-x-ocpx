@@ -14,7 +14,7 @@
 
 | 对象 | 业务字段 | 删除语义 |
 |---|---|---|
-| 广告主 | `name/bidUrl/credentialConfigKey/macro`；新增时另带 `username/password` 开户 | 无任何业务或历史引用时物理删除，并注销托管账号 |
+| 广告主 | `name/bidUrl/credentialConfigKey/macro`；新增时另带 `username/password` 开户 | 物理级联删除推广链接、监测任务、扣量规则、OCPX 日志/报表及 Redis 路由状态，并注销托管账号；共享媒体保留 |
 | 推广链接 | `advertiserId/name/platform/channelId/linkUrl/deeplink/linkExt/remark` | `is_delete` 逻辑删除 |
 | 媒体 | `name/uri/credentialConfigKey/macro` | 无任何业务或历史引用时物理删除 |
 | 监测任务 | `monitorName/mediaId/advertiserId/promotionLinkId/unitPrice/bizId/showUrl/clkUrl/remark` | `is_delete` 逻辑删除 |

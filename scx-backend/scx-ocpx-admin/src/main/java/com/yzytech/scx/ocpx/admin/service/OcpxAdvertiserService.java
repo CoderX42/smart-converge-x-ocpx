@@ -19,8 +19,10 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,12 @@ public class OcpxAdvertiserService {
 
 	/** 广告主余额 Redis 单值 key（对齐 SGYZ RedisHelper 的 ADVERTISER_BALANCE 累加语义，无流水表）。 */
 	private static final String BALANCE_PREFIX = "ocpx:advertiser:balance:";
+
+	private static final String ROUTE_RATIO_PREFIX = "ocpx:route:ratio:";
+
+	private static final String ROUTE_ORIGINAL_COUNT_PREFIX = "ocpx:route:original-count:";
+
+	private static final String ROUTE_DELIVERED_COUNT_PREFIX = "ocpx:route:delivered-count:";
 
 	private final OcpxAdvertiserMapper advertiserMapper;
 
@@ -109,18 +117,40 @@ public class OcpxAdvertiserService {
 	@Transactional
 	public void delete(String id) {
 		advertiserScope.requireAdministrator();
-		OcpxAdvertiser current = require(id);
-		if (advertiserMapper.countReferences(id) > 0) {
-			throw new IllegalArgumentException("广告主仍有推广链接、监测任务或历史数据，不能删除");
-		}
+		OcpxAdvertiser current = requireForUpdate(id);
+		List<ManagementRows.RouteKey> routes = advertiserMapper.selectCascadeRoutes(id);
+		advertiserMapper.deleteReportMatTemp(id);
+		advertiserMapper.deleteReportMat(id);
+		advertiserMapper.deleteCallbackLogs(id);
+		advertiserMapper.deleteFeedbackDayLogs(id);
+		advertiserMapper.deleteFeedbackLogs(id);
+		advertiserMapper.deleteFlowLogs(id);
+		advertiserMapper.deleteDeductionRules(id);
+		advertiserMapper.deleteMonitorTasks(id);
+		advertiserMapper.deletePromotionLinks(id);
 		if (advertiserMapper.deleteById(id) != 1) {
 			throw new IllegalStateException("广告主删除失败");
 		}
 		if (StringUtils.hasText(current.getAccountUserId())) {
 			accountProvisioner.deprovision(id, current.getAccountUserId());
 		}
-		redis.delete(BALANCE_PREFIX + id);
+		clearRuntimeState(id, routes);
 		configRefreshPublisher.mark();
+	}
+
+	private void clearRuntimeState(String advertiserId, List<ManagementRows.RouteKey> routes) {
+		Set<String> keys = new LinkedHashSet<>();
+		keys.add(BALANCE_PREFIX + advertiserId);
+		for (ManagementRows.RouteKey route : routes) {
+			if (!StringUtils.hasText(route.getPromotionLinkId()) || !StringUtils.hasText(route.getMediaId())) {
+				continue;
+			}
+			String routeKey = route.getPromotionLinkId() + ":" + route.getMediaId();
+			keys.add(ROUTE_RATIO_PREFIX + routeKey);
+			keys.add(ROUTE_ORIGINAL_COUNT_PREFIX + routeKey);
+			keys.add(ROUTE_DELIVERED_COUNT_PREFIX + routeKey);
+		}
+		redis.delete(keys);
 	}
 
 	/** 充值：对 Redis 余额单值做数值累加（平移 SGYZ rechargeBalance，无流水表、无幂等键）。 */
@@ -188,6 +218,13 @@ public class OcpxAdvertiserService {
 
 	private OcpxAdvertiser require(String id) {
 		OcpxAdvertiser value = advertiserMapper.selectById(id);
+		if (value == null)
+			throw new BootBusinessException(HttpStatus.NOT_FOUND.value(), "广告主不存在");
+		return value;
+	}
+
+	private OcpxAdvertiser requireForUpdate(String id) {
+		OcpxAdvertiser value = advertiserMapper.selectByIdForUpdate(id);
 		if (value == null)
 			throw new BootBusinessException(HttpStatus.NOT_FOUND.value(), "广告主不存在");
 		return value;

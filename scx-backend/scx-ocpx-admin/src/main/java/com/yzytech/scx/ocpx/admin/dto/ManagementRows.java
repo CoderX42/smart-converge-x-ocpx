@@ -25,4 +25,13 @@ public final class ManagementRows {
 
 	}
 
+	@Data
+	public static class RouteKey {
+
+		private String promotionLinkId;
+
+		private String mediaId;
+
+	}
+
 }

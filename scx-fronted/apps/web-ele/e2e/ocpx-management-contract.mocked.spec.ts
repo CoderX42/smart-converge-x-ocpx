@@ -380,6 +380,9 @@ test('ROLE_ADMIN delete actions call the aligned advertiser and media APIs', asy
     );
   });
   await page.getByRole('button', { exact: true, name: '删除' }).click();
+  await expect(
+    page.getByText('此操作不可恢复', { exact: false }),
+  ).toBeVisible();
   await page.getByRole('button', { name: '确认删除' }).click();
   await advertiserDelete;
 
