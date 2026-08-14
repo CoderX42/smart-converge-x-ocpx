@@ -1,5 +1,9 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 public final class MediaViews {
@@ -7,11 +11,36 @@ public final class MediaViews {
 	private MediaViews() {
 	}
 
-	public record Item(String id, String mediaName, String credentialConfigKey, String uri, String macroParams,
-			LocalDateTime createTime, LocalDateTime updateTime) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Item {
+
+		private String id;
+
+		private String mediaName;
+
+		private String credentialConfigKey;
+
+		private String uri;
+
+		private String macroParams;
+
+		private LocalDateTime createTime;
+
+		private LocalDateTime updateTime;
+
 	}
 
-	public record Option(String id, String name) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Option {
+
+		private String id;
+
+		private String name;
+
 	}
 
 }

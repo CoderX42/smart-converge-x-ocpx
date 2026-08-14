@@ -1,5 +1,9 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -8,13 +12,54 @@ public final class MonitorTaskViews {
 	private MonitorTaskViews() {
 	}
 
-	public record Item(String id, String monitorName, String advertiserId, String advertiserName,
-			String promotionLinkId, String promotionLinkName, Integer platform, String mediaId, String mediaName,
-			String showUrl, String clkUrl, BigDecimal unitPrice, String bizId, String remark, LocalDateTime createTime,
-			LocalDateTime updateTime) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Item {
+
+		private String id;
+
+		private String monitorName;
+
+		private String advertiserId;
+
+		private String advertiserName;
+
+		private String promotionLinkId;
+
+		private String promotionLinkName;
+
+		private Integer platform;
+
+		private String mediaId;
+
+		private String mediaName;
+
+		private String showUrl;
+
+		private String clkUrl;
+
+		private BigDecimal unitPrice;
+
+		private String bizId;
+
+		private String remark;
+
+		private LocalDateTime createTime;
+
+		private LocalDateTime updateTime;
+
 	}
 
-	public record Option(String id, String name) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Option {
+
+		private String id;
+
+		private String name;
+
 	}
 
 }

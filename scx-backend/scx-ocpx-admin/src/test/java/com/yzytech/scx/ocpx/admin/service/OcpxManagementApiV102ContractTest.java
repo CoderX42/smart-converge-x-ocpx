@@ -13,7 +13,8 @@ import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkRequests;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.RecordComponent;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -38,19 +39,19 @@ class OcpxManagementApiV102ContractTest {
 
 	@Test
 	void writeDtosContainOnlyV102Fields() {
-		assertThat(componentNames(AdvertiserRequests.Create.class)).containsExactly("name", "credentialConfigKey",
-				"bidUrl", "macroParams", "username", "password");
-		assertThat(componentNames(MediaRequests.Create.class)).containsExactly("mediaName", "credentialConfigKey",
-				"uri", "macroParams");
-		assertThat(componentNames(PromotionLinkRequests.Create.class)).containsExactly("advertiserId", "linkName",
+		assertThat(fieldNames(AdvertiserRequests.Create.class)).containsExactly("name", "credentialConfigKey", "bidUrl",
+				"macroParams", "username", "password");
+		assertThat(fieldNames(MediaRequests.Create.class)).containsExactly("mediaName", "credentialConfigKey", "uri",
+				"macroParams");
+		assertThat(fieldNames(PromotionLinkRequests.Create.class)).containsExactly("advertiserId", "linkName",
 				"platform", "linkChannel", "linkUrl", "deeplink", "linkExt", "remark");
-		assertThat(componentNames(MonitorTaskRequests.Create.class)).containsExactly("monitorName", "advertiserId",
+		assertThat(fieldNames(MonitorTaskRequests.Create.class)).containsExactly("monitorName", "advertiserId",
 				"promotionLinkId", "mediaId", "unitPrice", "bizId", "remark");
 	}
 
 	@Test
 	void advertiserViewAddsOnlyNullableUsernameAndNeverReturnsAccountSecrets() {
-		assertThat(componentNames(AdvertiserViews.Item.class)).contains("username")
+		assertThat(fieldNames(AdvertiserViews.Item.class)).contains("username")
 			.doesNotContain("accountUserId", "password");
 	}
 
@@ -64,8 +65,12 @@ class OcpxManagementApiV102ContractTest {
 		assertThat(method.getAnnotation(SaCheckPermission.class).value()).containsExactly("ocpx:report:export");
 	}
 
-	private String[] componentNames(Class<?> recordType) {
-		return Arrays.stream(recordType.getRecordComponents()).map(RecordComponent::getName).toArray(String[]::new);
+	private String[] fieldNames(Class<?> type) {
+		assertThat(type.isRecord()).as("%s must use a regular JavaBean", type.getSimpleName()).isFalse();
+		return Arrays.stream(type.getDeclaredFields())
+			.filter(field -> !Modifier.isStatic(field.getModifiers()))
+			.map(Field::getName)
+			.toArray(String[]::new);
 	}
 
 }

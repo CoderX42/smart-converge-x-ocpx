@@ -57,15 +57,13 @@ class OcpxDeductionRuleServiceTest {
 
 	@Test
 	void advertiserAccountIsRejectedByEveryDeductionEntryPoint() {
-		doThrow(new BootBusinessException(403, "广告主账号无权执行该操作")).when(advertiserScope)
-			.requireAdministrator();
+		doThrow(new BootBusinessException(403, "广告主账号无权执行该操作")).when(advertiserScope).requireAdministrator();
 
 		assertThatThrownBy(() -> service.list(new Page<>(1, 10), null)).isInstanceOf(BootBusinessException.class);
 		assertThatThrownBy(() -> service.detail("rule-1")).isInstanceOf(BootBusinessException.class);
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
 			.isInstanceOf(BootBusinessException.class);
-		assertThatThrownBy(
-				() -> service.update("rule-1", new DeductionRuleRequests.Update("media-1", "link-1", 0.6)))
+		assertThatThrownBy(() -> service.update("rule-1", new DeductionRuleRequests.Update("media-1", "link-1", 0.6)))
 			.isInstanceOf(BootBusinessException.class);
 		assertThatThrownBy(() -> service.delete("rule-1")).isInstanceOf(BootBusinessException.class);
 		verifyNoInteractions(ruleMapper, mediaMapper, linkMapper, redis);
@@ -140,7 +138,7 @@ class OcpxDeductionRuleServiceTest {
 		when(ruleMapper.selectCount(any())).thenReturn(1L);
 
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
-			.isInstanceOf(IllegalArgumentException.class)
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("已存在");
 		verifyNoInteractions(redis);
 	}
@@ -149,13 +147,13 @@ class OcpxDeductionRuleServiceTest {
 	void createRejectsMissingMediaAndPromotionLink() {
 		when(mediaMapper.selectById("media-1")).thenReturn(null);
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
-			.isInstanceOf(IllegalArgumentException.class)
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("媒体");
 
 		when(mediaMapper.selectById("media-1")).thenReturn(media());
 		when(linkMapper.selectById("link-1")).thenReturn(null);
 		assertThatThrownBy(() -> service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6)))
-			.isInstanceOf(IllegalArgumentException.class)
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("推广链接");
 		verifyNoInteractions(redis);
 	}

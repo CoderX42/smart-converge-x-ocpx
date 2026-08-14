@@ -80,20 +80,27 @@ public class OcpxAdvertiserService {
 	@Transactional
 	public AdvertiserViews.Item create(AdvertiserRequests.Create request) {
 		advertiserScope.requireAdministrator();
-		ensureUnique(null, request.name());
+		ensureUnique(null, request.getName());
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		apply(advertiser, request.name(), request.credentialConfigKey(), request.bidUrl(), request.macroParams());
+		apply(advertiser, request.getName(), request.getCredentialConfigKey(), request.getBidUrl(),
+				request.getMacroParams());
 		if (advertiserMapper.insert(advertiser) != 1) {
 			throw new IllegalStateException("广告主创建失败");
 		}
-		AdvertiserAccountProvisioner.ProvisionedAccount account = accountProvisioner.provision(advertiser.getId(),
-				advertiser.getAdvertiserName(), request.username(), request.password());
-		if (account == null || !StringUtils.hasText(account.userId())) {
+		AdvertiserAccountProvisioner.ProvisionedAccount account;
+		try {
+			account = accountProvisioner.provision(advertiser.getId(), advertiser.getAdvertiserName(),
+					request.getUsername(), request.getPassword());
+		}
+		catch (IllegalArgumentException error) {
+			throw new BootBusinessException(error.getMessage());
+		}
+		if (account == null || !StringUtils.hasText(account.getUserId())) {
 			throw new IllegalStateException("广告主账号创建失败");
 		}
 		OcpxAdvertiser binding = new OcpxAdvertiser();
 		binding.setId(advertiser.getId());
-		binding.setAccountUserId(account.userId());
+		binding.setAccountUserId(account.getUserId());
 		if (advertiserMapper.updateById(binding) != 1) {
 			throw new IllegalStateException("广告主账号绑定失败");
 		}
@@ -105,10 +112,11 @@ public class OcpxAdvertiserService {
 	public AdvertiserViews.Item update(String id, AdvertiserRequests.Update request) {
 		OcpxAdvertiser current = require(id);
 		advertiserScope.requireOwner(current.getId());
-		ensureUnique(id, request.name());
+		ensureUnique(id, request.getName());
 		OcpxAdvertiser update = new OcpxAdvertiser();
 		update.setId(id);
-		apply(update, request.name(), request.credentialConfigKey(), request.bidUrl(), request.macroParams());
+		apply(update, request.getName(), request.getCredentialConfigKey(), request.getBidUrl(),
+				request.getMacroParams());
 		advertiserMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
@@ -157,7 +165,7 @@ public class OcpxAdvertiserService {
 	public void recharge(String id, AdvertiserRequests.Recharge request) {
 		OcpxAdvertiser current = require(id);
 		advertiserScope.requireOwner(current.getId());
-		redis.opsForValue().increment(BALANCE_PREFIX + id, request.balance().doubleValue());
+		redis.opsForValue().increment(BALANCE_PREFIX + id, request.getBalance().doubleValue());
 	}
 
 	/** 从 Redis 读余额，无 key 时为 0（平移 SGYZ getDspInfoList 逐行回填）。 */
@@ -212,7 +220,7 @@ public class OcpxAdvertiserService {
 		if (advertiserMapper.selectCount(Wrappers.<OcpxAdvertiser>lambdaQuery()
 			.eq(OcpxAdvertiser::getAdvertiserName, name.trim())
 			.ne(StringUtils.hasText(id), OcpxAdvertiser::getId, id)) > 0) {
-			throw new IllegalArgumentException("广告主名称已存在");
+			throw new BootBusinessException("广告主名称已存在");
 		}
 	}
 

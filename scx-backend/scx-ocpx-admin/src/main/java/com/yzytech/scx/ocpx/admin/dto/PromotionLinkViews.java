@@ -1,5 +1,9 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 
 public final class PromotionLinkViews {
@@ -7,15 +11,57 @@ public final class PromotionLinkViews {
 	private PromotionLinkViews() {
 	}
 
-	public record Item(String id, String advertiserId, String advertiserName, String linkName, Integer platform,
-			String linkChannel, String linkUrl, String deeplink, String linkExt, String remark, LocalDateTime createTime,
-			LocalDateTime updateTime) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Item {
+
+		private String id;
+
+		private String advertiserId;
+
+		private String advertiserName;
+
+		private String linkName;
+
+		private Integer platform;
+
+		private String linkChannel;
+
+		private String linkUrl;
+
+		private String deeplink;
+
+		private String linkExt;
+
+		private String remark;
+
+		private LocalDateTime createTime;
+
+		private LocalDateTime updateTime;
+
 	}
 
-	public record AdvertiserOption(String id, String name) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class AdvertiserOption {
+
+		private String id;
+
+		private String name;
+
 	}
 
-	public record Option(String id, String name) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Option {
+
+		private String id;
+
+		private String name;
+
 	}
 
 }

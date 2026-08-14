@@ -61,14 +61,14 @@ class OcpxUnifiedReportServiceTest {
 
 		var page = service.query(query);
 
-		assertThat(page.total()).isEqualTo(1);
-		assertThat(page.records()).hasSize(1);
-		assertThat(page.records().get(0).metrics()).hasSize(16);
-		assertThat(page.records().get(0).metrics().get("SHOW").count()).isEqualTo(1);
-		assertThat(page.records().get(0).metrics().get("FINISH_THE_ORDER").count()).isEqualTo(15);
-		assertThat(page.records().get(0).metrics().get("BASE_PRICE").amount())
+		assertThat(page.getTotal()).isEqualTo(1);
+		assertThat(page.getRecords()).hasSize(1);
+		assertThat(page.getRecords().get(0).getMetrics()).hasSize(16);
+		assertThat(page.getRecords().get(0).getMetrics().get("SHOW").getCount()).isEqualTo(1);
+		assertThat(page.getRecords().get(0).getMetrics().get("FINISH_THE_ORDER").getCount()).isEqualTo(15);
+		assertThat(page.getRecords().get(0).getMetrics().get("BASE_PRICE").getAmount())
 			.isEqualByComparingTo(new BigDecimal("2.00"));
-		assertThat(page.summary().keySet()).containsAll(List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK",
+		assertThat(page.getSummary().keySet()).containsAll(List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK",
 				"ACTIVATE", "EVOKE", "LOGIN", "REGISTER", "PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS",
 				"AUTHENTICATION", "PLACE_ORDER", "FINISH_THE_ORDER", "BASE_PRICE"));
 	}

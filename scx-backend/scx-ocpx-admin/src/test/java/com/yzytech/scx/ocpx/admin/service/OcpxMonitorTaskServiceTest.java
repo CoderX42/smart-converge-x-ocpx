@@ -80,14 +80,14 @@ class OcpxMonitorTaskServiceTest {
 		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
 		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
 
-		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
-				"media-1", new BigDecimal("12.340000"), "biz-1", "备注一"));
+		MonitorTaskViews.Item item = service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1",
+				new BigDecimal("12.340000"), "biz-1", "备注一"));
 
 		String expectedShow = "http://127.0.0.1:10000/ocpx/feedback?"
-				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
+				+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
 				+ "&event=IMP&mId=media-1&tId=task-1&aId=adv-1&lId=link-1";
 		String expectedClk = "http://127.0.0.1:10000/ocpx/feedback?"
-				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
+				+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
 				+ "&event=CLK&mId=media-1&tId=task-1&aId=adv-1&lId=link-1";
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
 		verify(taskMapper).updateById(captor.capture());
@@ -96,8 +96,8 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(stored.get().getUnitPrice()).isEqualByComparingTo("12.340000");
 		assertThat(stored.get().getBizId()).isEqualTo("biz-1");
 		assertThat(stored.get().getRemark()).isEqualTo("备注一");
-		assertThat(item.showUrl()).isEqualTo(expectedShow);
-		assertThat(item.clkUrl()).isEqualTo(expectedClk);
+		assertThat(item.getShowUrl()).isEqualTo(expectedShow);
+		assertThat(item.getClkUrl()).isEqualTo(expectedClk);
 		verify(configRefreshPublisher).mark();
 	}
 
@@ -107,15 +107,16 @@ class OcpxMonitorTaskServiceTest {
 		when(advertiserMapper.selectById(anyString())).thenReturn(null);
 		when(linkMapper.selectById(anyString())).thenReturn(null);
 
-		assertThatThrownBy(() -> service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1",
-				"media-1", BigDecimal.ONE, null, null))).isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service
+			.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ONE, null, null)))
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("广告主不存在");
 		verify(taskMapper, never()).insert(any(OcpxMonitorTask.class));
 		verify(configRefreshPublisher, never()).mark();
 	}
 
 	@Test
-	void createWithoutMacroParamsBuildsUrlsFromEventAndRouteIdsOnly() {
+	void createWithoutMacroParamsStillPrependsRequestIdMacro() {
 		stubActiveRelations();
 		when(taskMapper.selectCount(any())).thenReturn(0L);
 		OcpxMedia media = media("media-1");
@@ -130,15 +131,42 @@ class OcpxMonitorTaskServiceTest {
 		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
 		when(taskMapper.selectById(anyString())).thenAnswer(invocation -> stored.get());
 
-		service.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO,
-				null, null));
+		service
+			.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO, null, null));
 
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
 		verify(taskMapper).updateById(captor.capture());
-		assertThat(captor.getValue().getShowUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?event=IMP&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
-		assertThat(captor.getValue().getClkUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?event=CLK&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+		assertThat(captor.getValue().getShowUrl())
+			.isEqualTo("http://127.0.0.1:10000/ocpx/feedback?request_id=__REQUEST_ID__"
+					+ "&event=IMP&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+		assertThat(captor.getValue().getClkUrl())
+			.isEqualTo("http://127.0.0.1:10000/ocpx/feedback?request_id=__REQUEST_ID__"
+					+ "&event=CLK&mId=media-1&tId=task-1&aId=adv-1&lId=link-1");
+	}
+
+	@Test
+	void createReplacesDuplicateRequestIdParametersWithOneLeadingMacro() {
+		stubActiveRelations();
+		when(taskMapper.selectCount(any())).thenReturn(0L);
+		OcpxMedia media = media("media-1");
+		media.setMacroParams("imei=__IMEI__&request_id=fixed&callback_url=__CALLBACK_URL__"
+				+ "&request_id=__REQUEST_ID__");
+		when(mediaMapper.selectById("media-1")).thenReturn(media);
+		doAnswer(invocation -> {
+			OcpxMonitorTask task = invocation.getArgument(0);
+			task.setId("task-1");
+			return 1;
+		}).when(taskMapper).insert(any(OcpxMonitorTask.class));
+		when(taskMapper.selectById("task-1")).thenReturn(task("task-1", "adv-1", "link-1", "media-1"));
+
+		service
+			.create(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO, null, null));
+
+		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
+		verify(taskMapper).updateById(captor.capture());
+		assertThat(captor.getValue().getShowUrl())
+			.startsWith("http://127.0.0.1:10000/ocpx/feedback?request_id=__REQUEST_ID__&imei=__IMEI__")
+			.containsOnlyOnce("request_id=");
 	}
 
 	@Test
@@ -155,12 +183,14 @@ class OcpxMonitorTaskServiceTest {
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
 		verify(taskMapper).updateById(captor.capture());
 		OcpxMonitorTask update = captor.getValue();
-		assertThat(update.getShowUrl()).isEqualTo("http://127.0.0.1:10000/ocpx/feedback?"
-				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
-				+ "&event=IMP&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
-		assertThat(update.getClkUrl()).isEqualTo("http://127.0.0.1:10000/ocpx/feedback?"
-				+ "request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__"
-				+ "&event=CLK&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
+		assertThat(update.getShowUrl()).isEqualTo(
+				"http://127.0.0.1:10000/ocpx/feedback?"
+						+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
+						+ "&event=IMP&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
+		assertThat(update.getClkUrl()).isEqualTo(
+				"http://127.0.0.1:10000/ocpx/feedback?"
+						+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
+						+ "&event=CLK&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
 		assertThat(update.getUnitPrice()).isEqualByComparingTo("9.9");
 		assertThat(update.getBizId()).isEqualTo("biz-2");
 		verify(configRefreshPublisher).mark();
@@ -173,17 +203,14 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(validator
 			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", null, null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
-		assertThat(validator
-			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1",
-					new BigDecimal("-0.01"), null, null)))
+		assertThat(validator.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1",
+				new BigDecimal("-0.01"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 		assertThat(validator
-			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO,
-					null, null)))
+			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO, null, null)))
 			.noneMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
-		assertThat(validator
-			.validate(new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1",
-					new BigDecimal("-1"), null, null)))
+		assertThat(validator.validate(
+				new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1", new BigDecimal("-1"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 	}
 
@@ -192,7 +219,8 @@ class OcpxMonitorTaskServiceTest {
 		OcpxMonitorTask current = task("task-1", "adv-1", "link-1", "media-1");
 		when(taskMapper.selectList(any())).thenReturn(java.util.List.of(current));
 
-		assertThat(service.options("media-1")).extracting(MonitorTaskViews.Option::id, MonitorTaskViews.Option::name)
+		assertThat(service.options("media-1"))
+			.extracting(MonitorTaskViews.Option::getId, MonitorTaskViews.Option::getName)
 			.containsExactly(org.assertj.core.groups.Tuple.tuple("task-1", "任务一"));
 	}
 
@@ -212,8 +240,7 @@ class OcpxMonitorTaskServiceTest {
 	void deleteRejectsMissingTask() {
 		when(taskMapper.selectById(anyString())).thenReturn(null);
 
-		assertThatThrownBy(() -> service.delete("task-x"))
-			.isInstanceOf(BootBusinessException.class)
+		assertThatThrownBy(() -> service.delete("task-x")).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("监测任务不存在");
 		verify(taskMapper, never()).deleteById(anyString());
 	}
@@ -267,7 +294,7 @@ class OcpxMonitorTaskServiceTest {
 		media.setId(id);
 		media.setMediaName("媒体一");
 		media.setUri("/feedback");
-		media.setMacroParams("request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__");
+		media.setMacroParams("imei=__IMEI__&request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__");
 		return media;
 	}
 

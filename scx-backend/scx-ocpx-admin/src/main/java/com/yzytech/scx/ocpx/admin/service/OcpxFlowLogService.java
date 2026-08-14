@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.FlowLogViews;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,6 +19,7 @@ import java.util.Set;
 public class OcpxFlowLogService {
 
 	private static final Set<String> FLOW_TYPES = Set.of("FEEDBACK", "CALLBACK");
+
 	private static final Set<String> STATUSES = Set.of("SUCCESS", "FAILED");
 
 	private final JdbcTemplate jdbcTemplate;
@@ -30,7 +32,7 @@ public class OcpxFlowLogService {
 		LocalDate end = endDate == null ? LocalDate.now() : endDate;
 		LocalDate start = startDate == null ? end.minusDays(6) : startDate;
 		if (start.isAfter(end) || start.isBefore(end.minusDays(366))) {
-			throw new IllegalArgumentException("日志时间范围无效");
+			throw new BootBusinessException("日志时间范围无效");
 		}
 		String normalizedType = normalize(flowType, FLOW_TYPES, "flowType");
 		String normalizedStatus = normalize(resultStatus, STATUSES, "resultStatus");
@@ -56,7 +58,7 @@ public class OcpxFlowLogService {
 		String sql = """
 				SELECT f.id,f.flow_type,f.event_id,f.source_event_id,f.event_code,
 				       f.advertiser_id,a.advertiser_name,f.promotion_link_id,p.link_name,
-		       f.media_id,m.media_name,f.monitor_task_id,t.monitor_name,f.result_status,
+				     f.media_id,m.media_name,f.monitor_task_id,t.monitor_name,f.result_status,
 				       f.partner_http_status,f.message,f.duration_ms,f.event_time,f.create_time
 				FROM scx_ocpx_flow_log f
 				JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id
@@ -80,7 +82,7 @@ public class OcpxFlowLogService {
 		}
 		String normalized = value.trim().toUpperCase();
 		if (!allowed.contains(normalized)) {
-			throw new IllegalArgumentException(name + " 参数无效");
+			throw new BootBusinessException(name + " 参数无效");
 		}
 		return normalized;
 	}

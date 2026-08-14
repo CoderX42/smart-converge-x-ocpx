@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
-import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.concurrent.Callable;
 
 @Validated
 @RestController
@@ -48,14 +46,14 @@ public class OcpxAdvertiserController {
 	@GetMapping("/{id}")
 	@SaCheckPermission("ocpx:advertiser:view")
 	public Result<AdvertiserViews.Item> detail(@PathVariable String id) {
-		return call(() -> advertiserService.detail(id));
+		return Result.success(advertiserService.detail(id));
 	}
 
 	@PostMapping
 	@SaCheckPermission("ocpx:advertiser:add")
 	@SysLog("新增广告主")
 	public Result<AdvertiserViews.Item> create(@Valid @RequestBody AdvertiserRequests.Create request) {
-		return call(() -> advertiserService.create(request));
+		return Result.success(advertiserService.create(request));
 	}
 
 	@PutMapping("/{id}")
@@ -63,42 +61,23 @@ public class OcpxAdvertiserController {
 	@SysLog("修改广告主")
 	public Result<AdvertiserViews.Item> update(@PathVariable String id,
 			@Valid @RequestBody AdvertiserRequests.Update request) {
-		return call(() -> advertiserService.update(id, request));
+		return Result.success(advertiserService.update(id, request));
 	}
 
 	@DeleteMapping("/{id}")
 	@SaCheckPermission("ocpx:advertiser:delete")
 	@SysLog("删除广告主")
 	public Result<Void> delete(@PathVariable String id) {
-		return call(() -> {
-			advertiserService.delete(id);
-			return null;
-		});
+		advertiserService.delete(id);
+		return Result.success();
 	}
 
 	@PostMapping("/{id}/recharge")
 	@SaCheckPermission("ocpx:advertiser:recharge")
 	@SysLog("广告主充值")
 	public Result<Void> recharge(@PathVariable String id, @Valid @RequestBody AdvertiserRequests.Recharge request) {
-		return call(() -> {
-			advertiserService.recharge(id, request);
-			return null;
-		});
-	}
-
-	private <T> Result<T> call(Callable<T> action) {
-		try {
-			return Result.success(action.call());
-		}
-		catch (IllegalArgumentException error) {
-			return Result.fail(error.getMessage());
-		}
-		catch (BootBusinessException error) {
-			throw error;
-		}
-		catch (Exception error) {
-			return Result.fail("操作失败");
-		}
+		advertiserService.recharge(id, request);
+		return Result.success();
 	}
 
 }

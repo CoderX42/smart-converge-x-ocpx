@@ -50,8 +50,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_media (
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
-  UNIQUE KEY uk_ocpx_media_name (media_name),
-  UNIQUE KEY uk_ocpx_media_uri (uri)
+  UNIQUE KEY uk_ocpx_media_name (media_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: downstream media';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (

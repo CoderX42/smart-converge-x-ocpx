@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -30,6 +31,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class OcpxMonitorTaskService {
+
+	private static final String REQUEST_ID_PARAMETER = "request_id";
+
+	private static final String REQUEST_ID_MACRO = REQUEST_ID_PARAMETER + "=__REQUEST_ID__";
 
 	private final OcpxMonitorTaskMapper taskMapper;
 
@@ -85,11 +90,11 @@ public class OcpxMonitorTaskService {
 
 	@Transactional
 	public MonitorTaskViews.Item create(MonitorTaskRequests.Create request) {
-		advertiserScope.requireOwner(request.advertiserId());
-		validateRelation(request.advertiserId(), request.promotionLinkId(), request.mediaId());
+		advertiserScope.requireOwner(request.getAdvertiserId());
+		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
 		OcpxMonitorTask task = new OcpxMonitorTask();
-		apply(task, request.monitorName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
-				request.unitPrice(), request.bizId(), request.remark());
+		apply(task, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
+				request.getMediaId(), request.getUnitPrice(), request.getBizId(), request.getRemark());
 		task.setDeleted(false);
 		taskMapper.insert(task);
 		generateTrackingUrls(task);
@@ -106,12 +111,12 @@ public class OcpxMonitorTaskService {
 	public MonitorTaskViews.Item update(String id, MonitorTaskRequests.Update request) {
 		OcpxMonitorTask current = require(id);
 		advertiserScope.requireOwner(current.getAdvertiserId());
-		advertiserScope.requireOwner(request.advertiserId());
-		validateRelation(request.advertiserId(), request.promotionLinkId(), request.mediaId());
+		advertiserScope.requireOwner(request.getAdvertiserId());
+		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
 		OcpxMonitorTask update = new OcpxMonitorTask();
 		update.setId(id);
-		apply(update, request.monitorName(), request.advertiserId(), request.promotionLinkId(), request.mediaId(),
-				request.unitPrice(), request.bizId(), request.remark());
+		apply(update, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
+				request.getMediaId(), request.getUnitPrice(), request.getBizId(), request.getRemark());
 		generateTrackingUrls(update);
 		taskMapper.updateById(update);
 		configRefreshPublisher.mark();
@@ -129,13 +134,13 @@ public class OcpxMonitorTaskService {
 
 	private void validateRelation(String advertiserId, String linkId, String mediaId) {
 		if (advertiserMapper.selectById(advertiserId) == null)
-			throw new IllegalArgumentException("广告主不存在");
+			throw new BootBusinessException("广告主不存在");
 		if (linkMapper.selectCount(Wrappers.<OcpxPromotionLink>lambdaQuery()
 			.eq(OcpxPromotionLink::getId, linkId)
 			.eq(OcpxPromotionLink::getAdvertiserId, advertiserId)) != 1)
-			throw new IllegalArgumentException("推广链接不属于当前广告主");
+			throw new BootBusinessException("推广链接不属于当前广告主");
 		if (mediaMapper.selectById(mediaId) == null)
-			throw new IllegalArgumentException("媒体不存在");
+			throw new BootBusinessException("媒体不存在");
 	}
 
 	private void apply(OcpxMonitorTask task, String name, String advertiserId, String linkId, String mediaId,
@@ -166,9 +171,12 @@ public class OcpxMonitorTaskService {
 		task.setClkUrl(prefix + "event=CLK" + splicing);
 	}
 
+	/** 保证通用链路始终以唯一的 {@code request_id=__REQUEST_ID__} 开头，其余媒体宏保持原顺序。 */
 	private String normalizeQuery(String value) {
+		List<String> parameters = new ArrayList<>();
+		parameters.add(REQUEST_ID_MACRO);
 		if (!StringUtils.hasText(value)) {
-			return "";
+			return String.join("&", parameters);
 		}
 		String query = value.trim();
 		while (query.startsWith("?") || query.startsWith("&")) {
@@ -177,7 +185,19 @@ public class OcpxMonitorTaskService {
 		while (query.endsWith("&")) {
 			query = query.substring(0, query.length() - 1);
 		}
-		return query;
+		for (String parameter : query.split("&")) {
+			String normalized = parameter.trim();
+			if (!StringUtils.hasText(normalized) || REQUEST_ID_PARAMETER.equalsIgnoreCase(parameterName(normalized))) {
+				continue;
+			}
+			parameters.add(normalized);
+		}
+		return String.join("&", parameters);
+	}
+
+	private String parameterName(String parameter) {
+		int separator = parameter.indexOf('=');
+		return (separator < 0 ? parameter : parameter.substring(0, separator)).trim();
 	}
 
 	private OcpxMonitorTask require(String id) {
@@ -188,7 +208,10 @@ public class OcpxMonitorTaskService {
 	}
 
 	private Map<String, OcpxAdvertiser> advertisers(List<OcpxMonitorTask> tasks) {
-		List<String> ids = tasks.stream().map(OcpxMonitorTask::getAdvertiserId).filter(StringUtils::hasText).distinct()
+		List<String> ids = tasks.stream()
+			.map(OcpxMonitorTask::getAdvertiserId)
+			.filter(StringUtils::hasText)
+			.distinct()
 			.toList();
 		return ids.isEmpty() ? Map.of()
 				: advertiserMapper.selectBatchIds(ids)
@@ -209,7 +232,10 @@ public class OcpxMonitorTaskService {
 	}
 
 	private Map<String, OcpxMedia> media(List<OcpxMonitorTask> tasks) {
-		List<String> ids = tasks.stream().map(OcpxMonitorTask::getMediaId).filter(StringUtils::hasText).distinct()
+		List<String> ids = tasks.stream()
+			.map(OcpxMonitorTask::getMediaId)
+			.filter(StringUtils::hasText)
+			.distinct()
 			.toList();
 		return ids.isEmpty() ? Map.of()
 				: mediaMapper.selectBatchIds(ids)

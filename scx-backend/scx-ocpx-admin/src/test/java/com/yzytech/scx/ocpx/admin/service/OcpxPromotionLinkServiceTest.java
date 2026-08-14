@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkRequests;
 import com.yzytech.scx.ocpx.admin.dto.PromotionLinkViews;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
@@ -72,10 +73,10 @@ class OcpxPromotionLinkServiceTest {
 		PromotionLinkViews.Item result = service.create(new PromotionLinkRequests.Create("adv-1", "链接一", 1, "ch-1",
 				"https://app.example/download", "tbopen://m.taobao.com/tbopen/index.html", "k=v", "备注"));
 
-		assertThat(result.linkUrl()).isEqualTo("https://app.example/download");
-		assertThat(result.deeplink()).isEqualTo("tbopen://m.taobao.com/tbopen/index.html");
-		assertThat(result.linkExt()).isEqualTo("k=v");
-		assertThat(result.remark()).isEqualTo("备注");
+		assertThat(result.getLinkUrl()).isEqualTo("https://app.example/download");
+		assertThat(result.getDeeplink()).isEqualTo("tbopen://m.taobao.com/tbopen/index.html");
+		assertThat(result.getLinkExt()).isEqualTo("k=v");
+		assertThat(result.getRemark()).isEqualTo("备注");
 		verify(refreshPublisher).mark();
 	}
 
@@ -86,7 +87,8 @@ class OcpxPromotionLinkServiceTest {
 		first.setLinkName("链接一");
 		when(linkMapper.selectList(any())).thenReturn(List.of(first));
 
-		assertThat(service.options("adv-1")).extracting(PromotionLinkViews.Option::id, PromotionLinkViews.Option::name)
+		assertThat(service.options("adv-1"))
+			.extracting(PromotionLinkViews.Option::getId, PromotionLinkViews.Option::getName)
 			.containsExactly(org.assertj.core.groups.Tuple.tuple("link-1", "链接一"));
 	}
 
@@ -94,8 +96,7 @@ class OcpxPromotionLinkServiceTest {
 	void deleteRejectsMonitorTaskDependency() {
 		when(taskMapper.selectCount(any())).thenReturn(1L);
 
-		assertThatThrownBy(() -> service.delete("link-1"))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service.delete("link-1")).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("监测任务");
 		verify(linkMapper, never()).deleteById("link-1");
 	}
@@ -105,8 +106,7 @@ class OcpxPromotionLinkServiceTest {
 		when(taskMapper.selectCount(any())).thenReturn(0L);
 		when(deductionRuleMapper.selectCount(any())).thenReturn(1L);
 
-		assertThatThrownBy(() -> service.delete("link-1"))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service.delete("link-1")).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("扣量规则");
 		verify(linkMapper, never()).deleteById("link-1");
 	}

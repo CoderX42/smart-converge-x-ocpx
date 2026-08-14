@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.SummaryReportQuery;
 import com.yzytech.scx.ocpx.admin.dto.SummaryReportViews;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,24 +74,24 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		SummaryReportViews.Page page = service.summary(query(1, null, null));
 
-		assertThat(page.total()).isEqualTo(1);
-		SummaryReportViews.Row row = page.records().get(0);
-		assertThat(row.reportTime()).isEqualTo("20260812");
-		assertThat(row.mediaId()).isEqualTo("media-1");
-		assertThat(row.mediaName()).isEqualTo("小米");
-		assertThat(row.monitorTaskId()).isEqualTo("task-1");
-		assertThat(row.monitorName()).isEqualTo("任务一");
-		assertThat(row.advertiserId()).isEqualTo("advertiser-1");
-		assertThat(row.advertiserName()).isEqualTo("KIMI");
-		assertThat(row.promotionLinkId()).isEqualTo("link-1");
-		assertThat(row.promotionLinkName()).isEqualTo("链接一");
-		assertThat(row.linkRadio()).isEqualTo("0.6");
-		assertThat(row.uniShowSmt()).isEqualTo(1000);
-		assertThat(row.uniClkSmt()).isEqualTo(120);
-		assertThat(row.clickRate()).isEqualTo(12.0d);
-		assertThat(row.basePrice()).isEqualByComparingTo(new BigDecimal("2.00"));
-		assertThat(row.activate()).isEqualTo(11);
-		assertThat(row.finishTheOrder()).isEqualTo(21);
+		assertThat(page.getTotal()).isEqualTo(1);
+		SummaryReportViews.Row row = page.getRecords().get(0);
+		assertThat(row.getReportTime()).isEqualTo("20260812");
+		assertThat(row.getMediaId()).isEqualTo("media-1");
+		assertThat(row.getMediaName()).isEqualTo("小米");
+		assertThat(row.getMonitorTaskId()).isEqualTo("task-1");
+		assertThat(row.getMonitorName()).isEqualTo("任务一");
+		assertThat(row.getAdvertiserId()).isEqualTo("advertiser-1");
+		assertThat(row.getAdvertiserName()).isEqualTo("KIMI");
+		assertThat(row.getPromotionLinkId()).isEqualTo("link-1");
+		assertThat(row.getPromotionLinkName()).isEqualTo("链接一");
+		assertThat(row.getLinkRadio()).isEqualTo("0.6");
+		assertThat(row.getUniShowSmt()).isEqualTo(1000);
+		assertThat(row.getUniClkSmt()).isEqualTo(120);
+		assertThat(row.getClickRate()).isEqualTo(12.0d);
+		assertThat(row.getBasePrice()).isEqualByComparingTo(new BigDecimal("2.00"));
+		assertThat(row.getActivate()).isEqualTo(11);
+		assertThat(row.getFinishTheOrder()).isEqualTo(21);
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), any(Object[].class));
@@ -108,7 +109,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		SummaryReportViews.Page page = service.summary(query(1, null, null));
 
-		assertThat(page.records().get(0).linkRadio()).isNull();
+		assertThat(page.getRecords().get(0).getLinkRadio()).isNull();
 	}
 
 	@Test
@@ -136,8 +137,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		service.summary(new SummaryReportQuery(1, "media-1", "task-1", "advertiser-1", "link-1", "20260801",
-				"20260812", null, null, 2L, 10L));
+		service.summary(new SummaryReportQuery(1, "media-1", "task-1", "advertiser-1", "link-1", "20260801", "20260812",
+				null, null, 2L, 10L));
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -160,8 +161,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		service.summary(new SummaryReportQuery(1, null, null, "advertiser-other", null, "20260801", "20260812",
-				null, null, 1L, 10L));
+		service.summary(new SummaryReportQuery(1, null, null, "advertiser-other", null, "20260801", "20260812", null,
+				null, 1L, 10L));
 
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).query(anyString(), any(RowMapper.class), args.capture());
@@ -171,20 +172,19 @@ class OcpxUnifiedReportServiceSummaryTest {
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void rejectsInvalidDateTypeAndInvalidTimeRange() {
-		assertThatThrownBy(() -> service.summary(query(4, null, null)))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service.summary(query(4, null, null))).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("dateType");
-		assertThatThrownBy(() -> service.summary(new SummaryReportQuery(1, null, null, null, null, null, "20260812",
-				null, null, null, null)))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service
+			.summary(new SummaryReportQuery(1, null, null, null, null, null, "20260812", null, null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("报表时间范围无效");
-		assertThatThrownBy(() -> service.summary(new SummaryReportQuery(1, null, null, null, null, "2026-08-01",
-				"20260812", null, null, null, null)))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service.summary(
+				new SummaryReportQuery(1, null, null, null, null, "2026-08-01", "20260812", null, null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("报表时间范围无效");
-		assertThatThrownBy(() -> service.summary(new SummaryReportQuery(1, null, null, null, null, "20260812",
-				"20260801", null, null, null, null)))
-			.isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service
+			.summary(new SummaryReportQuery(1, null, null, null, null, "20260812", "20260801", null, null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("报表时间范围无效");
 	}
 
@@ -199,10 +199,10 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		String[] lines = csv.split("\n");
 		assertThat(lines).hasSize(2);
-		assertThat(lines[0]).isEqualTo("报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起,"
-				+ "登录,注册,付费,获客,次留,访问,认证,下单,完单");
-		assertThat(lines[1]).isEqualTo("20260812,小米,任务一,KIMI,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18,"
-				+ "19,20,21");
+		assertThat(lines[0])
+			.isEqualTo("报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起," + "登录,注册,付费,获客,次留,访问,认证,下单,完单");
+		assertThat(lines[1])
+			.isEqualTo("20260812,小米,任务一,KIMI,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21");
 	}
 
 	@Test
@@ -214,8 +214,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 	}
 
 	private SummaryReportQuery query(int dateType, String asc, String desc) {
-		return new SummaryReportQuery(dateType, null, null, null, null, "20260801", "20260812", asc, desc, null,
-				null);
+		return new SummaryReportQuery(dateType, null, null, null, null, "20260801", "20260812", asc, desc, null, null);
 	}
 
 	private ResultSet summaryRow(Double ratio) throws Exception {

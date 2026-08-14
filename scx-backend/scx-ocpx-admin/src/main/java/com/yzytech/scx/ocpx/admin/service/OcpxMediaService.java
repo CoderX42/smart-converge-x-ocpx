@@ -62,9 +62,10 @@ public class OcpxMediaService {
 	@Transactional
 	public MediaViews.Item create(MediaRequests.Create request) {
 		advertiserScope.requireAdministrator();
-		ensureUnique(null, request.mediaName());
+		ensureUnique(null, request.getMediaName());
 		OcpxMedia media = new OcpxMedia();
-		apply(media, request.mediaName(), request.credentialConfigKey(), request.uri(), request.macroParams());
+		apply(media, request.getMediaName(), request.getCredentialConfigKey(), request.getUri(),
+				request.getMacroParams());
 		mediaMapper.insert(media);
 		configRefreshPublisher.mark();
 		return detail(media.getId());
@@ -74,10 +75,11 @@ public class OcpxMediaService {
 	public MediaViews.Item update(String id, MediaRequests.Update request) {
 		advertiserScope.requireAdministrator();
 		require(id);
-		ensureUnique(id, request.mediaName());
+		ensureUnique(id, request.getMediaName());
 		OcpxMedia update = new OcpxMedia();
 		update.setId(id);
-		apply(update, request.mediaName(), request.credentialConfigKey(), request.uri(), request.macroParams());
+		apply(update, request.getMediaName(), request.getCredentialConfigKey(), request.getUri(),
+				request.getMacroParams());
 		mediaMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
@@ -88,7 +90,7 @@ public class OcpxMediaService {
 		advertiserScope.requireAdministrator();
 		require(id);
 		if (mediaMapper.countReferences(id) > 0) {
-			throw new IllegalArgumentException("媒体仍有监测任务、扣量规则或历史数据，不能删除");
+			throw new BootBusinessException("媒体仍有监测任务、扣量规则或历史数据，不能删除");
 		}
 		if (mediaMapper.deleteById(id) != 1) {
 			throw new IllegalStateException("媒体删除失败");
@@ -107,7 +109,7 @@ public class OcpxMediaService {
 		if (mediaMapper.selectCount(Wrappers.<OcpxMedia>lambdaQuery()
 			.eq(OcpxMedia::getMediaName, name.trim())
 			.ne(StringUtils.hasText(id), OcpxMedia::getId, id)) > 0)
-			throw new IllegalArgumentException("媒体名称已存在");
+			throw new BootBusinessException("媒体名称已存在");
 	}
 
 	private OcpxMedia require(String id) {

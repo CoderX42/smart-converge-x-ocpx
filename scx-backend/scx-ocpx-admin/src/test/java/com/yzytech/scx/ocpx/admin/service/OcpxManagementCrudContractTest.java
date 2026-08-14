@@ -6,6 +6,8 @@ import com.yzytech.scx.ocpx.admin.controller.OcpxDeductionRuleController;
 import com.yzytech.scx.ocpx.admin.controller.OcpxMediaController;
 import com.yzytech.scx.ocpx.admin.controller.OcpxMonitorTaskController;
 import com.yzytech.scx.ocpx.admin.controller.OcpxPromotionLinkController;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,11 +35,13 @@ class OcpxManagementCrudContractTest {
 						"ocpx:monitor-task:edit", "ocpx:monitor-task:delete"),
 				new CrudContract(OcpxDeductionRuleController.class, "ocpx:deduction-rule:list",
 						"ocpx:deduction-rule:create", "ocpx:deduction-rule:update", "ocpx:deduction-rule:delete"))) {
-			assertOperation(contract.controller(), "list", GetMapping.class, contract.readPermission());
-			assertOperation(contract.controller(), "detail", GetMapping.class, contract.readPermission());
-			assertOperation(contract.controller(), "create", PostMapping.class, contract.createPermission());
-			assertOperation(contract.controller(), "update", PutMapping.class, contract.updatePermission());
-			assertOperation(contract.controller(), "delete", DeleteMapping.class, contract.deletePermission());
+			assertOperation(contract.getController(), "list", GetMapping.class, contract.getReadPermission());
+			assertOperation(contract.getController(), "detail", GetMapping.class, contract.getReadPermission());
+			assertOperation(contract.getController(), "create", PostMapping.class, contract.getCreatePermission());
+			assertOperation(contract.getController(), "update", PutMapping.class, contract.getUpdatePermission());
+			assertOperation(contract.getController(), "delete", DeleteMapping.class, contract.getDeletePermission());
+			assertThat(contract.getController().getDeclaredMethods())
+				.noneMatch(method -> method.getName().equals("call"));
 		}
 	}
 
@@ -52,8 +56,20 @@ class OcpxManagementCrudContractTest {
 		assertThat(method.getAnnotation(SaCheckPermission.class).value()).containsExactly(permission);
 	}
 
-	private record CrudContract(Class<?> controller, String readPermission, String createPermission,
-			String updatePermission, String deletePermission) {
+	@Getter
+	@AllArgsConstructor
+	private static final class CrudContract {
+
+		private final Class<?> controller;
+
+		private final String readPermission;
+
+		private final String createPermission;
+
+		private final String updatePermission;
+
+		private final String deletePermission;
+
 	}
 
 }

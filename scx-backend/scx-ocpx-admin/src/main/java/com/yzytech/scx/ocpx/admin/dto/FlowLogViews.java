@@ -1,5 +1,9 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -8,14 +12,64 @@ public final class FlowLogViews {
 	private FlowLogViews() {
 	}
 
-	public record Item(String id, String flowType, String eventId, String sourceEventId, String eventCode,
-			String advertiserId, String advertiserName, String promotionLinkId, String promotionLinkName,
-			String mediaId, String mediaName, String monitorTaskId, String monitorTaskName, String resultStatus,
-			Integer partnerHttpStatus, String message, long durationMs, LocalDateTime eventTime,
-			LocalDateTime createTime) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Item {
+
+		private String id;
+
+		private String flowType;
+
+		private String eventId;
+
+		private String sourceEventId;
+
+		private String eventCode;
+
+		private String advertiserId;
+
+		private String advertiserName;
+
+		private String promotionLinkId;
+
+		private String promotionLinkName;
+
+		private String mediaId;
+
+		private String mediaName;
+
+		private String monitorTaskId;
+
+		private String monitorTaskName;
+
+		private String resultStatus;
+
+		private Integer partnerHttpStatus;
+
+		private String message;
+
+		private long durationMs;
+
+		private LocalDateTime eventTime;
+
+		private LocalDateTime createTime;
+
 	}
 
-	public record Page(List<Item> records, long current, long size, long total) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Page {
+
+		private List<Item> records;
+
+		private long current;
+
+		private long size;
+
+		private long total;
+
 	}
 
 }

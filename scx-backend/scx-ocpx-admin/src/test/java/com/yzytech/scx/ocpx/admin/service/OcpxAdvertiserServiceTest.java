@@ -87,11 +87,11 @@ class OcpxAdvertiserServiceTest {
 		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " mi-signing ",
 				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
 
-		assertThat(result.advertiserName()).isEqualTo("广告主一");
-		assertThat(result.credentialConfigKey()).isEqualTo("mi-signing");
-		assertThat(result.bidUrl()).isEqualTo("http://127.0.0.1:8080/callback?oaid=__OAID__");
-		assertThat(result.macroParams()).isEqualTo("oaid=__OAID__");
-		assertThat(result.username()).isEqualTo("adv-user");
+		assertThat(result.getAdvertiserName()).isEqualTo("广告主一");
+		assertThat(result.getCredentialConfigKey()).isEqualTo("mi-signing");
+		assertThat(result.getBidUrl()).isEqualTo("http://127.0.0.1:8080/callback?oaid=__OAID__");
+		assertThat(result.getMacroParams()).isEqualTo("oaid=__OAID__");
+		assertThat(result.getUsername()).isEqualTo("adv-user");
 		verify(accountProvisioner).provision("adv-1", "广告主一", "adv-user", "Pass@123");
 		verify(advertiserMapper).updateById(org.mockito.ArgumentMatchers
 			.<OcpxAdvertiser>argThat(item -> "adv-1".equals(item.getId()) && "user-1".equals(item.getAccountUserId())));
@@ -113,7 +113,7 @@ class OcpxAdvertiserServiceTest {
 
 		assertThatThrownBy(() -> service.create(
 				new AdvertiserRequests.Create("广告主一", null, "custom://private/callback", null, "adv-user", "Pass@123")))
-			.isInstanceOf(IllegalArgumentException.class)
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("用户名已存在");
 		assertThat(inserted.get().getMacroParams()).isNull();
 		verify(advertiserMapper, never()).updateById(any(OcpxAdvertiser.class));
@@ -187,16 +187,16 @@ class OcpxAdvertiserServiceTest {
 		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
-		assertThat(records.get(0).balance()).isEqualByComparingTo("123.45");
-		assertThat(records.get(1).balance()).isEqualByComparingTo(BigDecimal.ZERO);
-		assertThat(records).extracting(AdvertiserViews.Item::username).containsOnlyNulls();
+		assertThat(records.get(0).getBalance()).isEqualByComparingTo("123.45");
+		assertThat(records.get(1).getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+		assertThat(records).extracting(AdvertiserViews.Item::getUsername).containsOnlyNulls();
 	}
 
 	@Test
 	void optionsReturnIdAndNameForQuerySelect() {
 		when(advertiserMapper.selectList(any())).thenReturn(List.of(advertiser("adv-1"), advertiser("adv-2")));
 
-		assertThat(service.options()).extracting(AdvertiserViews.Option::id, AdvertiserViews.Option::name)
+		assertThat(service.options()).extracting(AdvertiserViews.Option::getId, AdvertiserViews.Option::getName)
 			.containsExactly(org.assertj.core.groups.Tuple.tuple("adv-1", "广告主一"),
 					org.assertj.core.groups.Tuple.tuple("adv-2", "广告主一"));
 	}

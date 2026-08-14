@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
-import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.concurrent.Callable;
 
 @RestController
 @RequiredArgsConstructor
@@ -33,8 +31,8 @@ public class OcpxMonitorTaskController {
 
 	@GetMapping
 	@SaCheckPermission("ocpx:monitor-task:view")
-	public Result<IPage<MonitorTaskViews.Item>> list(Page<OcpxMonitorTask> page, String keyword,
-			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId) {
+	public Result<IPage<MonitorTaskViews.Item>> list(Page<OcpxMonitorTask> page, String keyword, String advertiserId,
+			String promotionLinkId, String mediaId, String monitorTaskId) {
 		return Result.success(service.list(page, keyword, advertiserId, promotionLinkId, mediaId, monitorTaskId));
 	}
 
@@ -47,14 +45,14 @@ public class OcpxMonitorTaskController {
 	@GetMapping("/{id}")
 	@SaCheckPermission("ocpx:monitor-task:view")
 	public Result<MonitorTaskViews.Item> detail(@PathVariable String id) {
-		return call(() -> service.detail(id));
+		return Result.success(service.detail(id));
 	}
 
 	@PostMapping
 	@SaCheckPermission("ocpx:monitor-task:add")
 	@SysLog("新增监测任务")
 	public Result<MonitorTaskViews.Item> create(@Valid @RequestBody MonitorTaskRequests.Create request) {
-		return call(() -> service.create(request));
+		return Result.success(service.create(request));
 	}
 
 	@PutMapping("/{id}")
@@ -62,32 +60,15 @@ public class OcpxMonitorTaskController {
 	@SysLog("修改监测任务")
 	public Result<MonitorTaskViews.Item> update(@PathVariable String id,
 			@Valid @RequestBody MonitorTaskRequests.Update request) {
-		return call(() -> service.update(id, request));
+		return Result.success(service.update(id, request));
 	}
 
 	@DeleteMapping("/{id}")
 	@SaCheckPermission("ocpx:monitor-task:delete")
 	@SysLog("删除监测任务")
 	public Result<Void> delete(@PathVariable String id) {
-		return call(() -> {
-			service.delete(id);
-			return null;
-		});
-	}
-
-	private <T> Result<T> call(Callable<T> action) {
-		try {
-			return Result.success(action.call());
-		}
-		catch (IllegalArgumentException error) {
-			return Result.fail(error.getMessage());
-		}
-		catch (BootBusinessException error) {
-			throw error;
-		}
-		catch (Exception error) {
-			return Result.fail("操作失败");
-		}
+		service.delete(id);
+		return Result.success();
 	}
 
 }

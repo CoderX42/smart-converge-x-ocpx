@@ -2,6 +2,7 @@ package com.yzytech.scx.ocpx.admin.service;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.dev33.satoken.annotation.SaMode;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.controller.OcpxMediaController;
 import com.yzytech.scx.ocpx.admin.dto.MediaRequests;
 import com.yzytech.scx.ocpx.admin.dto.MediaViews;
@@ -55,10 +56,10 @@ class OcpxMediaServiceTest {
 		MediaViews.Item result = service
 			.create(new MediaRequests.Create(" 小米 ", " mi-signing ", "/mi/feedback", " __OAID__ "));
 
-		assertThat(result.mediaName()).isEqualTo("小米");
-		assertThat(result.credentialConfigKey()).isEqualTo("mi-signing");
-		assertThat(result.uri()).isEqualTo("/mi/feedback");
-		assertThat(result.macroParams()).isEqualTo("__OAID__");
+		assertThat(result.getMediaName()).isEqualTo("小米");
+		assertThat(result.getCredentialConfigKey()).isEqualTo("mi-signing");
+		assertThat(result.getUri()).isEqualTo("/mi/feedback");
+		assertThat(result.getMacroParams()).isEqualTo("__OAID__");
 		verify(refreshPublisher).mark();
 	}
 
@@ -69,7 +70,7 @@ class OcpxMediaServiceTest {
 		media.setMediaName("小米");
 		when(mediaMapper.selectList(any())).thenReturn(java.util.List.of(media));
 
-		assertThat(service.options()).extracting(MediaViews.Option::id, MediaViews.Option::name)
+		assertThat(service.options()).extracting(MediaViews.Option::getId, MediaViews.Option::getName)
 			.containsExactly(org.assertj.core.groups.Tuple.tuple("media-1", "小米"));
 	}
 
@@ -78,7 +79,7 @@ class OcpxMediaServiceTest {
 		when(mediaMapper.selectCount(any())).thenReturn(1L);
 
 		assertThatThrownBy(() -> service.create(new MediaRequests.Create("小米", null, "/feedback", null)))
-			.isInstanceOf(IllegalArgumentException.class)
+			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("媒体名称已存在");
 	}
 
@@ -114,7 +115,7 @@ class OcpxMediaServiceTest {
 		when(mediaMapper.selectById("media-1")).thenReturn(media);
 		when(mediaMapper.countReferences("media-1")).thenReturn(1);
 
-		assertThatThrownBy(() -> service.delete("media-1")).isInstanceOf(IllegalArgumentException.class)
+		assertThatThrownBy(() -> service.delete("media-1")).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("历史数据");
 		verify(mediaMapper, never()).deleteById("media-1");
 		verify(refreshPublisher, never()).mark();

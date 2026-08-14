@@ -61,13 +61,13 @@ public class OcpxDeductionRuleService {
 	@Transactional
 	public DeductionRuleViews.Item create(DeductionRuleRequests.Create request) {
 		advertiserScope.requireAdministrator();
-		requireMedia(request.mediaId());
-		requirePromotionLink(request.promotionLinkId());
-		ensureUnique(null, request.mediaId(), request.promotionLinkId());
+		requireMedia(request.getMediaId());
+		requirePromotionLink(request.getPromotionLinkId());
+		ensureUnique(null, request.getMediaId(), request.getPromotionLinkId());
 		OcpxDeductionRule rule = new OcpxDeductionRule();
-		rule.setMediaId(request.mediaId());
-		rule.setPromotionLinkId(request.promotionLinkId());
-		rule.setRatio(request.ratio());
+		rule.setMediaId(request.getMediaId());
+		rule.setPromotionLinkId(request.getPromotionLinkId());
+		rule.setRatio(request.getRatio());
 		rule.setDeleted(false);
 		ruleMapper.insert(rule);
 		syncRouteRatio(rule.getPromotionLinkId(), rule.getMediaId(), rule.getRatio());
@@ -79,20 +79,20 @@ public class OcpxDeductionRuleService {
 	public DeductionRuleViews.Item update(String id, DeductionRuleRequests.Update request) {
 		advertiserScope.requireAdministrator();
 		OcpxDeductionRule current = require(id);
-		requireMedia(request.mediaId());
-		requirePromotionLink(request.promotionLinkId());
-		ensureUnique(id, request.mediaId(), request.promotionLinkId());
+		requireMedia(request.getMediaId());
+		requirePromotionLink(request.getPromotionLinkId());
+		ensureUnique(id, request.getMediaId(), request.getPromotionLinkId());
 		OcpxDeductionRule update = new OcpxDeductionRule();
 		update.setId(id);
-		update.setMediaId(request.mediaId());
-		update.setPromotionLinkId(request.promotionLinkId());
-		update.setRatio(request.ratio());
+		update.setMediaId(request.getMediaId());
+		update.setPromotionLinkId(request.getPromotionLinkId());
+		update.setRatio(request.getRatio());
 		ruleMapper.updateById(update);
-		if (!current.getMediaId().equals(request.mediaId())
-				|| !current.getPromotionLinkId().equals(request.promotionLinkId())) {
+		if (!current.getMediaId().equals(request.getMediaId())
+				|| !current.getPromotionLinkId().equals(request.getPromotionLinkId())) {
 			syncRouteRatio(current.getPromotionLinkId(), current.getMediaId(), 1.0);
 		}
-		syncRouteRatio(request.promotionLinkId(), request.mediaId(), request.ratio());
+		syncRouteRatio(request.getPromotionLinkId(), request.getMediaId(), request.getRatio());
 		configRefreshPublisher.mark();
 		return detail(id);
 	}
@@ -116,12 +116,12 @@ public class OcpxDeductionRuleService {
 
 	private void requireMedia(String id) {
 		if (mediaMapper.selectById(id) == null)
-			throw new IllegalArgumentException("媒体不存在");
+			throw new BootBusinessException("媒体不存在");
 	}
 
 	private void requirePromotionLink(String id) {
 		if (linkMapper.selectById(id) == null)
-			throw new IllegalArgumentException("推广链接不存在");
+			throw new BootBusinessException("推广链接不存在");
 	}
 
 	private void ensureUnique(String id, String mediaId, String promotionLinkId) {
@@ -129,7 +129,7 @@ public class OcpxDeductionRuleService {
 			.eq(OcpxDeductionRule::getMediaId, mediaId)
 			.eq(OcpxDeductionRule::getPromotionLinkId, promotionLinkId)
 			.ne(StringUtils.hasText(id), OcpxDeductionRule::getId, id)) > 0)
-			throw new IllegalArgumentException("该媒体与推广链接的扣量规则已存在");
+			throw new BootBusinessException("该媒体与推广链接的扣量规则已存在");
 	}
 
 	private OcpxDeductionRule require(String id) {
@@ -142,10 +142,9 @@ public class OcpxDeductionRuleService {
 	private DeductionRuleViews.Item view(OcpxDeductionRule rule) {
 		OcpxMedia media = mediaMapper.selectById(rule.getMediaId());
 		OcpxPromotionLink link = linkMapper.selectById(rule.getPromotionLinkId());
-		return new DeductionRuleViews.Item(rule.getId(), rule.getMediaId(),
-				media == null ? null : media.getMediaName(), rule.getPromotionLinkId(),
-				link == null ? null : link.getLinkName(), rule.getRatio(), rule.getCreateTime(),
-				rule.getUpdateTime());
+		return new DeductionRuleViews.Item(rule.getId(), rule.getMediaId(), media == null ? null : media.getMediaName(),
+				rule.getPromotionLinkId(), link == null ? null : link.getLinkName(), rule.getRatio(),
+				rule.getCreateTime(), rule.getUpdateTime());
 	}
 
 }

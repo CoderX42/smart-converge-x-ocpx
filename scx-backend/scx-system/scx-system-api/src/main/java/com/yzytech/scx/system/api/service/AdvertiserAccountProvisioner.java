@@ -1,5 +1,9 @@
 package com.yzytech.scx.system.api.service;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 /**
  * 广告主登录账号开户服务。
  *
@@ -27,7 +31,15 @@ public interface AdvertiserAccountProvisioner {
 	void deprovision(String advertiserId, String userId);
 
 	/** 已创建账号的非敏感结果。 */
-	record ProvisionedAccount(String userId, String username) {
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	class ProvisionedAccount {
+
+		private String userId;
+
+		private String username;
+
 	}
 
 }
