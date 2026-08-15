@@ -40,7 +40,8 @@ public class OcpxMediaController {
 
 	@GetMapping("/options")
 	@SaCheckPermission(
-			value = { "ocpx:media:view", "ocpx:monitor-task:view", "ocpx:report:view", "ocpx:dashboard:view" },
+			value = { "ocpx:media:view", "ocpx:monitor-task:view", "ocpx:deduction-rule:list", "ocpx:report:view",
+					"ocpx:dashboard:view" },
 			mode = SaMode.OR)
 	public Result<List<MediaViews.Option>> options() {
 		return Result.success(mediaService.options());

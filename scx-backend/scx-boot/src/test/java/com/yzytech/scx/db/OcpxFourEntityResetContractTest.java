@@ -28,6 +28,10 @@ class OcpxFourEntityResetContractTest {
 		BUSINESS_TABLES.forEach(table -> assertThat(schema).contains("CREATE TABLE IF NOT EXISTS " + table));
 		RETIRED_TABLES.forEach(table -> assertThat(schema).doesNotContain("CREATE TABLE IF NOT EXISTS " + table + " "));
 		assertThat(schema).contains("FOREIGN KEY (advertiser_id,promotion_link_id)",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser_account",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_billing_entry",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log", "CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback_day",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_log_callback",
@@ -37,7 +41,7 @@ class OcpxFourEntityResetContractTest {
 				"action_time BIGINT", "currency_amount DECIMAL(20,6)", "first_activation", "first_order")
 			.doesNotContain("CREATE TABLE IF NOT EXISTS scx_ocpx_report_hourly")
 			.doesNotContain("credential_ciphertext", "secret_ciphertext", "password_hash");
-		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(11);
+		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(15);
 	}
 
 	@Test

@@ -19,6 +19,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '宏参数',
         '充值',
         '删除',
+        '账号角色权限',
       ],
     ],
     [
@@ -28,7 +29,14 @@ describe('vientiane-aligned OCPX page contracts', () => {
     ['media', ['渠道 ID', '渠道名称', 'URI', '凭据引用', '宏参数', '删除']],
     [
       'monitor-task',
-      ['监测编号', '业务编号', '展示监测链接', '点击监测链接', '删除'],
+      [
+        '监测编号',
+        '业务编号',
+        '目标转化事件',
+        '展示监测链接',
+        '点击监测链接',
+        '删除',
+      ],
     ],
     ['deduction', ['规则编号', '推广链接', '扣量比例', '删除']],
     ['report', ['时段报表', 'CTR', '消耗', '完单', '首活', '首购', '订单金额']],
@@ -80,6 +88,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
 
   it('clears invalid child filters and form values after parent changes', () => {
     const monitor = page('monitor-task');
+    const dashboard = page('dashboard');
     const report = page('report');
     const promotion = page('promotion-link');
     expect(monitor).toContain("query.monitorTaskId = ''");
@@ -87,6 +96,28 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(promotion).toContain("query.promotionLinkId = ''");
     expect(report).toContain("filters.monitorTaskId = ''");
     expect(report).toContain("filters.promotionLinkId = ''");
+    expect(dashboard).toContain("filters.promotionLinkId = ''");
+    expect(dashboard).toContain("filters.mediaId = ''");
+    expect(dashboard).toContain("filters.monitorTaskId = ''");
+  });
+
+  it('renders only server-computed dashboard cards and no ranking section', () => {
+    const dashboard = page('dashboard');
+    for (const metric of [
+      'SPEND',
+      'IMPRESSION',
+      'CLICK',
+      'CONVERSION',
+      'CTR',
+      'CVR',
+      'CPM',
+      'CPC',
+      'CPA',
+    ]) {
+      expect(dashboard).toContain(`code: '${metric}'`);
+    }
+    expect(dashboard).toContain("metric?.status === 'OK'");
+    expect(dashboard).not.toMatch(/数据排行|业务对象表现|ranking/i);
   });
 
   it('uses vientiane-style entity selects instead of keyword search', () => {
@@ -139,8 +170,18 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it('guards advertiser and media delete actions with dedicated codes', () => {
     expect(page('advertiser')).toContain("'ocpx:advertiser:delete'");
     expect(page('advertiser')).toContain('deleteAdvertiserV2(row.id)');
-    expect(page('advertiser')).toContain('此操作不可恢复');
+    expect(page('advertiser')).toContain('无余额、无账务流水且无事件事实');
     expect(page('media')).toContain("'ocpx:media:delete'");
     expect(page('media')).toContain('deleteMedia(row.id)');
+  });
+
+  it('keeps shared advertiser role management global and protected', () => {
+    const advertiser = page('advertiser');
+    expect(advertiser).toContain("'ocpx:advertiser:role:manage'");
+    expect(advertiser).toContain('getAdvertiserRolePermissions()');
+    expect(advertiser).toContain('updateAdvertiserRolePermissions({');
+    expect(advertiser).toContain('全量 OCPX 数据范围');
+    expect(advertiser).toContain('需全量范围');
+    expect(advertiser).toContain('保存并使会话失效');
   });
 });

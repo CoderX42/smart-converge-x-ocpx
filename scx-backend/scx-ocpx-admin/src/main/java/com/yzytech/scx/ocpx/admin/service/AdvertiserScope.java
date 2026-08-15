@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.admin.service;
 import com.yzytech.scx.common.security.entity.BootUser;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.common.security.util.SecurityUtils;
+import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -33,10 +34,46 @@ public class AdvertiserScope {
 		}
 	}
 
+	/** 资金和计费配置只允许真实 ROLE_ADMIN；全量广告主数据范围不能提升为资金权限。 */
+	public void requireSystemAdministrator() {
+		BootUser user = SecurityUtils.getUser();
+		if (user == null || SystemAccountConstants.USER_TYPE_ADVERTISER.equals(user.getType()) || user.getRoles() == null
+				|| !user.getRoles().contains(CommonConstants.ROLE_ADMIN_CODE)) {
+			throw forbidden("仅系统管理员可以维护资金与计费配置");
+		}
+	}
+
+	/** 需要条件判断的计费写路径同时校验真实管理员角色与指定权限码。 */
+	public void requireSystemAdministratorPermission(String permission) {
+		requireSystemAdministrator();
+		BootUser user = SecurityUtils.getUser();
+		if (user.getPermissions() == null || !user.getPermissions().contains(permission)) {
+			throw forbidden("系统管理员缺少计费配置权限");
+		}
+	}
+
+	/**
+	 * 账户金额使用比业务数据更严格的范围：广告主账号始终只能读取自身账户，即使拥有全量业务范围。
+	 */
+	public String accountAdvertiserId(String requestedAdvertiserId) {
+		BootUser user = SecurityUtils.getUser();
+		if (user == null || !SystemAccountConstants.USER_TYPE_ADVERTISER.equals(user.getType())) {
+			return trim(requestedAdvertiserId);
+		}
+		if (!StringUtils.hasText(user.getShopId())) {
+			throw forbidden("广告主账号未绑定广告主");
+		}
+		return user.getShopId().trim();
+	}
+
 	/** 返回当前受限广告主；管理员返回 null。 */
 	public String currentAdvertiserId() {
 		BootUser user = SecurityUtils.getUser();
 		if (user == null || !SystemAccountConstants.USER_TYPE_ADVERTISER.equals(user.getType())) {
+			return null;
+		}
+		if (user.getPermissions() != null
+				&& user.getPermissions().contains(SystemAccountConstants.ADVERTISER_ALL_SCOPE_PERMISSION)) {
 			return null;
 		}
 		if (!StringUtils.hasText(user.getShopId())) {

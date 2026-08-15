@@ -423,7 +423,9 @@ onMounted(async () => {
                     :value="item.key"
                   >
                     <span class="macro-label">{{ item.label }}</span>
-                    <code class="macro-value">{{ item.key }}={{ item.macro }}</code>
+                    <code class="macro-value"
+                      >{{ item.key }}={{ item.macro }}</code
+                    >
                   </el-checkbox>
                 </div>
               </template>
@@ -486,13 +488,13 @@ onMounted(async () => {
 }
 
 .macro-preview {
-  margin: 10px 0;
   padding: 6px 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
+  margin: 10px 0;
   font-size: 12px;
   line-height: 1.6;
   word-break: break-all;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
 }
 
 .macro-preview-text {

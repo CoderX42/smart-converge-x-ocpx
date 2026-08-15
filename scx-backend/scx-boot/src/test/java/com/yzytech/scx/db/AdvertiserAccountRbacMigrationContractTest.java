@@ -31,25 +31,34 @@ class AdvertiserAccountRbacMigrationContractTest {
 	}
 
 	@Test
-	void currentSchemaSeedsTheSameProtectedReadOnlyRole() throws Exception {
+	void currentSchemaSupersedesTheReadOnlySeedWithV107FullRoleManagement() throws Exception {
 		String sql = resource(CURRENT_SCHEMA);
 
 		assertThat(sql).contains("account_user_id VARCHAR(64) NULL", "uk_ocpx_advertiser_account_user",
 				"FOREIGN KEY (account_user_id) REFERENCES sys_user(id)", "show_url TEXT NULL", "clk_url TEXT NULL",
-				"'role_advertiser','广告主','ROLE_ADVERTISER'", "'ocpx:report:export'");
-		assertExactAdvertiserRoleGrant(sql);
+				"'role_advertiser','广告主','ROLE_ADVERTISER','广告主自助账号共享可配置角色'",
+				"'ocpx:report:export'");
+		String grant = advertiserGrant(sql);
+		assertThat(grant)
+			.contains("'menu_ocpx_media'", "'menu_ocpx_deduction_rule'", "'perm_ocpx_advertiser_add'",
+					"'perm_ocpx_advertiser_delete'", "'perm_ocpx_media_delete'", "'perm_ocpx_adv_scope_all'")
+			.doesNotContain("'perm_ocpx_adv_role_manage'");
 	}
 
 	private void assertExactAdvertiserRoleGrant(String sql) {
-		int grantStart = sql.lastIndexOf("DELETE FROM sys_role_menu\nWHERE role_id = 'role_advertiser';");
-		assertThat(grantStart).isNotNegative();
-		String grant = sql.substring(grantStart);
+		String grant = advertiserGrant(sql);
 		assertThat(grant).contains(ADVERTISER_MENU_IDS)
 			.doesNotContain("menu_ocpx_media", "menu_ocpx_deduction_rule", "perm_ocpx_advertiser_add",
 					"perm_ocpx_advertiser_edit", "perm_ocpx_advertiser_recharge", "perm_ocpx_advertiser_delete",
 					"perm_ocpx_promotion_link_add", "perm_ocpx_promotion_link_edit", "perm_ocpx_promotion_link_delete",
 					"perm_ocpx_monitor_task_add", "perm_ocpx_monitor_task_edit", "perm_ocpx_monitor_task_delete",
 					"perm_ocpx_media_delete");
+	}
+
+	private String advertiserGrant(String sql) {
+		int grantStart = sql.lastIndexOf("DELETE FROM sys_role_menu\nWHERE role_id = 'role_advertiser';");
+		assertThat(grantStart).isNotNegative();
+		return sql.substring(grantStart);
 	}
 
 	private String resource(String path) throws Exception {

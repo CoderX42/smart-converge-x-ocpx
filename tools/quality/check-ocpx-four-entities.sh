@@ -10,11 +10,18 @@ import sys
 
 root = pathlib.Path(sys.argv[1])
 schema = (root / "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql").read_text(encoding="utf-8")
-business = re.findall(
-    r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+).*?COMMENT='BUSINESS:",
-    schema,
-    re.IGNORECASE | re.DOTALL,
+table_starts = list(
+    re.finditer(
+        r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)",
+        schema,
+        re.IGNORECASE,
+    )
 )
+business = []
+for index, match in enumerate(table_starts):
+    end = table_starts[index + 1].start() if index + 1 < len(table_starts) else len(schema)
+    if "COMMENT='BUSINESS:" in schema[match.start():end]:
+        business.append(match.group(1))
 expected_business = {
     "scx_ocpx_advertiser",
     "scx_ocpx_promotion_link",
@@ -26,6 +33,10 @@ if set(business) != expected_business or len(business) != 5:
     raise SystemExit(f"four-entity gate failed: BUSINESS tables are {business!r}")
 
 expected_data = {
+    "scx_ocpx_advertiser_account",
+    "scx_ocpx_event_fact",
+    "scx_ocpx_billing_entry",
+    "scx_ocpx_hourly_metric",
     "scx_ocpx_flow_log",
     "scx_ocpx_log_feedback",
     "scx_ocpx_log_feedback_day",
@@ -34,7 +45,7 @@ expected_data = {
     "scx_ocpx_report_mat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 11:
+if set(actual) != expected_business | expected_data or len(actual) != 15:
     raise SystemExit(f"four-entity gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
@@ -63,7 +74,7 @@ v102_columns = {
         "retired": ("media_code", "adapter_code", "auth_type", "credential_version", "ingress_uri", "callback_url", "status", "deleted", "active_marker"),
     },
     "scx_ocpx_monitor_task": {
-        "required": ("monitor_name", "biz_id", "show_url text", "clk_url text", "is_delete"),
+        "required": ("monitor_name", "unit_price decimal(20,6)", "conversion_event", "biz_id", "show_url text", "clk_url text", "is_delete"),
         "retired": ("task_code", "task_name", "operator_user_id", "status", "config_version", "archived_at", "active_marker"),
     },
     "scx_ocpx_deduction_rule": {
@@ -110,6 +121,7 @@ required = {
     "feedback/web/FeedbackIngressAdapter.java",
     "feedback/web/FeedbackRequestAdapter.java",
     "feedback/service/FeedbackServiceImpl.java",
+    "fact/service/OcpxEventFactService.java",
     "feedback/delivery/UpstreamDeliveryDispatcher.java",
     "feedback/delivery/TemplateGetUpstreamDeliveryService.java",
 	"feedback/delivery/aerim/AerimUpstreamDeliveryService.java",
@@ -286,6 +298,23 @@ for required_fragment in (
         raise SystemExit(f"V106 migration gate failed: missing {required_fragment}")
 if "scx_schema_migration" in v106:
     raise SystemExit("V106 migration gate failed: retired migration ledger is referenced")
+
+v107 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V107__add_advertiser_shared_role_permissions.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "ocpx:advertiser:role:manage",
+    "ocpx:advertiser:scope:all",
+    "r.role_code='ROLE_ADMIN'",
+    "WHERE role_id='role_advertiser'",
+    "m.path LIKE '/ocpx%'",
+    "m.permission LIKE 'ocpx:%'",
+    "COALESCE(m.permission,'') <> 'ocpx:advertiser:role:manage'",
+):
+    if required_fragment not in v107:
+        raise SystemExit(f"V107 migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v107:
+    raise SystemExit("V107 migration gate failed: retired migration ledger is referenced")
 for table, columns in {
     "scx_ocpx_log_callback": ("partner_action_type", "standard_action_type", "action_time", "currency_amount"),
     "scx_ocpx_report_mat_temp": ("first_activation", "first_order", "currency_amount"),

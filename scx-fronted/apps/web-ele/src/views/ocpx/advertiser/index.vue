@@ -1,7 +1,12 @@
 <script lang="ts" setup>
-import type { FormInstance, FormRules } from 'element-plus';
+import type { FormInstance, FormRules, TreeInstance } from 'element-plus';
 
-import type { AdvertiserV2, EntityOption } from '#/api/ocpx';
+import type {
+  AdvertiserRoleMenuNode,
+  AdvertiserRolePermissions,
+  AdvertiserV2,
+  EntityOption,
+} from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
@@ -15,8 +20,10 @@ import {
   appendAdvertiserMacroParams,
   createAdvertiserV2,
   deleteAdvertiserV2,
+  getAdvertiserRolePermissions,
   listAdvertisers,
   rechargeAdvertiser,
+  updateAdvertiserRolePermissions,
   updateAdvertiserV2,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
@@ -79,6 +86,27 @@ const canOperate = computed(() =>
 );
 const loadGuard = createLatestRequestGuard();
 
+type PermissionTreeNode = AdvertiserRoleMenuNode & {
+  children: PermissionTreeNode[];
+  disabled: boolean;
+};
+
+const rolePermissionOpen = ref(false);
+const rolePermissionLoading = ref(false);
+const rolePermissionSaving = ref(false);
+const rolePermissionConfig = ref<AdvertiserRolePermissions>();
+const rolePermissionTreeRef = ref<TreeInstance>();
+const rolePermissionForm = reactive({
+  allDataScope: false,
+  menuIds: [] as string[],
+});
+const rolePermissionTree = computed<PermissionTreeNode[]>(() =>
+  decoratePermissionTree(
+    rolePermissionConfig.value?.menuTree || [],
+    rolePermissionForm.allDataScope,
+  ),
+);
+
 function validatePassword(
   _rule: unknown,
   value: string,
@@ -109,19 +137,124 @@ const rechargeOpen = ref(false);
 const rechargeLoading = ref(false);
 const rechargeId = ref('');
 const rechargeFormRef = ref<FormInstance>();
-const rechargeForm = reactive({ balance: '' });
+const rechargeForm = reactive({ amount: '', remark: '', requestId: '' });
 const rechargeRules: FormRules = {
-  balance: [
+  amount: [
     { message: '请输入充值金额', required: true },
     {
-      message: '请输入不小于 0 的数字',
-      pattern: /^\d+(?:\.\d+)?$/,
+      message: '请输入大于 0、最多 6 位小数的金额',
+      pattern: /^(?!0+(?:\.0+)?$)\d+(?:\.\d{1,6})?$/,
     },
   ],
 };
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
+}
+
+function decoratePermissionTree(
+  nodes: AdvertiserRoleMenuNode[],
+  allDataScope: boolean,
+): PermissionTreeNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    children: decoratePermissionTree(node.children || [], allDataScope),
+    disabled: node.requiresAllDataScope && !allDataScope,
+  }));
+}
+
+function flattenPermissionIds(
+  nodes: AdvertiserRoleMenuNode[],
+  includeGlobal: boolean,
+): string[] {
+  return nodes.flatMap((node) => [
+    ...(includeGlobal || !node.requiresAllDataScope ? [node.id] : []),
+    ...flattenPermissionIds(node.children || [], includeGlobal),
+  ]);
+}
+
+function captureRolePermissionMenus() {
+  rolePermissionForm.menuIds = (
+    rolePermissionTreeRef.value?.getCheckedKeys(false) || []
+  ).map(String);
+}
+
+async function openRolePermissions() {
+  rolePermissionOpen.value = true;
+  rolePermissionLoading.value = true;
+  try {
+    const result = await getAdvertiserRolePermissions();
+    rolePermissionConfig.value = result;
+    rolePermissionForm.allDataScope = result.allDataScope;
+    rolePermissionForm.menuIds = [...result.selectedMenuIds];
+    await nextTick();
+    rolePermissionTreeRef.value?.setCheckedKeys(result.selectedMenuIds, false);
+  } catch {
+    rolePermissionOpen.value = false;
+  } finally {
+    rolePermissionLoading.value = false;
+  }
+}
+
+async function changeAllDataScope(enabled: boolean) {
+  rolePermissionForm.allDataScope = enabled;
+  if (!enabled && rolePermissionConfig.value) {
+    const allowed = new Set(
+      flattenPermissionIds(rolePermissionConfig.value.menuTree, false),
+    );
+    rolePermissionForm.menuIds = rolePermissionForm.menuIds.filter((id) =>
+      allowed.has(id),
+    );
+    await nextTick();
+    rolePermissionTreeRef.value?.setCheckedKeys(
+      rolePermissionForm.menuIds,
+      false,
+    );
+  }
+}
+
+async function selectAllRolePermissions() {
+  if (!rolePermissionConfig.value) return;
+  rolePermissionForm.allDataScope = true;
+  rolePermissionForm.menuIds = flattenPermissionIds(
+    rolePermissionConfig.value.menuTree,
+    true,
+  );
+  await nextTick();
+  rolePermissionTreeRef.value?.setCheckedKeys(
+    rolePermissionForm.menuIds,
+    false,
+  );
+}
+
+function clearRolePermissions() {
+  rolePermissionForm.allDataScope = false;
+  rolePermissionForm.menuIds = [];
+  rolePermissionTreeRef.value?.setCheckedKeys([], false);
+}
+
+async function saveRolePermissions() {
+  captureRolePermissionMenus();
+  const affected = rolePermissionConfig.value?.affectedAccountCount || 0;
+  await ElMessageBox.confirm(
+    `此配置由全部广告主账号共享，将影响 ${affected} 个账号并注销其现有会话。确认保存？`,
+    '保存账号角色权限',
+    {
+      confirmButtonText: '保存并使会话失效',
+      type: 'warning',
+    },
+  );
+  rolePermissionSaving.value = true;
+  try {
+    rolePermissionConfig.value = await updateAdvertiserRolePermissions({
+      allDataScope: rolePermissionForm.allDataScope,
+      menuIds: rolePermissionForm.menuIds,
+    });
+    ElMessage.success('广告主账号角色权限已更新，请相关账号重新登录');
+    rolePermissionOpen.value = false;
+  } finally {
+    rolePermissionSaving.value = false;
+  }
 }
 
 async function load() {
@@ -203,7 +336,11 @@ function handleDialogClose() {
 
 function recharge(row: AdvertiserV2) {
   rechargeId.value = row.id;
-  rechargeForm.balance = '';
+  Object.assign(rechargeForm, {
+    amount: '',
+    remark: '',
+    requestId: crypto.randomUUID(),
+  });
   rechargeOpen.value = true;
   void nextTick(() => rechargeFormRef.value?.clearValidate());
 }
@@ -211,14 +348,18 @@ function recharge(row: AdvertiserV2) {
 function handleRechargeClose() {
   rechargeId.value = '';
   rechargeFormRef.value?.resetFields();
-  rechargeForm.balance = '';
+  Object.assign(rechargeForm, { amount: '', remark: '', requestId: '' });
 }
 
 async function submitRecharge() {
   if (!(await rechargeFormRef.value?.validate().catch(() => false))) return;
   rechargeLoading.value = true;
   try {
-    await rechargeAdvertiser(rechargeId.value, Number(rechargeForm.balance));
+    await rechargeAdvertiser(rechargeId.value, {
+      amount: Number(rechargeForm.amount),
+      remark: rechargeForm.remark.trim() || undefined,
+      requestId: rechargeForm.requestId,
+    });
     ElMessage.success('充值成功');
     rechargeOpen.value = false;
     await load();
@@ -229,7 +370,7 @@ async function submitRecharge() {
 
 async function remove(row: AdvertiserV2) {
   await ElMessageBox.confirm(
-    '将永久删除该广告主及其推广链接、监测任务、扣量规则、流程日志、Feedback/Callback 明细和报表数据，同时注销绑定账号并清理余额。共享媒体不会删除，此操作不可恢复。确认继续？',
+    '仅无余额、无账务流水且无事件事实的广告主可以删除。删除会同时移除其空账户、推广链接、监测任务、扣量规则并注销绑定账号；共享媒体不会删除。确认继续？',
     '删除广告主',
     {
       confirmButtonText: '确认删除',
@@ -286,6 +427,13 @@ onMounted(async () => {
         >
           新增广告主
         </el-button>
+        <el-button
+          v-access:code="'ocpx:advertiser:role:manage'"
+          :disabled="loading || saving || Boolean(deletingId)"
+          @click="openRolePermissions"
+        >
+          账号角色权限
+        </el-button>
         <RightToolbar
           v-model:visible-columns="visibleColumns"
           :columns="columns"
@@ -330,7 +478,9 @@ onMounted(async () => {
           label="余额"
           min-width="110"
         >
-          <template #default="{ row }">{{ row.balance ?? 0 }}</template>
+          <template #default="{ row }">{{
+            row.balance == null ? '—' : `¥${Number(row.balance).toFixed(2)}`
+          }}</template>
         </el-table-column>
         <el-table-column
           v-if="hasColumn('credential')"
@@ -490,6 +640,90 @@ onMounted(async () => {
     </el-dialog>
 
     <el-dialog
+      v-model="rolePermissionOpen"
+      :close-on-click-modal="false"
+      title="广告主账号角色权限"
+      width="760px"
+    >
+      <div v-loading="rolePermissionLoading" class="role-permission-dialog">
+        <el-alert
+          :closable="false"
+          show-icon
+          :title="`共享角色 ${rolePermissionConfig?.roleName || '广告主'}（${rolePermissionConfig?.roleCode || 'ROLE_ADVERTISER'}）会影响 ${rolePermissionConfig?.affectedAccountCount || 0} 个广告主账号。`"
+          type="warning"
+        />
+        <div class="role-permission-scope">
+          <div>
+            <strong>全量 OCPX 数据范围</strong>
+            <p>开启后，所选权限可访问全部广告主及共享媒体、扣量数据。</p>
+          </div>
+          <el-switch
+            :model-value="rolePermissionForm.allDataScope"
+            aria-label="全量 OCPX 数据范围"
+            @change="changeAllDataScope(Boolean($event))"
+          />
+        </div>
+        <el-alert
+          v-if="rolePermissionForm.allDataScope"
+          :closable="false"
+          show-icon
+          title="全量范围已开启：获得对应删除权限的广告主账号可以级联删除任意广告主。"
+          type="error"
+        />
+        <div class="role-permission-toolbar">
+          <strong>OCPX 菜单与操作权限</strong>
+          <div>
+            <el-button
+              :disabled="rolePermissionLoading || rolePermissionSaving"
+              link
+              type="primary"
+              @click="selectAllRolePermissions"
+              >全选</el-button
+            >
+            <el-button
+              :disabled="rolePermissionLoading || rolePermissionSaving"
+              link
+              @click="clearRolePermissions"
+              >清空</el-button
+            >
+          </div>
+        </div>
+        <el-tree
+          ref="rolePermissionTreeRef"
+          check-on-click-node
+          check-strictly
+          :data="rolePermissionTree"
+          default-expand-all
+          node-key="id"
+          :props="{ children: 'children', disabled: 'disabled', label: 'name' }"
+          show-checkbox
+          @check="captureRolePermissionMenus"
+        >
+          <template #default="{ data }">
+            <span>{{ data.name }}</span>
+            <span v-if="data.requiresAllDataScope" class="permission-scope-tag">
+              需全量范围
+            </span>
+          </template>
+        </el-tree>
+      </div>
+      <template #footer>
+        <el-button
+          :disabled="rolePermissionSaving"
+          @click="rolePermissionOpen = false"
+          >取消</el-button
+        >
+        <el-button
+          :disabled="rolePermissionLoading"
+          :loading="rolePermissionSaving"
+          type="primary"
+          @click="saveRolePermissions"
+          >保存权限</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="rechargeOpen"
       :close-on-click-modal="false"
       title="广告主充值"
@@ -502,9 +736,17 @@ onMounted(async () => {
         :rules="rechargeRules"
         label-width="100px"
       >
-        <el-form-item label="充值金额" prop="balance"
-          ><el-input v-model="rechargeForm.balance" inputmode="decimal"
+        <el-form-item label="充值金额" prop="amount"
+          ><el-input v-model="rechargeForm.amount" inputmode="decimal"
         /></el-form-item>
+        <el-form-item label="备注" prop="remark">
+          <el-input
+            v-model="rechargeForm.remark"
+            maxlength="255"
+            placeholder="选填"
+            type="textarea"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button :disabled="rechargeLoading" @click="rechargeOpen = false"
@@ -527,5 +769,38 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.4;
   color: var(--el-text-color-secondary);
+}
+
+.role-permission-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.role-permission-scope,
+.role-permission-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.role-permission-scope p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.role-permission-dialog :deep(.el-tree) {
+  max-height: 360px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+}
+
+.permission-scope-tag {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-color-warning);
 }
 </style>

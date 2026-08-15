@@ -48,4 +48,21 @@ public final class AdvertiserViews {
 
 	}
 
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class RechargeResult {
+
+		private String entryId;
+
+		private String advertiserId;
+
+		private BigDecimal amount;
+
+		private BigDecimal balanceAfter;
+
+		private LocalDateTime occurredAt;
+
+	}
+
 }

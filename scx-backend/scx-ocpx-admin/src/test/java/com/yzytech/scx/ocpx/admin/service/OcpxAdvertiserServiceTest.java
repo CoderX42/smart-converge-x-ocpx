@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import java.math.BigDecimal;
@@ -46,11 +45,11 @@ class OcpxAdvertiserServiceTest {
 
 	private StringRedisTemplate redis;
 
-	private ValueOperations<String, String> values;
-
 	private AdvertiserAccountProvisioner accountProvisioner;
 
 	private AdvertiserScope advertiserScope;
+
+	private OcpxAdvertiserAccountService advertiserAccountService;
 
 	private OcpxAdvertiserService service;
 
@@ -60,12 +59,11 @@ class OcpxAdvertiserServiceTest {
 		advertiserMapper = mock(OcpxAdvertiserMapper.class);
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		redis = mock(StringRedisTemplate.class);
-		values = mock(ValueOperations.class);
-		when(redis.opsForValue()).thenReturn(values);
 		accountProvisioner = mock(AdvertiserAccountProvisioner.class);
 		advertiserScope = mock(AdvertiserScope.class);
+		advertiserAccountService = mock(OcpxAdvertiserAccountService.class);
 		service = new OcpxAdvertiserService(advertiserMapper, configRefreshPublisher, redis, accountProvisioner,
-				advertiserScope);
+				advertiserScope, advertiserAccountService);
 	}
 
 	@Test
@@ -83,6 +81,7 @@ class OcpxAdvertiserServiceTest {
 			.thenReturn(new AdvertiserAccountProvisioner.ProvisionedAccount("user-1", "adv-user"));
 		when(advertiserMapper.updateById(any(OcpxAdvertiser.class))).thenReturn(1);
 		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of(username("adv-1", "adv-user")));
+		when(advertiserAccountService.balance("adv-1")).thenReturn(BigDecimal.ZERO);
 
 		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " mi-signing ",
 				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
@@ -93,6 +92,7 @@ class OcpxAdvertiserServiceTest {
 		assertThat(result.getMacroParams()).isEqualTo("oaid=__OAID__");
 		assertThat(result.getUsername()).isEqualTo("adv-user");
 		verify(accountProvisioner).provision("adv-1", "广告主一", "adv-user", "Pass@123");
+		verify(advertiserAccountService).create("adv-1");
 		verify(advertiserMapper).updateById(org.mockito.ArgumentMatchers
 			.<OcpxAdvertiser>argThat(item -> "adv-1".equals(item.getId()) && "user-1".equals(item.getAccountUserId())));
 		verify(configRefreshPublisher).mark();
@@ -140,49 +140,57 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
-	void rechargeAccumulatesBalanceInRedis() {
+	void rechargeDelegatesToTheIdempotentMysqlAccountService() {
 		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser("adv-1"));
+		AdvertiserRequests.Recharge request = new AdvertiserRequests.Recharge("request-001", new BigDecimal("100"),
+				"首充");
+		AdvertiserViews.RechargeResult expected = new AdvertiserViews.RechargeResult();
+		when(advertiserAccountService.recharge("adv-1", request)).thenReturn(expected);
 
-		service.recharge("adv-1", new AdvertiserRequests.Recharge(new BigDecimal("100")));
-		service.recharge("adv-1", new AdvertiserRequests.Recharge(new BigDecimal("50.5")));
+		assertThat(service.recharge("adv-1", request)).isSameAs(expected);
 
-		verify(values).increment("ocpx:advertiser:balance:adv-1", 100.0);
-		verify(values).increment("ocpx:advertiser:balance:adv-1", 50.5);
+		verify(advertiserAccountService).recharge("adv-1", request);
 	}
 
 	@Test
 	void rechargeRejectsMissingAdvertiser() {
 		when(advertiserMapper.selectById(anyString())).thenReturn(null);
 
-		assertThatThrownBy(() -> service.recharge("adv-x", new AdvertiserRequests.Recharge(new BigDecimal("1"))))
+		assertThatThrownBy(() -> service.recharge("adv-x",
+				new AdvertiserRequests.Recharge("request-001", new BigDecimal("1"), null)))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("广告主不存在");
-		verifyNoInteractions(values);
+		verifyNoInteractions(advertiserAccountService);
 	}
 
 	@Test
-	void rechargeBalanceMustBePresentAndNonNegative() {
+	void rechargeRequiresRequestIdAndAPositiveAmount() {
 		Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
-		assertThat(validator.validate(new AdvertiserRequests.Recharge(null)))
-			.anyMatch(violation -> "balance".equals(violation.getPropertyPath().toString()));
-		assertThat(validator.validate(new AdvertiserRequests.Recharge(new BigDecimal("-0.01"))))
-			.anyMatch(violation -> "balance".equals(violation.getPropertyPath().toString()));
-		assertThat(validator.validate(new AdvertiserRequests.Recharge(BigDecimal.ZERO)))
-			.noneMatch(violation -> "balance".equals(violation.getPropertyPath().toString()));
-		assertThat(validator.validate(new AdvertiserRequests.Recharge(new BigDecimal("9.99"))))
-			.noneMatch(violation -> "balance".equals(violation.getPropertyPath().toString()));
+		assertThat(validator.validate(new AdvertiserRequests.Recharge(null, null, null)))
+			.extracting(violation -> violation.getPropertyPath().toString())
+			.contains("requestId", "amount");
+		assertThat(validator.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("-0.01"), null)))
+			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
+		assertThat(validator.validate(new AdvertiserRequests.Recharge("request-001", BigDecimal.ZERO, null)))
+			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
+		assertThat(validator.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("9.99"), null)))
+			.isEmpty();
+		assertThat(validator
+			.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("1.0000001"), null)))
+			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
 	}
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void listBackfillsBalanceFromRedisWithZeroFallback() {
+	void listReadsBalancesFromTheMysqlAccountService() {
 		Page<OcpxAdvertiser> stored = new Page<>(1, 10);
 		stored.setRecords(List.of(advertiser("adv-1"), advertiser("adv-2")));
 		when(advertiserMapper.selectPage(any(), any())).thenReturn(stored);
 		when(advertiserMapper.selectUsernamesByAdvertiserIds(any()))
 			.thenReturn(List.of(username("adv-1", null), username("adv-2", null)));
-		when(values.multiGet(any())).thenReturn(Arrays.asList("123.45", null));
+		when(advertiserAccountService.balancesByIds(any()))
+			.thenReturn(java.util.Map.of("adv-1", new BigDecimal("123.45"), "adv-2", BigDecimal.ZERO));
 
 		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
 			.getRecords();
@@ -190,6 +198,36 @@ class OcpxAdvertiserServiceTest {
 		assertThat(records.get(0).getBalance()).isEqualByComparingTo("123.45");
 		assertThat(records.get(1).getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
 		assertThat(records).extracting(AdvertiserViews.Item::getUsername).containsOnlyNulls();
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void allScopeAdvertiserNeverReceivesAnotherAdvertiserBalance() {
+		Page<OcpxAdvertiser> stored = new Page<>(1, 10);
+		stored.setRecords(List.of(advertiser("adv-own"), advertiser("adv-other")));
+		when(advertiserMapper.selectPage(any(), any())).thenReturn(stored);
+		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of());
+		when(advertiserScope.accountAdvertiserId(null)).thenReturn("adv-own");
+		when(advertiserAccountService.balancesByIds(List.of("adv-own")))
+			.thenReturn(java.util.Map.of("adv-own", new BigDecimal("88.000000")));
+
+		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
+			.list(new Page<>(1, 10), null, null)
+			.getRecords();
+
+		assertThat(records.get(0).getBalance()).isEqualByComparingTo("88.000000");
+		assertThat(records.get(1).getBalance()).isNull();
+		verify(advertiserAccountService).balancesByIds(List.of("adv-own"));
+	}
+
+	@Test
+	void allScopeAdvertiserDetailHidesAnotherAdvertiserBalance() {
+		when(advertiserMapper.selectById("adv-other")).thenReturn(advertiser("adv-other"));
+		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of());
+		when(advertiserScope.accountAdvertiserId("adv-other")).thenReturn("adv-own");
+
+		assertThat(service.detail("adv-other").getBalance()).isNull();
+		verify(advertiserAccountService, never()).balance("adv-other");
 	}
 
 	@Test
@@ -214,6 +252,8 @@ class OcpxAdvertiserServiceTest {
 		service.delete("adv-1");
 
 		verify(advertiserScope).requireAdministrator();
+		verify(advertiserAccountService).assertDeletable("adv-1");
+		verify(advertiserAccountService).deleteEmptyAccount("adv-1");
 		InOrder deletion = inOrder(advertiserMapper);
 		deletion.verify(advertiserMapper).selectByIdForUpdate("adv-1");
 		deletion.verify(advertiserMapper).selectCascadeRoutes("adv-1");
@@ -230,8 +270,8 @@ class OcpxAdvertiserServiceTest {
 		verify(accountProvisioner).deprovision("adv-1", "user-1");
 		ArgumentCaptor<Collection<String>> keys = ArgumentCaptor.forClass(Collection.class);
 		verify(redis).delete(keys.capture());
-		assertThat(keys.getValue()).containsExactlyInAnyOrder("ocpx:advertiser:balance:adv-1",
-				"ocpx:route:ratio:link-1:media-1", "ocpx:route:original-count:link-1:media-1",
+		assertThat(keys.getValue()).containsExactlyInAnyOrder("ocpx:route:ratio:link-1:media-1",
+				"ocpx:route:original-count:link-1:media-1",
 				"ocpx:route:delivered-count:link-1:media-1");
 		verify(configRefreshPublisher).mark();
 	}

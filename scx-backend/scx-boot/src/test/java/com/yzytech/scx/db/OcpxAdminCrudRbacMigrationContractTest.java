@@ -24,7 +24,7 @@ class OcpxAdminCrudRbacMigrationContractTest {
 	}
 
 	@Test
-	void currentSchemaSeedsDeletePermissionsBeforeGrantingAllOcpxMenusToAdmin() throws Exception {
+	void currentSchemaSeedsDeletePermissionsAndV107ExpandsTheAdvertiserRole() throws Exception {
 		String sql = resource(CURRENT_SCHEMA);
 
 		assertThat(sql).contains("'perm_ocpx_advertiser_delete'", "'ocpx:advertiser:delete'",
@@ -33,7 +33,9 @@ class OcpxAdminCrudRbacMigrationContractTest {
 				"WHERE r.role_code='ROLE_ADMIN'");
 		String advertiserGrant = sql
 			.substring(sql.lastIndexOf("DELETE FROM sys_role_menu\nWHERE role_id = 'role_advertiser';"));
-		assertThat(advertiserGrant).doesNotContain("perm_ocpx_advertiser_delete", "perm_ocpx_media_delete");
+		assertThat(advertiserGrant)
+			.contains("'perm_ocpx_advertiser_delete'", "'perm_ocpx_media_delete'", "'perm_ocpx_adv_scope_all'")
+			.doesNotContain("'perm_ocpx_adv_role_manage'");
 	}
 
 	private String resource(String path) throws Exception {

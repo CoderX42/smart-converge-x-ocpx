@@ -90,7 +90,7 @@ class OcpxMediaServiceTest {
 
 		assertThat(permission.mode()).isEqualTo(SaMode.OR);
 		assertThat(Arrays.asList(permission.value())).contains("ocpx:media:view", "ocpx:monitor-task:view",
-				"ocpx:report:view", "ocpx:dashboard:view");
+				"ocpx:deduction-rule:list", "ocpx:report:view", "ocpx:dashboard:view");
 	}
 
 	@Test

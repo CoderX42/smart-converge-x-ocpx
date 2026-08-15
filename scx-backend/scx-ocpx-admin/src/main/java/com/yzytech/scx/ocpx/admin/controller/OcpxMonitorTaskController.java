@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
@@ -9,6 +10,7 @@ import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskService;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,7 +39,7 @@ public class OcpxMonitorTaskController {
 	}
 
 	@GetMapping("/options")
-	@SaCheckPermission("ocpx:monitor-task:view")
+	@SaCheckPermission(value = { "ocpx:monitor-task:view", "ocpx:report:view" }, mode = SaMode.OR)
 	public Result<List<MonitorTaskViews.Option>> options(String mediaId) {
 		return Result.success(service.options(mediaId));
 	}
@@ -49,7 +51,7 @@ public class OcpxMonitorTaskController {
 	}
 
 	@PostMapping
-	@SaCheckPermission("ocpx:monitor-task:add")
+	@SaCheckPermission(value = { "ocpx:monitor-task:add", SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION })
 	@SysLog("新增监测任务")
 	public Result<MonitorTaskViews.Item> create(@Valid @RequestBody MonitorTaskRequests.Create request) {
 		return Result.success(service.create(request));

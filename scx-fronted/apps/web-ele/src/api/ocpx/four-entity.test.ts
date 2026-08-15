@@ -7,11 +7,15 @@ import {
   createPromotionLink,
   deleteAdvertiserV2,
   deleteMedia,
+  getAdvertiserRolePermissions,
+  rechargeAdvertiser,
+  updateAdvertiserRolePermissions,
   updateAdvertiserV2,
 } from './four-entity';
 
 const requestClient = vi.hoisted(() => ({
   delete: vi.fn(),
+  get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
 }));
@@ -98,6 +102,7 @@ describe('ocpx four-entity write contracts', () => {
 
     await createMonitorTask({
       advertiserId: 'advertiser-1',
+      conversionEvent: 'ACTIVATE',
       mediaId: 'media-1',
       monitorName: '任务甲',
       promotionLinkId: 'link-1',
@@ -107,12 +112,26 @@ describe('ocpx four-entity write contracts', () => {
     expect(requestClient.post).toHaveBeenLastCalledWith('/ocpx/monitor-tasks', {
       advertiserId: 'advertiser-1',
       bizId: undefined,
+      conversionEvent: 'ACTIVATE',
       mediaId: 'media-1',
       monitorName: '任务甲',
       promotionLinkId: 'link-1',
       remark: undefined,
       unitPrice: 1.2,
     });
+  });
+
+  it('submits an idempotency key and positive amount for recharge', async () => {
+    await rechargeAdvertiser('advertiser-1', {
+      amount: 100,
+      remark: '首充',
+      requestId: 'request-001',
+    });
+
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/ocpx/advertisers/advertiser-1/recharge',
+      { amount: 100, remark: '首充', requestId: 'request-001' },
+    );
   });
 
   it('uses the aligned delete endpoints for advertiser and media', async () => {
@@ -126,6 +145,25 @@ describe('ocpx four-entity write contracts', () => {
     expect(requestClient.delete).toHaveBeenNthCalledWith(
       2,
       '/ocpx/media/media-1',
+    );
+  });
+
+  it('uses a protected global endpoint for the shared advertiser role', async () => {
+    await getAdvertiserRolePermissions();
+    await updateAdvertiserRolePermissions({
+      allDataScope: false,
+      menuIds: ['menu_ocpx_advertiser', 'perm_ocpx_advertiser_edit'],
+    });
+
+    expect(requestClient.get).toHaveBeenCalledWith(
+      '/ocpx/advertisers/account-role/permissions',
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/ocpx/advertisers/account-role/permissions',
+      {
+        allDataScope: false,
+        menuIds: ['menu_ocpx_advertiser', 'perm_ocpx_advertiser_edit'],
+      },
     );
   });
 });

@@ -28,6 +28,9 @@ public class OcpxMonitorTask {
 
 	private BigDecimal unitPrice;
 
+	/** 事件接收时冻结到事实表的主要转化事件。 */
+	private String conversionEvent;
+
 	private String bizId;
 
 	private String showUrl;

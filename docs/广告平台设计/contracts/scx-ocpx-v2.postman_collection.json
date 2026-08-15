@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "SCX OCPX Feedback/Callback GET",
+    "name": "SCX OCPX Feedback/Callback and Management",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -24,13 +24,68 @@
         "method": "GET",
         "url": "{{baseUrl}}/ocpx/aerim/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&action_type=purchase&currency_amount=123.45"
       }
+    },
+    {
+      "name": "读取共享广告主角色权限",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/advertisers/account-role/permissions"
+      }
+    },
+    {
+      "name": "全量替换共享广告主角色权限",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"menuIds\": [\"replace_with_menu_id\"],\n  \"allDataScope\": false\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/advertisers/account-role/permissions"
+      }
+    },
+    {
+      "name": "广告主幂等充值",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"{{rechargeRequestId}}\",\n  \"amount\": 100.00,\n  \"remark\": \"local contract example\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/advertisers/{{advertiserId}}/recharge"
+      }
+    },
+    {
+      "name": "首页真实数据摘要",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/dashboard/summary?startDate=2026-08-15&endDate=2026-08-15&advertiserId={{advertiserId}}"
+      }
     }
   ],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:10000" },
+    { "key": "adminBaseUrl", "value": "http://localhost:9999" },
+    { "key": "adminToken", "value": "replace_with_local_admin_token" },
     { "key": "mediaId", "value": "replace_with_scx_media_id" },
     { "key": "monitorTaskId", "value": "replace_with_scx_monitor_task_id" },
     { "key": "advertiserId", "value": "replace_with_scx_advertiser_id" },
+    { "key": "rechargeRequestId", "value": "replace_with_unique_request_id" },
     { "key": "promotionLinkId", "value": "replace_with_scx_promotion_link_id" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
     { "key": "callbackExt", "value": "replace_with_runtime_ext" }

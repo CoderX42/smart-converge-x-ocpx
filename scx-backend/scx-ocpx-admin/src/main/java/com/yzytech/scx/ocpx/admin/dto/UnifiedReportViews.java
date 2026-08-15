@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -61,12 +62,16 @@ public final class UnifiedReportViews {
 
 	@Data
 	@NoArgsConstructor
-	@AllArgsConstructor
 	public static class Option {
 
 		private String id;
 
 		private String label;
+
+		public Option(String id, String label) {
+			this.id = id;
+			this.label = label;
+		}
 
 	}
 
@@ -90,17 +95,49 @@ public final class UnifiedReportViews {
 	@AllArgsConstructor
 	public static class Dashboard {
 
-		private Map<String, MetricValue> summary;
+		private LocalDate businessDate;
 
-		private List<Row> advertiserRanking;
+		private String timezone;
 
-		private List<Row> promotionLinkRanking;
+		private LocalDate startDate;
 
-		private List<Row> mediaRanking;
-
-		private List<Row> monitorTaskRanking;
+		private LocalDate endDate;
 
 		private LocalDateTime asOf;
+
+		private String dataStatus;
+
+		private Account account;
+
+		private Map<String, DashboardMetric> metrics;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Account {
+
+		private String advertiserId;
+
+		private BigDecimal availableBalance;
+
+		private BigDecimal todaySpend;
+
+		private long rejectedClickCount;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class DashboardMetric {
+
+		private BigDecimal value;
+
+		private String unit;
+
+		private String status;
 
 	}
 

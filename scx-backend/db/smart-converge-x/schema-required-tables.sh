@@ -11,6 +11,8 @@ SCX_REQUIRED_TABLES=(
   sys_user sys_user_role
   scx_ocpx_advertiser scx_ocpx_promotion_link scx_ocpx_media scx_ocpx_monitor_task
   scx_ocpx_deduction_rule
+  scx_ocpx_advertiser_account scx_ocpx_event_fact scx_ocpx_billing_entry
+  scx_ocpx_hourly_metric
   scx_ocpx_flow_log scx_ocpx_log_feedback scx_ocpx_log_feedback_day
   scx_ocpx_log_callback scx_ocpx_report_mat_temp scx_ocpx_report_mat
 )

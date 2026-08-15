@@ -3,12 +3,11 @@ package com.yzytech.scx.ocpx.callback.service;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.delivery.DownstreamDeliveryDispatcher;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.report.model.LogData;
 import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
-import com.yzytech.scx.ocpx.shared.constant.SystemConstants;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.redis.RedisHelper;
-import com.yzytech.scx.ocpx.shared.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +21,8 @@ import java.time.format.DateTimeFormatter;
  * Callback 核心处理实现。
  *
  * <p>
- * 处理顺序为：动作校验、Redis 去重、报表队列记录、按链接与媒体维度执行扣量计算、异步回传媒体， 最后更新原始量和回传量计数。Redis 数组读改写保持历史非原子行为。
+ * 处理顺序为：动作校验、MySQL 事实去重与小时汇总、兼容日志队列、按链接与媒体维度执行扣量计算、异步回传媒体，
+ * 最后更新原始量和回传量计数。
  */
 @Service
 public class CallbackServiceImpl implements CallbackService {
@@ -37,11 +37,14 @@ public class CallbackServiceImpl implements CallbackService {
 
 	private final RedisHelper redisHelper;
 
+	private final OcpxEventFactService eventFactService;
+
 	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
-			RedisHelper redisHelper) {
+			RedisHelper redisHelper, OcpxEventFactService eventFactService) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
 		this.redisHelper = redisHelper;
+		this.eventFactService = eventFactService;
 	}
 
 	@Override
@@ -50,13 +53,8 @@ public class CallbackServiceImpl implements CallbackService {
 		if (request.getActionType() == null) {
 			return new CallbackHandleResult(false, CallbackDecision.NOT_APPLICABLE);
 		}
-		// 同一请求 ID 与动作类型只处理一次，避免重复写报表和重复回传。
-		Boolean first = redis.opsForHash()
-			.putIfAbsent(
-					RedisConstants.REPEAT_CALLBACK_REPORT + StringUtil.hashModulo(request.getFeedback().getReqId(),
-							SystemConstants.REPEAT_REPORT_BUCKET),
-					request.getFeedback().getReqId() + "_" + request.getActionType(), "1");
-		if (!first) {
+		OcpxEventFactService.CallbackFactResult factResult = eventFactService.recordCallback(request);
+		if (!factResult.firstEvent()) {
 			impressionLog.info("cb-->{}", "repeat " + request.getFeedback().getReqId() + "_" + request.getActionType());
 			return new CallbackHandleResult(true, CallbackDecision.NOT_APPLICABLE);
 		}
@@ -146,9 +144,14 @@ public class CallbackServiceImpl implements CallbackService {
 	}
 
 	private void saveCallback(LogData logData) {
-		// 按对象哈希分散到配置数量的 Redis List，由 StorageTask 分槽消费。
-		int index = (logData.hashCode() & Integer.MAX_VALUE) % reportBucket;
-		redis.opsForList().rightPush(RedisConstants.DATA_REPORT_CALLBACK + index, JSON.toJSONString(logData));
+		try {
+			// 兼容日志队列失败不影响已经提交的事实与小时汇总。
+			int index = (logData.hashCode() & Integer.MAX_VALUE) % reportBucket;
+			redis.opsForList().rightPush(RedisConstants.DATA_REPORT_CALLBACK + index, JSON.toJSONString(logData));
+		}
+		catch (RuntimeException exception) {
+			impressionLog.warn("callback compatibility queue failed reqId:{}", logData.getReqId(), exception);
+		}
 	}
 
 }

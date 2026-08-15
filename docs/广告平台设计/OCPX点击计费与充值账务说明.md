@@ -1,64 +1,60 @@
 # OCPX 点击计费与充值账务说明
 
-> **状态标注（2026-08-13）：本文描述的 V72 设计已整体退役，不代表当前实现。**
-> `scx_ocpx_billing_entry` 不可变流水、CPC 点击扣费、`AUDIT_ONLY` 审计模式、
-> `ocpx:account:recharge` / `ocpx:account:read` 权限和账前/账后余额均已在
-> V96 广告域重置中退出，当前代码与当前态 schema 均不存在对应对象。
->
-> 当前已交付的充值能力为 SGYZ 对齐极简版：
-> `POST /boot/ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`）
-> 将金额累加到 Redis 单值 `ocpx:advertiser:balance:{aId}`，广告主列表/详情逐行回填
-> balance；**无流水表、无点击扣费/CPC、无幂等 requestId、无账前/账后余额**。
-> 现行能力以 [sgyz-ocpx 基础能力兼容基线](sgyz-ocpx基础能力兼容基线.md) 的
-> 「2026-08 增补：已对齐能力」一节为准；本文其余内容仅作历史设计资料保留。
+> 当前源码基线：V108。本文描述源码、前向 SQL 和本地自动化可证明的行为，
+> 不代表目标数据库已迁移、UAT 已通过或生产已发布。
 
-## 1. 已实现范围
+## 1. 账户与不可变流水
 
-SCX 使用 `scx_ocpx_advertiser.balance` 保存广告主可用余额，使用 `scx_ocpx_billing_entry` 保存不可变流水。当前支持：
+- `scx_ocpx_advertiser_account` 是广告主 CNY 可用余额的唯一真相，精度为
+  `DECIMAL(20,6)`。创建广告主时在同一事务中创建零余额账户。
+- `scx_ocpx_billing_entry` 只追加充值和点击扣费流水，保存金额、状态、账前/账后余额、
+  业务唯一键、原因、操作人和发生时间；业务代码不更新或删除流水。
+- 广告主有非零余额、任何流水或事件事实时，禁止物理删除。
 
-- 后台充值：管理员/运营人员在广告主列表填写金额，前端生成 16–64 位 `requestId`。
-- 充值幂等：账务唯一键为 `RECHARGE:{advertiserId}:{requestId}`，请求重试返回首次结果。
-- 点击审计：`AUDIT_ONLY` 为每个首次落库 CLICK 写 `RECORDED` 流水，不修改余额。
-- 真实 CPC：`CPC` 以 CLICK `event_id` 为唯一扣费键，按发布路由快照中的 `unit_price` 扣除 CNY 余额。
-- 余额不足：写 `REJECTED/INSUFFICIENT_BALANCE` 流水，不修改余额，不创建该点击的上游投递任务。
-- 账务查询：`GET /boot/ocpx/advertisers/{id}/ledger`，管理端“账务”弹窗展示金额、状态、账前/账后余额和操作人。
+## 2. 幂等充值
 
-充值权限为 `ocpx:account:recharge`，流水查询权限为 `ocpx:account:read`。V72 默认授予 `ROLE_ADMIN` 和 `ROLE_OPERATOR`；原 `ocpx:advertiser:write` 不再隐含资金操作权限。
+`POST /boot/ocpx/advertisers/{id}/recharge` 请求：
 
-## 2. 原子性与幂等
-
-充值和 CPC 都遵循相同事务顺序：
-
-1. `SELECT ... FOR UPDATE` 锁定目标广告主余额行。
-2. 在锁内按 `charge_event_id` 查询已有流水。
-3. 已存在时直接返回原状态和账后余额。
-4. 不存在时计算账后余额；在同一 MySQL 事务内修改余额并插入唯一流水。
-
-因此并发重试不会重复入账/扣费，事务异常也不会留下“余额已变、流水缺失”或相反的半成功状态。账务唯一索引仍是最终一致性防线。
-
-## 3. 数据面语义
-
-feedback 返回 202 只表示事件已可靠进入 Redis Stream，不表示已经完成扣费或上游投递。异步消费者首次把 CLICK 写入 MySQL 时执行计费：
-
-```text
-CLICK 入队
-  -> 事实 INSERT IGNORE
-  -> OFF / AUDIT_ONLY / CPC
-  -> CPC 成功：扣余额 + POSTED 流水 + 上游任务 + cost_amount
-  -> CPC 余额不足：REJECTED 流水 + 事件 BILLING_REJECTED，不建上游任务
+```json
+{
+  "requestId": "recharge-20260815-001",
+  "amount": 100.000000,
+  "remark": "首充"
+}
 ```
 
-重复 CLICK 因事件事实唯一约束直接退出，不会再次调用计费。转化 callback 的 `amount/amount_raw` 只作为转化事实保存，不参与 CPC 扣费。
+服务端先 `SELECT ... FOR UPDATE` 锁定账户，再以
+`RECHARGE:{advertiserId}:{requestId}` 查询业务唯一键。首次请求在同一事务中增加余额并
+写 `POSTED` 流水；相同对象与金额的重试返回首次结果，同一 `requestId` 改变对象或金额会被拒绝。
 
-## 4. 迁移与生产门禁
+金额必须大于 0，整数最多 14 位、小数最多 6 位。充值只允许同时具备权限码且会话角色为
+`ROLE_ADMIN` 的系统管理员；`ROLE_ADVERTISER` 即使开启全量业务数据范围也不能充值。
 
-V72 会：
+## 3. 首次有效点击 CPC
 
-- 将广告主余额精度调整为 `DECIMAL(20,6)`。
-- 为账务流水增加账前/账后余额、操作人和备注。
-- 新增账户查询/充值权限。
-- 删除已退出产品边界的汽车线索表、菜单和权限。
+Engine 先写入 `scx_ocpx_event_fact`。`fact_key` 由广告主、监测任务、`requestId`、
+事件类型生成，MySQL 唯一索引是最终去重边界。重复事实不计数、不扣费、不投递。
 
-V72 源码存在不等于目标数据库已迁移。应用前若需保留旧线索必须先备份。生产启用 CPC 前至少完成：初始余额确认、充值重复请求、重复 CLICK、余额不足、事务回滚、小时成本、停用/恢复路由和账务导出对账；先运行 `AUDIT_ONLY`，再单路由灰度 `CPC`。
+首次有效 CLICK 在一个 MySQL 事务内：
 
-当前未实现退款/冲正、跨币种、授信额度和负余额。禁止直接 SQL 修改余额替代冲正；这些能力需要新的不可变反向流水、审批权限和对账规则。
+1. 验证监测任务与广告主、推广链接、媒体完全匹配。
+2. 锁定广告主账户，直接按任务 `unit_price` CNY 元值计费，不做隐式倍率换算。
+3. 余额充足：扣余额、写 `POSTED` 点击流水、冻结事实消费、更新小时指标；提交后才允许向上游广告主投递。
+4. 余额不足：写 `REJECTED/INSUFFICIENT_BALANCE` 流水，点击和拒绝数加 1，余额与消费不变，不投递。
+
+零单价点击记录 `POSTED` 零金额流水并正常投递。
+
+## 4. 转化和报表对账
+
+Callback 接收时将任务 `conversion_event` 与当次事件比较，把是否目标转化冻结在事实。
+后续改价或修改目标事件不重算历史。事实、账务和 `scx_ocpx_hourly_metric` 在同一事务内写入。
+
+Dashboard、统一小时报表和时段报表均读取小时指标。Redis 仅保留扣量路由状态和旧链路兼容用途，
+不是余额、去重或经营统计的数据真相。
+
+## 5. 未包含与发布门禁
+
+本期不包含退款、冲正、欠款补扣、多币种和账务流水页面。禁止直接 SQL 修改余额。
+
+V108 不回填旧报表或 Redis 余额。目标环境若发现旧报表事实或任何 Redis 非零余额，必须停止迁移并重新制定
+可对账的迁移方案。

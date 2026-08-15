@@ -11,10 +11,12 @@ import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.model.OcpxConversionEvent;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -90,11 +93,14 @@ public class OcpxMonitorTaskService {
 
 	@Transactional
 	public MonitorTaskViews.Item create(MonitorTaskRequests.Create request) {
+		advertiserScope.requireSystemAdministrator();
 		advertiserScope.requireOwner(request.getAdvertiserId());
 		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
+		validateBilling(request.getUnitPrice(), request.getConversionEvent());
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		apply(task, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
-				request.getMediaId(), request.getUnitPrice(), request.getBizId(), request.getRemark());
+				request.getMediaId(), request.getUnitPrice(), request.getConversionEvent(), request.getBizId(),
+				request.getRemark());
 		task.setDeleted(false);
 		taskMapper.insert(task);
 		generateTrackingUrls(task);
@@ -112,11 +118,18 @@ public class OcpxMonitorTaskService {
 		OcpxMonitorTask current = require(id);
 		advertiserScope.requireOwner(current.getAdvertiserId());
 		advertiserScope.requireOwner(request.getAdvertiserId());
+		if (current.getUnitPrice() == null || current.getUnitPrice().compareTo(request.getUnitPrice()) != 0
+				|| !Objects.equals(current.getConversionEvent(), request.getConversionEvent())) {
+			advertiserScope.requireSystemAdministratorPermission(
+					SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
+		}
 		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
+		validateBilling(request.getUnitPrice(), request.getConversionEvent());
 		OcpxMonitorTask update = new OcpxMonitorTask();
 		update.setId(id);
 		apply(update, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
-				request.getMediaId(), request.getUnitPrice(), request.getBizId(), request.getRemark());
+				request.getMediaId(), request.getUnitPrice(), request.getConversionEvent(), request.getBizId(),
+				request.getRemark());
 		generateTrackingUrls(update);
 		taskMapper.updateById(update);
 		configRefreshPublisher.mark();
@@ -144,14 +157,24 @@ public class OcpxMonitorTaskService {
 	}
 
 	private void apply(OcpxMonitorTask task, String name, String advertiserId, String linkId, String mediaId,
-			BigDecimal unitPrice, String bizId, String remark) {
+			BigDecimal unitPrice, String conversionEvent, String bizId, String remark) {
 		task.setMonitorName(name.trim());
 		task.setAdvertiserId(advertiserId);
 		task.setPromotionLinkId(linkId);
 		task.setMediaId(mediaId);
 		task.setUnitPrice(unitPrice);
+		task.setConversionEvent(conversionEvent);
 		task.setBizId(StringUtils.hasText(bizId) ? bizId.trim() : null);
 		task.setRemark(StringUtils.hasText(remark) ? remark.trim() : null);
+	}
+
+	private void validateBilling(BigDecimal unitPrice, String conversionEvent) {
+		if (unitPrice == null || unitPrice.signum() < 0) {
+			throw new BootBusinessException("监测任务单价不能为负数");
+		}
+		if (!OcpxConversionEvent.supports(conversionEvent)) {
+			throw new BootBusinessException("目标转化事件不受支持");
+		}
 	}
 
 	/**
@@ -247,7 +270,8 @@ public class OcpxMonitorTaskService {
 		return new MonitorTaskViews.Item(t.getId(), t.getMonitorName(), t.getAdvertiserId(),
 				a == null ? null : a.getAdvertiserName(), t.getPromotionLinkId(), p == null ? null : p.getLinkName(),
 				p == null ? null : p.getPlatform(), t.getMediaId(), m == null ? null : m.getMediaName(), t.getShowUrl(),
-				t.getClkUrl(), t.getUnitPrice(), t.getBizId(), t.getRemark(), t.getCreateTime(), t.getUpdateTime());
+				t.getClkUrl(), t.getUnitPrice(), t.getConversionEvent(), t.getBizId(), t.getRemark(), t.getCreateTime(),
+				t.getUpdateTime());
 	}
 
 }

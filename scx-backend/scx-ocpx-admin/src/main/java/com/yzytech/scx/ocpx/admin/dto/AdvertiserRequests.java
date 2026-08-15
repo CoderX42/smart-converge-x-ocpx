@@ -1,8 +1,9 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public final class AdvertiserRequests {
 
@@ -72,9 +74,31 @@ public final class AdvertiserRequests {
 	@AllArgsConstructor
 	public static class Recharge {
 
+		@NotBlank
+		@Size(min = 8, max = 64)
+		private String requestId;
+
 		@NotNull
-		@PositiveOrZero
-		private BigDecimal balance;
+		@Positive
+		@Digits(integer = 14, fraction = 6)
+		private BigDecimal amount;
+
+		@Size(max = 255)
+		private String remark;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class RolePermissionsUpdate {
+
+		@NotNull
+		@Size(max = 128)
+		private List<@NotBlank @Size(max = 64) String> menuIds;
+
+		@NotNull
+		private Boolean allDataScope;
 
 	}
 

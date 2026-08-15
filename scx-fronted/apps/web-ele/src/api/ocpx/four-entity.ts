@@ -38,6 +38,34 @@ export type AdvertiserUpdatePayload = {
   name: string;
 };
 
+export type AdvertiserRechargeResult = {
+  advertiserId: string;
+  amount: number;
+  balanceAfter: number;
+  entryId: string;
+  occurredAt: string;
+};
+
+export type AdvertiserRoleMenuNode = {
+  children: AdvertiserRoleMenuNode[];
+  id: string;
+  name: string;
+  parentId?: string;
+  permission?: string;
+  requiresAllDataScope: boolean;
+  type: string;
+};
+
+export type AdvertiserRolePermissions = {
+  affectedAccountCount: number;
+  allDataScope: boolean;
+  menuTree: AdvertiserRoleMenuNode[];
+  roleCode: string;
+  roleId: string;
+  roleName: string;
+  selectedMenuIds: string[];
+};
+
 export type PromotionLink = {
   advertiserId: string;
   advertiserName: string;
@@ -103,6 +131,7 @@ export type MonitorTask = {
   advertiserName: string;
   bizId?: string;
   clkUrl: string;
+  conversionEvent: ConversionEvent;
   createTime: string;
   id: string;
   mediaId: string;
@@ -117,6 +146,21 @@ export type MonitorTask = {
   updateTime: string;
 };
 
+export type ConversionEvent =
+  | 'ACTIVATE'
+  | 'AUTHENTICATION'
+  | 'CUSTOMER_ACQUISITION'
+  | 'EVOKE'
+  | 'FINISH_THE_ORDER'
+  | 'FIRST_ACTIVATION'
+  | 'FIRST_ORDER'
+  | 'LOGIN'
+  | 'NEXT_STAY'
+  | 'ORDER'
+  | 'PAYMENT'
+  | 'REGISTER'
+  | 'VISITS';
+
 export type MonitorTaskQuery = {
   current?: number;
   mediaId?: string;
@@ -127,6 +171,7 @@ export type MonitorTaskQuery = {
 export type MonitorTaskCreatePayload = {
   advertiserId: string;
   bizId?: string;
+  conversionEvent: ConversionEvent;
   mediaId: string;
   monitorName: string;
   promotionLinkId: string;
@@ -167,8 +212,28 @@ export function updateAdvertiserV2(id: string, data: AdvertiserUpdatePayload) {
 export function deleteAdvertiserV2(id: string) {
   return requestClient.delete(`/ocpx/advertisers/${id}`);
 }
-export function rechargeAdvertiser(id: string, balance: number) {
-  return requestClient.post(`/ocpx/advertisers/${id}/recharge`, { balance });
+export function rechargeAdvertiser(
+  id: string,
+  data: { amount: number; remark?: string; requestId: string },
+) {
+  return requestClient.post<AdvertiserRechargeResult>(
+    `/ocpx/advertisers/${id}/recharge`,
+    data,
+  );
+}
+export function getAdvertiserRolePermissions() {
+  return requestClient.get<AdvertiserRolePermissions>(
+    '/ocpx/advertisers/account-role/permissions',
+  );
+}
+export function updateAdvertiserRolePermissions(data: {
+  allDataScope: boolean;
+  menuIds: string[];
+}) {
+  return requestClient.put<AdvertiserRolePermissions>(
+    '/ocpx/advertisers/account-role/permissions',
+    data,
+  );
 }
 
 export function listPromotionLinks(params: PromotionLinkQuery) {
@@ -263,6 +328,7 @@ function monitorTaskBody(
   return {
     advertiserId: data.advertiserId,
     bizId: data.bizId,
+    conversionEvent: data.conversionEvent,
     mediaId: data.mediaId,
     monitorName: data.monitorName,
     promotionLinkId: data.promotionLinkId,

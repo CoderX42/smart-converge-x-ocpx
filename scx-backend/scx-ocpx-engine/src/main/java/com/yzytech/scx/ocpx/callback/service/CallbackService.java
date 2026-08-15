@@ -2,7 +2,7 @@ package com.yzytech.scx.ocpx.callback.service;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 
-/** Callback 去重、记录、扣量和下游回传的业务入口。 */
+/** Callback MySQL 去重、记录、小时汇总、扣量和下游回传的业务入口。 */
 public interface CallbackService {
 
 	/**

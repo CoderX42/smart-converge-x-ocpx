@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.admin.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
@@ -39,13 +40,16 @@ public class OcpxPromotionLinkController {
 	}
 
 	@GetMapping("/advertiser-options")
-	@SaCheckPermission("ocpx:promotion-link:view")
+	@SaCheckPermission(value = { "ocpx:promotion-link:view", "ocpx:monitor-task:view" }, mode = SaMode.OR)
 	public Result<List<PromotionLinkViews.AdvertiserOption>> advertiserOptions(String keyword) {
 		return Result.success(promotionLinkService.advertiserOptions(keyword));
 	}
 
 	@GetMapping("/options")
-	@SaCheckPermission("ocpx:promotion-link:view")
+	@SaCheckPermission(
+			value = { "ocpx:promotion-link:view", "ocpx:monitor-task:view", "ocpx:deduction-rule:list",
+					"ocpx:report:view" },
+			mode = SaMode.OR)
 	public Result<List<PromotionLinkViews.Option>> options(String advertiserId) {
 		return Result.success(promotionLinkService.options(advertiserId));
 	}

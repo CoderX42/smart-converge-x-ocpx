@@ -23,28 +23,35 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
 public class OcpxUnifiedReportService {
 
+	public static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
+
 	private static final Set<String> GROUPS = Set.of("TIME", "ADVERTISER", "PROMOTION_LINK", "MEDIA", "MONITOR_TASK");
 
-	private static final List<MetricColumn> METRICS = List.of(new MetricColumn("SHOW", "show_smt"),
-			new MetricColumn("UNIQUE_SHOW", "uni_show_smt"), new MetricColumn("CLICK", "clk_smt"),
-			new MetricColumn("UNIQUE_CLICK", "uni_clk_smt"), new MetricColumn("ACTIVATE", "activate"),
-			new MetricColumn("EVOKE", "evoke"), new MetricColumn("LOGIN", "login"),
-			new MetricColumn("REGISTER", "register"), new MetricColumn("PAYMENT", "payment"),
-			new MetricColumn("CUSTOMER_ACQUISITION", "customer_acquisition"),
-			new MetricColumn("NEXT_STAY", "next_stay"), new MetricColumn("VISITS", "visits"),
-			new MetricColumn("AUTHENTICATION", "authentication"), new MetricColumn("PLACE_ORDER", "place_order"),
-			new MetricColumn("FINISH_THE_ORDER", "finish_the_order"),
-			new MetricColumn("FIRST_ACTIVATION", "first_activation"), new MetricColumn("FIRST_ORDER", "first_order"));
+	private static final List<MetricColumn> METRICS = List.of(new MetricColumn("SHOW", "impression_count"),
+			new MetricColumn("UNIQUE_SHOW", "impression_count"), new MetricColumn("CLICK", "click_count"),
+			new MetricColumn("UNIQUE_CLICK", "click_count"),
+			new MetricColumn("TARGET_CONVERSION", "target_conversion_count"),
+			new MetricColumn("ACTIVATE", "activate_count"), new MetricColumn("EVOKE", "evoke_count"),
+			new MetricColumn("LOGIN", "login_count"), new MetricColumn("REGISTER", "register_count"),
+			new MetricColumn("PAYMENT", "payment_count"),
+			new MetricColumn("CUSTOMER_ACQUISITION", "customer_acquisition_count"),
+			new MetricColumn("NEXT_STAY", "next_stay_count"), new MetricColumn("VISITS", "visits_count"),
+			new MetricColumn("AUTHENTICATION", "authentication_count"),
+			new MetricColumn("PLACE_ORDER", "place_order_count"),
+			new MetricColumn("FINISH_THE_ORDER", "finish_the_order_count"),
+			new MetricColumn("FIRST_ACTIVATION", "first_activation_count"),
+			new MetricColumn("FIRST_ORDER", "first_order_count"),
+			new MetricColumn("REJECTED_CLICK", "rejected_click_count"));
 
 	private static final List<String> SUMMARY_ACTIONS = List.of("activate", "evoke", "login", "register", "payment",
 			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order",
@@ -69,9 +76,12 @@ public class OcpxUnifiedReportService {
 
 	private final AdvertiserScope advertiserScope;
 
+	private final OcpxAdvertiserAccountService advertiserAccountService;
+
 	public UnifiedReportViews.Page query(UnifiedReportQuery input) {
 		UnifiedReportQuery query = normalize(input);
-		List<MetricRow> rows = aggregate(query, false);
+		validateFilterOwnership(query);
+		List<MetricRow> rows = aggregate(query);
 		Map<String, UnifiedReportViews.Row> grouped = group(rows, query.getGroupBy());
 		List<UnifiedReportViews.Row> all = new ArrayList<>(grouped.values());
 		long start = Math.min(all.size(), (query.getCurrent() - 1) * query.getSize());
@@ -82,6 +92,7 @@ public class OcpxUnifiedReportService {
 
 	public SummaryReportViews.Page summary(SummaryReportQuery input) {
 		SummaryReportQuery query = normalizeSummary(input);
+		validateFilterOwnership(summaryFilter(query));
 		SummarySql sql = summarySql(query);
 		Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM (" + sql.getStatSql() + ") AS stat", Long.class,
 				sql.getArgs().toArray());
@@ -98,6 +109,7 @@ public class OcpxUnifiedReportService {
 
 	public String summaryCsv(SummaryReportQuery input) {
 		SummaryReportQuery query = normalizeSummary(input);
+		validateFilterOwnership(summaryFilter(query));
 		SummarySql sql = summarySql(query);
 		List<SummaryReportViews.Row> rows = jdbcTemplate.query(sql.getSelectSql(), this::mapSummaryRow,
 				sql.getArgs().toArray());
@@ -115,24 +127,26 @@ public class OcpxUnifiedReportService {
 			default -> "LEFT(r.time_hour,4)";
 		};
 		StringBuilder stat = new StringBuilder("SELECT ").append(period)
-			.append(" AS reportTime,r.m_id,r.a_id,r.t_id,r.l_id")
-			.append(",IFNULL(SUM(r.uni_show_smt),0) AS uni_show_smt")
-			.append(",IFNULL(SUM(r.uni_clk_smt),0) AS uni_clk_smt");
+			.append(" AS reportTime,r.media_id AS m_id,r.advertiser_id AS a_id,")
+			.append("r.monitor_task_id AS t_id,r.promotion_link_id AS l_id")
+			.append(",IFNULL(SUM(r.impression_count),0) AS uni_show_smt")
+			.append(",IFNULL(SUM(r.click_count),0) AS uni_clk_smt");
 		for (String action : SUMMARY_ACTIONS) {
-			stat.append(",IFNULL(SUM(r.").append(action).append("),0) AS ").append(action);
+			stat.append(",IFNULL(SUM(r.").append(action).append("_count),0) AS ").append(action);
 		}
 		stat.append(",IFNULL(SUM(r.currency_amount),0) AS currency_amount");
-		stat.append(",IFNULL(ROUND(SUM(r.base_price)/10000000,2),0) AS base_price")
-			.append(",IFNULL(ROUND(SUM(r.uni_clk_smt)/SUM(r.uni_show_smt)*100,2),0) AS clickRate")
-			.append(" FROM scx_ocpx_report_mat r WHERE r.time_hour BETWEEN ? AND ?");
+		stat.append(",IFNULL(SUM(r.spend_amount),0) AS base_price")
+			.append(",CASE WHEN SUM(r.impression_count)=0 THEN NULL ")
+			.append("ELSE ROUND(SUM(r.click_count)/SUM(r.impression_count)*100,6) END AS clickRate")
+			.append(" FROM scx_ocpx_hourly_metric r WHERE r.time_hour BETWEEN ? AND ?");
 		List<Object> args = new ArrayList<>();
 		args.add(Integer.valueOf(query.getStartTime() + "00"));
 		args.add(Integer.valueOf(query.getEndTime() + "23"));
-		filter(stat, args, "r.m_id", query.getMediaId());
-		filter(stat, args, "r.t_id", query.getMonitorTaskId());
-		filter(stat, args, "r.a_id", query.getAdvertiserId());
-		filter(stat, args, "r.l_id", query.getPromotionLinkId());
-		stat.append(" GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,").append(period);
+		filter(stat, args, "r.media_id", query.getMediaId());
+		filter(stat, args, "r.monitor_task_id", query.getMonitorTaskId());
+		filter(stat, args, "r.advertiser_id", query.getAdvertiserId());
+		filter(stat, args, "r.promotion_link_id", query.getPromotionLinkId());
+		stat.append(" GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,").append(period);
 		String select = "SELECT m.media_name,a.advertiser_name,p.link_name,t.monitor_name,dr.ratio AS link_radio,stat.* FROM ("
 				+ stat + ") AS stat" + " JOIN scx_ocpx_media m ON m.id=stat.m_id"
 				+ " JOIN scx_ocpx_advertiser a ON a.id=stat.a_id" + " JOIN scx_ocpx_promotion_link p ON p.id=stat.l_id"
@@ -159,7 +173,8 @@ public class OcpxUnifiedReportService {
 				rs.getString("t_id"), rs.getString("monitor_name"), rs.getString("a_id"),
 				rs.getString("advertiser_name"), rs.getString("l_id"), rs.getString("link_name"),
 				ratio == null ? null : ratio.toString(), rs.getLong("uni_show_smt"), rs.getLong("uni_clk_smt"),
-				rs.getDouble("clickRate"), rs.getBigDecimal("base_price"), rs.getLong("activate"), rs.getLong("evoke"),
+				rs.getObject("clickRate") == null ? null : rs.getDouble("clickRate"), rs.getBigDecimal("base_price"),
+				rs.getLong("activate"), rs.getLong("evoke"),
 				rs.getLong("login"), rs.getLong("register"), rs.getLong("payment"), rs.getLong("customer_acquisition"),
 				rs.getLong("next_stay"), rs.getLong("visits"), rs.getLong("authentication"), rs.getLong("place_order"),
 				rs.getLong("finish_the_order"), rs.getLong("first_activation"), rs.getLong("first_order"),
@@ -198,19 +213,24 @@ public class OcpxUnifiedReportService {
 	}
 
 	public UnifiedReportViews.Dashboard dashboard(UnifiedReportQuery input) {
-		UnifiedReportQuery query = normalize(input);
-		List<MetricRow> rows = aggregate(query, false);
-		return new UnifiedReportViews.Dashboard(summarize(rows), ranking(query, "ADVERTISER"),
-				ranking(query, "PROMOTION_LINK"), ranking(query, "MEDIA"), ranking(query, "MONITOR_TASK"),
-				LocalDateTime.now());
+		UnifiedReportQuery query = normalizeDashboard(input);
+		validateFilterOwnership(query);
+		List<MetricRow> rows = aggregate(query);
+		Map<String, UnifiedReportViews.MetricValue> summary = summarize(rows);
+		LocalDateTime asOf = aggregateWatermark(query);
+		String accountAdvertiserId = advertiserScope.accountAdvertiserId(query.getAdvertiserId());
+		UnifiedReportViews.Account account = StringUtils.hasText(accountAdvertiserId)
+				? account(accountAdvertiserId, LocalDate.now(BUSINESS_ZONE)) : null;
+		return new UnifiedReportViews.Dashboard(LocalDate.now(BUSINESS_ZONE), BUSINESS_ZONE.getId(),
+				query.getStartDate(), query.getEndDate(), asOf, asOf == null ? "EMPTY" : "READY", account,
+				dashboardMetrics(summary));
 	}
 
 	public UnifiedReportViews.Options options() {
 		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
+		List<UnifiedReportViews.Option> advertisers = advertiserOptions(scopedAdvertiserId);
 		if (StringUtils.hasText(scopedAdvertiserId)) {
-			return new UnifiedReportViews.Options(
-					options("SELECT id,advertiser_name FROM scx_ocpx_advertiser WHERE id=? ORDER BY advertiser_name",
-							scopedAdvertiserId),
+			return new UnifiedReportViews.Options(advertisers,
 					options("SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 AND advertiser_id=? ORDER BY link_name",
 							scopedAdvertiserId),
 					options("SELECT DISTINCT m.id,m.media_name FROM scx_ocpx_media m JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0 WHERE t.advertiser_id=? ORDER BY m.media_name",
@@ -218,27 +238,142 @@ public class OcpxUnifiedReportService {
 					options("SELECT id,monitor_name FROM scx_ocpx_monitor_task WHERE is_delete=0 AND advertiser_id=? ORDER BY monitor_name",
 							scopedAdvertiserId));
 		}
-		return new UnifiedReportViews.Options(options("scx_ocpx_advertiser", "advertiser_name", null),
+		return new UnifiedReportViews.Options(advertisers,
 				options("scx_ocpx_promotion_link", "link_name", "is_delete=0"),
 				options("scx_ocpx_media", "media_name", null),
 				options("scx_ocpx_monitor_task", "monitor_name", "is_delete=0"));
 	}
 
-	private List<UnifiedReportViews.Row> ranking(UnifiedReportQuery query, String groupBy) {
-		UnifiedReportQuery ranked = new UnifiedReportQuery(query.getStartDate(), query.getEndDate(), groupBy,
-				query.getAdvertiserId(), query.getPromotionLinkId(), query.getMediaId(), query.getMonitorTaskId(), 1,
-				10);
-		return new ArrayList<>(group(aggregate(ranked, true), groupBy).values()).stream()
-			.sorted(Comparator.comparingLong(this::totalCount).reversed())
-			.limit(10)
-			.toList();
+	private List<UnifiedReportViews.Option> advertiserOptions(String scopedAdvertiserId) {
+		List<UnifiedReportViews.Option> advertisers = StringUtils.hasText(scopedAdvertiserId)
+				? options("SELECT id,advertiser_name FROM scx_ocpx_advertiser WHERE id=? ORDER BY advertiser_name",
+						scopedAdvertiserId)
+				: options("scx_ocpx_advertiser", "advertiser_name", null);
+		return advertisers;
 	}
 
-	private long totalCount(UnifiedReportViews.Row row) {
-		return row.getMetrics().values().stream().mapToLong(UnifiedReportViews.MetricValue::getCount).sum();
+	private Map<String, UnifiedReportViews.DashboardMetric> dashboardMetrics(
+			Map<String, UnifiedReportViews.MetricValue> summary) {
+		BigDecimal spend = amount(summary, "BASE_PRICE");
+		BigDecimal impressions = count(summary, "UNIQUE_SHOW");
+		BigDecimal clicks = count(summary, "UNIQUE_CLICK");
+		BigDecimal conversions = count(summary, "TARGET_CONVERSION");
+		Map<String, UnifiedReportViews.DashboardMetric> metrics = new LinkedHashMap<>();
+		metrics.put("SPEND", metric(spend, "CNY"));
+		metrics.put("IMPRESSION", metric(impressions, "COUNT"));
+		metrics.put("CLICK", metric(clicks, "COUNT"));
+		metrics.put("CONVERSION", metric(conversions, "COUNT"));
+		metrics.put("CTR", ratio(clicks, impressions, BigDecimal.valueOf(100), "PERCENT"));
+		metrics.put("CVR", ratio(conversions, clicks, BigDecimal.valueOf(100), "PERCENT"));
+		metrics.put("CPM", ratio(spend, impressions, BigDecimal.valueOf(1000), "CNY"));
+		metrics.put("CPC", ratio(spend, clicks, BigDecimal.ONE, "CNY"));
+		metrics.put("CPA", ratio(spend, conversions, BigDecimal.ONE, "CNY"));
+		return Map.copyOf(metrics);
 	}
 
-	private List<MetricRow> aggregate(UnifiedReportQuery query, boolean ranking) {
+	private UnifiedReportViews.Account account(String advertiserId, LocalDate businessDate) {
+		int startHour = hourKey(businessDate, "00");
+		int endHour = hourKey(businessDate, "23");
+		AccountActivity activity = jdbcTemplate.queryForObject("""
+				SELECT IFNULL(SUM(spend_amount),0),IFNULL(SUM(rejected_click_count),0)
+				FROM scx_ocpx_hourly_metric
+				WHERE advertiser_id=? AND time_hour BETWEEN ? AND ?
+				""", (rs, rowNum) -> new AccountActivity(rs.getBigDecimal(1), rs.getLong(2)), advertiserId, startHour,
+				endHour);
+		return new UnifiedReportViews.Account(advertiserId, advertiserAccountService.balance(advertiserId),
+				activity == null ? BigDecimal.ZERO.setScale(6) : activity.todaySpend(),
+				activity == null ? 0 : activity.rejectedClickCount());
+	}
+
+	private LocalDateTime aggregateWatermark(UnifiedReportQuery query) {
+		StringBuilder sql = new StringBuilder(
+				"SELECT MAX(update_time) FROM scx_ocpx_hourly_metric WHERE time_hour BETWEEN ? AND ?");
+		List<Object> args = new ArrayList<>();
+		args.add(hourKey(query.getStartDate(), "00"));
+		args.add(hourKey(query.getEndDate(), "23"));
+		filter(sql, args, "advertiser_id", query.getAdvertiserId());
+		filter(sql, args, "promotion_link_id", query.getPromotionLinkId());
+		filter(sql, args, "media_id", query.getMediaId());
+		filter(sql, args, "monitor_task_id", query.getMonitorTaskId());
+		return jdbcTemplate.queryForObject(sql.toString(), LocalDateTime.class, args.toArray());
+	}
+
+	private void validateFilterOwnership(UnifiedReportQuery query) {
+		if (StringUtils.hasText(query.getAdvertiserId())) {
+			requireExists("SELECT COUNT(*) FROM scx_ocpx_advertiser WHERE id=?", "广告主不存在", query.getAdvertiserId());
+		}
+		if (StringUtils.hasText(query.getPromotionLinkId())) {
+			StringBuilder linkSql = new StringBuilder(
+					"SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE id=? AND is_delete=0");
+			List<Object> args = new ArrayList<>();
+			args.add(query.getPromotionLinkId());
+			filter(linkSql, args, "advertiser_id", query.getAdvertiserId());
+			requireExists(linkSql.toString(), "推广链接与广告主不匹配", args.toArray());
+		}
+		if (StringUtils.hasText(query.getMediaId())) {
+			requireExists("SELECT COUNT(*) FROM scx_ocpx_media WHERE id=?", "媒体不存在", query.getMediaId());
+		}
+		if (StringUtils.hasText(query.getMonitorTaskId())) {
+			StringBuilder taskSql = new StringBuilder(
+					"SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE id=? AND is_delete=0");
+			List<Object> args = new ArrayList<>();
+			args.add(query.getMonitorTaskId());
+			filter(taskSql, args, "advertiser_id", query.getAdvertiserId());
+			filter(taskSql, args, "promotion_link_id", query.getPromotionLinkId());
+			filter(taskSql, args, "media_id", query.getMediaId());
+			requireExists(taskSql.toString(), "监测任务与筛选对象不匹配", args.toArray());
+		}
+		else if (specified(query.getAdvertiserId(), query.getPromotionLinkId(), query.getMediaId()) >= 2) {
+			StringBuilder routeSql = new StringBuilder(
+					"SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE is_delete=0");
+			List<Object> args = new ArrayList<>();
+			filter(routeSql, args, "advertiser_id", query.getAdvertiserId());
+			filter(routeSql, args, "promotion_link_id", query.getPromotionLinkId());
+			filter(routeSql, args, "media_id", query.getMediaId());
+			requireExists(routeSql.toString(), "筛选对象之间不存在有效监测任务关系", args.toArray());
+		}
+	}
+
+	private void requireExists(String sql, String message, Object... args) {
+		Long count = jdbcTemplate.queryForObject(sql, Long.class, args);
+		if (count == null || count.longValue() == 0) {
+			throw new BootBusinessException(message);
+		}
+	}
+
+	private int specified(String... values) {
+		return (int) Arrays.stream(values).filter(StringUtils::hasText).count();
+	}
+
+	private UnifiedReportQuery summaryFilter(SummaryReportQuery query) {
+		return new UnifiedReportQuery(LocalDate.parse(query.getStartTime(), DateTimeFormatter.BASIC_ISO_DATE),
+				LocalDate.parse(query.getEndTime(), DateTimeFormatter.BASIC_ISO_DATE), "TIME", query.getAdvertiserId(),
+				query.getPromotionLinkId(), query.getMediaId(), query.getMonitorTaskId(), 1, 1);
+	}
+
+	private UnifiedReportViews.DashboardMetric metric(BigDecimal value, String unit) {
+		return new UnifiedReportViews.DashboardMetric(value, unit, "OK");
+	}
+
+	private UnifiedReportViews.DashboardMetric ratio(BigDecimal numerator, BigDecimal denominator,
+			BigDecimal multiplier, String unit) {
+		if (denominator.signum() == 0) {
+			return new UnifiedReportViews.DashboardMetric(null, unit, "ZERO_DENOMINATOR");
+		}
+		return metric(numerator.multiply(multiplier).divide(denominator, 6, RoundingMode.HALF_UP), unit);
+	}
+
+	private BigDecimal count(Map<String, UnifiedReportViews.MetricValue> summary, String code) {
+		UnifiedReportViews.MetricValue value = summary.get(code);
+		return BigDecimal.valueOf(value == null ? 0 : value.getCount());
+	}
+
+	private BigDecimal amount(Map<String, UnifiedReportViews.MetricValue> summary, String code) {
+		UnifiedReportViews.MetricValue value = summary.get(code);
+		return value == null || value.getAmount() == null ? BigDecimal.ZERO.setScale(6) : value.getAmount();
+	}
+
+	private List<MetricRow> aggregate(UnifiedReportQuery query) {
 		Dimension dimension = Dimension.of(query.getGroupBy());
 		StringBuilder sql = new StringBuilder("SELECT ").append(dimension.getKeySql())
 			.append(",")
@@ -246,27 +381,17 @@ public class OcpxUnifiedReportService {
 		for (MetricColumn metric : METRICS) {
 			sql.append(",IFNULL(SUM(r.").append(metric.getColumn()).append("),0)");
 		}
-		sql.append(",IFNULL(SUM(r.base_price),0),IFNULL(SUM(r.currency_amount),0) FROM scx_ocpx_report_mat r ")
+		sql.append(",IFNULL(SUM(r.spend_amount),0),IFNULL(SUM(r.currency_amount),0) FROM scx_ocpx_hourly_metric r ")
 			.append(dimension.getJoins())
 			.append(" WHERE r.time_hour>=? AND r.time_hour<=?");
 		List<Object> args = new ArrayList<>();
 		args.add(hourKey(query.getStartDate(), "00"));
 		args.add(hourKey(query.getEndDate(), "23"));
-		filter(sql, args, "r.a_id", query.getAdvertiserId());
-		filter(sql, args, "r.l_id", query.getPromotionLinkId());
-		filter(sql, args, "r.m_id", query.getMediaId());
-		filter(sql, args, "r.t_id", query.getMonitorTaskId());
+		filter(sql, args, "r.advertiser_id", query.getAdvertiserId());
+		filter(sql, args, "r.promotion_link_id", query.getPromotionLinkId());
+		filter(sql, args, "r.media_id", query.getMediaId());
+		filter(sql, args, "r.monitor_task_id", query.getMonitorTaskId());
 		sql.append(" GROUP BY ").append(dimension.getKeySql()).append(",").append(dimension.getNameSql());
-		if (ranking) {
-			sql.append(" ORDER BY ");
-			for (int index = 0; index < METRICS.size(); index++) {
-				if (index > 0) {
-					sql.append("+");
-				}
-				sql.append("SUM(r.").append(METRICS.get(index).getColumn()).append(")");
-			}
-			sql.append(" DESC");
-		}
 		return jdbcTemplate.query(sql.toString(), (ResultSetExtractor<List<MetricRow>>) this::readMetricRows,
 				args.toArray());
 	}
@@ -280,8 +405,7 @@ public class OcpxUnifiedReportService {
 				rows.add(new MetricRow(key, name, METRICS.get(index).getCode(), resultSet.getLong(index + 3),
 						BigDecimal.ZERO));
 			}
-			BigDecimal amount = resultSet.getBigDecimal(METRICS.size() + 3)
-				.divide(BigDecimal.valueOf(10_000_000), 2, RoundingMode.HALF_UP);
+			BigDecimal amount = resultSet.getBigDecimal(METRICS.size() + 3);
 			rows.add(new MetricRow(key, name, "BASE_PRICE", 0, amount));
 			rows.add(new MetricRow(key, name, "CURRENCY_AMOUNT", 0, resultSet.getBigDecimal(METRICS.size() + 4)));
 		}
@@ -339,7 +463,7 @@ public class OcpxUnifiedReportService {
 	}
 
 	private UnifiedReportQuery normalize(UnifiedReportQuery query) {
-		LocalDate end = query == null || query.getEndDate() == null ? LocalDate.now() : query.getEndDate();
+		LocalDate end = query == null || query.getEndDate() == null ? LocalDate.now(BUSINESS_ZONE) : query.getEndDate();
 		LocalDate start = query == null || query.getStartDate() == null ? end.minusDays(6) : query.getStartDate();
 		if (start.isAfter(end) || start.isBefore(end.minusDays(366))) {
 			throw new BootBusinessException("报表时间范围无效");
@@ -354,6 +478,26 @@ public class OcpxUnifiedReportService {
 				query == null ? null : query.getPromotionLinkId(), query == null ? null : query.getMediaId(),
 				query == null ? null : query.getMonitorTaskId(), query == null ? 1 : Math.max(1, query.getCurrent()),
 				query == null ? 30 : Math.min(100, Math.max(1, query.getSize())));
+	}
+
+	private UnifiedReportQuery normalizeDashboard(UnifiedReportQuery query) {
+		LocalDate businessDate = LocalDate.now(BUSINESS_ZONE);
+		LocalDate start = query == null ? null : query.getStartDate();
+		LocalDate end = query == null ? null : query.getEndDate();
+		if (start == null && end == null) {
+			start = businessDate;
+			end = businessDate;
+		}
+		else if (start == null) {
+			start = end;
+		}
+		else if (end == null) {
+			end = start;
+		}
+		return normalize(new UnifiedReportQuery(start, end, query == null ? "TIME" : query.getGroupBy(),
+				query == null ? null : query.getAdvertiserId(), query == null ? null : query.getPromotionLinkId(),
+				query == null ? null : query.getMediaId(), query == null ? null : query.getMonitorTaskId(),
+				query == null ? 1 : query.getCurrent(), query == null ? 30 : query.getSize()));
 	}
 
 	@Getter
@@ -407,17 +551,24 @@ public class OcpxUnifiedReportService {
 		static Dimension of(String groupBy) {
 			return switch (groupBy) {
 				case "ADVERTISER" ->
-					new Dimension("r.a_id", "a.advertiser_name", "JOIN scx_ocpx_advertiser a ON a.id=r.a_id");
+					new Dimension("r.advertiser_id", "a.advertiser_name",
+							"JOIN scx_ocpx_advertiser a ON a.id=r.advertiser_id");
 				case "PROMOTION_LINK" ->
-					new Dimension("r.l_id", "p.link_name", "JOIN scx_ocpx_promotion_link p ON p.id=r.l_id");
-				case "MEDIA" -> new Dimension("r.m_id", "m.media_name", "JOIN scx_ocpx_media m ON m.id=r.m_id");
+					new Dimension("r.promotion_link_id", "p.link_name",
+							"JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id");
+				case "MEDIA" -> new Dimension("r.media_id", "m.media_name",
+						"JOIN scx_ocpx_media m ON m.id=r.media_id");
 				case "MONITOR_TASK" ->
-					new Dimension("r.t_id", "t.monitor_name", "JOIN scx_ocpx_monitor_task t ON t.id=r.t_id");
+					new Dimension("r.monitor_task_id", "t.monitor_name",
+							"JOIN scx_ocpx_monitor_task t ON t.id=r.monitor_task_id");
 				default -> new Dimension("r.time_hour",
 						"DATE_FORMAT(STR_TO_DATE(CAST(r.time_hour AS CHAR),'%Y%m%d%H'),'%Y-%m-%d %H:00')", "");
 			};
 		}
 
+	}
+
+	private record AccountActivity(BigDecimal todaySpend, long rejectedClickCount) {
 	}
 
 }

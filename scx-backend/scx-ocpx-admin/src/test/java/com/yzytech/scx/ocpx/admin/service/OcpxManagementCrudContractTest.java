@@ -53,7 +53,7 @@ class OcpxManagementCrudContractTest {
 			.orElseThrow();
 		assertThat(method.getAnnotation(mapping)).as("%s.%s mapping", controller.getSimpleName(), methodName)
 			.isNotNull();
-		assertThat(method.getAnnotation(SaCheckPermission.class).value()).containsExactly(permission);
+		assertThat(method.getAnnotation(SaCheckPermission.class).value()).contains(permission);
 	}
 
 	@Getter

@@ -9,6 +9,8 @@ import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.admin.service.OcpxAdvertiserService;
+import com.yzytech.scx.system.api.constant.SystemAccountConstants;
+import com.yzytech.scx.system.api.service.AdvertiserRolePermissionManager;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -31,6 +33,8 @@ public class OcpxAdvertiserController {
 
 	private final OcpxAdvertiserService advertiserService;
 
+	private final AdvertiserRolePermissionManager rolePermissionManager;
+
 	@GetMapping
 	@SaCheckPermission("ocpx:advertiser:view")
 	public Result<IPage<AdvertiserViews.Item>> list(Page<OcpxAdvertiser> page, String keyword, String advertiserId) {
@@ -41,6 +45,21 @@ public class OcpxAdvertiserController {
 	@SaCheckPermission("ocpx:advertiser:view")
 	public Result<List<AdvertiserViews.Option>> options() {
 		return Result.success(advertiserService.options());
+	}
+
+	@GetMapping("/account-role/permissions")
+	@SaCheckPermission(SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION)
+	public Result<AdvertiserRolePermissionManager.Configuration> accountRolePermissions() {
+		return Result.success(rolePermissionManager.getConfiguration());
+	}
+
+	@PutMapping("/account-role/permissions")
+	@SaCheckPermission(SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION)
+	@SysLog("修改广告主账号角色权限")
+	public Result<AdvertiserRolePermissionManager.Configuration> updateAccountRolePermissions(
+			@Valid @RequestBody AdvertiserRequests.RolePermissionsUpdate request) {
+		return Result.success(
+				rolePermissionManager.updateConfiguration(request.getMenuIds(), request.getAllDataScope().booleanValue()));
 	}
 
 	@GetMapping("/{id}")
@@ -75,9 +94,9 @@ public class OcpxAdvertiserController {
 	@PostMapping("/{id}/recharge")
 	@SaCheckPermission("ocpx:advertiser:recharge")
 	@SysLog("广告主充值")
-	public Result<Void> recharge(@PathVariable String id, @Valid @RequestBody AdvertiserRequests.Recharge request) {
-		advertiserService.recharge(id, request);
-		return Result.success();
+	public Result<AdvertiserViews.RechargeResult> recharge(@PathVariable String id,
+			@Valid @RequestBody AdvertiserRequests.Recharge request) {
+		return Result.success(advertiserService.recharge(id, request));
 	}
 
 }

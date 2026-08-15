@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { EntityOption, MonitorTask } from '#/api/ocpx';
+import type { ConversionEvent, EntityOption, MonitorTask } from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
@@ -43,6 +43,7 @@ const columns = [
   { key: 'bizId', label: '业务编号' },
   { key: 'platform', label: '平台' },
   { key: 'unitPrice', label: '单价' },
+  { key: 'conversionEvent', label: '目标转化事件' },
   { key: 'showUrl', label: '展示监测链接' },
   { key: 'clkUrl', label: '点击监测链接' },
   { key: 'remark', label: '备注' },
@@ -73,12 +74,33 @@ const formRef = ref<FormInstance>();
 const form = reactive({
   advertiserId: '',
   bizId: '',
+  conversionEvent: 'ACTIVATE' as ConversionEvent,
   mediaId: '',
   monitorName: '',
   promotionLinkId: '',
   remark: '',
   unitPrice: '' as number | string,
 });
+
+const conversionEvents: Array<{ label: string; value: ConversionEvent }> = [
+  { label: '激活', value: 'ACTIVATE' },
+  { label: '唤起', value: 'EVOKE' },
+  { label: '登录', value: 'LOGIN' },
+  { label: '注册', value: 'REGISTER' },
+  { label: '付费', value: 'PAYMENT' },
+  { label: '获客', value: 'CUSTOMER_ACQUISITION' },
+  { label: '次留', value: 'NEXT_STAY' },
+  { label: '访问', value: 'VISITS' },
+  { label: '认证', value: 'AUTHENTICATION' },
+  { label: '下单', value: 'ORDER' },
+  { label: '完单', value: 'FINISH_THE_ORDER' },
+  { label: '首活', value: 'FIRST_ACTIVATION' },
+  { label: '首购', value: 'FIRST_ORDER' },
+];
+
+const conversionEventLabels = Object.fromEntries(
+  conversionEvents.map((item) => [item.value, item.label]),
+);
 
 function validateNumber(
   _rule: unknown,
@@ -98,6 +120,9 @@ function validateNumber(
 
 const rules: FormRules = {
   advertiserId: [{ message: '请选择广告主', required: true, trigger: 'blur' }],
+  conversionEvent: [
+    { message: '请选择目标转化事件', required: true, trigger: 'change' },
+  ],
   mediaId: [{ message: '请选择渠道', required: true, trigger: 'blur' }],
   monitorName: [{ message: '请输入监测名称', required: true, trigger: 'blur' }],
   promotionLinkId: [
@@ -111,6 +136,9 @@ const rules: FormRules = {
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
   hasAccessByCodes(['ocpx:monitor-task:edit', 'ocpx:monitor-task:delete']),
+);
+const canManageBilling = computed(() =>
+  hasAccessByCodes(['ocpx:monitor-task:billing']),
 );
 const loadGuard = createLatestRequestGuard();
 const monitorOptionGuard = createLatestRequestGuard();
@@ -176,6 +204,7 @@ async function edit(row?: MonitorTask) {
   Object.assign(form, {
     advertiserId: row?.advertiserId || '',
     bizId: row?.bizId || '',
+    conversionEvent: row?.conversionEvent || 'ACTIVATE',
     mediaId: row?.mediaId || '',
     monitorName: row?.monitorName || '',
     promotionLinkId: row?.promotionLinkId || '',
@@ -195,6 +224,7 @@ async function save() {
     const payload = {
       advertiserId: form.advertiserId,
       bizId: form.bizId || undefined,
+      conversionEvent: form.conversionEvent,
       mediaId: form.mediaId,
       monitorName: form.monitorName,
       promotionLinkId: form.promotionLinkId,
@@ -220,6 +250,7 @@ function handleDialogClose() {
   Object.assign(form, {
     advertiserId: '',
     bizId: '',
+    conversionEvent: 'ACTIVATE',
     mediaId: '',
     monitorName: '',
     promotionLinkId: '',
@@ -299,6 +330,7 @@ onMounted(async () => {
       </div>
       <div class="ocpx-actions">
         <el-button
+          v-if="canManageBilling"
           v-access:code="'ocpx:monitor-task:add'"
           :disabled="loading || saving || Boolean(deletingId)"
           type="primary"
@@ -366,6 +398,17 @@ onMounted(async () => {
           prop="unitPrice"
         />
         <el-table-column
+          v-if="hasColumn('conversionEvent')"
+          label="目标转化事件"
+          min-width="130"
+        >
+          <template #default="{ row }">
+            {{
+              conversionEventLabels[row.conversionEvent] || row.conversionEvent
+            }}
+          </template>
+        </el-table-column>
+        <el-table-column
           v-if="hasColumn('showUrl')"
           label="展示监测链接"
           min-width="240"
@@ -402,6 +445,7 @@ onMounted(async () => {
           width="130"
           ><template #default="{ row }"
             ><el-button
+              v-if="canManageBilling"
               v-access:code="'ocpx:monitor-task:edit'"
               :disabled="saving || Boolean(deletingId)"
               link
@@ -493,6 +537,19 @@ onMounted(async () => {
         <el-form-item label="投放单价" prop="unitPrice"
           ><el-input v-model="form.unitPrice" placeholder="请输入投放单价"
         /></el-form-item>
+        <el-form-item label="目标转化" prop="conversionEvent">
+          <el-select
+            v-model="form.conversionEvent"
+            placeholder="请选择目标转化事件"
+          >
+            <el-option
+              v-for="item in conversionEvents"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="备注" prop="remark"
           ><el-input
             v-model="form.remark"

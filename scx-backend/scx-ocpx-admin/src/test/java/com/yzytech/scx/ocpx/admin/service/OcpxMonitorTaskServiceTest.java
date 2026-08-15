@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -209,6 +210,9 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(validator
 			.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1", BigDecimal.ZERO, null, null)))
 			.noneMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
+		assertThat(validator.validate(new MonitorTaskRequests.Create("任务一", "adv-1", "link-1", "media-1",
+				new BigDecimal("1.0000001"), null, null)))
+			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
 		assertThat(validator.validate(
 				new MonitorTaskRequests.Update("任务一", "adv-1", "link-1", "media-1", new BigDecimal("-1"), null, null)))
 			.anyMatch(violation -> "unitPrice".equals(violation.getPropertyPath().toString()));
@@ -253,6 +257,30 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(permission).isNotNull();
 		assertThat(Arrays.asList(permission.value())).contains("ocpx:monitor-task:delete");
 		assertThat(method.getAnnotation(DeleteMapping.class).value()).contains("/{id}");
+	}
+
+	@Test
+	void updateRequiresBillingPermissionOnlyWhenTheBillingSnapshotChanges() throws NoSuchMethodException {
+		var method = OcpxMonitorTaskController.class.getMethod("update", String.class,
+				MonitorTaskRequests.Update.class);
+		SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);
+		assertThat(permission.value()).containsExactly("ocpx:monitor-task:edit");
+		assertThat(method.getAnnotation(PutMapping.class).value()).contains("/{id}");
+
+		OcpxMonitorTask current = task("task-1", "adv-1", "link-1", "media-1");
+		current.setUnitPrice(new BigDecimal("2.500000"));
+		current.setConversionEvent("ACTIVATE");
+		when(taskMapper.selectById("task-1")).thenReturn(current);
+		stubActiveRelations();
+		when(taskMapper.updateById(any(OcpxMonitorTask.class))).thenReturn(1);
+
+		service.update("task-1", new MonitorTaskRequests.Update("任务改名", "adv-1", "link-1", "media-1",
+				new BigDecimal("2.500000"), "ACTIVATE", null, null));
+		verify(advertiserScope, never()).requireSystemAdministratorPermission(anyString());
+
+		service.update("task-1", new MonitorTaskRequests.Update("任务改名", "adv-1", "link-1", "media-1",
+				new BigDecimal("3.000000"), "PAYMENT", null, null));
+		verify(advertiserScope).requireSystemAdministratorPermission("ocpx:monitor-task:billing");
 	}
 
 	private void stubActiveRelations() {

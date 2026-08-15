@@ -2,12 +2,12 @@ package com.yzytech.scx.ocpx.callback.service;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.model.LogData;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.redis.RedisHelper;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -44,13 +44,14 @@ class CallbackServiceImplTest {
 
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.NOT_APPLICABLE);
-		verify(fixture.hashes, never()).putIfAbsent(anyString(), anyString(), anyString());
+		verify(fixture.eventFactService, never()).recordCallback(any());
 	}
 
 	@Test
 	void returnsNotApplicableForADuplicateWithoutQueuingAgain() {
 		Fixture fixture = fixture(ActionTypeEnum.PAYMENT);
-		when(fixture.hashes.putIfAbsent(anyString(), anyString(), anyString())).thenReturn(false);
+		when(fixture.eventFactService.recordCallback(any()))
+			.thenReturn(new OcpxEventFactService.CallbackFactResult(false, false));
 
 		var result = fixture.service.handleCallback(fixture.request);
 
@@ -112,12 +113,12 @@ class CallbackServiceImplTest {
 	@SuppressWarnings("unchecked")
 	private Fixture fixture(ActionTypeEnum actionType) {
 		StringRedisTemplate redis = mock(StringRedisTemplate.class);
-		HashOperations<String, Object, Object> hashes = mock(HashOperations.class);
 		ListOperations<String, String> lists = mock(ListOperations.class);
 		RedisHelper helper = mock(RedisHelper.class);
-		when(redis.opsForHash()).thenReturn(hashes);
 		when(redis.opsForList()).thenReturn(lists);
-		when(hashes.putIfAbsent(anyString(), anyString(), anyString())).thenReturn(true);
+		OcpxEventFactService eventFactService = mock(OcpxEventFactService.class);
+		when(eventFactService.recordCallback(any()))
+			.thenReturn(new OcpxEventFactService.CallbackFactResult(true, false));
 		FeedbackReq feedback = FeedbackReq.builder()
 			.mId("media-id")
 			.tId("task-id")
@@ -126,11 +127,12 @@ class CallbackServiceImplTest {
 			.reqId("request-1")
 			.build();
 		CallbackReq request = CallbackReq.builder().feedback(feedback).actionType(actionType).actionTime(1L).build();
-		return new Fixture(new CallbackServiceImpl(redis, 1, helper), helper, hashes, lists, request);
+		return new Fixture(new CallbackServiceImpl(redis, 1, helper, eventFactService), helper, eventFactService, lists,
+				request);
 	}
 
-	private record Fixture(CallbackServiceImpl service, RedisHelper helper,
-			HashOperations<String, Object, Object> hashes, ListOperations<String, String> lists, CallbackReq request) {
+	private record Fixture(CallbackServiceImpl service, RedisHelper helper, OcpxEventFactService eventFactService,
+			ListOperations<String, String> lists, CallbackReq request) {
 	}
 
 }

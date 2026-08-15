@@ -2,6 +2,9 @@
 
 > 参考仓库：`/Users/karl/code/sgyz-ocpx`。本基线只覆盖通用
 > Feedback 与 Callback 数据闭环。
+>
+> 2026-08-15 更新：V108 已将事件去重、账户、CPC 流水和小时统计切换为 MySQL
+> 事务真相。下文中 Redis 去重、旧 List/报表合并仅是 SGYZ 历史兼容链路，不再决定首页、报表或计费结果。
 
 ## 实体和 ID 映射
 
@@ -21,20 +24,20 @@
 ```text
 媒体 GET /feedback
   -> FeedbackIngressAdapter
-  -> Feedback Redis 去重、队列
+  -> MySQL 唯一事实 + 账户锁 + CPC 流水 + 小时指标
+  -> 提交后写旧 Redis 队列（仅兼容日志）
   -> TemplateGetUpstreamDeliveryService 替换 bidUrl 宏、生成 AES ext 和 signature
   -> 广告主 GET
   -> 广告主 GET /callback
-  -> 解密 ext、Callback 去重和 lId+mId 扣量
+  -> 解密 ext、MySQL Callback 唯一事实、目标转化冻结和 lId+mId 扣量
   -> 原 callback_url 追加 event_type
   -> 媒体 GET
-  -> StorageTask 写明细、日明细和临时报表
-  -> Admin DataMergeTask 写最终报表
+  -> 旧 StorageTask/DataMergeTask 继续保留兼容日志，不作为经营数据真相
 ```
 
-SCX 保留旧 Redis Key、去重算法、队列分桶、扣量数组、StorageTask 批次与写入顺序、
-配置内存索引、共享刷新标记和最终报表合并方式。Feedback 重复仍转发；扣量数组长度
-固定为 11；Redis 数组读改写、List 消费和多表写入仍按旧代码的非原子方式运行。
+SCX 保留旧 Redis Key、队列分桶、扣量数组、StorageTask 和 DataMergeTask 用于兼容观察。
+V108 起重复 Feedback/Callback 不再重复计数或投递；MySQL 事实、流水和小时指标在同一事务中写入。
+扣量路由 Redis 状态仍按现有兼容实现运行，但不影响账户余额和有效事件口径。
 
 ## 必要适配与排除项
 
@@ -56,13 +59,12 @@ SCX 保留旧 Redis Key、去重算法、队列分桶、扣量数组、StorageTa
 |---|---|---|---|
 | 1 | 管理端扣量规则配置 | 管理端扣量配置页 + Redis 路由扣量比例 | 新表 `scx_ocpx_deduction_rule`（V99，`media_id`+`promotion_link_id`+`ratio`，软删唯一）；Admin CRUD `/ocpx/deduction-rules`（权限 `ocpx:deduction-rule:*`）；写库后同步 `ocpx:route:ratio:{lId}:{mId}`，变更/删除时清理 `ocpx:route:original-count:`/`ocpx:route:delivered-count:`，删除复位 1.0；菜单种子「扣量规则」`/ocpx/deduction`；前端 `views/ocpx/deduction/index.vue`、`api/ocpx/deduction.ts`；`check-ocpx-four-entities.sh` 放宽为五业务表 |
 | 2 | 监测任务双链接与业务字段 | advertise/flow 页形态 | `scx_ocpx_monitor_task` 保存 `unit_price`/`biz_id`/`show_url`/`clk_url`/`remark`，V102 将名称字段收敛为 `monitor_name` 并使用 `is_delete`；Admin 创建/更新时持久化生成 `show_url`/`clk_url`（`{engine-base}/feedback?{媒体宏参数}&event=IMP\|CLK&mId=&tId=&aId=&lId=`）；旧 `/c/{taskCode}` 已移除；前端展示业务编号、单价、双链接复制和级联弹窗 |
-| 3 | 充值/余额极简版与监测任务删除 | 广告主充值（Redis 单值余额） | `POST /ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`，V101 权限种子），Redis key `ocpx:advertiser:balance:{aId}` 单值累加，列表/详情逐行回填 balance，无流水表；`DELETE /ocpx/monitor-tasks/{id}`（逻辑删，权限 `ocpx:monitor-task:delete`）；前端广告主页余额列 + 充值弹窗、监测任务删除按钮 |
-| 4 | 时段报表与导出 | AChannelTime 报表形态 | `GET /ocpx/reports/summary`（`dateType` 0时/1日/2月/3年、四实体级联、扣量、CTR、消耗、转化列、排序和分页）、`GET /ocpx/reports/summary:export`（CSV 带 BOM）；V102 删除媒体导出接口 |
+| 3 | 充值/余额、CPC 与监测任务删除 | 广告主充值与首次有效点击 | V108 以 `scx_ocpx_advertiser_account` 和不可变 `scx_ocpx_billing_entry` 替代 Redis 余额；充值增加 `requestId`、账前/账后余额和真实 `ROLE_ADMIN` 校验；首次有效点击按任务 CNY 单价扣费，余额不足记拒绝流水且不投递；有账务或事实后禁止广告主物理删除 |
+| 4 | 时段报表与导出 | AChannelTime 报表形态 | `GET /ocpx/reports/summary`（`dateType` 0时/1日/2月/3年、四实体级联、扣量、CTR、消耗、转化列、排序和分页）、`GET /ocpx/reports/summary:export`（CSV 带 BOM）；V108 与 Dashboard 统一读取 `scx_ocpx_hourly_metric` |
 | 5 | 小米 + KIMI 合作方适配 | mi/kimi Controller 与投递协议 | 引擎保留 `GET /mi/feedback`、小米签名回传、`POST /kimi/callback` 和 KIMI CLICK 投递；V102 删除表内 Adapter 字段，改由广告主/媒体主键 Java 固定注册表分发，签名材料从服务端凭据引用解析。未登记广告主拒绝并写脱敏失败日志，未登记媒体走通用 Callback URL |
 | 6 | 数据面运维回补 | 日志拆分与清理任务 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实无需改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
 | 7 | vientiane 管理端硬替换对齐 | `vientiane-frontend/src/views` | V102 精简五实体字段、数值平台、删列改名、函数唯一索引与 RBAC；删除状态/归档/预检/连通性/媒体导出等旧接口；七个列表页统一列控制、复制、级联和分页；详见 [V102 基线](OCPX管理端vientiane对齐V102.md) |
 | 8 | 广告主开户与只读账号 | DSP 新增时同步创建账号 | V103 使用 SCX `sys_user`/`sys_user_role` 原子开户，BCrypt 保存密码，固定 `ROLE_ADVERTISER`；type=2 账号以 `shop_id` 强制限制为自身广告主，只读六页与报表 CSV，既有广告主不自动开户；详见 [V103 基线](OCPX管理端开户与数据范围V103.md) |
 
 仍未对齐（维持原排除）：SGYZ 其余 11 个媒体与 19 个广告主合作方适配、RTA、
-渠道应用审核、广告主自助增删改运营、点击扣费/CPC、账务流水表，以及智能出价、预算、
-重试与 DLQ。
+渠道应用审核、广告主自助增删改运营、账务流水页面，以及智能出价、预算、重试与 DLQ。

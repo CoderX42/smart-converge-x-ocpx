@@ -50,13 +50,28 @@ export type UnifiedReportPage = {
   total: number;
 };
 
+export type DashboardMetric = {
+  status: 'OK' | 'ZERO_DENOMINATOR';
+  unit: 'COUNT' | 'CNY' | 'PERCENT';
+  value: null | number;
+};
+
+export type DashboardAccount = {
+  advertiserId: string;
+  availableBalance: number;
+  rejectedClickCount: number;
+  todaySpend: number;
+};
+
 export type DashboardOverview = {
-  advertiserRanking: UnifiedReportRecord[];
-  asOf: string;
-  mediaRanking: UnifiedReportRecord[];
-  monitorTaskRanking: UnifiedReportRecord[];
-  promotionLinkRanking: UnifiedReportRecord[];
-  summary: Record<string, MetricValue>;
+  account?: DashboardAccount;
+  asOf?: string;
+  businessDate: string;
+  dataStatus: 'EMPTY' | 'READY';
+  endDate: string;
+  metrics: Record<string, DashboardMetric>;
+  startDate: string;
+  timezone: string;
 };
 
 export type FlowLog = {
@@ -99,7 +114,7 @@ export function getUnifiedReportOptions() {
 }
 
 export function getDashboardSummary(
-  params: Omit<UnifiedReportQuery, 'groupBy'>,
+  params: Partial<Omit<UnifiedReportQuery, 'groupBy'>>,
 ) {
   return requestClient.get<DashboardOverview>('/ocpx/dashboard/summary', {
     params,

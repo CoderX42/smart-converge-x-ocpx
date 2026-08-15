@@ -23,8 +23,8 @@ expected_business_tables='scx_ocpx_advertiser,scx_ocpx_deduction_rule,scx_ocpx_m
 [[ "$business_tables" == "$expected_business_tables" ]] || fail "the five business main tables are not exact"
 
 ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_deduction_rule,scx_ocpx_flow_log,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
-[[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX must contain five business tables and the legacy-compatible data layer"
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_entry,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
+[[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {
   local table="$1" expected="$2" actual
@@ -35,7 +35,7 @@ assert_exact_columns() {
 assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,account_user_id,credential_config_key,bid_url,macro_params,create_time,update_time'
 assert_exact_columns scx_ocpx_promotion_link 'id,advertiser_id,link_name,platform,link_channel,link_url,deeplink,link_ext,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,macro_params,create_time,update_time'
-assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,conversion_event,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
 
 advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
@@ -61,6 +61,25 @@ monitor_text_urls="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_monitor_task'
  AND column_name IN ('show_url','clk_url') AND data_type='text'")"
 [[ "$monitor_text_urls" -eq 2 ]] || fail "monitor show_url and clk_url must both be TEXT"
+
+invalid_conversion_events="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE conversion_event NOT IN (
+ 'ACTIVATE','EVOKE','LOGIN','REGISTER','PAYMENT','CUSTOMER_ACQUISITION','NEXT_STAY','VISITS',
+ 'AUTHENTICATION','ORDER','FINISH_THE_ORDER','FIRST_ACTIVATION','FIRST_ORDER')")"
+[[ "$invalid_conversion_events" -eq 0 ]] || fail "monitor target conversion event is invalid"
+
+account_rows="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser a LEFT JOIN scx_ocpx_advertiser_account ac ON ac.advertiser_id=a.id WHERE ac.advertiser_id IS NULL")"
+[[ "$account_rows" -eq 0 ]] || fail "every advertiser must have an authoritative account"
+
+invalid_account_rows="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser_account WHERE currency<>'CNY' OR available_balance<0")"
+[[ "$invalid_account_rows" -eq 0 ]] || fail "advertiser account currency or balance is invalid"
+
+truth_unique_indexes="$(scalar "SELECT COUNT(DISTINCT CONCAT(table_name,':',index_name)) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND non_unique=0 AND
+ ((table_name='scx_ocpx_event_fact' AND index_name='uk_ocpx_event_fact_key')
+  OR (table_name='scx_ocpx_event_fact' AND index_name='uk_ocpx_event_fact_identity')
+  OR (table_name='scx_ocpx_billing_entry' AND index_name='uk_ocpx_billing_business_key')
+  OR (table_name='scx_ocpx_hourly_metric' AND index_name='uk_ocpx_hourly_metric_scope'))")"
+[[ "$truth_unique_indexes" -eq 4 ]] || fail "truthful fact, billing or hourly idempotency index is missing"
 
 invalid_platforms="$(scalar "SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE platform NOT IN (1,2,3,4)")"
 [[ "$invalid_platforms" -eq 0 ]] || fail "promotion-link platform must be one of 1 Android, 2 iOS, 3 Android+iOS, 4 quick app"
@@ -127,8 +146,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:report:export')")"
-[[ "$required_permissions" -eq 6 ]] || fail "required recharge, delete and report-export permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all')")"
+[[ "$required_permissions" -eq 9 ]] || fail "required OCPX action, billing, shared-role and data-scope permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -136,10 +155,41 @@ advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  AND type='0' AND shop_id IS NULL AND del_flag='0'")"
 [[ "$advertiser_role" -eq 1 ]] || fail "the protected shared ROLE_ADVERTISER role is missing or invalid"
 
-advertiser_role_menus="$(scalar "SELECT COALESCE(GROUP_CONCAT(menu_id ORDER BY menu_id),'')
- FROM sys_role_menu WHERE role_id='role_advertiser'")"
-expected_advertiser_role_menus='menu_ocpx_advertiser,menu_ocpx_flow_log,menu_ocpx_home,menu_ocpx_monitor_task,menu_ocpx_promotion_link,menu_ocpx_report,perm_ocpx_report_export'
-[[ "$advertiser_role_menus" == "$expected_advertiser_role_menus" ]] || fail "ROLE_ADVERTISER must have exactly six read-only pages and report export"
+invalid_advertiser_role_menus="$(scalar "SELECT COUNT(*)
+ FROM sys_role_menu rm
+ LEFT JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ WHERE rm.role_id='role_advertiser'
+ AND (m.id IS NULL
+      OR NOT (m.permission LIKE 'ocpx:%'
+              OR (COALESCE(m.permission,'')='' AND m.path LIKE '/ocpx%'))
+      OR m.permission IN ('ocpx:advertiser:role:manage','ocpx:advertiser:recharge','ocpx:monitor-task:billing'))")"
+[[ "$invalid_advertiser_role_menus" -eq 0 ]] || fail "ROLE_ADVERTISER contains a non-OCPX or protected role-management permission"
+
+admin_finance_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
+ FROM sys_role r
+ JOIN sys_role_menu rm ON rm.role_id=r.id
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
+ AND m.permission IN ('ocpx:advertiser:recharge','ocpx:monitor-task:billing')")"
+[[ "$admin_finance_permissions" -eq 2 ]] || fail "system administrator finance permissions are incomplete"
+
+advertiser_scope_dependency="$(scalar "SELECT COUNT(*)
+ FROM sys_role_menu rm
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ WHERE rm.role_id='role_advertiser'
+ AND m.permission IN (
+   'ocpx:advertiser:add','ocpx:advertiser:delete',
+   'ocpx:media:view','ocpx:media:add','ocpx:media:edit','ocpx:media:delete',
+   'ocpx:deduction-rule:list','ocpx:deduction-rule:create',
+   'ocpx:deduction-rule:update','ocpx:deduction-rule:delete'
+ )
+ AND NOT EXISTS (
+   SELECT 1 FROM sys_role_menu scope_rm
+   JOIN sys_menu scope_m ON scope_m.id=scope_rm.menu_id AND scope_m.del_flag='0'
+   WHERE scope_rm.role_id='role_advertiser'
+   AND scope_m.permission='ocpx:advertiser:scope:all'
+ )")"
+[[ "$advertiser_scope_dependency" -eq 0 ]] || fail "global OCPX permissions require the advertiser all-data scope grant"
 
 admin_report_export="$(scalar "SELECT COUNT(*)
  FROM sys_role r
@@ -148,6 +198,14 @@ admin_report_export="$(scalar "SELECT COUNT(*)
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
  AND m.permission='ocpx:report:export' AND m.del_flag='0'")"
 [[ "$admin_report_export" -eq 1 ]] || fail "system administrator report-export grant is missing"
+
+admin_advertiser_role_manage="$(scalar "SELECT COUNT(*)
+ FROM sys_role r
+ JOIN sys_role_menu rm ON rm.role_id=r.id
+ JOIN sys_menu m ON m.id=rm.menu_id
+ WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
+ AND m.permission='ocpx:advertiser:role:manage' AND m.del_flag='0'")"
+[[ "$admin_advertiser_role_manage" -eq 1 ]] || fail "system administrator advertiser-role management grant is missing"
 
 admin_ocpx_crud="$(scalar "SELECT COUNT(DISTINCT m.permission)
  FROM sys_role r
@@ -169,4 +227,4 @@ system_admin="$(scalar "SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON
 dangling_role_menu="$(scalar "SELECT COUNT(*) FROM sys_role_menu rm LEFT JOIN sys_menu m ON m.id=rm.menu_id WHERE m.id IS NULL")"
 [[ "$dangling_role_menu" -eq 0 ]] || fail "dangling role-menu assignments found"
 
-echo "Database verification passed: five OCPX business tables, legacy-compatible data layer and the system framework are valid."
+echo "Database verification passed: OCPX management, truthful fact, account, ledger, hourly metric and system tables are valid."

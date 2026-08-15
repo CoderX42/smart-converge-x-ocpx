@@ -38,7 +38,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
 		when(advertiserScope.constrain(nullable(String.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope);
+		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope,
+				mock(OcpxAdvertiserAccountService.class));
 	}
 
 	@Test
@@ -55,13 +56,13 @@ class OcpxUnifiedReportServiceSummaryTest {
 		verify(jdbcTemplate, times(4)).query(sql.capture(), any(RowMapper.class), any(Object[].class));
 		List<String> selects = sql.getAllValues();
 		assertThat(selects.get(0)).contains("r.time_hour AS reportTime")
-			.contains("GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,r.time_hour");
+			.contains("GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,r.time_hour");
 		assertThat(selects.get(1)).contains("LEFT(r.time_hour,8) AS reportTime")
-			.contains("GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,LEFT(r.time_hour,8)");
+			.contains("GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,LEFT(r.time_hour,8)");
 		assertThat(selects.get(2)).contains("LEFT(r.time_hour,6) AS reportTime")
-			.contains("GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,LEFT(r.time_hour,6)");
+			.contains("GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,LEFT(r.time_hour,6)");
 		assertThat(selects.get(3)).contains("LEFT(r.time_hour,4) AS reportTime")
-			.contains("GROUP BY r.m_id,r.a_id,r.t_id,r.l_id,LEFT(r.time_hour,4)");
+			.contains("GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,LEFT(r.time_hour,4)");
 	}
 
 	@Test
@@ -137,7 +138,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void appliesFiltersAndPagination() {
-		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
+			.thenReturn(1L, 1L, 1L, 1L, 0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
 		service.summary(new SummaryReportQuery(1, "media-1", "task-1", "advertiser-1", "link-1", "20260801", "20260812",
@@ -146,10 +148,10 @@ class OcpxUnifiedReportServiceSummaryTest {
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), args.capture());
-		assertThat(sql.getValue()).contains("AND r.m_id=?")
-			.contains("AND r.t_id=?")
-			.contains("AND r.a_id=?")
-			.contains("AND r.l_id=?")
+		assertThat(sql.getValue()).contains("AND r.media_id=?")
+			.contains("AND r.monitor_task_id=?")
+			.contains("AND r.advertiser_id=?")
+			.contains("AND r.promotion_link_id=?")
 			.contains("r.time_hour BETWEEN ? AND ?")
 			.contains("LIMIT ? OFFSET ?");
 		Object[] values = args.getValue();
@@ -161,7 +163,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void advertiserScopeOverridesForgedReportFilter() {
 		when(advertiserScope.constrain("advertiser-other")).thenReturn("advertiser-own");
-		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L, 0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
 		service.summary(new SummaryReportQuery(1, null, null, "advertiser-other", null, "20260801", "20260812", null,
@@ -234,6 +236,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		lenient().when(rs.getObject("link_radio")).thenReturn(ratio);
 		lenient().when(rs.getLong("uni_show_smt")).thenReturn(1000L);
 		lenient().when(rs.getLong("uni_clk_smt")).thenReturn(120L);
+		lenient().when(rs.getObject("clickRate")).thenReturn(12.0d);
 		lenient().when(rs.getDouble("clickRate")).thenReturn(12.0d);
 		lenient().when(rs.getBigDecimal("base_price")).thenReturn(new BigDecimal("2.00"));
 		long action = 11;

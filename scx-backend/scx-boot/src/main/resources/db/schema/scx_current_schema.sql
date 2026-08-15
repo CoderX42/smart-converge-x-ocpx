@@ -1,6 +1,6 @@
 -- SCX OCPX minimal current-state schema.
--- Advertising data consists of five business tables and one sanitized flow-log
--- table. Core system-management users, roles, departments, dictionaries and
+-- Advertising data consists of five configuration entities plus authoritative
+-- account, ledger, event fact and hourly metric tables. Core system-management users, roles, departments, dictionaries and
 -- logs remain owned by scx-system; this file only preserves their menu/RBAC
 -- metadata alongside the advertising menu seed.
 USE `smart_converge_x`;
@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser (
   UNIQUE KEY uk_ocpx_advertiser_account_user (account_user_id),
   CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: upstream advertiser';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser_account (
+  advertiser_id VARCHAR(32) NOT NULL,
+  currency CHAR(3) NOT NULL DEFAULT 'CNY',
+  available_balance DECIMAL(20,6) NOT NULL DEFAULT 0,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (advertiser_id),
+  CONSTRAINT fk_ocpx_account_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
+  CONSTRAINT ck_ocpx_account_currency CHECK (currency='CNY'),
+  CONSTRAINT ck_ocpx_account_balance CHECK (available_balance>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='ACCOUNT: authoritative advertiser available balance';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_promotion_link (
   id VARCHAR(32) NOT NULL,
@@ -59,7 +72,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   advertiser_id VARCHAR(32) NOT NULL,
   promotion_link_id VARCHAR(32) NOT NULL,
   media_id VARCHAR(32) NOT NULL,
-  unit_price DECIMAL(18,6) NULL,
+  unit_price DECIMAL(20,6) NOT NULL DEFAULT 0,
+  conversion_event VARCHAR(32) NOT NULL DEFAULT 'ACTIVATE',
   biz_id VARCHAR(64) NULL,
   show_url TEXT NULL,
   clk_url TEXT NULL,
@@ -72,7 +86,12 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   CONSTRAINT fk_ocpx_monitor_task_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
   CONSTRAINT fk_ocpx_monitor_task_link_owner FOREIGN KEY (advertiser_id,promotion_link_id)
     REFERENCES scx_ocpx_promotion_link(advertiser_id,id),
-  CONSTRAINT fk_ocpx_monitor_task_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id)
+  CONSTRAINT fk_ocpx_monitor_task_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
+  CONSTRAINT ck_ocpx_monitor_task_conversion_event CHECK (conversion_event IN (
+    'ACTIVATE','EVOKE','LOGIN','REGISTER','PAYMENT','CUSTOMER_ACQUISITION',
+    'NEXT_STAY','VISITS','AUTHENTICATION','ORDER','FINISH_THE_ORDER',
+    'FIRST_ACTIVATION','FIRST_ORDER'
+  ))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: advertiser-link-media monitoring task';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_deduction_rule (
@@ -89,6 +108,109 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_deduction_rule (
   CONSTRAINT fk_ocpx_deduction_rule_promotion_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
   CONSTRAINT fk_ocpx_deduction_rule_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: link-media deduction ratio rule';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
+  id VARCHAR(32) NOT NULL,
+  fact_key CHAR(64) NOT NULL,
+  flow_type VARCHAR(16) NOT NULL,
+  event_code VARCHAR(32) NOT NULL,
+  request_id VARCHAR(128) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NOT NULL,
+  target_conversion TINYINT(1) NOT NULL DEFAULT 0,
+  spend_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
+  currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
+  billing_status VARCHAR(40) NOT NULL DEFAULT 'NOT_APPLICABLE',
+  received_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_event_fact_key (fact_key),
+  UNIQUE KEY uk_ocpx_event_fact_identity
+    (advertiser_id,monitor_task_id,request_id,event_code),
+  KEY idx_ocpx_event_fact_time_scope (received_at,advertiser_id,media_id,monitor_task_id,promotion_link_id),
+  CONSTRAINT fk_ocpx_event_fact_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
+  CONSTRAINT fk_ocpx_event_fact_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
+  CONSTRAINT fk_ocpx_event_fact_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
+  CONSTRAINT fk_ocpx_event_fact_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT ck_ocpx_event_fact_flow CHECK (flow_type IN ('FEEDBACK','CALLBACK')),
+  CONSTRAINT ck_ocpx_event_fact_billing CHECK (billing_status IN (
+    'NOT_APPLICABLE','POSTED','REJECTED_INSUFFICIENT_BALANCE'
+  )),
+  CONSTRAINT ck_ocpx_event_fact_amounts CHECK (spend_amount>=0 AND currency_amount>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='FACT: idempotent OCPX feedback and callback facts';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_billing_entry (
+  id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NULL,
+  event_fact_id VARCHAR(32) NULL,
+  entry_type VARCHAR(24) NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  amount DECIMAL(20,6) NOT NULL,
+  balance_before DECIMAL(20,6) NOT NULL,
+  balance_after DECIMAL(20,6) NOT NULL,
+  business_key VARCHAR(255) NOT NULL,
+  reason_code VARCHAR(64) NULL,
+  operator_user_id VARCHAR(64) NULL,
+  remark VARCHAR(255) NULL,
+  occurred_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_billing_business_key (business_key),
+  KEY idx_ocpx_billing_advertiser_time (advertiser_id,occurred_at),
+  CONSTRAINT fk_ocpx_billing_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
+  CONSTRAINT fk_ocpx_billing_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT fk_ocpx_billing_fact FOREIGN KEY (event_fact_id) REFERENCES scx_ocpx_event_fact(id),
+  CONSTRAINT ck_ocpx_billing_type CHECK (entry_type IN ('RECHARGE','CLICK_CHARGE')),
+  CONSTRAINT ck_ocpx_billing_status CHECK (status IN ('POSTED','REJECTED')),
+  CONSTRAINT ck_ocpx_billing_amount CHECK (amount>=0),
+  CONSTRAINT ck_ocpx_billing_balances CHECK (balance_before>=0 AND balance_after>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='LEDGER: immutable advertiser recharge and CPC entries';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  time_hour INT NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NOT NULL,
+  impression_count BIGINT NOT NULL DEFAULT 0,
+  click_count BIGINT NOT NULL DEFAULT 0,
+  target_conversion_count BIGINT NOT NULL DEFAULT 0,
+  activate_count BIGINT NOT NULL DEFAULT 0,
+  evoke_count BIGINT NOT NULL DEFAULT 0,
+  login_count BIGINT NOT NULL DEFAULT 0,
+  register_count BIGINT NOT NULL DEFAULT 0,
+  payment_count BIGINT NOT NULL DEFAULT 0,
+  customer_acquisition_count BIGINT NOT NULL DEFAULT 0,
+  next_stay_count BIGINT NOT NULL DEFAULT 0,
+  visits_count BIGINT NOT NULL DEFAULT 0,
+  authentication_count BIGINT NOT NULL DEFAULT 0,
+  place_order_count BIGINT NOT NULL DEFAULT 0,
+  finish_the_order_count BIGINT NOT NULL DEFAULT 0,
+  first_activation_count BIGINT NOT NULL DEFAULT 0,
+  first_order_count BIGINT NOT NULL DEFAULT 0,
+  spend_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
+  currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
+  rejected_click_count BIGINT NOT NULL DEFAULT 0,
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_hourly_metric_scope
+    (time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id),
+  KEY idx_ocpx_hourly_metric_dashboard
+    (advertiser_id,time_hour,media_id,monitor_task_id,promotion_link_id),
+  CONSTRAINT fk_ocpx_hourly_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
+  CONSTRAINT fk_ocpx_hourly_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
+  CONSTRAINT fk_ocpx_hourly_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
+  CONSTRAINT fk_ocpx_hourly_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT ck_ocpx_hourly_nonnegative CHECK (
+    impression_count>=0 AND click_count>=0 AND target_conversion_count>=0
+    AND spend_amount>=0 AND currency_amount>=0 AND rejected_click_count>=0
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='AGGREGATE: transactionally maintained truthful hourly metrics';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   id VARCHAR(32) NOT NULL,
@@ -336,7 +458,7 @@ WHERE r.role_code = 'ROLE_ADMIN'
 INSERT INTO sys_role
   (id,role_name,role_code,role_desc,type,shop_id,create_time,update_time,del_flag)
 VALUES
-  ('role_advertiser','广告主','ROLE_ADVERTISER','广告主自助账号共享只读角色',
+  ('role_advertiser','广告主','ROLE_ADVERTISER','广告主自助账号共享可配置角色',
    '0',NULL,NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE role_name=VALUES(role_name),role_desc=VALUES(role_desc),type='0',shop_id=NULL,
   update_time=NOW(),del_flag='0';
@@ -372,11 +494,14 @@ VALUES
   ('perm_ocpx_monitor_task_add','新增监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_edit','编辑监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_delete','删除监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:delete',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_monitor_task_billing','配置监测任务计费','','menu_ocpx_monitor_task','ocpx:monitor-task:billing',40,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_report_export','导出报表','','menu_ocpx_report','ocpx:report:export',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_list','查询扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:list',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_create','新增扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:create',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_update','编辑扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:update',30,'1','app_base',NOW(),NOW(),'0'),
-  ('perm_ocpx_deduction_rule_delete','删除扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:delete',40,'1','app_base',NOW(),NOW(),'0')
+  ('perm_ocpx_deduction_rule_delete','删除扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:delete',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_adv_role_manage','管理广告主账号角色权限','','menu_ocpx_advertiser','ocpx:advertiser:role:manage',80,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_adv_scope_all','全量 OCPX 数据范围','','menu_ocpx_advertiser','ocpx:advertiser:scope:all',90,'1','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
   sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
 
@@ -392,9 +517,17 @@ INSERT INTO sys_role_menu (id,role_id,menu_id)
 SELECT CONCAT('current_',LEFT(SHA2(CONCAT('role_advertiser','|',m.id),256),52)),
        'role_advertiser',m.id
 FROM sys_menu m
-WHERE m.id IN (
-  'menu_ocpx_home','menu_ocpx_advertiser','menu_ocpx_promotion_link',
-  'menu_ocpx_monitor_task','menu_ocpx_report','menu_ocpx_flow_log',
-  'perm_ocpx_report_export'
-)
-  AND m.del_flag='0';
+WHERE m.del_flag='0' AND m.id IN (
+  'menu_ocpx_home','menu_ocpx_advertiser','menu_ocpx_promotion_link','menu_ocpx_media',
+  'menu_ocpx_monitor_task','menu_ocpx_deduction_rule','menu_ocpx_report','menu_ocpx_flow_log',
+  'perm_ocpx_advertiser_add','perm_ocpx_advertiser_edit',
+  'perm_ocpx_advertiser_delete','perm_ocpx_promotion_link_add','perm_ocpx_promotion_link_edit',
+  'perm_ocpx_promotion_link_delete','perm_ocpx_media_add','perm_ocpx_media_edit','perm_ocpx_media_delete',
+  'perm_ocpx_monitor_task_add','perm_ocpx_monitor_task_edit','perm_ocpx_monitor_task_delete',
+  'perm_ocpx_report_export','perm_ocpx_deduction_rule_list','perm_ocpx_deduction_rule_create',
+  'perm_ocpx_deduction_rule_update','perm_ocpx_deduction_rule_delete','perm_ocpx_adv_scope_all'
+);
+
+INSERT INTO scx_ocpx_advertiser_account (advertiser_id,currency,available_balance)
+SELECT id,'CNY',0 FROM scx_ocpx_advertiser
+ON DUPLICATE KEY UPDATE advertiser_id=VALUES(advertiser_id);

@@ -14,6 +14,18 @@ public final class SystemAccountConstants {
 	/** 广告主登录账号类型。 */
 	public static final String USER_TYPE_ADVERTISER = "2";
 
+	/** 管理共享广告主角色权限，仅授予受信任的系统管理角色。 */
+	public static final String ADVERTISER_ROLE_MANAGE_PERMISSION = "ocpx:advertiser:role:manage";
+
+	/** 广告主账号访问全部 OCPX 数据的显式范围权限。 */
+	public static final String ADVERTISER_ALL_SCOPE_PERMISSION = "ocpx:advertiser:scope:all";
+
+	/** 资金充值只能由真实系统管理员执行，不能下放到共享广告主角色。 */
+	public static final String ADVERTISER_RECHARGE_PERMISSION = "ocpx:advertiser:recharge";
+
+	/** 监测任务计费口径只能由真实系统管理员维护。 */
+	public static final String MONITOR_TASK_BILLING_PERMISSION = "ocpx:monitor-task:billing";
+
 	private SystemAccountConstants() {
 	}
 

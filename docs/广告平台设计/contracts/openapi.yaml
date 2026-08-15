@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: SCX OCPX Feedback/Callback GET data plane
-  version: 5.0.0
-  description: SCX OCPX Feedback and Callback data plane. All partner requests use HTTP GET Query String parameters.
+  title: SCX OCPX data plane and management contracts
+  version: 6.0.0
+  description: SCX OCPX Feedback/Callback data plane and selected management-plane contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -51,7 +51,7 @@ paths:
       responses:
         '400': { description: 缺少短路由主键，或请求仍包含已退役的 chid/mid/dspid/linkid }
         '200':
-          description: Legacy success response. Internal handling errors are logged and retain legacy response behavior.
+          description: MySQL fact transaction committed successfully.
           content:
             application/json:
               schema:
@@ -62,6 +62,7 @@ paths:
                   code: { type: integer, const: 200 }
                   msg: { type: string, const: 提交成功 }
                   data: { type: object }
+        '500': { description: MySQL event, billing, or hourly projection transaction failed }
   /callback:
     get:
       operationId: handleUpstreamCallback
@@ -91,6 +92,104 @@ paths:
         '200': { description: Empty response for success, duplicate, or deducted conversion }
         '400': { description: Missing or unknown action, invalid amount, or invalid encrypted route context }
         '500': { description: Internal handling exception }
+  /advertisers/account-role/permissions:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getAdvertiserSharedRolePermissions
+      summary: 读取共享广告主角色权限
+      description: 仅允许拥有 ocpx:advertiser:role:manage 的非广告主账号调用。
+      security:
+        - saToken: []
+      responses:
+        '200':
+          description: 固定 ROLE_ADVERTISER 的当前权限、全量范围和受影响账号数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvertiserRolePermissionsResult'
+        '403': { description: 无管理权限，或广告主账号尝试管理共享角色 }
+    put:
+      operationId: replaceAdvertiserSharedRolePermissions
+      summary: 全量替换共享广告主角色权限
+      description: 服务端只接受 OCPX 白名单并自动补齐父级；成功后清理菜单缓存并注销全部广告主账号会话。
+      security:
+        - saToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdvertiserRolePermissionsUpdate'
+      responses:
+        '200':
+          description: 保存后的完整配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvertiserRolePermissionsResult'
+        '400': { description: 菜单不在 OCPX 白名单，或全量范围依赖不一致 }
+        '403': { description: 无管理权限，或广告主账号尝试管理共享角色 }
+  /advertisers/{id}/recharge:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: rechargeAdvertiserAccount
+      summary: 幂等充值广告主账户
+      description: 仅真实 ROLE_ADMIN 且拥有 ocpx:advertiser:recharge 权限可调用；同一广告主和 requestId 返回同一流水。
+      security:
+        - saToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdvertiserRechargeRequest' }
+      responses:
+        '200':
+          description: 充值流水和账后余额
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdvertiserRechargeResultEnvelope' }
+        '400': { description: requestId 或金额无效，或同 requestId 改变金额 }
+        '403': { description: 广告主账号或非 ROLE_ADMIN 尝试充值 }
+        '404': { description: 广告主或资金账户不存在 }
+  /dashboard/summary:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getTruthfulDashboardSummary
+      summary: 读取真实首页指标
+      security:
+        - saToken: []
+      parameters:
+        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string } }
+        - { name: mediaId, in: query, required: false, schema: { type: string } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: 服务端业务日期、账户块、数据水位和九个服务端计算指标
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummaryResultEnvelope' }
+        '400': { description: 日期无效或业务对象归属关系不匹配 }
+        '403': { description: 无首页权限或越权账户访问 }
 webhooks:
   downstreamConversionGet:
     get:
@@ -101,3 +200,121 @@ webhooks:
         - { name: currency_amount, in: query, required: false, schema: { type: number, minimum: 0 } }
       responses:
         '200': { description: Response body is ignored }
+components:
+  securitySchemes:
+    saToken:
+      type: apiKey
+      in: header
+      name: satoken
+  schemas:
+    AdvertiserRolePermissionsUpdate:
+      type: object
+      additionalProperties: false
+      required: [menuIds, allDataScope]
+      properties:
+        menuIds:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 64 }
+        allDataScope:
+          type: boolean
+    AdvertiserRoleMenuNode:
+      type: object
+      required: [id, parentId, name, type, requiresAllDataScope, children]
+      properties:
+        id: { type: string }
+        parentId: { type: string }
+        name: { type: string }
+        type: { type: string }
+        permission: { type: [string, 'null'] }
+        requiresAllDataScope: { type: boolean }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/AdvertiserRoleMenuNode' }
+    AdvertiserRolePermissions:
+      type: object
+      required: [roleId, roleName, roleCode, selectedMenuIds, allDataScope, affectedAccountCount, menuTree]
+      properties:
+        roleId: { type: string }
+        roleName: { type: string }
+        roleCode: { type: string, const: ROLE_ADVERTISER }
+        selectedMenuIds:
+          type: array
+          items: { type: string }
+        allDataScope: { type: boolean }
+        affectedAccountCount: { type: integer, format: int64, minimum: 0 }
+        menuTree:
+          type: array
+          items: { $ref: '#/components/schemas/AdvertiserRoleMenuNode' }
+    AdvertiserRolePermissionsResult:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/AdvertiserRolePermissions' }
+    AdvertiserRechargeRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, amount]
+      properties:
+        requestId: { type: string, minLength: 8, maxLength: 64 }
+        amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.999999, multipleOf: 0.000001 }
+        remark: { type: string, maxLength: 255 }
+    AdvertiserRechargeResult:
+      type: object
+      required: [entryId, advertiserId, amount, balanceAfter, occurredAt]
+      properties:
+        entryId: { type: string }
+        advertiserId: { type: string }
+        amount: { type: number }
+        balanceAfter: { type: number }
+        occurredAt: { type: string, format: date-time }
+    AdvertiserRechargeResultEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/AdvertiserRechargeResult' }
+    DashboardAccount:
+      type: object
+      required: [advertiserId, availableBalance, todaySpend, rejectedClickCount]
+      properties:
+        advertiserId: { type: string }
+        availableBalance: { type: number }
+        todaySpend: { type: number }
+        rejectedClickCount: { type: integer, format: int64, minimum: 0 }
+    DashboardMetric:
+      type: object
+      required: [value, unit, status]
+      properties:
+        value: { type: [number, 'null'] }
+        unit: { type: string, enum: [CNY, COUNT, PERCENT] }
+        status: { type: string, enum: [OK, ZERO_DENOMINATOR] }
+    DashboardSummary:
+      type: object
+      required: [businessDate, timezone, startDate, endDate, asOf, dataStatus, metrics]
+      properties:
+        businessDate: { type: string, format: date }
+        timezone: { type: string, const: Asia/Shanghai }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        asOf: { type: [string, 'null'], format: date-time }
+        dataStatus: { type: string, enum: [READY, EMPTY] }
+        account:
+          oneOf:
+            - { $ref: '#/components/schemas/DashboardAccount' }
+            - { type: 'null' }
+        metrics:
+          type: object
+          required: [SPEND, IMPRESSION, CLICK, CONVERSION, CTR, CVR, CPM, CPC, CPA]
+          additionalProperties: { $ref: '#/components/schemas/DashboardMetric' }
+    DashboardSummaryResultEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/DashboardSummary' }

@@ -1,8 +1,10 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -35,13 +37,23 @@ public final class MonitorTaskRequests {
 
 		@NotNull
 		@PositiveOrZero
+		@Digits(integer = 14, fraction = 6)
 		private BigDecimal unitPrice;
+
+		@NotBlank
+		@Pattern(regexp = "ACTIVATE|EVOKE|LOGIN|REGISTER|PAYMENT|CUSTOMER_ACQUISITION|NEXT_STAY|VISITS|AUTHENTICATION|ORDER|FINISH_THE_ORDER|FIRST_ACTIVATION|FIRST_ORDER")
+		private String conversionEvent = "ACTIVATE";
 
 		@Size(max = 64)
 		private String bizId;
 
 		@Size(max = 255)
 		private String remark;
+
+		public Create(String monitorName, String advertiserId, String promotionLinkId, String mediaId,
+				BigDecimal unitPrice, String bizId, String remark) {
+			this(monitorName, advertiserId, promotionLinkId, mediaId, unitPrice, "ACTIVATE", bizId, remark);
+		}
 
 	}
 
@@ -65,13 +77,23 @@ public final class MonitorTaskRequests {
 
 		@NotNull
 		@PositiveOrZero
+		@Digits(integer = 14, fraction = 6)
 		private BigDecimal unitPrice;
+
+		@NotBlank
+		@Pattern(regexp = "ACTIVATE|EVOKE|LOGIN|REGISTER|PAYMENT|CUSTOMER_ACQUISITION|NEXT_STAY|VISITS|AUTHENTICATION|ORDER|FINISH_THE_ORDER|FIRST_ACTIVATION|FIRST_ORDER")
+		private String conversionEvent = "ACTIVATE";
 
 		@Size(max = 64)
 		private String bizId;
 
 		@Size(max = 255)
 		private String remark;
+
+		public Update(String monitorName, String advertiserId, String promotionLinkId, String mediaId,
+				BigDecimal unitPrice, String bizId, String remark) {
+			this(monitorName, advertiserId, promotionLinkId, mediaId, unitPrice, "ACTIVATE", bizId, remark);
+		}
 
 	}
 

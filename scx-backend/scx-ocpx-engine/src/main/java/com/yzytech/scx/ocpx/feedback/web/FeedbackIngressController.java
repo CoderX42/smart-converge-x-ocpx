@@ -34,7 +34,7 @@ public class FeedbackIngressController {
 	 * 接收媒体曝光或点击，将查询参数标准化后进入 Feedback 处理链路。
 	 *
 	 * <p>
-	 * 成功响应沿用旧协议固定 JSON；异常仅记录日志，不改写既有兼容响应行为。
+	 * 成功响应沿用旧协议固定 JSON；事实事务失败时返回服务端错误，避免媒体误认为事件已经持久化。
 	 * @param request 通用媒体查询参数
 	 * @return 兼容旧协议的 HTTP 处理结果
 	 */
@@ -53,7 +53,7 @@ public class FeedbackIngressController {
 		catch (Exception exception) {
 			errorLog.error("feedback ingress error:{},param:{}", exception.getMessage(),
 					JSON.toJSONString(request), exception);
-			return ResponseEntity.ok().build();
+			return ResponseEntity.internalServerError().build();
 		}
 	}
 

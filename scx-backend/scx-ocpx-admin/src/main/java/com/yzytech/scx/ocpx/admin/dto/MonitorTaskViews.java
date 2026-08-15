@@ -41,6 +41,8 @@ public final class MonitorTaskViews {
 
 		private BigDecimal unitPrice;
 
+		private String conversionEvent;
+
 		private String bizId;
 
 		private String remark;

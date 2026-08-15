@@ -43,7 +43,7 @@ class OcpxIngressContractTest {
 	}
 
 	@Test
-	void retainsTheCompatibleEmptySuccessResponseWhenFeedbackHandlingFails() throws Exception {
+	void returnsServerErrorWhenTheAuthoritativeFactTransactionFails() throws Exception {
 		FeedbackService feedbackService = mock(FeedbackService.class);
 		doThrow(new IllegalStateException("feedback failed")).when(feedbackService).handleFeedback(any());
 		MockMvc mvc = feedbackMvc(feedbackService);
@@ -54,7 +54,7 @@ class OcpxIngressContractTest {
 			.param("aId", "advertiser-id")
 			.param("lId", "link-id")
 			.param("event", "CLK")
-			.param("request_id", "request-1")).andExpect(status().isOk()).andExpect(content().string(""));
+			.param("request_id", "request-1")).andExpect(status().isInternalServerError());
 	}
 
 	@Test
