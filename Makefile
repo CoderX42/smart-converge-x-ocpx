@@ -54,4 +54,4 @@ db-verify: schema-ledger-check
 	@test -n "$${MYSQL_HOST:-}" || (echo "MYSQL_HOST is required" >&2; exit 1)
 	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
 	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
-	cd scx-backend/db/smart-converge-x && ./verify-database.sh
+	cd scx-backend/db/smart-converge-x && bash ./verify-database.sh

@@ -454,6 +454,27 @@ WHERE r.role_code = 'ROLE_ADMIN'
     WHERE existing.role_id = r.id AND existing.menu_id = m.id
   );
 
+-- V109: keep historical legacy permissions soft-deleted and remove every role
+-- mapping, including on baselines composed with older scx-system seed data.
+DELETE rm
+FROM sys_role_menu rm
+JOIN sys_menu m ON m.id=rm.menu_id
+WHERE m.permission IN (
+  'ocpx:api-debug:read',
+  'ocpx:monitor:publish',
+  'ocpx:monitor:read',
+  'ocpx:monitor:write'
+);
+
+UPDATE sys_menu
+SET del_flag='1',update_time=NOW()
+WHERE permission IN (
+  'ocpx:api-debug:read',
+  'ocpx:monitor:publish',
+  'ocpx:monitor:read',
+  'ocpx:monitor:write'
+);
+
 -- Seed only the retained advertising menus below.
 INSERT INTO sys_role
   (id,role_name,role_code,role_desc,type,shop_id,create_time,update_time,del_flag)

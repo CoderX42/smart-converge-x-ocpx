@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SCX 宝塔标准打包发布入口：可选同步 -> 后端/XXL 打包 -> 前端构建 -> 备份 -> 前端站点发布。
+# SCX 宝塔标准打包发布入口：可选同步 -> Boot/Engine/XXL 打包 -> 前端构建 -> 备份 -> 发布。
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,7 +10,7 @@ bt_init_paths
 
 usage() {
   cat <<'EOF'
-用法：bash scripts/bt-deploy/01-deploy.sh [选项] [all|backend|frontend|xxl]
+用法：bash scripts/bt-deploy/01-deploy.sh [选项] [all|backend|engine|frontend|xxl]
 
 选项：
   --no-pull       不同步代码，使用当前工作区构建
@@ -27,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --no-publish) do_publish=false; shift ;;
     --skip-xxl) include_xxl=false; shift ;;
     --branch) [[ $# -ge 2 ]] || bt_die '--branch 缺少分支名'; SCX_BRANCH="$2"; shift 2 ;;
-    all|backend|frontend|xxl) target="$1"; shift ;;
+    all|backend|engine|frontend|xxl) target="$1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) bt_die "未知参数：$1" ;;
   esac
@@ -38,7 +38,7 @@ if [[ "$do_pull" == true ]]; then
   SCX_HOME="$SCX_HOME" SCX_BRANCH="$SCX_BRANCH" bash "${SCRIPT_DIR}/00-sync_repos.sh"
 fi
 bt_assert_repository
-if [[ "$target" == all || "$target" == backend || "$target" == xxl ]]; then
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
   bt_require_command mvn
   bt_detect_java
   bt_require_command jar
@@ -53,14 +53,11 @@ trap cleanup_stage EXIT
 mkdir -p "${stage_dir}/backend" "${stage_dir}/frontend"
 
 # Partial backend releases preserve active artifacts that are not being rebuilt
-# (for example, `xxl` leaves scx-boot.jar in place). The retired standalone
-# Engine artifact is removed from every backend staging directory.
-if [[ "$target" == all || "$target" == backend || "$target" == xxl ]]; then
+# (for example, `engine` leaves scx-boot.jar and xxl-job-admin.jar in place).
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
   if [[ -d "${SCX_BUILD_DIR}/backend" ]]; then
     cp -a "${SCX_BUILD_DIR}/backend/." "${stage_dir}/backend/"
   fi
-  rm -f "${stage_dir}/backend/scx-ocpx-engine.jar" \
-    "${stage_dir}/backend/scx-ocpx-engine.jar.sha256"
 fi
 
 build_boot() {
@@ -79,6 +76,19 @@ build_boot() {
   fi
   cp -p "$jar_file" "${stage_dir}/backend/scx-boot.jar"
   (cd "${stage_dir}/backend" && sha256sum scx-boot.jar > scx-boot.jar.sha256)
+}
+
+build_engine() {
+  bt_log '构建 scx-ocpx-engine 数据面可执行 JAR（跳过测试；发布前须先通过本机门禁）'
+  (cd "${SCX_HOME}/scx-backend" && mvn -pl scx-ocpx-engine -am -DskipTests clean package)
+  local jar_file="${SCX_HOME}/scx-backend/scx-ocpx-engine/target/scx-ocpx-engine-exec.jar"
+  [[ -f "$jar_file" ]] || bt_die "未找到数据面可执行产物：${jar_file}"
+  jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/application-prod.yml' \
+    || bt_die 'scx-ocpx-engine 可执行 JAR 缺少 application-prod.yml，拒绝发布。'
+  jar tf "$jar_file" | grep -qx 'BOOT-INF/classes/com/yzytech/scx/ocpx/ScxOcpxEngineApplication.class' \
+    || bt_die 'scx-ocpx-engine 可执行 JAR 缺少启动类，拒绝发布。'
+  cp -p "$jar_file" "${stage_dir}/backend/scx-ocpx-engine.jar"
+  (cd "${stage_dir}/backend" && sha256sum scx-ocpx-engine.jar > scx-ocpx-engine.jar.sha256)
 }
 
 build_xxl() {
@@ -145,14 +155,15 @@ publish_frontend() {
 }
 
 case "$target" in
-  all) build_boot; [[ "$include_xxl" == true ]] && build_xxl; build_frontend; activate_component backend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
-  backend) build_boot; [[ "$include_xxl" == true ]] && build_xxl; activate_component backend ;;
+  all) build_boot; build_engine; [[ "$include_xxl" == true ]] && build_xxl; build_frontend; activate_component backend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
+  backend) build_boot; build_engine; [[ "$include_xxl" == true ]] && build_xxl; activate_component backend ;;
+  engine) build_engine; activate_component backend ;;
   xxl) build_xxl; activate_component backend ;;
   frontend) build_frontend; activate_component frontend; [[ "$do_publish" == true ]] && publish_frontend ;;
 esac
 git -C "${SCX_HOME}" rev-parse HEAD > "${SCX_BACKUP_DIR}/${release_id}/source-commit.txt"
 bt_prune_backups
 bt_ok "打包部署流程完成：备份位于 ${SCX_BACKUP_DIR}/${release_id}"
-if [[ "$target" == all || "$target" == backend || "$target" == xxl ]]; then
-  [[ "${SCX_SUPPRESS_RESTART_HINT:-0}" == '1' ]] || bt_print_baota_restart_hint
+if [[ "$target" == all || "$target" == backend || "$target" == engine || "$target" == xxl ]]; then
+  [[ "${SCX_SUPPRESS_RESTART_HINT:-0}" == '1' ]] || bt_print_baota_restart_hint "$target"
 fi

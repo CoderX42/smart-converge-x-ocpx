@@ -315,6 +315,24 @@ for required_fragment in (
         raise SystemExit(f"V107 migration gate failed: missing {required_fragment}")
 if "scx_schema_migration" in v107:
     raise SystemExit("V107 migration gate failed: retired migration ledger is referenced")
+
+v109 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V109__retire_legacy_ocpx_permissions.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "ocpx:api-debug:read",
+    "ocpx:monitor:publish",
+    "ocpx:monitor:read",
+    "ocpx:monitor:write",
+    "DELETE rm\nFROM sys_role_menu rm",
+    "UPDATE sys_menu\nSET del_flag='1'",
+):
+    if required_fragment not in v109:
+        raise SystemExit(f"V109 migration gate failed: missing {required_fragment}")
+if "DELETE FROM sys_menu" in v109:
+    raise SystemExit("V109 migration gate failed: legacy menu rows must be soft-deleted")
+if "scx_schema_migration" in v109:
+    raise SystemExit("V109 migration gate failed: retired migration ledger is referenced")
 for table, columns in {
     "scx_ocpx_log_callback": ("partner_action_type", "standard_action_type", "action_time", "currency_amount"),
     "scx_ocpx_report_mat_temp": ("first_activation", "first_order", "currency_amount"),

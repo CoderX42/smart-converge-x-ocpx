@@ -1,5 +1,8 @@
 # Production values are packaged into the executable JAR. Replace the credential
 # literals and callback AES key privately before packaging for production.
+server:
+  address: 127.0.0.1
+
 spring:
   datasource:
     url: jdbc:mysql://mysqle379be1ffea9.rds.ivolces.com:3306/smart_converge_x?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia%2FShanghai&allowPublicKeyRetrieval=true
@@ -23,9 +26,8 @@ app:
 
 ocpx:
   protocols:
-    # 生产登记需在 UAT 通过并取得发布授权后填写。
-    advertisers: 
-     "2088520308582047745": AERIM
+    advertisers:
+      "2088520308582047745": AERIM
   aerim:
     allowed-hosts:
       - d.aerim.cn

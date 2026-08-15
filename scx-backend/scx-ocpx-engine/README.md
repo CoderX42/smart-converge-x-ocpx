@@ -132,6 +132,17 @@ Redis 已启动，并已创建 SCX 所需表。仓库不保存旧项目真实密
 打包后，普通 `scx-ocpx-engine.jar` 是 Engine 模块产物；带 `exec` classifier 的
 `scx-ocpx-engine-exec.jar` 为独立应用。Admin 只依赖 `scx-ocpx-core`，不依赖 Engine。
 
+宝塔标准发布入口会校验 `-exec.jar` 中的启动类与 `application-prod.yml`，再将它固定发布为
+`build/backend/scx-ocpx-engine.jar`：
+
+```bash
+bash scripts/bt-deploy/01-deploy.sh --no-pull engine
+bash scripts/bt-deploy/02-manage.sh engine-restart
+```
+
+生产 profile 只监听 `127.0.0.1:10000`。公网由 `ocpx` 专用 Nginx 站点精确开放
+Feedback、通用 Callback、AERIM Callback 和既有 Open API，不能直接放行 10000 端口。
+
 ```bash
 cd scx-backend
 mvn -pl scx-ocpx-engine -am test

@@ -39,10 +39,11 @@ bt_init_paths() {
   SCX_WEB_ROOT="${SCX_WEB_ROOT:-${SCX_BAOTA_SITE_ROOT:-/www/wwwroot/scx}}"
   SCX_LOG_DIR="${SCX_LOG_DIR:-/www/wwwlogs/scx}"
   SCX_BT_BOOT_PROJECT="${SCX_BT_BOOT_PROJECT:-scx-boot}"
+  SCX_BT_ENGINE_PROJECT="${SCX_BT_ENGINE_PROJECT:-scx-ocpx-engine}"
   SCX_RESTART_TIMEOUT="${SCX_RESTART_TIMEOUT:-180}"
   SCX_BAOTA_RESTART_SCRIPT="${SCX_BAOTA_RESTART_SCRIPT:-/www/server/panel/script/restart_project.py}"
   export SCX_HOME SCX_BRANCH SCX_BUILD_DIR SCX_BACKUP_DIR SCX_BACKUP_KEEP SCX_WEB_ROOT SCX_LOG_DIR
-  export SCX_BT_BOOT_PROJECT SCX_RESTART_TIMEOUT SCX_BAOTA_RESTART_SCRIPT
+  export SCX_BT_BOOT_PROJECT SCX_BT_ENGINE_PROJECT SCX_RESTART_TIMEOUT SCX_BAOTA_RESTART_SCRIPT
 }
 
 bt_assert_repository() {
@@ -205,12 +206,35 @@ bt_restart_scx_java() {
     '管理端 scx-boot' "$SCX_BT_BOOT_PROJECT" \
     "${SCX_BUILD_DIR}/backend/scx-boot.jar" \
     'http://127.0.0.1:9999/boot/actuator/health'
+  bt_restart_java_project \
+    '数据面 scx-ocpx-engine' "$SCX_BT_ENGINE_PROJECT" \
+    "${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar" \
+    'http://127.0.0.1:10000/ocpx/actuator/health'
 }
 
 bt_print_baota_restart_hint() {
-  cat <<EOF
-后端 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-boot.jar
-使用宝塔项目管理能力重启并验证：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh restart
-日常一键发布入口会自动完成上述重启；如项目名不同，请设置 SCX_BT_BOOT_PROJECT。
+  local target="${1:-all}"
+  case "$target" in
+    engine)
+      cat <<EOF
+引擎 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar
+使用宝塔项目管理能力重启并验证：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh engine-restart
+如项目名不同，请设置 SCX_BT_ENGINE_PROJECT 或传入 --engine-project。
 EOF
+      ;;
+    xxl)
+      cat <<EOF
+XXL-JOB JAR 已就绪：${SCX_BUILD_DIR}/backend/xxl-job-admin.jar
+请在宝塔 Java 项目管理器中重启对应 XXL-JOB 项目并验证其健康状态。
+EOF
+      ;;
+    *)
+      cat <<EOF
+后端 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-boot.jar
+引擎 JAR 已就绪：${SCX_BUILD_DIR}/backend/scx-ocpx-engine.jar
+使用宝塔项目管理能力重启并验证：bash ${SCX_HOME}/scripts/bt-deploy/02-manage.sh restart
+日常一键发布入口会自动完成上述重启；如项目名不同，请设置 SCX_BT_BOOT_PROJECT / SCX_BT_ENGINE_PROJECT。
+EOF
+      ;;
+  esac
 }
