@@ -27,7 +27,7 @@
             (LEFT(${item.timeKeyRes},10),#{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.activate},
              #{item.evoke},#{item.login},#{item.register},#{item.payment},#{item.customerAcquisition},
              #{item.nextStay},#{item.visits},#{item.authentication},#{item.placeOrder},#{item.finishTheOrder},
-             #{item.firstActivation},#{item.firstOrder},#{item.currencyAmount})
+             #{item.firstActivation},#{item.firstOrder},IFNULL(#{item.currencyAmount},0))
         </foreach>
     </insert>
 </mapper>

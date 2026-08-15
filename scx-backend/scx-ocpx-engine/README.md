@@ -93,7 +93,8 @@ Admin 的 `OcpxDataMergeTask` 每分钟合并临时报表为 `mark=0`，每小�
 - 两个 Delivery Dispatcher 均使用 `500/500` 固定线程、容量 `100` 和
   `CallerRunsPolicy`，异步异常按原方式吞掉。
 - Redis 扣量数组长度为 `19`，读取历史 11 位状态时自动补零；读改写仍非原子。
-- List 消费没有事务、processing 队列、所有者锁校验、重试或 DLQ。
+- 单个 List 批次的数据库多表写入使用本地事务；Redis 读取与裁剪之间仍无事务，也没有
+  processing 队列、所有者锁校验、持久重试或 DLQ。
 - 不迁移爱奇艺、百度、OPPO、华为、快手等合作方专用 Controller、枚举或协议。
 
 ## 运行配置
