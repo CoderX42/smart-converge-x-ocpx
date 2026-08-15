@@ -86,6 +86,12 @@ describe('vientiane-aligned OCPX page contracts', () => {
     }
   });
 
+  it('creates recharge idempotency keys in browsers without randomUUID', () => {
+    const advertiser = page('advertiser');
+    expect(advertiser).toContain('createClientRequestId()');
+    expect(advertiser).not.toContain('crypto.randomUUID()');
+  });
+
   it('clears invalid child filters and form values after parent changes', () => {
     const monitor = page('monitor-task');
     const dashboard = page('dashboard');

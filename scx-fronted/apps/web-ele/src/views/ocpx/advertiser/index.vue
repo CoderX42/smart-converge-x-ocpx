@@ -31,6 +31,7 @@ import {
   getPasswordStrengthError,
   PASSWORD_COMPLEXITY_HINT,
 } from '#/utils/password-rules';
+import { createClientRequestId } from '#/utils/request-id';
 
 import LongText from '../long-text.vue';
 import {
@@ -339,7 +340,7 @@ function recharge(row: AdvertiserV2) {
   Object.assign(rechargeForm, {
     amount: '',
     remark: '',
-    requestId: crypto.randomUUID(),
+    requestId: createClientRequestId(),
   });
   rechargeOpen.value = true;
   void nextTick(() => rechargeFormRef.value?.clearValidate());
