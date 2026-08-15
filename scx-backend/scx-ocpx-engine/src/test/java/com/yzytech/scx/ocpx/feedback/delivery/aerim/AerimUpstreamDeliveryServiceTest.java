@@ -43,7 +43,7 @@ class AerimUpstreamDeliveryServiceTest {
 	@BeforeEach
 	void setUp() {
 		service = new AerimUpstreamDeliveryService(advertiserIndex, endpointPolicy, httpClient, flowLogWriter);
-		ReflectionTestUtils.setField(service, "domainName", "https://engine.test/ocpx");
+		ReflectionTestUtils.setField(service, "callbackBaseUrl", "https://engine.test/ocpx");
 		ReflectionTestUtils.setField(service, "callbackAesKey", AES_KEY);
 		when(endpointPolicy.requireAllowedHttpUrl(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 	}
@@ -76,6 +76,17 @@ class AerimUpstreamDeliveryServiceTest {
 		unknownMacro.setBidUrl("https://track.example.com/__UNKNOWN__");
 		unknownMacro.setMacroParams("callback=__CALLBACK__");
 		assertThat(service.buildRequestUrl(unknownMacro, feedback)).isNull();
+	}
+
+	@Test
+	void supportsAnHttpIpCallbackBaseForAerimUat() {
+		ReflectionTestUtils.setField(service, "callbackBaseUrl", "http://42.81.102.181/ocpx");
+
+		String callback = decodedQueryValue(service.buildRequestUrl(advertiser(), feedback(OsTypeEnum.IOS)),
+				"callback");
+
+		assertThat(callback).startsWith("http://42.81.102.181/ocpx/aerim/callback?ext=")
+			.endsWith("&s=link-id_task-id");
 	}
 
 	@Test

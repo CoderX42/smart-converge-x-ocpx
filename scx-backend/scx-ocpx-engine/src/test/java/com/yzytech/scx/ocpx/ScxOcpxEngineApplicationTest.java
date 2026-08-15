@@ -32,6 +32,9 @@ class ScxOcpxEngineApplicationTest {
 			.isNotEqualTo(production.getProperty("spring.data.redis.host"));
 		assertThat(development.getProperty("domain.name")).isEqualTo("http://127.0.0.1:10000/ocpx");
 		assertThat(production.getProperty("domain.name")).isEqualTo("https://ocpx.zhongsenyuedong.cn/ocpx");
+		assertThat(development.getProperty("ocpx.aerim.callback-base-url")).isNull();
+		assertThat(production.getProperty("ocpx.aerim.callback-base-url"))
+			.isEqualTo("http://42.81.102.181/ocpx");
 	}
 
 	private PropertySource<?> load(String resource) throws Exception {

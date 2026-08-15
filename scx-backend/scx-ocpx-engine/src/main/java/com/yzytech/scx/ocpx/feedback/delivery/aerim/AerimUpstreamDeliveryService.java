@@ -30,8 +30,8 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private static final Pattern RESIDUAL_MACRO = Pattern.compile("__[A-Z0-9_]+__");
 
-	@Value("${domain.name}")
-	private String domainName;
+	@Value("${ocpx.aerim.callback-base-url:${domain.name}}")
+	private String callbackBaseUrl;
 
 	@Value("${app.callback-aes-key}")
 	private String callbackAesKey;
@@ -123,7 +123,8 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	public String buildCallbackUrl(FeedbackReq feedback) {
 		String state = feedback.getLId() + "_" + feedback.getTId();
 		String callbackExt = AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey);
-		return callbackExt == null ? null : domainName + "/aerim/callback?ext=" + callbackExt + "&s=" + state;
+		return callbackExt == null ? null
+				: callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + "&s=" + state;
 	}
 
 	private Map<String, String> macros(FeedbackReq feedback, String callback) {

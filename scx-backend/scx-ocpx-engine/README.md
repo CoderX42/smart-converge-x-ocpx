@@ -113,6 +113,8 @@ ocpx:
     advertisers:
       "<AERIM广告主主键>": AERIM
   aerim:
+    # 可选；未配置时沿用 domain.name。仅用于临时 IP-UAT 等 AERIM 专属回调入口。
+    callback-base-url: http://42.81.102.181/ocpx
     allowed-hosts:
       - <商务提供的正式监测域名>
 ```
@@ -142,6 +144,9 @@ bash scripts/bt-deploy/02-manage.sh engine-restart
 
 生产 profile 只监听 `127.0.0.1:10000`。公网由 `ocpx` 专用 Nginx 站点精确开放
 Feedback、通用 Callback、AERIM Callback 和既有 Open API，不能直接放行 10000 端口。
+没有可用公网域名时，可将 `ocpx.aerim.callback-base-url` 临时配置为公网 HTTP IP，并把
+`nginx-scx-ocpx-engine-ip-uat-rewrite.conf` 中的精确路由加入该 IP 站点。该配置只用于 UAT；
+取得域名和证书后应恢复为 HTTPS 域名。
 
 ```bash
 cd scx-backend

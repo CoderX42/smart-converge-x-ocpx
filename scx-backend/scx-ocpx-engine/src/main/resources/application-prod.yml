@@ -29,6 +29,8 @@ ocpx:
     advertisers:
       "2088520308582047745": AERIM
   aerim:
+    # 临时 IP-UAT：仅覆盖 AERIM 回调，不改变其他协议使用的 domain.name。
+    callback-base-url: http://42.81.102.181/ocpx
     allowed-hosts:
       - d.aerim.cn
   partner-credentials:
