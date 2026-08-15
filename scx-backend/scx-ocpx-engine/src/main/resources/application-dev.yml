@@ -22,7 +22,8 @@ app:
 ocpx:
   protocols:
     # 仅在取得测试广告主主键后登记，例如：1234567890123456789: AERIM
-    advertisers: {}
+    advertisers:
+      "2088520308582047745": AERIM
   aerim:
     # 只填写商务提供的 HTTP/HTTPS 监测域名，不填写协议或路径。
     allowed-hosts:

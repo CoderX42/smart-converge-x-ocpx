@@ -24,7 +24,8 @@ app:
 ocpx:
   protocols:
     # 生产登记需在 UAT 通过并取得发布授权后填写。
-    advertisers: {}
+    advertisers: 
+     "2088520308582047745": AERIM
   aerim:
     allowed-hosts:
       - d.aerim.cn
