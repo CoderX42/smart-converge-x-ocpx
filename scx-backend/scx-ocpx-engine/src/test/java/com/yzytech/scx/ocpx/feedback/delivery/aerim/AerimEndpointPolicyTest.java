@@ -10,15 +10,17 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 class AerimEndpointPolicyTest {
 
 	@Test
-	void requiresHttpsExactAllowlistAndPublicAddress() {
+	void allowsHttpAndHttpsOnlyForTheExactPublicAllowlistedHost() {
 		AerimProperties properties = new AerimProperties();
 		properties.setAllowedHosts(Set.of("8.8.8.8"));
 		AerimEndpointPolicy policy = new AerimEndpointPolicy(properties);
 
-		assertThat(policy.requireAllowedHttpsUrl("https://8.8.8.8/ocpx/c?id=1"))
+		assertThat(policy.requireAllowedHttpUrl("https://8.8.8.8/ocpx/c?id=1"))
 			.isEqualTo("https://8.8.8.8/ocpx/c?id=1");
-		assertThatIllegalArgumentException().isThrownBy(() -> policy.requireAllowedHttpsUrl("http://8.8.8.8/ocpx/c"));
-		assertThatIllegalArgumentException().isThrownBy(() -> policy.requireAllowedHttpsUrl("https://1.1.1.1/ocpx/c"));
+		assertThat(policy.requireAllowedHttpUrl("http://8.8.8.8/ocpx/c?id=2"))
+			.isEqualTo("http://8.8.8.8/ocpx/c?id=2");
+		assertThatIllegalArgumentException().isThrownBy(() -> policy.requireAllowedHttpUrl("ftp://8.8.8.8/ocpx/c"));
+		assertThatIllegalArgumentException().isThrownBy(() -> policy.requireAllowedHttpUrl("http://1.1.1.1/ocpx/c"));
 	}
 
 }

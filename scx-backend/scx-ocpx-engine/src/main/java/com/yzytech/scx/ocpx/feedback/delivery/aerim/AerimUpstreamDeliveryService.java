@@ -63,7 +63,7 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 				flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_REQUEST_REJECTED", 0L);
 				return;
 			}
-			requestUrl = endpointPolicy.requireAllowedHttpsUrl(requestUrl);
+			requestUrl = endpointPolicy.requireAllowedHttpUrl(requestUrl);
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			boolean dailyLimit = result.statusCode() != null && result.statusCode() == 200
 					&& isDailyLimit(result.body());

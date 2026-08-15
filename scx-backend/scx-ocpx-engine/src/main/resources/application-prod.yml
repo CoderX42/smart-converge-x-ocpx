@@ -26,7 +26,8 @@ ocpx:
     # 生产登记需在 UAT 通过并取得发布授权后填写。
     advertisers: {}
   aerim:
-    allowed-hosts: []
+    allowed-hosts:
+      - d.aerim.cn
   partner-credentials:
     advertisers: {}
     media: {}

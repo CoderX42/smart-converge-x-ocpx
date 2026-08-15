@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** AERIM HTTPS 监测地址的白名单与 SSRF 校验。 */
+/** AERIM HTTP/HTTPS 监测地址的白名单与 SSRF 校验。 */
 @Component
 @RequiredArgsConstructor
 public class AerimEndpointPolicy {
@@ -20,14 +20,16 @@ public class AerimEndpointPolicy {
 
 	private final AerimProperties properties;
 
-	public String requireAllowedHttpsUrl(String value) {
+	public String requireAllowedHttpUrl(String value) {
 		if (!StringUtils.hasText(value) || value.length() > MAX_URL_LENGTH
 				|| value.chars().anyMatch(Character::isISOControl) || value.contains("\\")) {
 			throw new IllegalArgumentException("unsafe AERIM URL");
 		}
 		try {
 			URI uri = URI.create(value.trim()).normalize();
-			if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getFragment() != null
+			String scheme = uri.getScheme();
+			if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || uri.getUserInfo() != null
+					|| uri.getFragment() != null
 					|| uri.getPort() == 0 || uri.getPort() > 65535) {
 				throw new IllegalArgumentException("unsafe AERIM URL");
 			}

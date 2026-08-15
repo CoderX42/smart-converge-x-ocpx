@@ -45,7 +45,7 @@ class AerimUpstreamDeliveryServiceTest {
 		service = new AerimUpstreamDeliveryService(advertiserIndex, endpointPolicy, httpClient, flowLogWriter);
 		ReflectionTestUtils.setField(service, "domainName", "https://engine.test/ocpx");
 		ReflectionTestUtils.setField(service, "callbackAesKey", AES_KEY);
-		when(endpointPolicy.requireAllowedHttpsUrl(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+		when(endpointPolicy.requireAllowedHttpUrl(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
 	@Test
