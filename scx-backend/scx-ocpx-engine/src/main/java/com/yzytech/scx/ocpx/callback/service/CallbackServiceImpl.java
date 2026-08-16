@@ -5,6 +5,7 @@ import com.yzytech.scx.ocpx.callback.delivery.DownstreamDeliveryDispatcher;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.report.model.LogData;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.redis.RedisHelper;
@@ -21,8 +22,7 @@ import java.time.format.DateTimeFormatter;
  * Callback 核心处理实现。
  *
  * <p>
- * 处理顺序为：动作校验、MySQL 事实去重与小时汇总、兼容日志队列、按链接与媒体维度执行扣量计算、异步回传媒体，
- * 最后更新原始量和回传量计数。
+ * 处理顺序为：动作校验、MySQL 事实去重与小时汇总、兼容日志队列、按链接与媒体维度执行扣量计算、异步回传媒体， 最后更新原始量和回传量计数。
  */
 @Service
 public class CallbackServiceImpl implements CallbackService {
@@ -39,24 +39,37 @@ public class CallbackServiceImpl implements CallbackService {
 
 	private final OcpxEventFactService eventFactService;
 
+	private final OcpxFlowLogWriter flowLogWriter;
+
 	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
-			RedisHelper redisHelper, OcpxEventFactService eventFactService) {
+			RedisHelper redisHelper, OcpxEventFactService eventFactService, OcpxFlowLogWriter flowLogWriter) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
 		this.redisHelper = redisHelper;
 		this.eventFactService = eventFactService;
+		this.flowLogWriter = flowLogWriter;
 	}
 
 	@Override
 	public CallbackHandleResult handleCallback(CallbackReq request) {
+		try {
+			return handleCallbackInternal(request);
+		}
+		catch (RuntimeException exception) {
+			flowLogWriter.callback(request, false, "CALLBACK_PROCESSING_FAILED");
+			throw exception;
+		}
+	}
+
+	private CallbackHandleResult handleCallbackInternal(CallbackReq request) {
 		impressionLog.info("callback reqId:{} action:{}", request.getFeedback().getReqId(), request.getActionType());
 		if (request.getActionType() == null) {
-			return new CallbackHandleResult(false, CallbackDecision.NOT_APPLICABLE);
+			return complete(request, false, CallbackDecision.NOT_APPLICABLE);
 		}
 		OcpxEventFactService.CallbackFactResult factResult = eventFactService.recordCallback(request);
 		if (!factResult.firstEvent()) {
 			impressionLog.info("cb-->{}", "repeat " + request.getFeedback().getReqId() + "_" + request.getActionType());
-			return new CallbackHandleResult(true, CallbackDecision.NOT_APPLICABLE);
+			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
 
 		// Callback 报表复用 Feedback 维度，并将本次动作映射为对应的 0/1 指标列。
@@ -120,7 +133,17 @@ public class CallbackServiceImpl implements CallbackService {
 			deliveredCounts[typeIndex] += increment;
 			redisHelper.setRouteDeliveredCounts(lId, mId, deliveredCounts);
 		}
-		return new CallbackHandleResult(false, decision);
+		return complete(request, false, decision);
+	}
+
+	private CallbackHandleResult complete(CallbackReq request, boolean duplicate, CallbackDecision decision) {
+		String message = duplicate ? "CALLBACK_DUPLICATE" : switch (decision) {
+			case FORWARDED -> "DOWNSTREAM_DELIVERY_SUBMITTED";
+			case DEDUCTED -> "CALLBACK_DEDUCTED";
+			case NOT_APPLICABLE -> "CALLBACK_NOT_APPLICABLE";
+		};
+		flowLogWriter.callback(request, duplicate || decision != CallbackDecision.NOT_APPLICABLE, message);
+		return new CallbackHandleResult(duplicate, decision);
 	}
 
 	private void setActionType(LogData logData, ActionTypeEnum actionType) {

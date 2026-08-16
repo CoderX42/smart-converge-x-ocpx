@@ -5,6 +5,7 @@ import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.model.LogData;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.redis.RedisHelper;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -34,6 +36,7 @@ class CallbackServiceImplTest {
 
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.DEDUCTED);
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "CALLBACK_DEDUCTED");
 	}
 
 	@Test
@@ -45,6 +48,7 @@ class CallbackServiceImplTest {
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.NOT_APPLICABLE);
 		verify(fixture.eventFactService, never()).recordCallback(any());
+		verify(fixture.flowLogWriter).callback(fixture.request, false, "CALLBACK_NOT_APPLICABLE");
 	}
 
 	@Test
@@ -58,6 +62,7 @@ class CallbackServiceImplTest {
 		assertThat(result.duplicate()).isTrue();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.NOT_APPLICABLE);
 		verify(fixture.lists, never()).rightPush(anyString(), anyString());
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "CALLBACK_DUPLICATE");
 	}
 
 	@Test
@@ -71,6 +76,18 @@ class CallbackServiceImplTest {
 
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.FORWARDED);
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "DOWNSTREAM_DELIVERY_SUBMITTED");
+	}
+
+	@Test
+	void recordsAProcessingFailureWithoutHidingTheOriginalException() {
+		Fixture fixture = fixture(ActionTypeEnum.ACTIVATE);
+		when(fixture.eventFactService.recordCallback(any())).thenThrow(new IllegalStateException("fact failed"));
+
+		assertThatThrownBy(() -> fixture.service.handleCallback(fixture.request))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessage("fact failed");
+		verify(fixture.flowLogWriter).callback(fixture.request, false, "CALLBACK_PROCESSING_FAILED");
 	}
 
 	@Test
@@ -117,6 +134,7 @@ class CallbackServiceImplTest {
 		RedisHelper helper = mock(RedisHelper.class);
 		when(redis.opsForList()).thenReturn(lists);
 		OcpxEventFactService eventFactService = mock(OcpxEventFactService.class);
+		OcpxFlowLogWriter flowLogWriter = mock(OcpxFlowLogWriter.class);
 		when(eventFactService.recordCallback(any()))
 			.thenReturn(new OcpxEventFactService.CallbackFactResult(true, false));
 		FeedbackReq feedback = FeedbackReq.builder()
@@ -127,12 +145,12 @@ class CallbackServiceImplTest {
 			.reqId("request-1")
 			.build();
 		CallbackReq request = CallbackReq.builder().feedback(feedback).actionType(actionType).actionTime(1L).build();
-		return new Fixture(new CallbackServiceImpl(redis, 1, helper, eventFactService), helper, eventFactService, lists,
-				request);
+		return new Fixture(new CallbackServiceImpl(redis, 1, helper, eventFactService, flowLogWriter), helper,
+				eventFactService, flowLogWriter, lists, request);
 	}
 
 	private record Fixture(CallbackServiceImpl service, RedisHelper helper, OcpxEventFactService eventFactService,
-			ListOperations<String, String> lists, CallbackReq request) {
+			OcpxFlowLogWriter flowLogWriter, ListOperations<String, String> lists, CallbackReq request) {
 	}
 
 }
