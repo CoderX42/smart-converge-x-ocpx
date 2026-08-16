@@ -1,0 +1,261 @@
+                                            o c p x 媒体接口文档 1.4
+
+具体文档
+
+1. 概览
+
+在广告发生曝光/点击等监测事件时，由媒体或三方 DSP 调用我方分配的监测回传链接，链接须宏替换，完成我方对投放行为数据收集，
+
+我方对后续转化事件进行归因匹配后，调用媒体预留链接，将相关转化信息回传给媒体或三方 DSP。
+
+
+
+
+2. 我方监测地址获取
+
+在媒体或三方 DSP 完成文档接入后由我方运营人员提供。
+
+
+
+
+3. 曝光/点击接口（媒体或三方 DSP 发生曝光/点击时调用）
+
+● 接口类型：h t t p /h t t p s
+
+
+● 请求类型：GET
+
+
+● 请求参数：
+
+
+
+
+ 参数名                        参数宏                 是否必填            参数说明
+
+
+ idfa                       __IDFA__                            ios 设备 idfa
+                                                否（能获取到必填）
+ idfa_md5                   __IDFA_MD5__                        ios 设备 idfa 的 md5 加密小字符串
+
+ imei
+                            __IMEI__                            明文 imei 能获取到则必填
+
+
+
+ imei_md5                   __IMEI_MD5__                        小写 md5 加密的 imei 能获取到则必填
+
+
+                                                是（安卓设备，至少传一个）
+ oaid                       __OAID__                            oaid 能获取到，则必填
+
+
+
+ oaid_md5
+                            __OAID_MD5__                        小写 MD5 的 oaid
+
+
+                                                                iOS：idfa 的替代（IOS14 之后未授权无法获取 IDFA，使用 CAID 做为
+
+                                                                替   代    ）    格   式   是   json     数   组   的    字   符   串   ，
+
+                                                                [{"version":"20220111","caid":"912ec803b2ce49e4a541068d495ab57
+
+                                                                0"},{"version":"20211207","caid":"e332a76c29654fcb7f6e6b31ced09
+
+                                                                0c7"}]
+
+ caid_list                  __CAID_LIST__       否               需 urlencode 编码处如下：
+
+                                                                理%5B%7B%22version%22%3A%2220220111%22%2
+
+                                                                C%22caid%22%3A%22912ec803b2ce49e4a541068d4
+                                                                95ab570%22%7D%2C%7B%22version%22%3A%2220
+                                                                211207%22%2C%22caid%22%3A%22e332a76c29654f
+                                                                cb7f6e6b31ced090c7%22%7D%5D
+
+ ip                         __IP__              否               客户端 IP
+ android_id               __ANDROIDID__           否           设备 android id
+
+
+
+ android_id_md5           __ANDROIDID_MD5__       否          设备 android id md5 加密（小写）
+
+
+
+ aaid                     __AAID__                否          阿里设备标识符 ；选填（投放阿里广告时 必填）
+
+
+
+
+ ua                       __UA__                  否          user-agent, 需 urlencode 编码处理
+
+
+
+
+ os                       __OS__                  否          操作系统     android 或 ios
+
+
+ model                    __MODEL__               否          手机机型
+
+
+
+ callback                 __CALLBACK__            是          渠道回传地址，传输时需 urlencode 编码处理
+
+
+ clickid
+                          __CLICKID__             否          请求唯一 id
+
+
+
+ campaign_id              __CAMPAIGNID__          否          广告计划 ID
+
+
+ adgroup_id               __ADGROUPID__           否          广告任务 ID
+
+
+ creative_id              __CREATIVEID__          否          广告创意 ID
+
+
+
+ advertiser_id            __ADVERTISERID__        否          广告账户 ID
+
+
+
+
+● 响应：
+
+      http 状态码 200
+
+
+ 1         {
+
+ 2             "code":0
+
+ 3         }
+
+
+
+
+      4. 用户行为回传
+
+我方完成行为归因后，将点击接收接口下发的 callback 拼接上&actionType={actionType}&amount={amount}，然后以 HTTP GET 方式回
+传，其中站位符{actionType}是行为类型，{amount}是在发生支付相关行为时的金额（单位：分）
+
+例如：
+
+点击上报的 callback 为 http://test.demo.com/track/activate?sid=1234，
+                                                             我方在用户发生行为时会在 callback 后拼接 actionType 参数拼装后
+的完整回调链接为 http://test.demo.com/track/activate?sid=1234&actionType={actionType}
+
+
+
+激活事件回调示例：http://test.demo.com/track/activate?sid=1234&actionType=1
+
+● 请求参数：
+
+ac t i o n Ty p e 标识用户行为类型
+
+am o u n t 支付金额
+
+
+
+ac t i o n Ty p e 值说明：
+
+ 值                                         对应事件
+1    激活
+
+
+2    注册/新登
+
+3
+     次留
+
+
+
+4    拉活/唤醒/唤起/唤端
+
+
+
+5    首活/首唤
+
+
+
+6
+     首单/首购
+
+
+
+7    完单
+
+
+8    购买/付费
+
+
+9    下单
+
+
+
+10   自定义事件/关键行为
+
+
+
+
+12   2 日留存
+
+
+
+
+13   3 日留存
+
+
+14   4 日留存
+
+
+
+15   5 日留存
+
+
+16
+     6 日留存
+
+
+
+17   7 日留存
+
+
+18   表单提交
+
+
+19   关键页面行为/关键页面浏览
+
+
+20   授信
+
+
+21   深度使用
+
+
+22   加入购物车
+
+
+23   加桌
+
+
+24   用户当日首次 DAU
+
+
+25   新登
+
+
+26   有效获客
+
+
+27   意向 uv
+
+
+28   其他
+
+
+29   召回
+

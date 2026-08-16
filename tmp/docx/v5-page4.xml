@@ -1,0 +1,426 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>中森跃动 OCPX API 文档 v1.1</title>
+<meta name="Subject" content="媒体点击、曝光监测与转化回调接口"/>
+<meta name="Keywords" content="OCPX, API, 媒体接口, Feedback, Callback, v1.1"/>
+<meta name="Author" content="中森跃动"/>
+<meta name="Creator" content="Writer"/>
+<meta name="Producer" content="LibreOfficeDev 26.8.0.0.alpha0 (AARCH64)"/>
+<meta name="CreationDate" content="2026-08-16T15:52:37+08"/>
+</head>
+<body>
+<doc>
+  <page width="595.303937" height="841.889764">
+    <flow>
+      <block xMin="36.100000" yMin="39.484764" xMax="100.088000" yMax="55.540764">
+        <line xMin="36.100000" yMin="39.484764" xMax="100.088000" yMax="55.540764">
+          <word xMin="36.100000" yMin="39.484764" xMax="46.072000" yMax="55.540764">2.</word>
+          <word xMin="52.088000" yMin="39.484764" xMax="100.088000" yMax="55.540764">回调说明</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="74.652764" xMax="554.889000" yMax="89.370764">
+        <line xMin="36.100000" yMin="74.652764" xMax="554.889000" yMax="89.370764">
+          <word xMin="36.100000" yMin="74.652764" xMax="325.150000" yMax="89.370764">平台完成归因、去重与扣量判定后，读取点击/曝光请求中的</word>
+          <word xMin="330.650000" yMin="74.652764" xMax="421.100000" yMax="89.370764">callback_url，并以</word>
+          <word xMin="426.600000" yMin="74.652764" xMax="455.266000" yMax="89.370764">HTTP</word>
+          <word xMin="460.800000" yMin="74.652764" xMax="483.361000" yMax="89.370764">GET</word>
+          <word xMin="488.889000" yMin="74.652764" xMax="554.889000" yMax="89.370764">回调媒体。平</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="98.952764" xMax="481.639000" yMax="113.670764">
+        <line xMin="36.100000" yMin="98.952764" xMax="481.639000" yMax="113.670764">
+          <word xMin="36.100000" yMin="98.952764" xMax="135.100000" yMax="113.670764">台会在原地址后追加</word>
+          <word xMin="140.600000" yMin="98.952764" xMax="193.763000" yMax="113.670764">event_type</word>
+          <word xMin="199.289000" yMin="98.952764" xMax="353.289000" yMax="113.670764">参数；若回传包含金额，再追加</word>
+          <word xMin="358.800000" yMin="98.952764" xMax="443.137000" yMax="113.670764">currency_amount</word>
+          <word xMin="448.639000" yMin="98.952764" xMax="481.639000" yMax="113.670764">参数。</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="130.252764" xMax="516.400000" yMax="144.970764">
+        <line xMin="36.100000" yMin="130.252764" xMax="516.400000" yMax="144.970764">
+          <word xMin="36.100000" yMin="130.252764" xMax="47.100000" yMax="144.970764">原</word>
+          <word xMin="52.600000" yMin="130.252764" xMax="110.031000" yMax="144.970764">callback_url</word>
+          <word xMin="115.539000" yMin="130.252764" xMax="137.539000" yMax="144.970764">已有</word>
+          <word xMin="143.050000" yMin="130.252764" xMax="172.992000" yMax="144.970764">Query</word>
+          <word xMin="178.489000" yMin="130.252764" xMax="233.489000" yMax="144.970764">参数时使用</word>
+          <word xMin="239.000000" yMin="130.252764" xMax="246.326000" yMax="144.970764">&amp;</word>
+          <word xMin="251.789000" yMin="130.252764" xMax="328.789000" yMax="144.970764">追加，否则使用</word>
+          <word xMin="334.300000" yMin="130.252764" xMax="340.416000" yMax="144.970764">?</word>
+          <word xMin="345.889000" yMin="130.252764" xMax="432.063000" yMax="144.970764">追加。event_type</word>
+          <word xMin="437.589000" yMin="130.252764" xMax="470.589000" yMax="144.970764">为整数</word>
+          <word xMin="476.100000" yMin="130.252764" xMax="516.400000" yMax="144.970764">1～19；</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="154.552764" xMax="463.243000" yMax="169.270764">
+        <line xMin="36.100000" yMin="154.552764" xMax="463.243000" yMax="169.270764">
+          <word xMin="36.100000" yMin="154.552764" xMax="120.437000" yMax="169.270764">currency_amount</word>
+          <word xMin="125.939000" yMin="154.552764" xMax="463.243000" yMax="169.270764">为可选非负十进制金额，保持上游原始单位，平台不自动换算为“分”。</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="185.852764" xMax="138.789000" yMax="200.570764">
+        <line xMin="36.100000" yMin="185.852764" xMax="138.789000" yMax="200.570764">
+          <word xMin="36.100000" yMin="185.852764" xMax="89.263000" yMax="200.570764">event_type</word>
+          <word xMin="94.789000" yMin="185.852764" xMax="138.789000" yMax="200.570764">值说明：</word>
+        </line>
+      </block>
+      <block xMin="40.300000" yMin="219.638764" xMax="49.300000" yMax="231.680764">
+        <line xMin="40.300000" yMin="219.638764" xMax="49.300000" yMax="231.680764">
+          <word xMin="40.300000" yMin="219.638764" xMax="49.300000" yMax="231.680764">值</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="219.638764" xMax="121.300000" yMax="231.680764">
+        <line xMin="85.300000" yMin="219.638764" xMax="121.300000" yMax="231.680764">
+          <word xMin="85.300000" yMin="219.638764" xMax="121.300000" yMax="231.680764">对应事件</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="219.638764" xMax="275.250000" yMax="231.680764">
+        <line xMin="266.250000" yMin="219.638764" xMax="275.250000" yMax="231.680764">
+          <word xMin="266.250000" yMin="219.638764" xMax="275.250000" yMax="231.680764">值</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="219.638764" xMax="347.200000" yMax="231.680764">
+        <line xMin="311.200000" yMin="219.638764" xMax="347.200000" yMax="231.680764">
+          <word xMin="311.200000" yMin="219.638764" xMax="347.200000" yMax="231.680764">对应事件</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="248.848764" xMax="45.718000" yMax="259.315764">
+        <line xMin="40.300000" yMin="248.848764" xMax="45.718000" yMax="259.315764">
+          <word xMin="40.300000" yMin="248.848764" xMax="45.718000" yMax="259.315764">1</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="248.988764" xMax="165.300000" yMax="261.030764">
+        <line xMin="85.300000" yMin="248.988764" xMax="165.300000" yMax="261.030764">
+          <word xMin="85.300000" yMin="248.988764" xMax="165.300000" yMax="261.030764">激活（ACTIVATE）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="248.848764" xMax="277.068000" yMax="259.315764">
+        <line xMin="266.250000" yMin="248.848764" xMax="277.068000" yMax="259.315764">
+          <word xMin="266.250000" yMin="248.848764" xMax="277.068000" yMax="259.315764">11</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="248.988764" xMax="436.200000" yMax="261.030764">
+        <line xMin="311.200000" yMin="248.988764" xMax="436.200000" yMax="261.030764">
+          <word xMin="311.200000" yMin="248.988764" xMax="436.200000" yMax="261.030764">完单（FINISH_THE_ORDER）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="280.448764" xMax="45.718000" yMax="290.915764">
+        <line xMin="40.300000" yMin="280.448764" xMax="45.718000" yMax="290.915764">
+          <word xMin="40.300000" yMin="280.448764" xMax="45.718000" yMax="290.915764">2</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="280.588764" xMax="181.800000" yMax="292.630764">
+        <line xMin="85.300000" yMin="280.588764" xMax="181.800000" yMax="292.630764">
+          <word xMin="85.300000" yMin="280.588764" xMax="103.300000" yMax="292.630764">唤起</word>
+          <word xMin="107.800000" yMin="280.588764" xMax="110.293000" yMax="292.630764">/</word>
+          <word xMin="114.791000" yMin="280.588764" xMax="181.800000" yMax="292.630764">拉活（EVOKE）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="280.448764" xMax="277.068000" yMax="290.915764">
+        <line xMin="266.250000" yMin="280.448764" xMax="277.068000" yMax="290.915764">
+          <word xMin="266.250000" yMin="280.448764" xMax="277.068000" yMax="290.915764">12</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="280.588764" xMax="398.167000" yMax="292.630764">
+        <line xMin="311.200000" yMin="280.588764" xMax="398.167000" yMax="292.630764">
+          <word xMin="311.200000" yMin="280.588764" xMax="398.167000" yMax="292.630764">兼容保留：EVOKE_C</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="312.048764" xMax="45.718000" yMax="322.515764">
+        <line xMin="40.300000" yMin="312.048764" xMax="45.718000" yMax="322.515764">
+          <word xMin="40.300000" yMin="312.048764" xMax="45.718000" yMax="322.515764">3</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="312.188764" xMax="149.300000" yMax="324.230764">
+        <line xMin="85.300000" yMin="312.188764" xMax="149.300000" yMax="324.230764">
+          <word xMin="85.300000" yMin="312.188764" xMax="149.300000" yMax="324.230764">登录（LOGIN）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="312.048764" xMax="277.068000" yMax="322.515764">
+        <line xMin="266.250000" yMin="312.048764" xMax="277.068000" yMax="322.515764">
+          <word xMin="266.250000" yMin="312.048764" xMax="277.068000" yMax="322.515764">13</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="312.188764" xMax="417.634000" yMax="324.230764">
+        <line xMin="311.200000" yMin="312.188764" xMax="417.634000" yMax="324.230764">
+          <word xMin="311.200000" yMin="312.188764" xMax="417.634000" yMax="324.230764">兼容保留：EVOKE_FIRST</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="343.648764" xMax="45.718000" yMax="354.115764">
+        <line xMin="40.300000" yMin="343.648764" xMax="45.718000" yMax="354.115764">
+          <word xMin="40.300000" yMin="343.648764" xMax="45.718000" yMax="354.115764">4</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="343.788764" xMax="167.300000" yMax="355.830764">
+        <line xMin="85.300000" yMin="343.788764" xMax="167.300000" yMax="355.830764">
+          <word xMin="85.300000" yMin="343.788764" xMax="167.300000" yMax="355.830764">注册（REGISTER）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="343.648764" xMax="277.068000" yMax="354.115764">
+        <line xMin="266.250000" yMin="343.648764" xMax="277.068000" yMax="354.115764">
+          <word xMin="266.250000" yMin="343.648764" xMax="277.068000" yMax="354.115764">14</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="343.788764" xMax="428.650000" yMax="355.830764">
+        <line xMin="311.200000" yMin="343.788764" xMax="428.650000" yMax="355.830764">
+          <word xMin="311.200000" yMin="343.788764" xMax="428.650000" yMax="355.830764">兼容保留：EVOKE_C_VALID</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="375.248764" xMax="45.718000" yMax="385.715764">
+        <line xMin="40.300000" yMin="375.248764" xMax="45.718000" yMax="385.715764">
+          <word xMin="40.300000" yMin="375.248764" xMax="45.718000" yMax="385.715764">5</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="375.388764" xMax="194.300000" yMax="387.430764">
+        <line xMin="85.300000" yMin="375.388764" xMax="194.300000" yMax="387.430764">
+          <word xMin="85.300000" yMin="375.388764" xMax="103.300000" yMax="387.430764">付费</word>
+          <word xMin="107.800000" yMin="375.388764" xMax="110.293000" yMax="387.430764">/</word>
+          <word xMin="114.791000" yMin="375.388764" xMax="194.300000" yMax="387.430764">购买（PAYMENT）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="375.248764" xMax="277.068000" yMax="385.715764">
+        <line xMin="266.250000" yMin="375.248764" xMax="277.068000" yMax="385.715764">
+          <word xMin="266.250000" yMin="375.248764" xMax="277.068000" yMax="385.715764">15</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="375.388764" xMax="387.187000" yMax="387.430764">
+        <line xMin="311.200000" yMin="375.388764" xMax="387.187000" yMax="387.430764">
+          <word xMin="311.200000" yMin="375.388764" xMax="387.187000" yMax="387.430764">兼容保留：LAHUO</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="413.648764" xMax="277.068000" yMax="424.115764">
+        <line xMin="266.250000" yMin="413.648764" xMax="277.068000" yMax="424.115764">
+          <word xMin="266.250000" yMin="413.648764" xMax="277.068000" yMax="424.115764">16</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="413.788764" xMax="382.687000" yMax="425.830764">
+        <line xMin="311.200000" yMin="413.788764" xMax="382.687000" yMax="425.830764">
+          <word xMin="311.200000" yMin="413.788764" xMax="382.687000" yMax="425.830764">兼容保留：LAHUI</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="413.648764" xMax="45.718000" yMax="424.115764">
+        <line xMin="40.300000" yMin="413.648764" xMax="45.718000" yMax="424.115764">
+          <word xMin="40.300000" yMin="413.648764" xMax="45.718000" yMax="424.115764">6</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="404.788764" xMax="150.791000" yMax="416.830764">
+        <line xMin="85.300000" yMin="404.788764" xMax="150.791000" yMax="416.830764">
+          <word xMin="85.300000" yMin="404.788764" xMax="121.300000" yMax="416.830764">有效获客</word>
+          <word xMin="125.800000" yMin="404.788764" xMax="128.293000" yMax="416.830764">/</word>
+          <word xMin="132.791000" yMin="404.788764" xMax="150.791000" yMax="416.830764">拉新</word>
+        </line>
+      </block>
+      <block xMin="85.300000" yMin="422.838764" xMax="217.800000" yMax="434.880764">
+        <line xMin="85.300000" yMin="422.838764" xMax="217.800000" yMax="434.880764">
+          <word xMin="85.300000" yMin="422.838764" xMax="217.800000" yMax="434.880764">（CUSTOMER_ACQUISITION）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="452.048764" xMax="45.718000" yMax="462.515764">
+        <line xMin="40.300000" yMin="452.048764" xMax="45.718000" yMax="462.515764">
+          <word xMin="40.300000" yMin="452.048764" xMax="45.718000" yMax="462.515764">7</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="452.188764" xMax="173.300000" yMax="464.230764">
+        <line xMin="85.300000" yMin="452.188764" xMax="173.300000" yMax="464.230764">
+          <word xMin="85.300000" yMin="452.188764" xMax="173.300000" yMax="464.230764">次留（NEXT_STAY）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="452.048764" xMax="277.068000" yMax="462.515764">
+        <line xMin="266.250000" yMin="452.048764" xMax="277.068000" yMax="462.515764">
+          <word xMin="266.250000" yMin="452.048764" xMax="277.068000" yMax="462.515764">17</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="452.188764" xMax="396.619000" yMax="464.230764">
+        <line xMin="311.200000" yMin="452.188764" xMax="396.619000" yMax="464.230764">
+          <word xMin="311.200000" yMin="452.188764" xMax="396.619000" yMax="464.230764">兼容保留：HUIFANG</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="483.648764" xMax="45.718000" yMax="494.115764">
+        <line xMin="40.300000" yMin="483.648764" xMax="45.718000" yMax="494.115764">
+          <word xMin="40.300000" yMin="483.648764" xMax="45.718000" yMax="494.115764">8</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="483.788764" xMax="185.800000" yMax="495.830764">
+        <line xMin="85.300000" yMin="483.788764" xMax="185.800000" yMax="495.830764">
+          <word xMin="85.300000" yMin="483.788764" xMax="185.800000" yMax="495.830764">关键页面访问（VISITS）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="483.648764" xMax="277.068000" yMax="494.115764">
+        <line xMin="266.250000" yMin="483.648764" xMax="277.068000" yMax="494.115764">
+          <word xMin="266.250000" yMin="483.648764" xMax="277.068000" yMax="494.115764">18</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="483.788764" xMax="479.200000" yMax="495.830764">
+        <line xMin="311.200000" yMin="483.788764" xMax="479.200000" yMax="495.830764">
+          <word xMin="311.200000" yMin="483.788764" xMax="347.200000" yMax="495.830764">首次激活</word>
+          <word xMin="351.700000" yMin="483.788764" xMax="354.193000" yMax="495.830764">/</word>
+          <word xMin="358.691000" yMin="483.788764" xMax="479.200000" yMax="495.830764">首活（FIRST_ACTIVATION）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="515.248764" xMax="45.718000" yMax="525.715764">
+        <line xMin="40.300000" yMin="515.248764" xMax="45.718000" yMax="525.715764">
+          <word xMin="40.300000" yMin="515.248764" xMax="45.718000" yMax="525.715764">9</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="515.388764" xMax="200.300000" yMax="527.430764">
+        <line xMin="85.300000" yMin="515.388764" xMax="200.300000" yMax="527.430764">
+          <word xMin="85.300000" yMin="515.388764" xMax="200.300000" yMax="527.430764">认证（AUTHENTICATION）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="266.250000" yMin="515.248764" xMax="277.068000" yMax="525.715764">
+        <line xMin="266.250000" yMin="515.248764" xMax="277.068000" yMax="525.715764">
+          <word xMin="266.250000" yMin="515.248764" xMax="277.068000" yMax="525.715764">19</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="311.200000" yMin="515.388764" xMax="457.700000" yMax="527.430764">
+        <line xMin="311.200000" yMin="515.388764" xMax="457.700000" yMax="527.430764">
+          <word xMin="311.200000" yMin="515.388764" xMax="347.200000" yMax="527.430764">首次购买</word>
+          <word xMin="351.700000" yMin="515.388764" xMax="354.193000" yMax="527.430764">/</word>
+          <word xMin="358.691000" yMin="515.388764" xMax="457.700000" yMax="527.430764">首购（FIRST_ORDER）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="40.300000" yMin="546.848764" xMax="51.118000" yMax="557.315764">
+        <line xMin="40.300000" yMin="546.848764" xMax="51.118000" yMax="557.315764">
+          <word xMin="40.300000" yMin="546.848764" xMax="51.118000" yMax="557.315764">10</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="85.300000" yMin="546.988764" xMax="153.800000" yMax="559.030764">
+        <line xMin="85.300000" yMin="546.988764" xMax="153.800000" yMax="559.030764">
+          <word xMin="85.300000" yMin="546.988764" xMax="153.800000" yMax="559.030764">下单（ORDER）</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="36.100000" yMin="578.888764" xMax="519.600000" yMax="590.930764">
+        <line xMin="36.100000" yMin="578.888764" xMax="519.600000" yMax="590.930764">
+          <word xMin="36.100000" yMin="578.888764" xMax="92.108000" yMax="590.930764">说明：12～17</word>
+          <word xMin="96.591000" yMin="578.888764" xMax="519.600000" yMax="590.930764">为兼容保留编号，不属于管理端常规可选择的目标转化事件；如需依赖其业务含义，须在联调时另行确认。</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="605.738764" xMax="563.550000" yMax="617.780764">
+        <line xMin="36.100000" yMin="605.738764" xMax="563.550000" yMax="617.780764">
+          <word xMin="36.100000" yMin="605.738764" xMax="180.100000" yMax="617.780764">回调地址要求：必须是可解析的公网</word>
+          <word xMin="184.600000" yMin="605.738764" xMax="239.986000" yMax="617.780764">HTTP/HTTPS</word>
+          <word xMin="244.550000" yMin="605.738764" xMax="352.550000" yMax="617.780764">URL，不得包含用户信息或</word>
+          <word xMin="357.050000" yMin="605.738764" xMax="375.005000" yMax="617.780764">URL</word>
+          <word xMin="379.550000" yMin="605.738764" xMax="442.550000" yMax="617.780764">片段，不得指向</word>
+          <word xMin="447.050000" yMin="605.738764" xMax="563.550000" yMax="617.780764">localhost、内网或保留域名；</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="625.588764" xMax="283.550000" yMax="637.630764">
+        <line xMin="36.100000" yMin="625.588764" xMax="283.550000" yMax="637.630764">
+          <word xMin="36.100000" yMin="625.588764" xMax="54.100000" yMax="637.630764">应在</word>
+          <word xMin="58.600000" yMin="625.588764" xMax="63.604000" yMax="637.630764">5</word>
+          <word xMin="68.091000" yMin="625.588764" xMax="104.100000" yMax="637.630764">秒内返回</word>
+          <word xMin="108.600000" yMin="625.588764" xMax="132.027000" yMax="637.630764">HTTP</word>
+          <word xMin="136.550000" yMin="625.588764" xMax="151.562000" yMax="637.630764">200</word>
+          <word xMin="156.041000" yMin="625.588764" xMax="165.041000" yMax="637.630764">或</word>
+          <word xMin="169.550000" yMin="625.588764" xMax="283.550000" yMax="637.630764">204，响应体内容会被忽略。</word>
+        </line>
+      </block>
+    </flow>
+    <flow>
+      <block xMin="36.100000" yMin="653.052764" xMax="113.100000" yMax="667.770764">
+        <line xMin="36.100000" yMin="653.052764" xMax="113.100000" yMax="667.770764">
+          <word xMin="36.100000" yMin="653.052764" xMax="113.100000" yMax="667.770764">回调拼接示例：</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="677.198764" xMax="501.913000" yMax="687.665764">
+        <line xMin="36.100000" yMin="677.198764" xMax="501.913000" yMax="687.665764">
+          <word xMin="36.100000" yMin="677.198764" xMax="501.913000" yMax="687.665764">https://callback.media-domain.cn/ocpx/convert?request_id=clk_202608160001&amp;event_type=1</word>
+        </line>
+      </block>
+      <block xMin="36.100000" yMin="694.298764" xMax="377.308000" yMax="717.865764">
+        <line xMin="36.100000" yMin="694.298764" xMax="285.238000" yMax="704.765764">
+          <word xMin="36.100000" yMin="694.298764" xMax="285.238000" yMax="704.765764">https://callback.media-domain.cn/ocpx/convert?</word>
+        </line>
+        <line xMin="36.100000" yMin="707.398764" xMax="377.308000" yMax="717.865764">
+          <word xMin="36.100000" yMin="707.398764" xMax="377.308000" yMax="717.865764">request_id=clk_202608160001&amp;event_type=5&amp;currency_amount=123.45</word>
+        </line>
+      </block>
+    </flow>
+  </page>
+</doc>
+</body>
+</html>

@@ -1,0 +1,257 @@
+                                 中森跃动 ocpx 媒体接口文档 1.4
+
+具体文档
+
+
+1. 概览
+
+媒体或三方 DSP 在广告曝光、点击时调用 SCX 下发的监测地址并替换地址中的宏，SCX 收集投放行为并向已配置的广告主转发。
+
+广告主回传转化后，SCX 完成归因、去重与扣量判定，再调用原请求中的 callback_url，将转化结果回传媒体或三方 DSP。
+
+
+
+2. SCX 监测地址获取
+
+媒体完成文档接入后，由中森跃动运营人员在 SCX 管理端创建监测任务并提供曝光、点击两条完整地址。媒体只替换宏，不得修改四个
+
+路由参数及 event 固定值。
+
+ https://{SCX_HOST}/ocpx/feedback?request_id=__REQUEST_ID__&callback_url=__CALLBACK_URL__&event=IMP&mId={mediaId}&tId={taskId}
+ &aId={advertiserId}&lId={linkId}
+
+
+3. 曝光/点击接口（媒体或三方 DSP 发生曝光/点击时调用）
+
+ 接口类型：http/https（实际联调与生产均以运营下发的完整地址为准）
+ 请求类型：GET
+ 接口路径：/ocpx/feedback；event=IMP 表示曝光，event=CLK 表示点击
+ 请求参数：
+
+参数名                         参数宏                          是否必填                      参数说明
+
+mId                         SCX 下发固定值                    是                         媒体主键 OcpxMedia.id，最长 32 字符；不得替换
+
+
+tId                         SCX 下发固定值                    是                         监测任务主键 OcpxMonitorTask.id，最长 32 字符；不得替换
+
+
+aId                         SCX 下发固定值                    是                         广告主主键 OcpxAdvertiser.id；不同于广告主侧 adv_id
+
+
+lId                         SCX 下发固定值                    是                         推广链接主键 OcpxPromotionLink.id，最长 32 字符；不得替换
+
+
+event                       SCX 下发固定值                    是                         仅使用 IMP（曝光）或 CLK（点击）
+
+
+request_id                  __REQUEST_ID__               建议必传                      媒体侧请求唯一 ID，最长 128 字符；重试必须保持不变
+
+
+callback_url                __CALLBACK_URL__             条件必填                      需要接收转化回传时必传；完整 URL 值必须 urlencode
+
+
+idfa                        __IDFA__                     否                         iOS 设备 IDFA；能获取时建议传
+
+
+idfa_md5                    __IDFA_MD5__                 否                         IDFA 的小写 MD5
+
+
+imei                        __IMEI__                     否                         Android 设备 IMEI；能获取时建议传
+
+
+imei_md5                    __IMEI_MD5__                 否                         IMEI 的小写 MD5
+
+
+oaid                        __OAID__                     否                         Android OAID；能获取时建议传
+
+
+oaid_md5                    __OAID_MD5__                 否                         OAID 的小写 MD5
+参数名                       参数宏                         是否必填                    参数说明
+
+caid                      __CAID__                    否                       iOS CAID；按合作方约定填写
+
+
+caid_list                 __CAID_LIST__               否                       CAID JSON 数组字符串；作为 Query 参数时必须 urlencode
+
+
+caid1                     __CAID1__                   否                       兼容 CAID 字段
+
+aaid                      __AAID__                    否                       AAID 设备标识
+
+
+androidid                 __ANDROIDID__               否                       Android ID；字段名为 androidid，不是 android_id
+
+
+androidid_md5             __ANDROIDID_MD5__           否                       Android ID 的小写 MD5
+
+mac                       __MAC__                     否                       设备 MAC 地址；按隐私合规要求提供
+
+mac_md5                   __MAC_MD5__                 否                       MAC 地址的小写 MD5
+
+ip                        __IP__                      否                       客户端 IP
+
+ua                        __UA__                      否                       User-Agent；作为 Query 参数时必须 urlencode
+
+os                        __OS__                      否                       操作系统：0=Android，1=iOS
+
+model                     __MODEL__                   否                       手机机型
+
+ts                        __TS__                      否                       媒体原始时间戳字符串（建议 Unix 秒）
+
+mts                       __MTS__                     否                       毫秒时间戳字符串
+
+adv_id                    __ADVERTISER_ID__           否                       媒体侧广告主 ID；与 SCX 固定 aId 不同
+
+group_id                  __ORDER_GROUP_ID__          否                       媒体侧广告组 ID
+
+plan_id                   __ORDER_PLAN_ID__           否                       媒体侧广告计划 ID
+
+creative_id               __CREATIVE_ID__             否                       媒体侧广告创意 ID
+
+impresss_id               自定义宏                        否                       曝光标识；当前协议字段名保留三个字母 s
+
+ 响应：
+
+HTTP 状态码 200 表示 SCX 的 Feedback 事实事务已成功提交；不等同于广告主已接受转化。
+
+ {
+  "ret": 0,
+  "code": 200,
+
+  "msg": "提交成功",
+  "data": {}
+ }
+
+
+4. 用户行为回传
+
+SCX 完成行为归因、去重和扣量判定后，读取曝光/点击请求中的 callback_url，在其后追加 event_type={event_type}；若上游提供金额，再追
+
+加 currency_amount={currency_amount}，然后以 HTTP GET 回传。
+
+注意：currency_amount 保持上游原始十进制单位，SCX 不自动换算为“分”；媒体不得按快手 amount 字段解析。
+
+例如，媒体上报的原始 callback_url 为：
+
+ https://media.example.com/ocpx/convert?request_id=clk_202608160001
+
+激活回调：
+
+ https://media.example.com/ocpx/convert?request_id=clk_202608160001&event_type=1
+
+付费回调（有金额时）：
+
+ https://media.example.com/ocpx/convert?request_id=clk_202608160001&event_type=5&currency_amount=123.45
+
+
+ 请求参数：
+
+event_type     用户行为类型，整数 1～19，必传。
+
+currency_amount    支付相关金额，可选，非负十进制数。
+
+媒体回调地址必须为可解析的公网 HTTP/HTTPS URL；应在 5 秒内返回 HTTP 200 或 204，响应体内容会被忽略。
+
+event_type 值说明：
+值                       对应事件
+
+
+1                       激活（ACTIVATE）
+
+
+
+
+2                       唤起（EVOKE）
+
+
+
+
+3                       登录（LOGIN）
+
+
+
+
+4                       注册（REGISTER）
+
+
+
+
+5                       付费（PAYMENT）
+
+
+
+
+6                       有效获客（CUSTOMER_ACQUISITION）
+
+
+
+
+7                       次留（NEXT_STAY）
+
+
+
+
+8                       关键页面访问（VISITS）
+
+
+
+
+9                       认证（AUTHENTICATION）
+
+
+
+
+10                      下单（ORDER）
+
+
+
+
+11                      完单（FINISH_THE_ORDER）
+
+
+
+
+12                      兼容保留：EVOKE_C
+
+
+
+
+13                      兼容保留：EVOKE_FIRST
+
+
+
+
+14                      兼容保留：EVOKE_C_VALID
+
+
+
+
+15                      兼容保留：LAHUO
+
+
+
+
+16                      兼容保留：LAHUI
+
+
+
+
+17                      兼容保留：HUIFANG
+
+
+
+
+18                      首次激活（FIRST_ACTIVATION）
+
+
+
+
+19                      首次购买（FIRST_ORDER）
+
+
+
+说明：12～17 为当前 SCX 兼容保留编号，不属于管理端可选择的目标转化事件；媒体如需依赖其业务含义，须在联调时另行确认。20～29 不在当前通用回调
+
+契约范围内。
+

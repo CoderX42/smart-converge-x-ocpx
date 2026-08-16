@@ -1,0 +1,131 @@
+{
+  "input": "/Users/karl/Desktop/OCPX\u6587\u6863/API\u6587\u6863(1).docx",
+  "fonts_by_char_count": {
+    "Open Sans": 22,
+    "PingFangSC-Regular": 17
+  },
+  "direct_run_formatting_runs": 195,
+  "direct_paragraph_formatting_paragraphs": 92,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 10,
+      "text": "__\u53c2\u6570\u540d__ \u8fd9\u4e2a\u662f\u5b8f\u53c2\u6570\u9700\u8981\u81ea\u884c\u5bf9\u5e94\u586b\u5145\uff0c\u4e0d\u8981\u628a\u5b8f\u53c2\u6570\u4f20\u9012\u8fc7\u6765\uff0c\u5982\u679c\u6ca1\u6709\u5bf9\u5e94\u7684\u53c2\u6570\u5c31\u628a\u5b8f\u53c2\u6570\u66ff\u6362\u4e3a\u7a7a\u6216\u8005\u4e0d\u4f20\u8be5\u53c2\u6570",
+      "style": "Normal"
+    },
+    {
+      "para_index": 11,
+      "text": "\u63a5\u53e3\u7c7b\u578b\uff1ahttps",
+      "style": "Normal"
+    },
+    {
+      "para_index": 12,
+      "text": "\u8bf7\u6c42\u65b9\u5f0f\uff1aGET",
+      "style": "Normal"
+    },
+    {
+      "para_index": 13,
+      "text": "\u53c2\u6570\u8bf4\u660e\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 14,
+      "text": "\u8bf7\u6c42\u54cd\u5e94\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 16,
+      "text": "\u8bf7\u6c42\u793a\u4f8b\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 53,
+      "text": "GET \u6a21\u5f0f\u8c03\u7528 callback \u5730\u5740\uff1a",
+      "style": "Normal"
+    },
+    {
+      "para_index": 61,
+      "text": "\u53c2\u6570\u540d",
+      "style": "Normal"
+    },
+    {
+      "para_index": 62,
+      "text": "\u53c2\u6570\u5b8f",
+      "style": "Normal"
+    },
+    {
+      "para_index": 63,
+      "text": "\u6700\u5927\u957f\u5ea6",
+      "style": "Normal"
+    },
+    {
+      "para_index": 64,
+      "text": "\u662f\u5426\u5fc5\u586b",
+      "style": "Normal"
+    },
+    {
+      "para_index": 65,
+      "text": "\u53c2\u6570\u8bf4\u660e",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 3,
+        "text": "\u793a\u4f8b\uff1a",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "id=__CAID__&oaid=__OAID__&oaid_md5=__OAID_MD5__&aaid=__AAID__&ua=__UA__&os=__OS__&model=__M",
+        "style": "Normal"
+      },
+      {
+        "para_index": 6,
+        "text": "ODEL__&callback=__CALLBACK__&clickid=__CLICKID__&campaign_id=__CAMPAIGNID__&adgroup_id=__ADGR",
+        "style": "Normal"
+      },
+      {
+        "para_index": 7,
+        "text": "OUPID__&creative_id=__CREATIVEID__&advertiser_id=__ADVERTISERID__",
+        "style": "Normal"
+      },
+      {
+        "para_index": 8,
+        "text": "",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 3,
+        "run_text": "\u793a\u4f8b\uff1a",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "http://s.aerim.cn/ocpx/c/e",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "9b",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "f",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "i",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

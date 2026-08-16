@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/Users/karl/code/yw-tech/smart-converge-x/tmp/docx/fonts</dir>
+  <dir>/System/Library/Fonts</dir>
+  <dir>/Library/Fonts</dir>
+  <cachedir>/Users/karl/code/yw-tech/smart-converge-x/tmp/docx/font-cache</cachedir>
+</fontconfig>
