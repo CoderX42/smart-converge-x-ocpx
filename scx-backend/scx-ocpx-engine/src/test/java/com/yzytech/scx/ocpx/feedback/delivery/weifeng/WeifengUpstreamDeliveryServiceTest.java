@@ -1,9 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.delivery.weifeng;
 
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
-import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
+import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -16,7 +14,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -29,11 +26,7 @@ class WeifengUpstreamDeliveryServiceTest {
 
 	private static final String AES_KEY = "weifeng-test-key";
 
-	private final OcpxAdvertiserIndex advertiserIndex = mock(OcpxAdvertiserIndex.class);
-
-	private final OcpxMonitorTaskIndex monitorTaskIndex = mock(OcpxMonitorTaskIndex.class);
-
-	private final WeifengProperties properties = new WeifengProperties();
+	private final OcpxPromotionLinkIndex promotionLinkIndex = mock(OcpxPromotionLinkIndex.class);
 
 	private final WeifengEndpointPolicy endpointPolicy = mock(WeifengEndpointPolicy.class);
 
@@ -45,13 +38,10 @@ class WeifengUpstreamDeliveryServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		properties.setMediaIds(Map.of("media-id", "yz"));
-		service = new WeifengUpstreamDeliveryService(advertiserIndex, monitorTaskIndex, properties, endpointPolicy,
-				httpClient, flowLogWriter);
+		service = new WeifengUpstreamDeliveryService(promotionLinkIndex, endpointPolicy, httpClient, flowLogWriter);
 		ReflectionTestUtils.setField(service, "callbackBaseUrl", "https://engine.test/ocpx");
 		ReflectionTestUtils.setField(service, "callbackAesKey", AES_KEY);
-		when(advertiserIndex.get("advertiser-id")).thenReturn(advertiser());
-		when(monitorTaskIndex.get("task-id")).thenReturn(task());
+		when(promotionLinkIndex.get("link-id")).thenReturn(promotionLink());
 		when(endpointPolicy.requireAllowedClickUrl(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 	}
 
@@ -70,6 +60,7 @@ class WeifengUpstreamDeliveryServiceTest {
 		assertThat(decodedQueryValue(requestUrl, "model")).isEqualTo("KNT-AL20");
 		assertThat(decodedQueryValue(requestUrl, "aid")).isEqualTo("4946");
 		assertThat(decodedQueryValue(requestUrl, "did")).isEqualTo("yz");
+		assertThat(requestUrl).doesNotContain("__OAID__", "__IMEI__", "__ANDROID_ID__", "__CALLBACK__");
 		assertThat(decodedQueryValue(requestUrl, "callback"))
 			.startsWith("https://engine.test/ocpx/weifeng/callback?ext=")
 			.contains("&s=link-id_task-id&event=__EVENT__&amount=__AMOUNT__&days=__DAYS__");
@@ -82,6 +73,7 @@ class WeifengUpstreamDeliveryServiceTest {
 		feedback.setCaid2("old-caid_20250325");
 		feedback.setTsMs(null);
 		feedback.setTs("1700000000");
+		when(promotionLinkIndex.get("link-id")).thenReturn(productionIosPromotionLink());
 
 		String requestUrl = service.buildRequestUrl(feedback);
 
@@ -89,10 +81,13 @@ class WeifengUpstreamDeliveryServiceTest {
 		assertThat(decodedQueryValue(requestUrl, "caid2")).isEqualTo("old-caid_20250325");
 		assertThat(decodedQueryValue(requestUrl, "ts")).isEqualTo("1700000000000");
 		assertThat(decodedQueryValue(requestUrl, "os")).isEqualTo("IOS");
+		assertThat(decodedQueryValue(requestUrl, "aid")).isEqualTo("4946");
+		assertThat(decodedQueryValue(requestUrl, "did")).isEqualTo("yz");
+		assertThat(requestUrl).doesNotContain("oaid=", "imei=", "androidid=", "__CAID1__", "__CALLBACK__");
 	}
 
 	@Test
-	void rejectsMissingPartnerMappingRequiredFieldsAndAttributionIdentity() {
+	void rejectsMissingLinkFixedParametersRequiredFieldsAndAttributionIdentity() {
 		FeedbackReq feedback = baseFeedback(OsTypeEnum.ANDROID);
 
 		assertThat(service.buildRequestUrl(feedback)).isNull();
@@ -100,7 +95,24 @@ class WeifengUpstreamDeliveryServiceTest {
 		feedback.setUa("ua");
 		assertThat(service.buildRequestUrl(feedback)).isNotNull();
 
-		properties.setMediaIds(Map.of());
+		OcpxPromotionLink missingDid = promotionLink();
+		missingDid.setLinkUrl(missingDid.getLinkUrl().replace("&did=yz", ""));
+		when(promotionLinkIndex.get("link-id")).thenReturn(missingDid);
+		assertThat(service.buildRequestUrl(feedback)).isNull();
+	}
+
+	@Test
+	void rejectsUnknownOrDuplicateTemplateParameters() {
+		FeedbackReq feedback = androidFeedback();
+		OcpxPromotionLink invalid = promotionLink();
+		invalid.setLinkUrl(invalid.getLinkUrl() + "&extra=__UNKNOWN__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(invalid);
+		assertThat(service.buildRequestUrl(feedback)).isNull();
+
+		invalid.setLinkUrl(promotionLink().getLinkUrl() + "&aid=other");
+		assertThat(service.buildRequestUrl(feedback)).isNull();
+
+		invalid.setLinkUrl(promotionLink().getLinkUrl().replace("os=__OS__", "os=IOS"));
 		assertThat(service.buildRequestUrl(feedback)).isNull();
 	}
 
@@ -157,16 +169,22 @@ class WeifengUpstreamDeliveryServiceTest {
 			.build();
 	}
 
-	private OcpxAdvertiser advertiser() {
-		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		advertiser.setBidUrl("https://ad.adapi.cn/click");
-		return advertiser;
+	private OcpxPromotionLink promotionLink() {
+		OcpxPromotionLink promotionLink = new OcpxPromotionLink();
+		promotionLink.setLinkUrl("https://ad.adapi.cn/click?caid1=__CAID1__&caid2=__CAID2__"
+				+ "&idfa=__IDFA__&oaid=__OAID__&imei=__IMEI__&androidid=__ANDROID_ID__&ip=__IP__"
+				+ "&ipv6=__IPV6__&ua=__UA__&ts=__TS__&os=__OS__&osv=__OSV__&model=__MODEL__"
+				+ "&aid=4946&did=yz&callback=__CALLBACK__");
+		return promotionLink;
 	}
 
-	private OcpxMonitorTask task() {
-		OcpxMonitorTask task = new OcpxMonitorTask();
-		task.setBizId("4946");
-		return task;
+	private OcpxPromotionLink productionIosPromotionLink() {
+		OcpxPromotionLink promotionLink = new OcpxPromotionLink();
+		promotionLink.setLinkUrl("https://ad.adapi.cn/click?caid1=__CAID1__&caid2=__CAID2__"
+				+ "&idfa=__IDFA__&oaid=__OAID__&imei=__IMEI__&androidid=__ANDROID_ID__&ip=__IP__"
+				+ "&ua=__UA__&ts=__TS__&os=IOS&osv=__OSV__&model=__MODEL__"
+				+ "&aid=4946&did=yz&callback=__CALLBACK__");
+		return promotionLink;
 	}
 
 	private String decodedQueryValue(String url, String key) {

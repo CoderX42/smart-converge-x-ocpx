@@ -1,10 +1,8 @@
 package com.yzytech.scx.ocpx.feedback.delivery.weifeng;
 
 import com.alibaba.fastjson2.JSON;
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
-import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
+import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
@@ -16,13 +14,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /** 微风互动 v1.3 点击监测 GET 投递实现。 */
 @Component
 public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
+
+	private static final Set<String> DEVICE_QUERY_PARAMETERS = Set.of("caid1", "caid2", "idfa", "oaid", "imei",
+			"androidid", "ip", "ipv6", "ua", "ts", "osv", "model", "callback");
 
 	@Value("${ocpx.weifeng.callback-base-url:${domain.name}}")
 	private String callbackBaseUrl;
@@ -30,11 +36,7 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 	@Value("${app.callback-aes-key}")
 	private String callbackAesKey;
 
-	private final OcpxAdvertiserIndex advertiserIndex;
-
-	private final OcpxMonitorTaskIndex monitorTaskIndex;
-
-	private final WeifengProperties properties;
+	private final OcpxPromotionLinkIndex promotionLinkIndex;
 
 	private final WeifengEndpointPolicy endpointPolicy;
 
@@ -42,12 +44,9 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
-	public WeifengUpstreamDeliveryService(OcpxAdvertiserIndex advertiserIndex, OcpxMonitorTaskIndex monitorTaskIndex,
-			WeifengProperties properties, WeifengEndpointPolicy endpointPolicy, WeifengHttpClient httpClient,
-			OcpxFlowLogWriter flowLogWriter) {
-		this.advertiserIndex = advertiserIndex;
-		this.monitorTaskIndex = monitorTaskIndex;
-		this.properties = properties;
+	public WeifengUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex,
+			WeifengEndpointPolicy endpointPolicy, WeifengHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
+		this.promotionLinkIndex = promotionLinkIndex;
 		this.endpointPolicy = endpointPolicy;
 		this.httpClient = httpClient;
 		this.flowLogWriter = flowLogWriter;
@@ -80,55 +79,118 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		}
 	}
 
-	/** 构造字段完整、每个值仅编码一次的微风点击地址。 */
+	/** 使用上游推广链接中的固定参数替换设备与 Callback 宏，每个值仅编码一次。 */
 	public String buildRequestUrl(FeedbackReq feedback) {
 		if (feedback == null || feedback.getOs() == null || feedback.getOs() == OsTypeEnum.UNKNOWN) {
 			return null;
 		}
-		OcpxAdvertiser advertiser = advertiserIndex.get(feedback.getAId());
-		OcpxMonitorTask monitorTask = monitorTaskIndex.get(feedback.getTId());
-		String did = properties.getMediaIds().get(feedback.getMId());
-		String aid = monitorTask == null ? null : monitorTask.getBizId();
+		OcpxPromotionLink promotionLink = promotionLinkIndex.get(feedback.getLId());
 		String timestamp = timestampMillis(feedback);
 		String callback = buildCallbackUrl(feedback);
-		if (advertiser == null || !StringUtils.hasText(advertiser.getBidUrl()) || !StringUtils.hasText(aid)
-				|| !StringUtils.hasText(did) || !StringUtils.hasText(feedback.getModel())
+		if (promotionLink == null || !StringUtils.hasText(promotionLink.getLinkUrl())
+				|| !StringUtils.hasText(feedback.getModel())
 				|| !StringUtils.hasText(timestamp) || !StringUtils.hasText(callback)
 				|| !hasAttributionIdentity(feedback)) {
 			return null;
 		}
 
-		Map<String, String> parameters = new LinkedHashMap<>();
-		parameters.put("caid1", firstText(feedback.getCaid1(), feedback.getCaid()));
-		parameters.put("caid2", firstText(feedback.getCaid2(), feedback.getLastCaid(), feedback.getPrevCaid()));
-		parameters.put("idfa", feedback.getIdfa());
-		parameters.put("oaid", feedback.getOaid());
-		parameters.put("imei", feedback.getImei());
-		parameters.put("androidid", feedback.getAndroidid());
-		parameters.put("ip", feedback.getIp());
-		parameters.put("ipv6", feedback.getIpv6());
-		parameters.put("ua", feedback.getUa());
-		parameters.put("ts", timestamp);
-		parameters.put("os", feedback.getOs().getIndex());
-		parameters.put("osv", feedback.getOsv());
-		parameters.put("model", feedback.getModel());
-		parameters.put("aid", aid);
-		parameters.put("did", did);
-		parameters.put("callback", callback);
+		Map<String, String> macros = new LinkedHashMap<>();
+		macros.put("__CAID1__", firstText(feedback.getCaid1(), feedback.getCaid()));
+		macros.put("__CAID2__", firstText(feedback.getCaid2(), feedback.getLastCaid(), feedback.getPrevCaid()));
+		macros.put("__IDFA__", feedback.getIdfa());
+		macros.put("__OAID__", feedback.getOaid());
+		macros.put("__IMEI__", feedback.getImei());
+		macros.put("__ANDROID_ID__", feedback.getAndroidid());
+		macros.put("__ANDROIDID__", feedback.getAndroidid());
+		macros.put("__IP__", feedback.getIp());
+		macros.put("__IPV6__", feedback.getIpv6());
+		macros.put("__UA__", feedback.getUa());
+		macros.put("__TS__", timestamp);
+		macros.put("__OS__", feedback.getOs().getIndex());
+		macros.put("__OSV__", feedback.getOsv());
+		macros.put("__MODEL__", feedback.getModel());
+		macros.put("__CALLBACK__", callback);
+		return expandPromotionLink(promotionLink.getLinkUrl(), macros, feedback.getOs());
+	}
 
-		StringBuilder requestUrl = new StringBuilder(advertiser.getBidUrl());
-		String separator = advertiser.getBidUrl().contains("?") ? "&" : "?";
-		for (Map.Entry<String, String> entry : parameters.entrySet()) {
-			if (!StringUtils.hasText(entry.getValue())) {
-				continue;
+	private String expandPromotionLink(String template, Map<String, String> macros, OsTypeEnum os) {
+		String allowedTemplate = endpointPolicy.requireAllowedClickUrl(template);
+		try {
+			URI uri = URI.create(allowedTemplate);
+			String rawQuery = uri.getRawQuery();
+			if (!StringUtils.hasText(rawQuery)) {
+				return null;
 			}
-			requestUrl.append(separator)
-				.append(entry.getKey())
-				.append('=')
-				.append(NetUtil.strictUrlEncode(entry.getValue(), StandardCharsets.UTF_8));
-			separator = "&";
+
+			Map<String, String> expandedParameters = new LinkedHashMap<>();
+			Set<String> parameterNames = new HashSet<>();
+			boolean callbackMacroReplaced = false;
+			for (String segment : rawQuery.split("&", -1)) {
+				int separator = segment.indexOf('=');
+				if (separator <= 0) {
+					return null;
+				}
+				String name = URLDecoder.decode(segment.substring(0, separator), StandardCharsets.UTF_8).trim();
+				String configuredValue = URLDecoder.decode(segment.substring(separator + 1), StandardCharsets.UTF_8);
+				String normalizedName = name.toLowerCase(Locale.ROOT);
+				if (!StringUtils.hasText(name) || !parameterNames.add(normalizedName)) {
+					return null;
+				}
+
+				String expandedValue = configuredValue;
+				if (macros.containsKey(configuredValue)) {
+					expandedValue = macros.get(configuredValue);
+					callbackMacroReplaced |= "callback".equals(normalizedName)
+							&& "__CALLBACK__".equals(configuredValue) && StringUtils.hasText(expandedValue);
+				}
+				else if (containsUnresolvedMacro(configuredValue)) {
+					return null;
+				}
+				else if (DEVICE_QUERY_PARAMETERS.contains(normalizedName)) {
+					return null;
+				}
+				if (StringUtils.hasText(expandedValue)) {
+					expandedParameters.put(normalizedName, expandedValue);
+				}
+			}
+
+			if (!StringUtils.hasText(expandedParameters.get("aid"))
+					|| !StringUtils.hasText(expandedParameters.get("did")) || !callbackMacroReplaced
+					|| !StringUtils.hasText(expandedParameters.get("ts"))
+					|| !StringUtils.hasText(expandedParameters.get("model"))
+					|| !os.getIndex().equalsIgnoreCase(expandedParameters.get("os"))
+					|| !hasExpandedAttributionIdentity(os, expandedParameters)) {
+				return null;
+			}
+
+			StringBuilder requestUrl = new StringBuilder(allowedTemplate.substring(0, allowedTemplate.indexOf('?')));
+			String separator = "?";
+			for (Map.Entry<String, String> entry : expandedParameters.entrySet()) {
+				requestUrl.append(separator)
+					.append(NetUtil.strictUrlEncode(entry.getKey(), StandardCharsets.UTF_8))
+					.append('=')
+					.append(NetUtil.strictUrlEncode(entry.getValue(), StandardCharsets.UTF_8));
+				separator = "&";
+			}
+			return requestUrl.toString();
 		}
-		return requestUrl.toString();
+		catch (IllegalArgumentException exception) {
+			return null;
+		}
+	}
+
+	private boolean hasExpandedAttributionIdentity(OsTypeEnum os, Map<String, String> parameters) {
+		boolean ipAndUa = StringUtils.hasText(parameters.get("ip")) && StringUtils.hasText(parameters.get("ua"));
+		if (os == OsTypeEnum.IOS) {
+			return StringUtils.hasText(parameters.get("caid1")) || StringUtils.hasText(parameters.get("caid2"))
+					|| StringUtils.hasText(parameters.get("idfa")) || ipAndUa;
+		}
+		return StringUtils.hasText(parameters.get("oaid")) || StringUtils.hasText(parameters.get("imei"))
+				|| ipAndUa;
+	}
+
+	private boolean containsUnresolvedMacro(String value) {
+		return StringUtils.hasText(value) && value.matches(".*__[A-Za-z0-9_]+__.*");
 	}
 
 	public String buildCallbackUrl(FeedbackReq feedback) {

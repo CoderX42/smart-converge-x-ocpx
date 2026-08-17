@@ -29,9 +29,8 @@ ocpx:
     allowed-hosts:
       - d.aerim.cn
   weifeng:
-    # v1.3 点击监测固定域名；media-ids 由 SCX 媒体主键映射到商务提供的 did。
+    # v1.3 点击监测固定域名；aid/did 直接读取推广链接中由上游提供的固定参数。
     allowed-hosts:
       - ad.adapi.cn
-    media-ids: {}
   partner-credentials:
     advertisers: {}

@@ -35,7 +35,5 @@ ocpx:
   weifeng:
     allowed-hosts:
       - ad.adapi.cn
-    media-ids:
-      "2089246487366643713": yz
   partner-credentials:
     advertisers: {}

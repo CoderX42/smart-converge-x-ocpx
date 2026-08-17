@@ -58,9 +58,9 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
 选择协议 → 按 `OcpxAdvertiser.bidUrl + macroParams` 替换宏 → 广告主 GET。通用模板
 使用 `credentialConfigKey` 追加 MD5 `signature`；AERIM 只处理点击，生成
 `/aerim/callback` 地址，不追加签名，并要求 HTTP/HTTPS 监测域名命中
-`ocpx.aerim.allowed-hosts`。微风互动同样只处理点击，任务 `bizId` 映射 `aid`、
-`ocpx.weifeng.media-ids` 映射 `did`，并要求 `/click` 域名命中
-`ocpx.weifeng.allowed-hosts`。白名单只填写域名，不填写协议或路径。
+`ocpx.aerim.allowed-hosts`。微风互动同样只处理点击，从关联推广链接读取上游
+自带的固定 `aid/did`，只替换设备参数和 SCX Callback 宏，并要求 `/click`
+域名命中 `ocpx.weifeng.allowed-hosts`。白名单只填写域名，不填写协议或路径。
 
 反向链路为：解密 `ext` → Callback 去重 → Callback 队列 → 按
 `lId + mId` 读取 Redis 扣量数组 → 对允许回传的数据解码原 `callback_url`、

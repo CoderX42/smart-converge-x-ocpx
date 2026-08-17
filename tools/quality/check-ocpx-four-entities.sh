@@ -455,8 +455,22 @@ if "name: http://127.0.0.1:10000/ocpx" not in application_dev_yml:
 if "name: https://ocpx.zhongsenyuedong.cn/ocpx" not in application_prod_yml:
     raise SystemExit("configuration gate failed: prod callback domain is missing")
 for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
-    if "ad.adapi.cn" not in source or "media-ids:" not in source:
-        raise SystemExit(f"configuration gate failed: WEIFENG host/media mapping is missing in {path}")
+    if "ad.adapi.cn" not in source:
+        raise SystemExit(f"configuration gate failed: WEIFENG host allowlist is missing in {path}")
+    if "media-ids:" in source:
+        raise SystemExit(f"configuration gate failed: retired WEIFENG media mapping found in {path}")
+
+weifeng_delivery = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/weifeng/WeifengUpstreamDeliveryService.java"
+).read_text(encoding="utf-8")
+for fragment in ("OcpxPromotionLinkIndex", "promotionLink.getLinkUrl()", 'expandedParameters.get("aid")',
+                 'expandedParameters.get("did")'):
+    if fragment not in weifeng_delivery:
+        raise SystemExit(f"WEIFENG source gate failed: missing promotion-link fragment {fragment}")
+for retired_fragment in ("getMediaIds()", "getBizId()", "OcpxMonitorTaskIndex"):
+    if retired_fragment in weifeng_delivery:
+        raise SystemExit(f"WEIFENG source gate failed: retired aid/did mapping found: {retired_fragment}")
 for path, source in (
     ("application.yml", application_yml),
     ("application-dev.yml", application_dev_yml),

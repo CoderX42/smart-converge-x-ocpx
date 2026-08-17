@@ -23,7 +23,7 @@
 
 唯一媒体入口为 `GET /ocpx/feedback`。链路先在 MySQL 事务中校验四实体关系、完成事件去重、计费和小时汇总，再写兼容日志队列；只有首次有效且允许投递的事件才由 `UpstreamDeliveryDispatcher` 异步选择上游实现。
 
-`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 仅处理 CLICK 投递，并使用白名单限制上游监测域名。微风互动同样只处理 CLICK：任务 `bizId` 映射合作方 `aid`，Engine 私有 `media-ids` 映射合作方 `did`，并按 v1.3 构造设备、毫秒时间戳和回调参数。
+`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 仅处理 CLICK 投递，并使用白名单限制上游监测域名。微风互动同样只处理 CLICK：关联推广链接保存上游提供的完整模板及固定 `aid/did`，Engine 只替换设备、毫秒时间戳和 Callback 宏，不再维护媒体或任务到 `aid/did` 的二次映射。
 
 ## 反向 Callback
 
