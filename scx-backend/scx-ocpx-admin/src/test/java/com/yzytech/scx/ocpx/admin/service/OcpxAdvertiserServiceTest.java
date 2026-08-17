@@ -164,6 +164,30 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
+	void deductionDelegatesToTheIdempotentMysqlAccountService() {
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser("adv-1"));
+		AdvertiserRequests.Deduction request = new AdvertiserRequests.Deduction("deduct-001", new BigDecimal("10"),
+				"人工调账");
+		AdvertiserViews.DeductionResult expected = new AdvertiserViews.DeductionResult();
+		when(advertiserAccountService.deduct("adv-1", request)).thenReturn(expected);
+
+		assertThat(service.deduct("adv-1", request)).isSameAs(expected);
+
+		verify(advertiserAccountService).deduct("adv-1", request);
+	}
+
+	@Test
+	void deductionRejectsMissingAdvertiser() {
+		when(advertiserMapper.selectById(anyString())).thenReturn(null);
+
+		assertThatThrownBy(() -> service.deduct("adv-x",
+				new AdvertiserRequests.Deduction("deduct-001", new BigDecimal("1"), "人工调账")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("广告主不存在");
+		verifyNoInteractions(advertiserAccountService);
+	}
+
+	@Test
 	void rechargeRequiresRequestIdAndAPositiveAmount() {
 		Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
@@ -182,6 +206,22 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
+	void deductionRequiresRequestIdPositiveAmountAndReason() {
+		Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+		assertThat(validator.validate(new AdvertiserRequests.Deduction(null, null, null)))
+			.extracting(violation -> violation.getPropertyPath().toString())
+			.contains("requestId", "amount", "remark");
+		assertThat(validator.validate(new AdvertiserRequests.Deduction("deduct-001", BigDecimal.ZERO, "人工调账")))
+			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
+		assertThat(validator.validate(new AdvertiserRequests.Deduction("deduct-001", new BigDecimal("1"), "  ")))
+			.anyMatch(violation -> "remark".equals(violation.getPropertyPath().toString()));
+		assertThat(
+				validator.validate(new AdvertiserRequests.Deduction("deduct-001", new BigDecimal("1.000001"), "人工调账")))
+			.isEmpty();
+	}
+
+	@Test
 	@SuppressWarnings("unchecked")
 	void listReadsBalancesFromTheMysqlAccountService() {
 		Page<OcpxAdvertiser> stored = new Page<>(1, 10);
@@ -192,7 +232,8 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserAccountService.balancesByIds(any()))
 			.thenReturn(java.util.Map.of("adv-1", new BigDecimal("123.45"), "adv-2", BigDecimal.ZERO));
 
-		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
+		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
+			.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
 		assertThat(records.get(0).getBalance()).isEqualByComparingTo("123.45");
@@ -211,8 +252,7 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserAccountService.balancesByIds(List.of("adv-own")))
 			.thenReturn(java.util.Map.of("adv-own", new BigDecimal("88.000000")));
 
-		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
-			.list(new Page<>(1, 10), null, null)
+		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
 		assertThat(records.get(0).getBalance()).isEqualByComparingTo("88.000000");
@@ -300,6 +340,17 @@ class OcpxAdvertiserServiceTest {
 		assertThat(permission).isNotNull();
 		assertThat(Arrays.asList(permission.value())).contains("ocpx:advertiser:recharge");
 		assertThat(method.getAnnotation(PostMapping.class).value()).contains("/{id}/recharge");
+	}
+
+	@Test
+	void deductionEndpointCarriesItsOwnNonDelegablePermission() throws NoSuchMethodException {
+		var method = OcpxAdvertiserController.class.getMethod("deduct", String.class,
+				AdvertiserRequests.Deduction.class);
+
+		SaCheckPermission permission = method.getAnnotation(SaCheckPermission.class);
+		assertThat(permission).isNotNull();
+		assertThat(Arrays.asList(permission.value())).contains("ocpx:advertiser:deduct");
+		assertThat(method.getAnnotation(PostMapping.class).value()).contains("/{id}/deduct");
 	}
 
 	private OcpxAdvertiser advertiser(String id) {

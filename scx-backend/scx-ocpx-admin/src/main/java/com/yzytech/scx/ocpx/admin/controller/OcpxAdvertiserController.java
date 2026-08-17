@@ -99,4 +99,12 @@ public class OcpxAdvertiserController {
 		return Result.success(advertiserService.recharge(id, request));
 	}
 
+	@PostMapping("/{id}/deduct")
+	@SaCheckPermission(SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION)
+	@SysLog("扣减广告主余额")
+	public Result<AdvertiserViews.DeductionResult> deduct(@PathVariable String id,
+			@Valid @RequestBody AdvertiserRequests.Deduction request) {
+		return Result.success(advertiserService.deduct(id, request));
+	}
+
 }

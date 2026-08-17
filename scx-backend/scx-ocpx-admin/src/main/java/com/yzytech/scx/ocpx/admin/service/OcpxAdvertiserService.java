@@ -175,6 +175,13 @@ public class OcpxAdvertiserService {
 		return advertiserAccountService.recharge(current.getId(), request);
 	}
 
+	/** 幂等人工扣减：禁止透支，账户锁、余额更新和不可变流水在同一 MySQL 事务内提交。 */
+	public AdvertiserViews.DeductionResult deduct(String id, AdvertiserRequests.Deduction request) {
+		advertiserScope.requireSystemAdministrator();
+		OcpxAdvertiser current = require(id);
+		return advertiserAccountService.deduct(current.getId(), request);
+	}
+
 	public Map<String, BigDecimal> balancesByIds(List<String> advertiserIds) {
 		return advertiserAccountService.balancesByIds(advertiserIds);
 	}

@@ -91,6 +91,26 @@ public final class AdvertiserRequests {
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
+	public static class Deduction {
+
+		@NotBlank
+		@Size(min = 8, max = 64)
+		private String requestId;
+
+		@NotNull
+		@Positive
+		@Digits(integer = 14, fraction = 6)
+		private BigDecimal amount;
+
+		@NotBlank
+		@Size(max = 255)
+		private String remark;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
 	public static class RolePermissionsUpdate {
 
 		@NotNull

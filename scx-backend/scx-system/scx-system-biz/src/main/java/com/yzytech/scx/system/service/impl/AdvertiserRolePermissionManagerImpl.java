@@ -47,6 +47,7 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 	private static final Set<String> NON_DELEGABLE_PERMISSIONS = Set.of(
 			SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION,
 			SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION,
+			SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION,
 			SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
 
 	private static final Comparator<SysMenu> MENU_ORDER = Comparator

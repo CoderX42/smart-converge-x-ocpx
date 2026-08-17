@@ -200,6 +200,35 @@ paths:
         '400': { description: requestId 或金额无效，或同 requestId 改变金额 }
         '403': { description: 广告主账号或非 ROLE_ADMIN 尝试充值 }
         '404': { description: 广告主或资金账户不存在 }
+  /advertisers/{id}/deduct:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: deductAdvertiserAccount
+      summary: 幂等扣减广告主账户余额
+      description: 仅真实 ROLE_ADMIN 且拥有 ocpx:advertiser:deduct 权限可调用；同一广告主和 requestId 返回同一流水，扣减后余额不得小于 0。
+      security:
+        - saToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdvertiserDeductionRequest' }
+      responses:
+        '200':
+          description: 人工扣减流水和账后余额
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdvertiserDeductionResultEnvelope' }
+        '400': { description: requestId、金额或原因无效，同 requestId 改变金额或原因，或扣减金额超过可用余额 }
+        '403': { description: 广告主账号或非 ROLE_ADMIN 尝试扣减 }
+        '404': { description: 广告主或资金账户不存在 }
   /dashboard/summary:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -315,6 +344,30 @@ components:
         code: { type: integer, const: 0 }
         msg: { type: [string, 'null'] }
         data: { $ref: '#/components/schemas/AdvertiserRechargeResult' }
+    AdvertiserDeductionRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, amount, remark]
+      properties:
+        requestId: { type: string, minLength: 8, maxLength: 64 }
+        amount: { type: number, exclusiveMinimum: 0, maximum: 99999999999999.999999, multipleOf: 0.000001 }
+        remark: { type: string, minLength: 1, maxLength: 255, pattern: '.*\S.*' }
+    AdvertiserDeductionResult:
+      type: object
+      required: [entryId, advertiserId, amount, balanceAfter, occurredAt]
+      properties:
+        entryId: { type: string }
+        advertiserId: { type: string }
+        amount: { type: number }
+        balanceAfter: { type: number, minimum: 0 }
+        occurredAt: { type: string, format: date-time }
+    AdvertiserDeductionResultEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/AdvertiserDeductionResult' }
     DashboardAccount:
       type: object
       required: [advertiserId, availableBalance, todaySpend, rejectedClickCount]

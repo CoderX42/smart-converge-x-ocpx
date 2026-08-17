@@ -29,12 +29,14 @@ Dashboard、统一小时报表和时段报表都读取 `scx_ocpx_hourly_metric`�
 
 - `POST /ocpx/advertisers/{id}/recharge` 请求为 `requestId + amount + remark?`，响应充值流水、金额、
   账后余额和发生时间。同一广告主与 `requestId` 幂等。
+- V110 增加 `POST /ocpx/advertisers/{id}/deduct`，请求为 `requestId + amount + remark`。金额以正数传入并
+  写 `MANUAL_DEBIT` 不可变流水；账户行锁保证并发安全，余额不足时拒绝且不写流水。人工扣减不计入广告消费。
 - `GET /ocpx/dashboard/summary` 返回服务端业务日期、时区、筛选区间、数据水位、数据状态、可选账户块和
   `SPEND/IMPRESSION/CLICK/CONVERSION/CTR/CVR/CPM/CPC/CPA` 九项指标。
 - 分母为 0 的比率返回 `value=null,status=ZERO_DENOMINATOR`；可信空范围的数量和消费返回 0，
   `dataStatus=EMPTY`。
-- 充值、单价和目标转化事件只允许真实 `ROLE_ADMIN`。共享 `ROLE_ADVERTISER` 不得获得
-  `ocpx:advertiser:recharge` 或 `ocpx:monitor-task:billing`。
+- 充值、人工扣减、单价和目标转化事件只允许真实 `ROLE_ADMIN`。共享 `ROLE_ADVERTISER` 不得获得
+  `ocpx:advertiser:recharge`、`ocpx:advertiser:deduct` 或 `ocpx:monitor-task:billing`。
 - 广告主的全量数据范围只扩大业务指标范围；账户块始终绑定其自身广告主。管理员未选择具体广告主时不返回账户块。
 
 ## 删除与迁移边界

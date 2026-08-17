@@ -19,6 +19,7 @@ import {
   advertiserOptions,
   appendAdvertiserMacroParams,
   createAdvertiserV2,
+  deductAdvertiser,
   deleteAdvertiserV2,
   getAdvertiserRolePermissions,
   listAdvertisers,
@@ -82,6 +83,7 @@ const canOperate = computed(() =>
   hasAccessByCodes([
     'ocpx:advertiser:edit',
     'ocpx:advertiser:recharge',
+    'ocpx:advertiser:deduct',
     'ocpx:advertiser:delete',
   ]),
 );
@@ -148,6 +150,48 @@ const rechargeRules: FormRules = {
     },
   ],
 };
+
+const deductOpen = ref(false);
+const deductLoading = ref(false);
+const deductTarget = ref<AdvertiserV2>();
+const deductFormRef = ref<FormInstance>();
+const deductForm = reactive({ amount: '', remark: '', requestId: '' });
+const moneyPattern = /^(?!0+(?:\.0+)?$)\d+(?:\.\d{1,6})?$/;
+const deductRules: FormRules = {
+  amount: [
+    { message: '请输入扣减金额', required: true },
+    {
+      trigger: 'blur',
+      validator: (
+        _rule: unknown,
+        value: string,
+        callback: (error?: Error) => void,
+      ) => {
+        if (!moneyPattern.test(value)) {
+          callback(new Error('请输入大于 0、最多 6 位小数的金额'));
+          return;
+        }
+        const balance = Number(deductTarget.value?.balance || 0);
+        callback(
+          Number(value) > balance
+            ? new Error('扣减金额不能超过当前余额')
+            : undefined,
+        );
+      },
+    },
+  ],
+  remark: [
+    { message: '请输入扣减原因', required: true, trigger: 'blur' },
+    {
+      message: '扣减原因不能只包含空格',
+      pattern: /\S/,
+      trigger: 'blur',
+    },
+  ],
+};
+const accountActionLoading = computed(
+  () => rechargeLoading.value || deductLoading.value,
+);
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
@@ -369,6 +413,53 @@ async function submitRecharge() {
   }
 }
 
+function deduct(row: AdvertiserV2) {
+  deductTarget.value = row;
+  Object.assign(deductForm, {
+    amount: '',
+    remark: '',
+    requestId: createClientRequestId(),
+  });
+  deductOpen.value = true;
+  void nextTick(() => deductFormRef.value?.clearValidate());
+}
+
+function handleDeductClose() {
+  deductTarget.value = undefined;
+  deductFormRef.value?.resetFields();
+  Object.assign(deductForm, { amount: '', remark: '', requestId: '' });
+}
+
+async function submitDeduct() {
+  if (!(await deductFormRef.value?.validate().catch(() => false))) return;
+  const target = deductTarget.value;
+  if (!target) return;
+  const amount = Number(deductForm.amount);
+  await ElMessageBox.confirm(
+    `确认从“${target.advertiserName}”余额中扣减 ¥${amount.toFixed(2)}？该操作会写入不可变账务流水。`,
+    '确认扣减余额',
+    {
+      confirmButtonText: '确认扣减',
+      type: 'warning',
+    },
+  );
+  deductLoading.value = true;
+  try {
+    const result = await deductAdvertiser(target.id, {
+      amount,
+      remark: deductForm.remark.trim(),
+      requestId: deductForm.requestId,
+    });
+    ElMessage.success(
+      `扣减成功，账后余额 ¥${Number(result.balanceAfter).toFixed(2)}`,
+    );
+    deductOpen.value = false;
+    await load();
+  } finally {
+    deductLoading.value = false;
+  }
+}
+
 async function remove(row: AdvertiserV2) {
   await ElMessageBox.confirm(
     '仅无余额、无账务流水且无事件事实的广告主可以删除。删除会同时移除其空账户、推广链接、监测任务、扣量规则并注销绑定账号；共享媒体不会删除。确认继续？',
@@ -527,12 +618,12 @@ onMounted(async () => {
           v-if="canOperate"
           fixed="right"
           label="操作"
-          width="190"
+          width="230"
         >
           <template #default="{ row }">
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
-              :disabled="saving || rechargeLoading || Boolean(deletingId)"
+              :disabled="saving || accountActionLoading || Boolean(deletingId)"
               link
               type="primary"
               @click="edit(row)"
@@ -540,15 +631,33 @@ onMounted(async () => {
             >
             <el-button
               v-access:code="'ocpx:advertiser:recharge'"
-              :disabled="saving || rechargeLoading || Boolean(deletingId)"
+              :disabled="saving || accountActionLoading || Boolean(deletingId)"
               link
               type="primary"
               @click="recharge(row)"
               >充值</el-button
             >
             <el-button
+              v-access:code="'ocpx:advertiser:deduct'"
+              :disabled="
+                saving ||
+                accountActionLoading ||
+                Boolean(deletingId) ||
+                Number(row.balance || 0) <= 0
+              "
+              link
+              :title="
+                Number(row.balance || 0) <= 0
+                  ? '余额为 0 时不可扣减'
+                  : '扣减广告主余额'
+              "
+              type="warning"
+              @click="deduct(row)"
+              >扣减</el-button
+            >
+            <el-button
               v-access:code="'ocpx:advertiser:delete'"
-              :disabled="saving || rechargeLoading || Boolean(deletingId)"
+              :disabled="saving || accountActionLoading || Boolean(deletingId)"
               :loading="deletingId === row.id"
               link
               type="danger"
@@ -761,6 +870,54 @@ onMounted(async () => {
         >
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="deductOpen"
+      :close-on-click-modal="false"
+      title="扣减广告主余额"
+      width="480px"
+      @close="handleDeductClose"
+    >
+      <el-alert
+        :closable="false"
+        class="deduct-balance-alert"
+        show-icon
+        :title="`${deductTarget?.advertiserName || '广告主'} · 当前余额 ¥${Number(deductTarget?.balance || 0).toFixed(2)}`"
+        type="warning"
+      />
+      <el-form
+        ref="deductFormRef"
+        :model="deductForm"
+        :rules="deductRules"
+        label-width="100px"
+      >
+        <el-form-item label="扣减金额" prop="amount">
+          <el-input
+            v-model="deductForm.amount"
+            aria-label="扣减金额"
+            inputmode="decimal"
+            placeholder="请输入不超过当前余额的金额"
+          />
+        </el-form-item>
+        <el-form-item label="扣减原因" prop="remark">
+          <el-input
+            v-model="deductForm.remark"
+            maxlength="255"
+            placeholder="必填，例如退款、线下调账"
+            show-word-limit
+            type="textarea"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :disabled="deductLoading" @click="deductOpen = false"
+          >取消</el-button
+        >
+        <el-button :loading="deductLoading" type="danger" @click="submitDeduct"
+          >确认扣减</el-button
+        >
+      </template>
+    </el-dialog>
   </Page>
 </template>
 
@@ -803,5 +960,9 @@ onMounted(async () => {
   margin-left: 8px;
   font-size: 12px;
   color: var(--el-color-warning);
+}
+
+.deduct-balance-alert {
+  margin-bottom: 18px;
 }
 </style>

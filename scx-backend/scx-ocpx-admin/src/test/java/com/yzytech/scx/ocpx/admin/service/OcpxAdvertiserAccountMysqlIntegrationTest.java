@@ -2,6 +2,7 @@ package com.yzytech.scx.ocpx.admin.service;
 
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 @EnabledIfSystemProperty(named = "ocpx.mysql.url", matches = "jdbc:mysql:.+")
@@ -98,9 +100,32 @@ class OcpxAdvertiserAccountMysqlIntegrationTest {
 				ADVERTISER_ID)).isEqualByComparingTo("100.000000");
 	}
 
+	@Test
+	void deductsIdempotentlyAndRejectsAnOverdrawWithoutChangingTheLedger() {
+		recharge("recharge-before-deduct", "100.000000");
+
+		AdvertiserViews.DeductionResult posted = deduct("deduct-30", "30.000000");
+		AdvertiserViews.DeductionResult replay = deduct("deduct-30", "30.000000");
+
+		assertThat(posted.getBalanceAfter()).isEqualByComparingTo("70.000000");
+		assertThat(replay.getEntryId()).isEqualTo(posted.getEntryId());
+		assertThat(balance()).isEqualByComparingTo("70.000000");
+		assertThat(ledgerCount()).isEqualTo(2L);
+
+		assertThatThrownBy(() -> deduct("deduct-overdraw", "70.000001")).isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不能超过当前可用余额");
+		assertThat(balance()).isEqualByComparingTo("70.000000");
+		assertThat(ledgerCount()).isEqualTo(2L);
+	}
+
 	private AdvertiserViews.RechargeResult recharge(String requestId, String amount) {
 		return transaction.execute(status -> service.recharge(ADVERTISER_ID,
 				new AdvertiserRequests.Recharge(requestId, new BigDecimal(amount), "integration test")));
+	}
+
+	private AdvertiserViews.DeductionResult deduct(String requestId, String amount) {
+		return transaction.execute(status -> service.deduct(ADVERTISER_ID,
+				new AdvertiserRequests.Deduction(requestId, new BigDecimal(amount), "integration deduction")));
 	}
 
 	private BigDecimal balance() {

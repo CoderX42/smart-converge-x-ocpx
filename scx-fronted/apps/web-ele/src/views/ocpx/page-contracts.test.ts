@@ -18,6 +18,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '请求地址',
         '宏参数',
         '充值',
+        '扣减',
         '删除',
         '账号角色权限',
       ],
@@ -86,10 +87,19 @@ describe('vientiane-aligned OCPX page contracts', () => {
     }
   });
 
-  it('creates recharge idempotency keys in browsers without randomUUID', () => {
+  it('creates financial idempotency keys in browsers without randomUUID', () => {
     const advertiser = page('advertiser');
     expect(advertiser).toContain('createClientRequestId()');
     expect(advertiser).not.toContain('crypto.randomUUID()');
+  });
+
+  it('protects advertiser deductions with a dedicated permission and confirmation', () => {
+    const advertiser = page('advertiser');
+    expect(advertiser).toContain("'ocpx:advertiser:deduct'");
+    expect(advertiser).toContain('deductAdvertiser(target.id');
+    expect(advertiser).toContain('扣减金额不能超过当前余额');
+    expect(advertiser).toContain('该操作会写入不可变账务流水');
+    expect(advertiser).toContain('@close="handleDeductClose"');
   });
 
   it('clears invalid child filters and form values after parent changes', () => {

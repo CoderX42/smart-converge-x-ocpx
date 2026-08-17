@@ -162,12 +162,12 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_billing_entry (
   CONSTRAINT fk_ocpx_billing_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
   CONSTRAINT fk_ocpx_billing_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
   CONSTRAINT fk_ocpx_billing_fact FOREIGN KEY (event_fact_id) REFERENCES scx_ocpx_event_fact(id),
-  CONSTRAINT ck_ocpx_billing_type CHECK (entry_type IN ('RECHARGE','CLICK_CHARGE')),
+  CONSTRAINT ck_ocpx_billing_type CHECK (entry_type IN ('RECHARGE','CLICK_CHARGE','MANUAL_DEBIT')),
   CONSTRAINT ck_ocpx_billing_status CHECK (status IN ('POSTED','REJECTED')),
   CONSTRAINT ck_ocpx_billing_amount CHECK (amount>=0),
   CONSTRAINT ck_ocpx_billing_balances CHECK (balance_before>=0 AND balance_after>=0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-  COMMENT='LEDGER: immutable advertiser recharge and CPC entries';
+  COMMENT='LEDGER: immutable advertiser recharge, CPC and manual debit entries';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -505,6 +505,7 @@ VALUES
   ('perm_ocpx_advertiser_add','新增广告主','','menu_ocpx_advertiser','ocpx:advertiser:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_edit','编辑广告主','','menu_ocpx_advertiser','ocpx:advertiser:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_recharge','广告主充值','','menu_ocpx_advertiser','ocpx:advertiser:recharge',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_advertiser_deduct','扣减广告主余额','','menu_ocpx_advertiser','ocpx:advertiser:deduct',35,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_delete','删除广告主','','menu_ocpx_advertiser','ocpx:advertiser:delete',40,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_add','新增推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_edit','编辑推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:edit',20,'1','app_base',NOW(),NOW(),'0'),

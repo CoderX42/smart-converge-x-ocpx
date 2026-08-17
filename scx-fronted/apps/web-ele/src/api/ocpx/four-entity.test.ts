@@ -5,6 +5,7 @@ import {
   createMedia,
   createMonitorTask,
   createPromotionLink,
+  deductAdvertiser,
   deleteAdvertiserV2,
   deleteMedia,
   getAdvertiserRolePermissions,
@@ -131,6 +132,19 @@ describe('ocpx four-entity write contracts', () => {
     expect(requestClient.post).toHaveBeenCalledWith(
       '/ocpx/advertisers/advertiser-1/recharge',
       { amount: 100, remark: '首充', requestId: 'request-001' },
+    );
+  });
+
+  it('submits an idempotency key, positive amount and reason for deduction', async () => {
+    await deductAdvertiser('advertiser-1', {
+      amount: 25.5,
+      remark: '线下退款',
+      requestId: 'deduct-001',
+    });
+
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/ocpx/advertisers/advertiser-1/deduct',
+      { amount: 25.5, remark: '线下退款', requestId: 'deduct-001' },
     );
   });
 

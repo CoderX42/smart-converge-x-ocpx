@@ -46,6 +46,14 @@ export type AdvertiserRechargeResult = {
   occurredAt: string;
 };
 
+export type AdvertiserDeductionResult = {
+  advertiserId: string;
+  amount: number;
+  balanceAfter: number;
+  entryId: string;
+  occurredAt: string;
+};
+
 export type AdvertiserRoleMenuNode = {
   children: AdvertiserRoleMenuNode[];
   id: string;
@@ -218,6 +226,15 @@ export function rechargeAdvertiser(
 ) {
   return requestClient.post<AdvertiserRechargeResult>(
     `/ocpx/advertisers/${id}/recharge`,
+    data,
+  );
+}
+export function deductAdvertiser(
+  id: string,
+  data: { amount: number; remark: string; requestId: string },
+) {
+  return requestClient.post<AdvertiserDeductionResult>(
+    `/ocpx/advertisers/${id}/deduct`,
     data,
   );
 }

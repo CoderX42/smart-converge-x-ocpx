@@ -43,7 +43,7 @@ class TruthfulDashboardBillingV108MigrationContractTest {
 					"rejected_click_count BIGINT", "'ocpx:monitor-task:billing'");
 		String advertiserGrant = sql.substring(sql.lastIndexOf("DELETE FROM sys_role_menu\nWHERE role_id = 'role_advertiser';"));
 		assertThat(advertiserGrant).doesNotContain("'perm_ocpx_advertiser_recharge'",
-				"'perm_ocpx_monitor_task_billing'");
+				"'perm_ocpx_advertiser_deduct'", "'perm_ocpx_monitor_task_billing'");
 	}
 
 	private String resource(String path) throws Exception {

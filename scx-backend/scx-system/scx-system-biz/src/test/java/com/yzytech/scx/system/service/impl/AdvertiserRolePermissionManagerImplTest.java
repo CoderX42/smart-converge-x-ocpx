@@ -69,8 +69,8 @@ class AdvertiserRolePermissionManagerImplTest {
 		assertThat(result.isAllDataScope()).isTrue();
 		assertThat(result.getSelectedMenuIds()).containsExactly("menu-adv", "perm-adv-edit");
 		assertThat(flatten(result.getMenuTree())).containsExactlyInAnyOrder("menu-adv", "menu-media", "perm-adv-edit")
-			.doesNotContain("perm-manage", "perm-recharge", "perm-billing", "perm-scope", "menu-system",
-					"menu-system-ocpx");
+			.doesNotContain("perm-manage", "perm-recharge", "perm-deduct", "perm-billing", "perm-scope",
+					"menu-system", "menu-system-ocpx");
 		assertThat(result.getMenuTree()).filteredOn(node -> "menu-media".equals(node.getId())).singleElement()
 			.extracting(AdvertiserRolePermissionManager.MenuNode::isRequiresAllDataScope)
 			.isEqualTo(true);
@@ -146,6 +146,9 @@ class AdvertiserRolePermissionManagerImplTest {
 		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-recharge"), true))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("不可授予");
+		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-deduct"), true))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不可授予");
 		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-billing"), true))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("不可授予");
@@ -196,6 +199,7 @@ class AdvertiserRolePermissionManagerImplTest {
 				menu("perm-adv-edit", "menu-adv", "编辑广告主", "", "ocpx:advertiser:edit", 20),
 				menu("perm-recharge", "menu-adv", "充值", "", SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION,
 						30),
+				menu("perm-deduct", "menu-adv", "扣减", "", SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION, 35),
 				menu("menu-media", "0", "媒体管理", "/ocpx/media", "ocpx:media:view", 30),
 				menu("perm-billing", "menu-media", "计费", "", SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION,
 						40),

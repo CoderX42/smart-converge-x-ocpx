@@ -22,6 +22,7 @@ required = [
     "scx-ocpx-v2.postman_collection.json",
     "management-v107.md",
     "management-v108.md",
+    "management-v110.md",
 ]
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
@@ -37,8 +38,9 @@ assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base
 data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback"}
 management_path = "/advertisers/account-role/permissions"
 recharge_path = "/advertisers/{id}/recharge"
+deduction_path = "/advertisers/{id}/deduct"
 dashboard_path = "/dashboard/summary"
-assert set(paths) == data_plane_paths | {management_path, recharge_path, dashboard_path}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path}
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -53,6 +55,9 @@ assert management["put"]["security"] == [{"saToken": []}]
 recharge = paths[recharge_path]["post"]
 assert recharge["security"] == [{"saToken": []}]
 assert recharge["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("AdvertiserRechargeRequest")
+deduction = paths[deduction_path]["post"]
+assert deduction["security"] == [{"saToken": []}]
+assert deduction["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("AdvertiserDeductionRequest")
 dashboard = paths[dashboard_path]["get"]
 assert dashboard["security"] == [{"saToken": []}]
 dashboard_parameters = {item["name"]: item for item in dashboard["parameters"]}
@@ -61,10 +66,12 @@ assert dashboard_parameters["endDate"]["required"] is False
 schemas = openapi.get("components", {}).get("schemas", {})
 assert {
     "AdvertiserRolePermissionsUpdate", "AdvertiserRolePermissions", "AdvertiserRoleMenuNode",
-    "AdvertiserRechargeRequest", "AdvertiserRechargeResult", "DashboardSummary", "DashboardMetric"
+    "AdvertiserRechargeRequest", "AdvertiserRechargeResult", "AdvertiserDeductionRequest",
+    "AdvertiserDeductionResult", "DashboardSummary", "DashboardMetric"
 } <= set(schemas)
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
+assert set(schemas["AdvertiserDeductionRequest"]["required"]) == {"requestId", "amount", "remark"}
 assert set(schemas["DashboardSummary"]["properties"]["metrics"]["required"]) == {
     "SPEND", "IMPRESSION", "CLICK", "CONVERSION", "CTR", "CVR", "CPM", "CPC", "CPA"
 }
@@ -95,6 +102,7 @@ methods = {item.get("name"): item.get("request", {}).get("method") for item in p
 assert methods.get("读取共享广告主角色权限") == "GET"
 assert methods.get("全量替换共享广告主角色权限") == "PUT"
 assert methods.get("广告主幂等充值") == "POST"
+assert methods.get("广告主幂等扣减") == "POST"
 assert methods.get("首页真实数据摘要") == "GET"
 role_update = next(item for item in postman["item"] if item.get("name") == "全量替换共享广告主角色权限")
 role_update_body = json.loads(role_update["request"]["body"]["raw"])
@@ -104,6 +112,11 @@ recharge_item = next(item for item in postman["item"] if item.get("name") == "�
 recharge_body = json.loads(recharge_item["request"]["body"]["raw"])
 assert set(recharge_body) == {"requestId", "amount", "remark"}
 assert recharge_body["amount"] > 0
+deduction_item = next(item for item in postman["item"] if item.get("name") == "广告主幂等扣减")
+deduction_body = json.loads(deduction_item["request"]["body"]["raw"])
+assert set(deduction_body) == {"requestId", "amount", "remark"}
+assert deduction_body["amount"] > 0
+assert deduction_body["remark"].strip()
 serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
@@ -111,6 +124,7 @@ assert "/ocpx/aerim/callback" in serialized
 assert "/ocpx/weifeng/callback" in serialized
 assert "/boot/ocpx/advertisers/account-role/permissions" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/recharge" in serialized
+assert "/boot/ocpx/advertisers/{{advertiserId}}/deduct" in serialized
 assert "/boot/ocpx/dashboard/summary" in serialized
 assert "currency_amount=123.45" in serialized
 assert "mId={{mediaId}}" in serialized

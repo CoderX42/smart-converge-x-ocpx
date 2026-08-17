@@ -75,6 +75,22 @@
       }
     },
     {
+      "name": "广告主幂等扣减",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"requestId\": \"{{deductionRequestId}}\",\n  \"amount\": 25.50,\n  \"remark\": \"local manual deduction example\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/advertisers/{{advertiserId}}/deduct"
+      }
+    },
+    {
       "name": "首页真实数据摘要",
       "request": {
         "method": "GET",
@@ -93,6 +109,7 @@
     { "key": "monitorTaskId", "value": "replace_with_scx_monitor_task_id" },
     { "key": "advertiserId", "value": "replace_with_scx_advertiser_id" },
     { "key": "rechargeRequestId", "value": "replace_with_unique_request_id" },
+    { "key": "deductionRequestId", "value": "replace_with_unique_request_id" },
     { "key": "promotionLinkId", "value": "replace_with_scx_promotion_link_id" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
     { "key": "callbackExt", "value": "replace_with_runtime_ext" }

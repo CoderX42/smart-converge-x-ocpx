@@ -100,6 +100,41 @@ public class OcpxAdvertiserAccountService {
 		return new AdvertiserViews.RechargeResult(entryId, advertiserId, amount, balanceAfter, occurredAt);
 	}
 
+	@Transactional
+	public AdvertiserViews.DeductionResult deduct(String advertiserId, AdvertiserRequests.Deduction request) {
+		advertiserScope.requireSystemAdministrator();
+		String requestId = request.getRequestId().trim();
+		BigDecimal amount = money(request.getAmount());
+		String remark = request.getRemark().trim();
+		String businessKey = "MANUAL_DEBIT:" + advertiserId + ":" + requestId;
+		BigDecimal balanceBefore = lockBalance(advertiserId);
+		AdvertiserViews.DeductionResult existing = findDeduction(businessKey, advertiserId, amount, remark);
+		if (existing != null) {
+			return existing;
+		}
+		if (balanceBefore.compareTo(amount) < 0) {
+			throw new BootBusinessException("扣减金额不能超过当前可用余额");
+		}
+
+		BigDecimal balanceAfter = balanceBefore.subtract(amount).setScale(6, RoundingMode.UNNECESSARY);
+		jdbcTemplate.update("""
+				UPDATE scx_ocpx_advertiser_account
+				SET available_balance=?,update_time=CURRENT_TIMESTAMP(3)
+				WHERE advertiser_id=?
+				""", balanceAfter, advertiserId);
+		String entryId = nextId();
+		LocalDateTime occurredAt = LocalDateTime.now(BUSINESS_ZONE);
+		BootUser operator = SecurityUtils.getUser();
+		jdbcTemplate.update("""
+				INSERT INTO scx_ocpx_billing_entry (
+				  id,advertiser_id,entry_type,status,amount,balance_before,balance_after,
+				  business_key,operator_user_id,remark,occurred_at
+				) VALUES (?,?,'MANUAL_DEBIT','POSTED',?,?,?,?,?,?,?)
+				""", entryId, advertiserId, amount, balanceBefore, balanceAfter, businessKey,
+				operator == null ? null : operator.getUserId(), remark, occurredAt);
+		return new AdvertiserViews.DeductionResult(entryId, advertiserId, amount, balanceAfter, occurredAt);
+	}
+
 	public void assertDeletable(String advertiserId) {
 		BigDecimal balance = balance(advertiserId);
 		Long facts = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_event_fact WHERE advertiser_id=?",
@@ -146,6 +181,28 @@ public class OcpxAdvertiserAccountService {
 		return existing;
 	}
 
+	private AdvertiserViews.DeductionResult findDeduction(String businessKey, String advertiserId, BigDecimal amount,
+			String remark) {
+		List<DeductionEntry> entries = jdbcTemplate.query("""
+				SELECT id,advertiser_id,amount,balance_after,remark,occurred_at
+				FROM scx_ocpx_billing_entry WHERE business_key=?
+				""",
+				(rs, rowNum) -> new DeductionEntry(new AdvertiserViews.DeductionResult(rs.getString("id"),
+						rs.getString("advertiser_id"), rs.getBigDecimal("amount"), rs.getBigDecimal("balance_after"),
+						rs.getTimestamp("occurred_at").toLocalDateTime()), rs.getString("remark")),
+				businessKey);
+		if (entries.isEmpty()) {
+			return null;
+		}
+		DeductionEntry entry = entries.get(0);
+		AdvertiserViews.DeductionResult existing = entry.result();
+		if (!advertiserId.equals(existing.getAdvertiserId()) || existing.getAmount().compareTo(amount) != 0
+				|| !remark.equals(entry.remark())) {
+			throw new BootBusinessException("同一 requestId 不允许变更扣减对象、金额或原因");
+		}
+		return existing;
+	}
+
 	private static BigDecimal money(BigDecimal value) {
 		return (value == null ? BigDecimal.ZERO : value).setScale(6, RoundingMode.HALF_UP);
 	}
@@ -159,6 +216,9 @@ public class OcpxAdvertiserAccountService {
 	}
 
 	private record BalanceRow(String advertiserId, BigDecimal balance) {
+	}
+
+	private record DeductionEntry(AdvertiserViews.DeductionResult result, String remark) {
 	}
 
 }

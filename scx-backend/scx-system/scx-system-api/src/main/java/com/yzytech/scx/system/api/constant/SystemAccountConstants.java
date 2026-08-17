@@ -23,6 +23,9 @@ public final class SystemAccountConstants {
 	/** 资金充值只能由真实系统管理员执行，不能下放到共享广告主角色。 */
 	public static final String ADVERTISER_RECHARGE_PERMISSION = "ocpx:advertiser:recharge";
 
+	/** 资金人工扣减只能由真实系统管理员执行，不能下放到共享广告主角色。 */
+	public static final String ADVERTISER_DEDUCT_PERMISSION = "ocpx:advertiser:deduct";
+
 	/** 监测任务计费口径只能由真实系统管理员维护。 */
 	public static final String MONITOR_TASK_BILLING_PERMISSION = "ocpx:monitor-task:billing";
 
