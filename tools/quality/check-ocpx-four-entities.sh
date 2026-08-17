@@ -143,7 +143,6 @@ required = {
     "configuration/credential/PartnerCredentialProperties.java",
     "configuration/credential/PartnerCredentialResolver.java",
     "protocol/registry/AdvertiserProtocolRegistry.java",
-    "protocol/registry/MediaProtocolRegistry.java",
     "report/service/OcpxFlowLogWriter.java",
     "shared/redis/RedisHelper.java",
 }
@@ -151,6 +150,36 @@ actual_sources = {p.relative_to(java_root).as_posix() for p in java_root.rglob("
 missing = required - actual_sources
 if missing:
     raise SystemExit(f"OCPX Engine gate failed: missing sources {sorted(missing)!r}")
+
+retired_partner_sources = {
+    "callback/delivery/mi/MiDownstreamDeliveryService.java",
+    "callback/web/kimi/KimiCallbackAdapter.java",
+    "callback/web/kimi/KimiCallbackController.java",
+    "callback/web/kimi/KimiCallbackReq.java",
+    "feedback/delivery/kimi/KimiUpstreamDeliveryService.java",
+    "feedback/web/mi/MiFeedbackController.java",
+    "feedback/web/mi/MiParamAdapter.java",
+    "feedback/web/mi/MiReq.java",
+    "protocol/registry/MediaProtocolRegistry.java",
+}
+remaining_partner_sources = retired_partner_sources & actual_sources
+if remaining_partner_sources:
+    raise SystemExit(
+        f"OCPX Engine gate failed: retired KIMI/MI sources remain {sorted(remaining_partner_sources)!r}"
+    )
+
+retired_partner_markers = (
+    "KIMI",
+    "/kimi/callback",
+    "/mi/feedback",
+    "MediaProtocolRegistry",
+    "MiDownstreamDeliveryService",
+    "trail.e.mi.com",
+)
+for file in java_root.rglob("*.java"):
+    source = file.read_text(encoding="utf-8")
+    if any(marker in source for marker in retired_partner_markers):
+        raise SystemExit(f"OCPX Engine gate failed: retired KIMI/MI marker remains in {file}")
 
 retired_engine_sources = {
     "feedback/web/GeneralController.java",
@@ -430,6 +459,8 @@ for path, source in (
 ):
     if re.search(r"\$\{(?:SCX|ROCKETMQ|XXL_JOB|XXL_SSO)_", source):
         raise SystemExit(f"configuration gate failed: runtime environment placeholder found in {path}")
+    if ": KIMI" in source or "\n    media:" in source:
+        raise SystemExit(f"configuration gate failed: retired KIMI/MI configuration found in {path}")
 
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):
@@ -438,14 +469,10 @@ for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech
 if "com.yzytech.scx.ocpx.dao.mapper" in entrypoint:
     raise SystemExit("feature-package gate failed: retired MapperScan remains")
 
-# KIMI 协议迁移：KIMI 广告主以 POST + JSON body 回传转化（SGYZ KimiController 平移），
-# 因此仅 callback/web/kimi/KimiCallbackController.java 允许 @PostMapping，其余 Controller 仍为 GET-only。
-kimi_callback_controller = (java_root / "callback/web/kimi/KimiCallbackController.java").resolve()
+# 当前数据面公开入口全部是 GET；任何写方法映射都必须先经过新协议评审。
 for file in java_root.rglob("*Controller.java"):
     source = file.read_text(encoding="utf-8")
-    mutating = ["@PutMapping", "@PatchMapping", "@DeleteMapping"]
-    if file.resolve() != kimi_callback_controller:
-        mutating.append("@PostMapping")
+    mutating = ["@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping"]
     if any(annotation in source for annotation in mutating):
         raise SystemExit(f"GET-only gate failed: mutating mapping found in {file}")
 

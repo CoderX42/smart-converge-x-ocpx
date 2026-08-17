@@ -1,8 +1,6 @@
 package com.yzytech.scx.ocpx.callback.delivery;
 
-import com.yzytech.scx.ocpx.callback.delivery.mi.MiDownstreamDeliveryService;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
-import com.yzytech.scx.ocpx.protocol.registry.MediaProtocolRegistry;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -17,8 +15,7 @@ import java.util.concurrent.TimeUnit;
  * 线程池参数和 {@link ThreadPoolExecutor.CallerRunsPolicy} 属于历史兼容约束。队列满时由调用线程
  * 执行任务，以反压方式避免直接丢弃回传。
  *
- * <p>
- * 媒体主键登记为 MI 时走小米协议；其余媒体按参考实现走 Feedback 自带回调地址。
+ * <p>所有媒体统一使用 Feedback 自带的 Callback URL 回传。
  */
 @Component
 public class DownstreamDeliveryDispatcher {
@@ -29,15 +26,8 @@ public class DownstreamDeliveryDispatcher {
 
 	private static CallbackUrlDownstreamDeliveryService deliveryService;
 
-	private static MiDownstreamDeliveryService miDeliveryService;
-
-	private static MediaProtocolRegistry protocolRegistry;
-
-	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService,
-			MiDownstreamDeliveryService miDeliveryService, MediaProtocolRegistry protocolRegistry) {
+	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService) {
 		DownstreamDeliveryDispatcher.deliveryService = deliveryService;
-		DownstreamDeliveryDispatcher.miDeliveryService = miDeliveryService;
-		DownstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 	}
 
 	/**
@@ -50,7 +40,7 @@ public class DownstreamDeliveryDispatcher {
 	public static void dispatch(CallbackReq request) {
 		EXECUTORS.execute(() -> {
 			try {
-				DownstreamDeliveryService service = resolve(request);
+				DownstreamDeliveryService service = resolve();
 				if (service != null) {
 					service.deliver(request);
 				}
@@ -60,12 +50,8 @@ public class DownstreamDeliveryDispatcher {
 		});
 	}
 
-	/** 按媒体主键固定注册表选择特殊协议；未登记媒体回退通用实现。 */
-	static DownstreamDeliveryService resolve(CallbackReq request) {
-		if (protocolRegistry != null && protocolRegistry.resolve(request.getFeedback().getMId())
-			.orElse(null) == MediaProtocolRegistry.Protocol.MI) {
-			return miDeliveryService;
-		}
+	/** 返回统一的通用媒体 Callback URL 投递实现。 */
+	static DownstreamDeliveryService resolve() {
 		return deliveryService;
 	}
 

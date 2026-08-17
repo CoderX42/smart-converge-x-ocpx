@@ -83,11 +83,11 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of(username("adv-1", "adv-user")));
 		when(advertiserAccountService.balance("adv-1")).thenReturn(BigDecimal.ZERO);
 
-		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " mi-signing ",
+		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " advertiser-signing ",
 				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
 
 		assertThat(result.getAdvertiserName()).isEqualTo("广告主一");
-		assertThat(result.getCredentialConfigKey()).isEqualTo("mi-signing");
+		assertThat(result.getCredentialConfigKey()).isEqualTo("advertiser-signing");
 		assertThat(result.getBidUrl()).isEqualTo("http://127.0.0.1:8080/callback?oaid=__OAID__");
 		assertThat(result.getMacroParams()).isEqualTo("oaid=__OAID__");
 		assertThat(result.getUsername()).isEqualTo("adv-user");

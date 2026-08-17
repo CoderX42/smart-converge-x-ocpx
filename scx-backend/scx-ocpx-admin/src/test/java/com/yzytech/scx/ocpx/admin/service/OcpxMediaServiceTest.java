@@ -54,11 +54,11 @@ class OcpxMediaServiceTest {
 		when(mediaMapper.selectById("media-1")).thenAnswer(invocation -> stored.get());
 
 		MediaViews.Item result = service
-			.create(new MediaRequests.Create(" 小米 ", " mi-signing ", "/mi/feedback", " __OAID__ "));
+			.create(new MediaRequests.Create(" 示例媒体 ", " generic-media-ref ", "/feedback", " __OAID__ "));
 
-		assertThat(result.getMediaName()).isEqualTo("小米");
-		assertThat(result.getCredentialConfigKey()).isEqualTo("mi-signing");
-		assertThat(result.getUri()).isEqualTo("/mi/feedback");
+		assertThat(result.getMediaName()).isEqualTo("示例媒体");
+		assertThat(result.getCredentialConfigKey()).isEqualTo("generic-media-ref");
+		assertThat(result.getUri()).isEqualTo("/feedback");
 		assertThat(result.getMacroParams()).isEqualTo("__OAID__");
 		verify(refreshPublisher).mark();
 	}
@@ -67,18 +67,18 @@ class OcpxMediaServiceTest {
 	void optionsReturnIdAndNameForQuerySelect() {
 		OcpxMedia media = new OcpxMedia();
 		media.setId("media-1");
-		media.setMediaName("小米");
+		media.setMediaName("示例媒体");
 		when(mediaMapper.selectList(any())).thenReturn(java.util.List.of(media));
 
 		assertThat(service.options()).extracting(MediaViews.Option::getId, MediaViews.Option::getName)
-			.containsExactly(org.assertj.core.groups.Tuple.tuple("media-1", "小米"));
+			.containsExactly(org.assertj.core.groups.Tuple.tuple("media-1", "示例媒体"));
 	}
 
 	@Test
 	void createRejectsDuplicateName() {
 		when(mediaMapper.selectCount(any())).thenReturn(1L);
 
-		assertThatThrownBy(() -> service.create(new MediaRequests.Create("小米", null, "/feedback", null)))
+		assertThatThrownBy(() -> service.create(new MediaRequests.Create("示例媒体", null, "/feedback", null)))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("媒体名称已存在");
 	}

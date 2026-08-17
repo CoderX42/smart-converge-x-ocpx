@@ -46,8 +46,8 @@ V108 起重复 Feedback/Callback 不再重复计数或投递；MySQL 事实、�
 合作方 Controller、固定 ID、URL、枚举项和专用协议；不包含智能出价、预算、
 账务、重试、DLQ 或管理端扣量配置页面。
 
-> 2026-08-13 增补：上述排除范围已部分收窄——管理端扣量配置、极简充值、
-> 小米/KIMI 合作方适配等已交付，详见末节「2026-08 增补：已对齐能力」；
+> 2026-08-13 增补：上述排除范围曾部分收窄——管理端扣量配置、极简充值和
+> 小米/KIMI 合作方适配曾完成源码平移；其中两套合作方专用协议已于 2026-08-17 移除；
 > 未列入该节的内容仍维持原排除。
 
 ## 2026-08 增补：已对齐能力
@@ -61,7 +61,7 @@ V108 起重复 Feedback/Callback 不再重复计数或投递；MySQL 事实、�
 | 2 | 监测任务双链接与业务字段 | advertise/flow 页形态 | `scx_ocpx_monitor_task` 保存 `unit_price`/`biz_id`/`show_url`/`clk_url`/`remark`，V102 将名称字段收敛为 `monitor_name` 并使用 `is_delete`；Admin 创建/更新时持久化生成 `show_url`/`clk_url`（`{engine-base}/feedback?{媒体宏参数}&event=IMP\|CLK&mId=&tId=&aId=&lId=`）；旧 `/c/{taskCode}` 已移除；前端展示业务编号、单价、双链接复制和级联弹窗 |
 | 3 | 充值/余额、CPC 与监测任务删除 | 广告主充值与首次有效点击 | V108 以 `scx_ocpx_advertiser_account` 和不可变 `scx_ocpx_billing_entry` 替代 Redis 余额；充值增加 `requestId`、账前/账后余额和真实 `ROLE_ADMIN` 校验；首次有效点击按任务 CNY 单价扣费，余额不足记拒绝流水且不投递；有账务或事实后禁止广告主物理删除 |
 | 4 | 时段报表与导出 | AChannelTime 报表形态 | `GET /ocpx/reports/summary`（`dateType` 0时/1日/2月/3年、四实体级联、扣量、CTR、消耗、转化列、排序和分页）、`GET /ocpx/reports/summary:export`（CSV 带 BOM）；V108 与 Dashboard 统一读取 `scx_ocpx_hourly_metric` |
-| 5 | 小米 + KIMI 合作方适配 | mi/kimi Controller 与投递协议 | 引擎保留 `GET /mi/feedback`、小米签名回传、`POST /kimi/callback` 和 KIMI CLICK 投递；V102 删除表内 Adapter 字段，改由广告主/媒体主键 Java 固定注册表分发，签名材料从服务端凭据引用解析。未登记广告主拒绝并写脱敏失败日志，未登记媒体走通用 Callback URL |
+| 5 | 小米 + KIMI 合作方适配（已移除） | mi/kimi Controller 与投递协议 | 2026-08-17 删除两套专用入口、适配器、调度分支和专用凭据配置；当前下游统一走通用 Callback URL，上游只保留 `TEMPLATE_GET` 与 AERIM |
 | 6 | 数据面运维回补 | 日志拆分与清理任务 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实无需改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
 | 7 | vientiane 管理端硬替换对齐 | `vientiane-frontend/src/views` | V102 精简五实体字段、数值平台、删列改名、函数唯一索引与 RBAC；删除状态/归档/预检/连通性/媒体导出等旧接口；七个列表页统一列控制、复制、级联和分页；详见 [V102 基线](OCPX管理端vientiane对齐V102.md) |
 | 8 | 广告主开户与只读账号 | DSP 新增时同步创建账号 | V103 使用 SCX `sys_user`/`sys_user_role` 原子开户，BCrypt 保存密码，固定 `ROLE_ADVERTISER`；type=2 账号以 `shop_id` 强制限制为自身广告主，只读六页与报表 CSV，既有广告主不自动开户；详见 [V103 基线](OCPX管理端开户与数据范围V103.md) |

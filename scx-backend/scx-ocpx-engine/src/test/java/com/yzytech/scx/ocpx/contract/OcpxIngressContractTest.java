@@ -3,6 +3,8 @@ package com.yzytech.scx.ocpx.contract;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import com.yzytech.scx.ocpx.callback.web.UpstreamCallbackController;
+import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackAdapter;
+import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackController;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
 import com.yzytech.scx.ocpx.feedback.web.FeedbackIngressAdapter;
 import com.yzytech.scx.ocpx.feedback.web.FeedbackIngressController;
@@ -19,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -169,7 +172,23 @@ class OcpxIngressContractTest {
 		mvc.perform(get("/ocpx/callback").contextPath("/ocpx")
 			.param("ext", "invalid")
 			.param("event_type", "1")
-			.param("event_time", "1")).andExpect(status().isInternalServerError()).andExpect(content().string(""));
+				.param("event_time", "1")).andExpect(status().isInternalServerError()).andExpect(content().string(""));
+	}
+
+	@Test
+	void retiredPartnerRoutesAreNotMappedByTheCurrentIngressSurface() throws Exception {
+		FeedbackService feedbackService = mock(FeedbackService.class);
+		CallbackService callbackService = mock(CallbackService.class);
+		CallbackRequestAdapter callbackAdapter = mock(CallbackRequestAdapter.class);
+		AerimCallbackAdapter aerimAdapter = mock(AerimCallbackAdapter.class);
+		MockMvc mvc = MockMvcBuilders
+			.standaloneSetup(new FeedbackIngressController(feedbackService, new FeedbackIngressAdapter()),
+					new UpstreamCallbackController(callbackService, callbackAdapter),
+					new AerimCallbackController(callbackService, aerimAdapter))
+			.build();
+
+		mvc.perform(post("/ocpx/kimi/callback").contextPath("/ocpx")).andExpect(status().isNotFound());
+		mvc.perform(get("/ocpx/mi/feedback").contextPath("/ocpx")).andExpect(status().isNotFound());
 	}
 
 	private MockMvc feedbackMvc(FeedbackService feedbackService) {

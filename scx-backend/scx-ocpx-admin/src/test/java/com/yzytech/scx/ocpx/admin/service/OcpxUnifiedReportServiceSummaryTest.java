@@ -79,11 +79,11 @@ class OcpxUnifiedReportServiceSummaryTest {
 		SummaryReportViews.Row row = page.getRecords().get(0);
 		assertThat(row.getReportTime()).isEqualTo("20260812");
 		assertThat(row.getMediaId()).isEqualTo("media-1");
-		assertThat(row.getMediaName()).isEqualTo("小米");
+		assertThat(row.getMediaName()).isEqualTo("示例媒体");
 		assertThat(row.getMonitorTaskId()).isEqualTo("task-1");
 		assertThat(row.getMonitorName()).isEqualTo("任务一");
 		assertThat(row.getAdvertiserId()).isEqualTo("advertiser-1");
-		assertThat(row.getAdvertiserName()).isEqualTo("KIMI");
+		assertThat(row.getAdvertiserName()).isEqualTo("示例广告主");
 		assertThat(row.getPromotionLinkId()).isEqualTo("link-1");
 		assertThat(row.getPromotionLinkName()).isEqualTo("链接一");
 		assertThat(row.getLinkRadio()).isEqualTo("0.6");
@@ -207,7 +207,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		assertThat(lines[0]).isEqualTo(
 				"报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起," + "登录,注册,付费,获客,次留,访问,认证,下单,完单,首活,首购,订单金额");
 		assertThat(lines[1]).isEqualTo(
-				"20260812,小米,任务一,KIMI,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21,22,23,123.45");
+				"20260812,示例媒体,任务一,示例广告主,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21,22,23,123.45");
 	}
 
 	@Test
@@ -226,11 +226,11 @@ class OcpxUnifiedReportServiceSummaryTest {
 		ResultSet rs = mock(ResultSet.class);
 		lenient().when(rs.getString("reportTime")).thenReturn("20260812");
 		lenient().when(rs.getString("m_id")).thenReturn("media-1");
-		lenient().when(rs.getString("media_name")).thenReturn("小米");
+		lenient().when(rs.getString("media_name")).thenReturn("示例媒体");
 		lenient().when(rs.getString("t_id")).thenReturn("task-1");
 		lenient().when(rs.getString("monitor_name")).thenReturn("任务一");
 		lenient().when(rs.getString("a_id")).thenReturn("advertiser-1");
-		lenient().when(rs.getString("advertiser_name")).thenReturn("KIMI");
+		lenient().when(rs.getString("advertiser_name")).thenReturn("示例广告主");
 		lenient().when(rs.getString("l_id")).thenReturn("link-1");
 		lenient().when(rs.getString("link_name")).thenReturn("链接一");
 		lenient().when(rs.getObject("link_radio")).thenReturn(ratio);

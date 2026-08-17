@@ -15,19 +15,19 @@
 
 ## 协议注册与凭据
 
-`AdvertiserProtocolRegistry` 以广告主主键登记 `TEMPLATE_GET` 或 `KIMI`；未登记广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。`MediaProtocolRegistry` 只登记 MI 等特殊媒体；未登记媒体走通用回调。
+`AdvertiserProtocolRegistry` 通过 Engine profile 的广告主主键配置选择 `TEMPLATE_GET` 或 `AERIM`；未登记广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。下游媒体不再使用专用协议注册表，统一走通用回调。
 
-注册表只保存主键到实现类型的静态映射。账号、Secret 和签名材料由实体的 `credentialConfigKey` 通过 `PartnerCredentialResolver` 从 Engine profile 的 `ocpx.partner-credentials` 映射解析，不进入业务表、响应、请求日志或注册表。管理端创建新主键后，接入提交必须显式加入注册表；生产发布前未完成广告主主键分类即为 No-Go。
+协议配置只保存主键到实现类型的映射。通用模板签名材料由广告主实体的 `credentialConfigKey` 通过 `PartnerCredentialResolver` 从 Engine profile 的 `ocpx.partner-credentials.advertisers` 解析，不进入业务表、响应或请求日志。管理端创建新主键后，接入提交必须显式配置协议；生产发布前未完成广告主主键分类即为 No-Go。
 
 ## 正向 Feedback
 
-通用入口为 `GET /ocpx/feedback`；小米入口为 `GET /ocpx/mi/feedback`。通用链路先校验四实体关系，再写 Redis 去重计数和报表 List，随后由 `UpstreamDeliveryDispatcher` 异步选择上游实现。重复请求沿用现有行为，仍会入队并转发。
+唯一媒体入口为 `GET /ocpx/feedback`。链路先在 MySQL 事务中校验四实体关系、完成事件去重、计费和小时汇总，再写兼容日志队列；只有首次有效且允许投递的事件才由 `UpstreamDeliveryDispatcher` 异步选择上游实现。
 
-`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。KIMI 只为注册为 `KIMI` 的广告主处理 CLICK 投递。
+`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 仅处理 CLICK 投递，并使用白名单限制上游监测域名。
 
 ## 反向 Callback
 
-通用入口为 `GET /ocpx/callback`；KIMI 专用入口为 `POST /ocpx/kimi/callback`。通用入口解密 `ext`，按请求 ID 和 Action 去重，并以 `lId + mId` 执行扣量。允许回传时，未登记媒体读取原 Feedback 的 `callback_url`、追加事件参数并执行通用 GET；登记为 `MI` 的媒体使用小米签名协议，签名材料由媒体凭据引用解析。
+通用入口为 `GET /ocpx/callback`，AERIM 专用入口为 `GET /ocpx/aerim/callback`。入口解密 `ext`，按请求 ID 和 Action 写入唯一事实，并以 `lId + mId` 执行扣量。允许回传时统一读取原 Feedback 的 `callback_url`、追加事件参数并执行通用 GET。
 
 Feedback 携带的通用回调地址属于服务端外发目标，必须限制为安全的 HTTP/HTTPS 公网地址，拒绝本机、内网、链路本地地址、用户信息和危险协议。
 

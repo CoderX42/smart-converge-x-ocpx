@@ -18,23 +18,7 @@ HTTP 接收成功只表示请求进入 SCX 数据层和异步上游队列，不�
 
 `callback_url` 必须是安全的 HTTP/HTTPS 公网地址。SCX 拒绝本机、内网、链路本地地址、用户信息、危险协议和非法 URL；媒体不得依赖管理表中的固定 Callback URL。
 
-通用媒体无需在 Java 注册表登记。只有需要专用签名或方言协议的媒体才登记到 `MediaProtocolRegistry`。
-
-## 小米例外
-
-小米入站使用：
-
-```http
-GET /ocpx/mi/feedback
-```
-
-响应固定为：
-
-```json
-{"code":0,"failMsg":"","success":true}
-```
-
-只有明确登记为 `MI` 的媒体才使用小米签名回传。签名材料通过媒体 `credentialConfigKey` 在 Engine profile 的 `ocpx.partner-credentials.media` 中解析，不进入媒体表、浏览器、注册表或日志。未登记媒体不会使用 MI 协议，而是回退到通用 `callback_url`。
+所有媒体统一使用通用 Feedback 与 `callback_url`，无需在 Java 注册表登记。媒体管理中的 `credentialConfigKey` 作为通用扩展字段保留，当前下游回传不会解析或使用它。
 
 ## 凭据和日志
 
@@ -46,7 +30,6 @@ GET /ocpx/mi/feedback
 - 监测任务未被逻辑删除；
 - 广告主已在上游注册表分类；
 - 通用 `callback_url` 通过出站 URL 安全策略；
-- MI 媒体已登记并能解析服务端凭据；
 - 重复、扣量和全部转化事件均按契约验证；
 - 流程日志和错误响应不泄露凭据或完整敏感载荷。
 

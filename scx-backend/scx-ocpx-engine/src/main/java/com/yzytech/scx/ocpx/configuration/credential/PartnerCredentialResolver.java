@@ -1,7 +1,6 @@
 package com.yzytech.scx.ocpx.configuration.credential;
 
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
-import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -19,10 +18,6 @@ public class PartnerCredentialResolver {
 
 	public Optional<String> advertiserSecret(OcpxAdvertiser advertiser) {
 		return resolve(advertiser == null ? null : advertiser.getCredentialConfigKey(), properties.getAdvertisers());
-	}
-
-	public Optional<String> mediaSecret(OcpxMedia media) {
-		return resolve(media == null ? null : media.getCredentialConfigKey(), properties.getMedia());
 	}
 
 	private Optional<String> resolve(String reference, java.util.Map<String, String> credentials) {

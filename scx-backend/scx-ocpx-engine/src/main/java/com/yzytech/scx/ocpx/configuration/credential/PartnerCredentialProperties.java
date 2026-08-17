@@ -15,6 +15,4 @@ public class PartnerCredentialProperties {
 
 	private Map<String, String> advertisers = new HashMap<>();
 
-	private Map<String, String> media = new HashMap<>();
-
 }

@@ -28,8 +28,6 @@ public class AdvertiserProtocolRegistry {
 
 		TEMPLATE_GET,
 
-		KIMI,
-
 		AERIM
 
 	}

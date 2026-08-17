@@ -1,6 +1,6 @@
 # SCX OCPX 契约包
 
-本目录描述 SCX 通用 Feedback/Callback、KIMI POST 例外和当前管理端字段边界。
+本目录描述 SCX 通用 Feedback/Callback、AERIM Callback 和当前管理端字段边界。
 
 | 文件 | 用途 |
 |---|---|
@@ -21,8 +21,7 @@
 `advId` 是广告主侧广告 ID，两者不得混用。Postman 只保留占位值，
 不得写入真实 AES Key、签名密钥、账号或生产域名。
 
-通用 Feedback/Callback 及媒体回传使用 GET Query String；KIMI 的
-`/kimi/callback` 是明确的 POST JSON 例外。Feedback 只有在 MySQL 事实、账务和小时汇总事务提交后才返回成功；
+通用 Feedback/Callback、AERIM Callback 及媒体回传均使用 GET Query String。Feedback 只有在 MySQL 事实、账务和小时汇总事务提交后才返回成功；
 重复事件和余额不足点击不向上游投递。Redis List 与 StorageTask 只保留兼容日志用途，不再驱动 Dashboard 或报表。
 
 ```bash
