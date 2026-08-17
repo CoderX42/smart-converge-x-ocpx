@@ -28,6 +28,7 @@ ocpx:
     # 只填写商务提供的 HTTP/HTTPS 监测域名，不填写协议或路径。
     allowed-hosts:
       - d.aerim.cn
+      - c.aerim.cn
   weifeng:
     # v1.3 点击监测固定域名；aid/did 直接读取推广链接中由上游提供的固定参数。
     allowed-hosts:
