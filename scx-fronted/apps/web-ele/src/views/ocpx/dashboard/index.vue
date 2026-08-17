@@ -98,12 +98,12 @@ const metricCards = computed(() =>
     const metric = dashboard.value?.metrics?.[code];
     const readable = metric?.status === 'OK' && metric.value !== null;
     const numericValue = readable ? Number(metric.value) : undefined;
+    const formattedNumericValue =
+      numericValue === undefined ? '—' : formatDecimal(numericValue);
     const value =
-      numericValue !== undefined
-        ? metric?.unit === 'COUNT'
-          ? formatInteger(numericValue)
-          : formatDecimal(numericValue)
-        : '—';
+      metric?.unit === 'COUNT' && numericValue !== undefined
+        ? formatInteger(numericValue)
+        : formattedNumericValue;
     return {
       code,
       label,
@@ -356,8 +356,17 @@ onMounted(async () => {
         type="warning"
       />
 
+      <el-alert
+        v-if="dashboard?.account?.rejectedConversionCount"
+        class="dashboard-alert"
+        :closable="false"
+        show-icon
+        :title="`今日有 ${dashboard.account.rejectedConversionCount} 次目标转化因余额不足未计费；扣量判定和媒体 Callback 仍按原流程执行。`"
+        type="warning"
+      />
+
       <section
-        v-if="accountCards.length"
+        v-if="accountCards.length > 0"
         class="account-grid"
         aria-label="账户概况"
       >

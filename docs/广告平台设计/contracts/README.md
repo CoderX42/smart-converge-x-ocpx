@@ -4,7 +4,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `openapi.yaml` | `/feedback`、通用/AERIM/微风 Callback、媒体回传、幂等充值和真实首页摘要 |
+| `openapi.yaml` | `/feedback`、通用/AERIM/微风 Callback、媒体回传、创意/素材、可配置计费、账务流水、监测点击测试和真实首页摘要 |
 | `feedback-req-v2.schema.json` | Feedback Ingress Query 对象 |
 | `callback-req-v2.schema.json` | Upstream Callback Query 对象 |
 | `weifeng-callback-req-v1.schema.json` | 微风互动 Callback Query 对象 |
@@ -15,6 +15,11 @@
 | `management-v104.md` | `ROLE_ADMIN` 五对象 CRUD 和安全删除边界 |
 | `management-v107.md` | 共享广告主角色权限、全量数据范围和会话失效契约 |
 | `management-v108.md` | 幂等充值、计费配置、真实 Dashboard 和资金隔离契约 |
+| `management-v110.md` | 人工余额扣减与管理员资金权限契约 |
+| `management-v111.md` | 创意、素材、多链接绑定、点击/转化计费和全量账务流水契约 |
+| `management-v112.md` | 管理员监测任务 CLK 测试链接、真实发送和联调详情契约 |
+| `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
+| `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |
 
 `mId/tId/aId/lId` 分别直接使用 `OcpxMedia`、`OcpxMonitorTask`、
@@ -23,7 +28,7 @@
 不得写入真实 AES Key、签名密钥、账号或生产域名。
 
 通用 Feedback/Callback、AERIM Callback、微风互动 Callback 及媒体回传均使用 GET Query String。Feedback 只有在 MySQL 事实、账务和小时汇总事务提交后才返回成功；
-重复事件和余额不足点击不向上游投递。Redis List 与 StorageTask 只保留兼容日志用途，不再驱动 Dashboard 或报表。
+重复事件和余额不足点击不向上游投递；转化余额不足仍继续既有扣量与下游 Callback。Redis List 与 StorageTask 只保留兼容日志用途，不再驱动 Dashboard 或报表。
 
 ```bash
 make contract-check

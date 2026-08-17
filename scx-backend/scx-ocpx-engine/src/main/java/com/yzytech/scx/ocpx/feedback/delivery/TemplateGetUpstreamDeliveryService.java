@@ -4,6 +4,7 @@ import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.template.TemplateGetProtocolAdapter;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.stereotype.Component;
@@ -21,10 +22,13 @@ public class TemplateGetUpstreamDeliveryService extends UpstreamDeliveryService 
 
 	private final OcpxAdvertiserIndex advertiserIndex;
 
+	private final OcpxFlowLogWriter flowLogWriter;
+
 	public TemplateGetUpstreamDeliveryService(TemplateGetProtocolAdapter protocolAdapter,
-			OcpxAdvertiserIndex advertiserIndex) {
+			OcpxAdvertiserIndex advertiserIndex, OcpxFlowLogWriter flowLogWriter) {
 		this.protocolAdapter = protocolAdapter;
 		this.advertiserIndex = advertiserIndex;
+		this.flowLogWriter = flowLogWriter;
 	}
 
 	@Override
@@ -37,14 +41,18 @@ public class TemplateGetUpstreamDeliveryService extends UpstreamDeliveryService 
 			OcpxAdvertiser advertiser = advertiserIndex.get(feedback.getAId());
 			String requestUrl = protocolAdapter.buildUpstreamRequestUrl(advertiser, feedback);
 			if (requestUrl == null) {
+				flowLogWriter.upstreamDelivery(feedback, false, null, "TEMPLATE_GET_REQUEST_REJECTED", 0L);
 				return;
 			}
-			log.info("upstream template GET linkId:{} req:{}", feedback.getLId(), requestUrl);
-			String content = NetUtil.httpGet(requestUrl, null);
-			log.info("upstream template GET linkId:{}, content:{}", feedback.getLId(), content);
+			NetUtil.HttpGetResult result = NetUtil.httpGetResult(requestUrl);
+			boolean success = result.statusCode() != null && (result.statusCode() == 200 || result.statusCode() == 204);
+			String conclusion = success ? "TEMPLATE_GET_DELIVERED"
+					: result.errorCode() == null ? "TEMPLATE_GET_HTTP_FAILED" : "TEMPLATE_GET_" + result.errorCode();
+			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs());
 		}
 		catch (Exception exception) {
-			errorLog.error("执行上游模板 GET [{}] 异常 message:{}", feedback.getLId(), exception.getMessage(), exception);
+			flowLogWriter.upstreamDelivery(feedback, false, null, "TEMPLATE_GET_INTERNAL_ERROR", 0L);
+			errorLog.error("执行上游模板 GET [{}] 异常 type:{}", feedback.getLId(), exception.getClass().getSimpleName());
 			throw new RuntimeException(exception);
 		}
 	}

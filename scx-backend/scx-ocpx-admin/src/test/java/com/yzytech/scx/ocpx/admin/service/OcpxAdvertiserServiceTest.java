@@ -303,6 +303,8 @@ class OcpxAdvertiserServiceTest {
 		deletion.verify(advertiserMapper).deleteFeedbackDayLogs("adv-1");
 		deletion.verify(advertiserMapper).deleteFeedbackLogs("adv-1");
 		deletion.verify(advertiserMapper).deleteFlowLogs("adv-1");
+		deletion.verify(advertiserMapper).deleteCreativeBindings("adv-1");
+		deletion.verify(advertiserMapper).deleteCreatives("adv-1");
 		deletion.verify(advertiserMapper).deleteDeductionRules("adv-1");
 		deletion.verify(advertiserMapper).deleteMonitorTasks("adv-1");
 		deletion.verify(advertiserMapper).deletePromotionLinks("adv-1");

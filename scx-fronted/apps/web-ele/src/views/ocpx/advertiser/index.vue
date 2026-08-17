@@ -5,6 +5,7 @@ import type {
   AdvertiserRoleMenuNode,
   AdvertiserRolePermissions,
   AdvertiserV2,
+  BillingEntry,
   EntityOption,
 } from '#/api/ocpx';
 
@@ -23,6 +24,7 @@ import {
   deleteAdvertiserV2,
   getAdvertiserRolePermissions,
   listAdvertisers,
+  listBillingEntries,
   rechargeAdvertiser,
   updateAdvertiserRolePermissions,
   updateAdvertiserV2,
@@ -85,7 +87,11 @@ const canOperate = computed(() =>
     'ocpx:advertiser:recharge',
     'ocpx:advertiser:deduct',
     'ocpx:advertiser:delete',
+    'ocpx:billing-entry:view',
   ]),
+);
+const canViewBilling = computed(() =>
+  hasAccessByCodes(['ocpx:billing-entry:view']),
 );
 const loadGuard = createLatestRequestGuard();
 
@@ -192,6 +198,26 @@ const deductRules: FormRules = {
 const accountActionLoading = computed(
   () => rechargeLoading.value || deductLoading.value,
 );
+
+const ledgerOpen = ref(false);
+const ledgerLoading = ref(false);
+const ledgerTarget = ref<AdvertiserV2>();
+const ledgerRows = ref<BillingEntry[]>([]);
+const ledgerTotal = ref(0);
+const ledgerQuery = reactive({
+  businessKey: '',
+  current: 1,
+  entryType: '',
+  range: [] as string[],
+  size: 30,
+  status: '',
+});
+const billingTypeLabels: Record<string, string> = {
+  CLICK_CHARGE: '点击消费',
+  CONVERSION_CHARGE: '转化消费',
+  MANUAL_DEBIT: '人工扣减',
+  RECHARGE: '充值',
+};
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
@@ -460,9 +486,54 @@ async function submitDeduct() {
   }
 }
 
+async function loadLedger() {
+  if (!ledgerTarget.value) return;
+  ledgerLoading.value = true;
+  try {
+    const result = await listBillingEntries({
+      advertiserId: ledgerTarget.value.id,
+      businessKey: ledgerQuery.businessKey || undefined,
+      current: ledgerQuery.current,
+      endTime: ledgerQuery.range[1] || undefined,
+      entryType: ledgerQuery.entryType || undefined,
+      size: ledgerQuery.size,
+      startTime: ledgerQuery.range[0] || undefined,
+      status: ledgerQuery.status || undefined,
+    });
+    ledgerRows.value = result.records;
+    ledgerTotal.value = result.total;
+  } finally {
+    ledgerLoading.value = false;
+  }
+}
+
+async function openLedger(row: AdvertiserV2) {
+  ledgerTarget.value = row;
+  Object.assign(ledgerQuery, {
+    businessKey: '',
+    current: 1,
+    entryType: '',
+    range: [],
+    size: 30,
+    status: '',
+  });
+  ledgerOpen.value = true;
+  await loadLedger();
+}
+
+function searchLedger() {
+  ledgerQuery.current = 1;
+  void loadLedger();
+}
+
+function signedAmount(row: BillingEntry) {
+  const amount = Number(row.amount || 0).toFixed(2);
+  return row.entryType === 'RECHARGE' ? `+¥${amount}` : `-¥${amount}`;
+}
+
 async function remove(row: AdvertiserV2) {
   await ElMessageBox.confirm(
-    '仅无余额、无账务流水且无事件事实的广告主可以删除。删除会同时移除其空账户、推广链接、监测任务、扣量规则并注销绑定账号；共享媒体不会删除。确认继续？',
+    '仅无余额、无账务流水、无事件事实且无计费配置审计的广告主可以删除。删除会同时移除其创意配置、空账户、推广链接、监测任务、扣量规则并注销绑定账号；已上传素材和共享媒体不会删除。确认继续？',
     '删除广告主',
     {
       confirmButtonText: '确认删除',
@@ -618,7 +689,7 @@ onMounted(async () => {
           v-if="canOperate"
           fixed="right"
           label="操作"
-          width="230"
+          width="285"
         >
           <template #default="{ row }">
             <el-button
@@ -654,6 +725,15 @@ onMounted(async () => {
               type="warning"
               @click="deduct(row)"
               >扣减</el-button
+            >
+            <el-button
+              v-if="canViewBilling"
+              v-access:code="'ocpx:billing-entry:view'"
+              :disabled="saving || accountActionLoading || Boolean(deletingId)"
+              link
+              type="primary"
+              @click="openLedger(row)"
+              >流水</el-button
             >
             <el-button
               v-access:code="'ocpx:advertiser:delete'"
@@ -918,6 +998,115 @@ onMounted(async () => {
         >
       </template>
     </el-dialog>
+
+    <el-drawer
+      v-model="ledgerOpen"
+      :title="`${ledgerTarget?.advertiserName || '广告主'} · 账务流水`"
+      size="78%"
+    >
+      <div class="ledger-query">
+        <el-select
+          v-model="ledgerQuery.entryType"
+          clearable
+          placeholder="流水类型"
+        >
+          <el-option label="充值" value="RECHARGE" />
+          <el-option label="人工扣减" value="MANUAL_DEBIT" />
+          <el-option label="点击消费" value="CLICK_CHARGE" />
+          <el-option label="转化消费" value="CONVERSION_CHARGE" />
+        </el-select>
+        <el-select v-model="ledgerQuery.status" clearable placeholder="状态">
+          <el-option label="已入账" value="POSTED" />
+          <el-option label="余额不足拒绝" value="REJECTED" />
+        </el-select>
+        <el-input
+          v-model="ledgerQuery.businessKey"
+          clearable
+          placeholder="业务键"
+          @keyup.enter="searchLedger"
+        />
+        <el-date-picker
+          v-model="ledgerQuery.range"
+          end-placeholder="结束时间"
+          range-separator="至"
+          start-placeholder="开始时间"
+          type="datetimerange"
+          value-format="YYYY-MM-DDTHH:mm:ss"
+        />
+        <el-button
+          :disabled="ledgerLoading"
+          type="primary"
+          @click="searchLedger"
+        >
+          查询
+        </el-button>
+      </div>
+      <el-table
+        v-loading="ledgerLoading"
+        :data="ledgerRows"
+        max-height="620"
+        size="small"
+      >
+        <el-table-column label="时间" min-width="170" prop="occurredAt" />
+        <el-table-column label="类型" min-width="110">
+          <template #default="{ row }">
+            {{ billingTypeLabels[row.entryType] || row.entryType }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 'POSTED' ? 'success' : 'danger'">
+              {{ row.status === 'POSTED' ? '已入账' : '余额不足拒绝' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="金额" min-width="110">
+          <template #default="{ row }">
+            <span
+              :class="
+                row.entryType === 'RECHARGE' ? 'amount-credit' : 'amount-debit'
+              "
+            >
+              {{ signedAmount(row) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="账前余额" min-width="110">
+          <template #default="{ row }"
+            >¥{{ Number(row.balanceBefore).toFixed(2) }}</template
+          >
+        </el-table-column>
+        <el-table-column label="账后余额" min-width="110">
+          <template #default="{ row }"
+            >¥{{ Number(row.balanceAfter).toFixed(2) }}</template
+          >
+        </el-table-column>
+        <el-table-column
+          label="监测任务"
+          min-width="150"
+          prop="monitorTaskName"
+        />
+        <el-table-column label="业务键" min-width="210">
+          <template #default="{ row }"
+            ><LongText :value="row.businessKey"
+          /></template>
+        </el-table-column>
+        <el-table-column label="原因 / 备注" min-width="180">
+          <template #default="{ row }">
+            <LongText :value="row.remark || row.reasonCode" />
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="ledgerQuery.current"
+        v-model:page-size="ledgerQuery.size"
+        class="ocpx-pagination"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="PAGE_SIZES"
+        :total="ledgerTotal"
+        @change="loadLedger"
+      />
+    </el-drawer>
   </Page>
 </template>
 
@@ -964,5 +1153,20 @@ onMounted(async () => {
 
 .deduct-balance-alert {
   margin-bottom: 18px;
+}
+
+.ledger-query {
+  display: grid;
+  grid-template-columns: 150px 150px minmax(160px, 1fr) 370px auto;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.amount-credit {
+  color: var(--el-color-success);
+}
+
+.amount-debit {
+  color: var(--el-color-danger);
 }
 </style>

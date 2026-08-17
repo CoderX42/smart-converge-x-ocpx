@@ -23,6 +23,10 @@ required = [
     "management-v107.md",
     "management-v108.md",
     "management-v110.md",
+    "management-v111.md",
+    "management-v112.md",
+    "creative-save-v111.schema.json",
+    "monitor-task-billing-v111.schema.json",
 ]
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
@@ -40,7 +44,17 @@ management_path = "/advertisers/account-role/permissions"
 recharge_path = "/advertisers/{id}/recharge"
 deduction_path = "/advertisers/{id}/deduct"
 dashboard_path = "/dashboard/summary"
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path}
+v111_paths = {
+    "/creatives", "/creatives/assets", "/creatives/{id}",
+    "/creatives/{id}/promotion-links", "/monitor-tasks",
+    "/monitor-tasks/{id}", "/billing-entries",
+}
+v112_paths = {
+    "/monitor-tasks/{id}/test-links:generate",
+    "/monitor-tasks/{id}/test-links:execute",
+    "/monitor-tasks/{id}/test-results/{requestId}",
+}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -63,15 +77,49 @@ assert dashboard["security"] == [{"saToken": []}]
 dashboard_parameters = {item["name"]: item for item in dashboard["parameters"]}
 assert dashboard_parameters["startDate"]["required"] is False
 assert dashboard_parameters["endDate"]["required"] is False
+assert {"get", "post"} <= set(paths["/creatives"])
+assert {"get", "post"} <= set(paths["/creatives/assets"])
+assert {"get", "put", "delete"} <= set(paths["/creatives/{id}"])
+assert {"get", "put"} <= set(paths["/creatives/{id}/promotion-links"])
+assert set(paths["/monitor-tasks"]) >= {"post"}
+assert set(paths["/monitor-tasks/{id}"]) >= {"put"}
+assert set(paths["/billing-entries"]) >= {"get"}
+assert set(paths["/monitor-tasks/{id}/test-links:generate"]) == {"post", "servers"}
+assert set(paths["/monitor-tasks/{id}/test-links:execute"]) == {"post", "servers"}
+assert set(paths["/monitor-tasks/{id}/test-results/{requestId}"]) == {"get", "servers"}
+assert paths["/creatives"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("CreativeSaveRequest")
+assert paths["/creatives/assets"]["post"]["requestBody"]["content"].get("multipart/form-data")
+assert paths["/monitor-tasks/{id}"]["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskSaveRequest")
+test_generate = paths["/monitor-tasks/{id}/test-links:generate"]["post"]
+test_execute = paths["/monitor-tasks/{id}/test-links:execute"]["post"]
+test_result = paths["/monitor-tasks/{id}/test-results/{requestId}"]["get"]
+assert test_generate["security"] == [{"saToken": []}]
+assert test_execute["security"] == [{"saToken": []}]
+assert test_result["security"] == [{"saToken": []}]
+assert test_generate["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestGenerateRequest")
+assert test_execute["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestExecuteRequest")
+billing_entry_types = next(item for item in paths["/billing-entries"]["get"]["parameters"] if item["name"] == "entryType")["schema"]["enum"]
+assert set(billing_entry_types) == {"RECHARGE", "MANUAL_DEBIT", "CLICK_CHARGE", "CONVERSION_CHARGE"}
 schemas = openapi.get("components", {}).get("schemas", {})
 assert {
     "AdvertiserRolePermissionsUpdate", "AdvertiserRolePermissions", "AdvertiserRoleMenuNode",
     "AdvertiserRechargeRequest", "AdvertiserRechargeResult", "AdvertiserDeductionRequest",
-    "AdvertiserDeductionResult", "DashboardSummary", "DashboardMetric"
+    "AdvertiserDeductionResult", "DashboardSummary", "DashboardMetric",
+    "CreativeSaveRequest", "Creative", "CreativeAsset", "MonitorTaskSaveRequest",
+    "BillingEntry", "BillingEntryPageEnvelope", "MonitorTaskTestGenerateRequest",
+    "MonitorTaskTestExecuteRequest", "MonitorTaskTestPreview", "MonitorTaskTestExecution",
+    "MonitorTaskTestResult", "MonitorTaskTestTimelineItem"
 } <= set(schemas)
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
 assert set(schemas["AdvertiserDeductionRequest"]["required"]) == {"requestId", "amount", "remark"}
+assert "callback_url" not in schemas["MonitorTaskTestGenerateRequest"]["properties"]
+assert "callback_url" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
+assert "targetUrl" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
+assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
+assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
+    "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED"
+}
 assert set(schemas["DashboardSummary"]["properties"]["metrics"]["required"]) == {
     "SPEND", "IMPRESSION", "CLICK", "CONVERSION", "CTR", "CVR", "CPM", "CPC", "CPA"
 }
@@ -82,7 +130,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -104,6 +152,12 @@ assert methods.get("全量替换共享广告主角色权限") == "PUT"
 assert methods.get("广告主幂等充值") == "POST"
 assert methods.get("广告主幂等扣减") == "POST"
 assert methods.get("首页真实数据摘要") == "GET"
+assert methods.get("查询创意列表") == "GET"
+assert methods.get("上传创意素材") == "POST"
+assert methods.get("创建图片创意") == "POST"
+assert methods.get("替换创意推广链接绑定") == "PUT"
+assert methods.get("修改监测任务计费配置") == "PUT"
+assert methods.get("查询广告主账务流水") == "GET"
 role_update = next(item for item in postman["item"] if item.get("name") == "全量替换共享广告主角色权限")
 role_update_body = json.loads(role_update["request"]["body"]["raw"])
 assert set(role_update_body) == {"menuIds", "allDataScope"}
@@ -117,6 +171,13 @@ deduction_body = json.loads(deduction_item["request"]["body"]["raw"])
 assert set(deduction_body) == {"requestId", "amount", "remark"}
 assert deduction_body["amount"] > 0
 assert deduction_body["remark"].strip()
+creative_item = next(item for item in postman["item"] if item.get("name") == "创建图片创意")
+creative_body = json.loads(creative_item["request"]["body"]["raw"])
+assert set(creative_body) == {"advertiserId", "creativeName", "sourceMaterialId", "status", "promotionLinkIds", "remark"}
+assert "assetUrl" not in creative_body and "checksumSha256" not in creative_body
+billing_item = next(item for item in postman["item"] if item.get("name") == "修改监测任务计费配置")
+billing_body = json.loads(billing_item["request"]["body"]["raw"])
+assert {"billingEnabled", "billingType", "unitPrice", "conversionEvent"} <= set(billing_body)
 serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
@@ -126,6 +187,9 @@ assert "/boot/ocpx/advertisers/account-role/permissions" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/recharge" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/deduct" in serialized
 assert "/boot/ocpx/dashboard/summary" in serialized
+assert "/boot/ocpx/creatives" in serialized
+assert "/boot/ocpx/monitor-tasks/{{monitorTaskId}}" in serialized
+assert "/boot/ocpx/billing-entries" in serialized
 assert "currency_amount=123.45" in serialized
 assert "mId={{mediaId}}" in serialized
 assert "tId={{monitorTaskId}}" in serialized

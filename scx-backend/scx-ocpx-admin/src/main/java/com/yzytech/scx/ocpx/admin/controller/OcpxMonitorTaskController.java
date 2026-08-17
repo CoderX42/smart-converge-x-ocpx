@@ -7,9 +7,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
+import com.yzytech.scx.ocpx.admin.dto.MonitorTaskTestRequests;
+import com.yzytech.scx.ocpx.admin.dto.MonitorTaskTestViews;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskService;
+import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskTestService;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +33,8 @@ import java.util.List;
 public class OcpxMonitorTaskController {
 
 	private final OcpxMonitorTaskService service;
+
+	private final OcpxMonitorTaskTestService testService;
 
 	@GetMapping
 	@SaCheckPermission("ocpx:monitor-task:view")
@@ -71,6 +76,27 @@ public class OcpxMonitorTaskController {
 	public Result<Void> delete(@PathVariable String id) {
 		service.delete(id);
 		return Result.success();
+	}
+
+	@PostMapping("/{id}/test-links:generate")
+	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION)
+	public Result<MonitorTaskTestViews.Preview> generateTestLink(@PathVariable String id,
+			@Valid @RequestBody MonitorTaskTestRequests.Generate request) {
+		return Result.success(testService.generate(id, request));
+	}
+
+	@PostMapping("/{id}/test-links:execute")
+	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION)
+	@SysLog("执行监测任务点击测试")
+	public Result<MonitorTaskTestViews.Execution> executeTestLink(@PathVariable String id,
+			@Valid @RequestBody MonitorTaskTestRequests.Execute request) {
+		return Result.success(testService.execute(id, request));
+	}
+
+	@GetMapping("/{id}/test-results/{requestId}")
+	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION)
+	public Result<MonitorTaskTestViews.Result> testResult(@PathVariable String id, @PathVariable String requestId) {
+		return Result.success(testService.result(id, requestId));
 	}
 
 }

@@ -141,9 +141,11 @@ public class OcpxAdvertiserAccountService {
 				Long.class, advertiserId);
 		Long ledger = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?",
 				Long.class, advertiserId);
+		Long billingAudits = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM scx_ocpx_billing_config_audit WHERE advertiser_id=?", Long.class, advertiserId);
 		if (balance.signum() != 0 || facts == null || facts.longValue() != 0 || ledger == null
-				|| ledger.longValue() != 0) {
-			throw new BootBusinessException("广告主已有余额、账务或事件事实，禁止物理删除");
+				|| ledger.longValue() != 0 || billingAudits == null || billingAudits.longValue() != 0) {
+			throw new BootBusinessException("广告主已有余额、账务、事件事实或计费配置审计，禁止物理删除");
 		}
 	}
 

@@ -1,9 +1,12 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
+import com.yzytech.scx.common.security.entity.BootUser;
+import com.yzytech.scx.common.security.util.SecurityUtils;
 import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
@@ -19,15 +22,19 @@ import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -52,6 +59,8 @@ public class OcpxMonitorTaskService {
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	private final AdvertiserScope advertiserScope;
+
+	private final JdbcTemplate jdbcTemplate;
 
 	public IPage<MonitorTaskViews.Item> list(Page<OcpxMonitorTask> page, String keyword, String advertiserId,
 			String promotionLinkId, String mediaId, String monitorTaskId) {
@@ -93,14 +102,15 @@ public class OcpxMonitorTaskService {
 
 	@Transactional
 	public MonitorTaskViews.Item create(MonitorTaskRequests.Create request) {
-		advertiserScope.requireSystemAdministrator();
+		advertiserScope.requireInternalPermission(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
 		advertiserScope.requireOwner(request.getAdvertiserId());
 		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
-		validateBilling(request.getUnitPrice(), request.getConversionEvent());
+		validateBilling(request.getBillingEnabled(), request.getBillingType(), request.getUnitPrice(),
+				request.getConversionEvent());
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		apply(task, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
-				request.getMediaId(), request.getUnitPrice(), request.getConversionEvent(), request.getBizId(),
-				request.getRemark());
+				request.getMediaId(), request.getBillingEnabled(), request.getBillingType(), request.getUnitPrice(),
+				request.getConversionEvent(), request.getBizId(), request.getRemark());
 		task.setDeleted(false);
 		taskMapper.insert(task);
 		generateTrackingUrls(task);
@@ -109,6 +119,7 @@ public class OcpxMonitorTaskService {
 		tracking.setShowUrl(task.getShowUrl());
 		tracking.setClkUrl(task.getClkUrl());
 		taskMapper.updateById(tracking);
+		writeBillingAudit("CREATE", null, task);
 		configRefreshPublisher.mark();
 		return detail(task.getId());
 	}
@@ -118,20 +129,25 @@ public class OcpxMonitorTaskService {
 		OcpxMonitorTask current = require(id);
 		advertiserScope.requireOwner(current.getAdvertiserId());
 		advertiserScope.requireOwner(request.getAdvertiserId());
-		if (current.getUnitPrice() == null || current.getUnitPrice().compareTo(request.getUnitPrice()) != 0
-				|| !Objects.equals(current.getConversionEvent(), request.getConversionEvent())) {
-			advertiserScope.requireSystemAdministratorPermission(
-					SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
+		boolean billingEnabled = request.getBillingEnabled() == null ? Boolean.TRUE.equals(current.getBillingEnabled())
+				: request.getBillingEnabled();
+		int billingType = request.getBillingType() == null
+				? (current.getBillingType() == null ? 1 : current.getBillingType()) : request.getBillingType();
+		if (billingChanged(current, billingEnabled, billingType, request.getUnitPrice(), request.getConversionEvent())) {
+			advertiserScope.requireInternalPermission(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
 		}
 		validateRelation(request.getAdvertiserId(), request.getPromotionLinkId(), request.getMediaId());
-		validateBilling(request.getUnitPrice(), request.getConversionEvent());
+		validateBilling(billingEnabled, billingType, request.getUnitPrice(), request.getConversionEvent());
 		OcpxMonitorTask update = new OcpxMonitorTask();
 		update.setId(id);
 		apply(update, request.getMonitorName(), request.getAdvertiserId(), request.getPromotionLinkId(),
-				request.getMediaId(), request.getUnitPrice(), request.getConversionEvent(), request.getBizId(),
-				request.getRemark());
+				request.getMediaId(), billingEnabled, billingType, request.getUnitPrice(), request.getConversionEvent(),
+				request.getBizId(), request.getRemark());
 		generateTrackingUrls(update);
 		taskMapper.updateById(update);
+		if (billingChanged(current, billingEnabled, billingType, request.getUnitPrice(), request.getConversionEvent())) {
+			writeBillingAudit("UPDATE", current, update);
+		}
 		configRefreshPublisher.mark();
 		return detail(id);
 	}
@@ -157,24 +173,62 @@ public class OcpxMonitorTaskService {
 	}
 
 	private void apply(OcpxMonitorTask task, String name, String advertiserId, String linkId, String mediaId,
-			BigDecimal unitPrice, String conversionEvent, String bizId, String remark) {
+			boolean billingEnabled, int billingType, BigDecimal unitPrice, String conversionEvent, String bizId,
+			String remark) {
 		task.setMonitorName(name.trim());
 		task.setAdvertiserId(advertiserId);
 		task.setPromotionLinkId(linkId);
 		task.setMediaId(mediaId);
+		task.setBillingEnabled(billingEnabled);
+		task.setBillingType(billingType);
 		task.setUnitPrice(unitPrice);
 		task.setConversionEvent(conversionEvent);
 		task.setBizId(StringUtils.hasText(bizId) ? bizId.trim() : null);
 		task.setRemark(StringUtils.hasText(remark) ? remark.trim() : null);
 	}
 
-	private void validateBilling(BigDecimal unitPrice, String conversionEvent) {
+	private void validateBilling(Boolean billingEnabled, Integer billingType, BigDecimal unitPrice,
+			String conversionEvent) {
+		if (billingEnabled == null || billingType == null || (billingType != 1 && billingType != 2)) {
+			throw new BootBusinessException("计费开关或计费形式无效");
+		}
 		if (unitPrice == null || unitPrice.signum() < 0) {
 			throw new BootBusinessException("监测任务单价不能为负数");
+		}
+		if (billingEnabled && unitPrice.signum() <= 0) {
+			throw new BootBusinessException("开启计费时单次扣费金额必须大于 0");
 		}
 		if (!OcpxConversionEvent.supports(conversionEvent)) {
 			throw new BootBusinessException("目标转化事件不受支持");
 		}
+	}
+
+	private boolean billingChanged(OcpxMonitorTask current, boolean enabled, int type, BigDecimal price,
+			String conversionEvent) {
+		return Boolean.TRUE.equals(current.getBillingEnabled()) != enabled
+				|| (current.getBillingType() == null ? 1 : current.getBillingType()) != type
+				|| current.getUnitPrice() == null || current.getUnitPrice().compareTo(price) != 0
+				|| !Objects.equals(current.getConversionEvent(), conversionEvent);
+	}
+
+	private void writeBillingAudit(String action, OcpxMonitorTask before, OcpxMonitorTask after) {
+		BootUser operator = SecurityUtils.getUser();
+		jdbcTemplate.update("""
+				INSERT INTO scx_ocpx_billing_config_audit
+				(id,monitor_task_id,advertiser_id,action_type,before_config,after_config,operator_user_id,occurred_at)
+				VALUES (?,?,?,?,?,?,?,?)
+				""", UUID.randomUUID().toString().replace("-", ""), after.getId(), after.getAdvertiserId(), action,
+				before == null ? null : JSON.toJSONString(billingConfig(before)), JSON.toJSONString(billingConfig(after)),
+				operator == null ? null : operator.getUserId(), LocalDateTime.now());
+	}
+
+	private Map<String, Object> billingConfig(OcpxMonitorTask task) {
+		Map<String, Object> config = new LinkedHashMap<>();
+		config.put("billingEnabled", Boolean.TRUE.equals(task.getBillingEnabled()));
+		config.put("billingType", task.getBillingType() == null ? 1 : task.getBillingType());
+		config.put("unitPrice", task.getUnitPrice());
+		config.put("conversionEvent", task.getConversionEvent());
+		return config;
 	}
 
 	/**
@@ -270,8 +324,8 @@ public class OcpxMonitorTaskService {
 		return new MonitorTaskViews.Item(t.getId(), t.getMonitorName(), t.getAdvertiserId(),
 				a == null ? null : a.getAdvertiserName(), t.getPromotionLinkId(), p == null ? null : p.getLinkName(),
 				p == null ? null : p.getPlatform(), t.getMediaId(), m == null ? null : m.getMediaName(), t.getShowUrl(),
-				t.getClkUrl(), t.getUnitPrice(), t.getConversionEvent(), t.getBizId(), t.getRemark(), t.getCreateTime(),
-				t.getUpdateTime());
+				t.getClkUrl(), Boolean.TRUE.equals(t.getBillingEnabled()), t.getBillingType() == null ? 1 : t.getBillingType(),
+				t.getUnitPrice(), t.getConversionEvent(), t.getBizId(), t.getRemark(), t.getCreateTime(), t.getUpdateTime());
 	}
 
 }

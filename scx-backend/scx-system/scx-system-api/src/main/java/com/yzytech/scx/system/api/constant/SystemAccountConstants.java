@@ -26,8 +26,11 @@ public final class SystemAccountConstants {
 	/** 资金人工扣减只能由真实系统管理员执行，不能下放到共享广告主角色。 */
 	public static final String ADVERTISER_DEDUCT_PERMISSION = "ocpx:advertiser:deduct";
 
-	/** 监测任务计费口径只能由真实系统管理员维护。 */
+	/** 监测任务计费口径仅允许拥有专用权限的内部账号维护。 */
 	public static final String MONITOR_TASK_BILLING_PERMISSION = "ocpx:monitor-task:billing";
+
+	/** 真实监测点击测试仅允许拥有专用权限的系统管理员执行。 */
+	public static final String MONITOR_TASK_TEST_PERMISSION = "ocpx:monitor-task:test";
 
 	private SystemAccountConstants() {
 	}

@@ -26,6 +26,11 @@ public class OcpxMonitorTask {
 
 	private String mediaId;
 
+	private Boolean billingEnabled;
+
+	/** 1=click, 2=target conversion. */
+	private Integer billingType;
+
 	private BigDecimal unitPrice;
 
 	/** 事件接收时冻结到事实表的主要转化事件。 */

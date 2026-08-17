@@ -19,11 +19,11 @@ actual_count="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE tab
 [[ "$actual_count" -eq "${#SCX_REQUIRED_TABLES[@]}" ]] || fail "required table manifest is incomplete"
 
 business_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_comment LIKE 'BUSINESS:%'")"
-expected_business_tables='scx_ocpx_advertiser,scx_ocpx_deduction_rule,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link'
-[[ "$business_tables" == "$expected_business_tables" ]] || fail "the five business main tables are not exact"
+expected_business_tables='scx_ocpx_advertiser,scx_ocpx_creative,scx_ocpx_deduction_rule,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link'
+[[ "$business_tables" == "$expected_business_tables" ]] || fail "the OCPX business main tables are not exact"
 
 ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_entry,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {
@@ -34,8 +34,11 @@ assert_exact_columns() {
 
 assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,account_user_id,credential_config_key,bid_url,macro_params,create_time,update_time'
 assert_exact_columns scx_ocpx_promotion_link 'id,advertiser_id,link_name,platform,link_channel,link_url,deeplink,link_ext,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_creative 'id,advertiser_id,creative_name,creative_type,asset_url,source_material_id,file_name,mime_type,file_size,width,height,checksum_sha256,status,remark,is_delete,create_by,create_time,update_time'
+assert_exact_columns scx_ocpx_creative_promotion_link 'advertiser_id,creative_id,promotion_link_id,create_by,create_time'
 assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,macro_params,create_time,update_time'
-assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,conversion_event,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,unit_price,conversion_event,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_billing_config_audit 'id,monitor_task_id,advertiser_id,action_type,before_config,after_config,operator_user_id,occurred_at'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
 
 advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
@@ -66,6 +69,24 @@ invalid_conversion_events="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task 
  'ACTIVATE','EVOKE','LOGIN','REGISTER','PAYMENT','CUSTOMER_ACQUISITION','NEXT_STAY','VISITS',
  'AUTHENTICATION','ORDER','FINISH_THE_ORDER','FIRST_ACTIVATION','FIRST_ORDER')")"
 [[ "$invalid_conversion_events" -eq 0 ]] || fail "monitor target conversion event is invalid"
+
+invalid_billing_config="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task
+ WHERE billing_enabled NOT IN (0,1) OR billing_type NOT IN (1,2)
+ OR unit_price<0 OR (billing_enabled=1 AND unit_price<=0)")"
+[[ "$invalid_billing_config" -eq 0 ]] || fail "monitor billing configuration is invalid"
+
+invalid_creatives="$(scalar "SELECT COUNT(*) FROM scx_ocpx_creative
+ WHERE creative_type<>1 OR status NOT IN (0,1) OR file_size<=0 OR width<=0 OR height<=0
+ OR width>8192 OR height>8192 OR CAST(width AS UNSIGNED)*CAST(height AS UNSIGNED)>40000000
+ OR checksum_sha256 NOT REGEXP '^[0-9a-f]{64}$'")"
+[[ "$invalid_creatives" -eq 0 ]] || fail "creative image metadata is invalid"
+
+invalid_creative_owners="$(scalar "SELECT COUNT(*) FROM scx_ocpx_creative_promotion_link cp
+ JOIN scx_ocpx_creative c ON c.id=cp.creative_id
+ JOIN scx_ocpx_promotion_link l ON l.id=cp.promotion_link_id
+ WHERE BINARY cp.advertiser_id<>BINARY c.advertiser_id
+ OR BINARY cp.advertiser_id<>BINARY l.advertiser_id")"
+[[ "$invalid_creative_owners" -eq 0 ]] || fail "creative binding crosses advertiser ownership"
 
 account_rows="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser a LEFT JOIN scx_ocpx_advertiser_account ac ON ac.advertiser_id=a.id WHERE ac.advertiser_id IS NULL")"
 [[ "$account_rows" -eq 0 ]] || fail "every advertiser must have an authoritative account"
@@ -116,7 +137,7 @@ debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE tab
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 
 secret_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
- AND table_name IN ('scx_ocpx_advertiser','scx_ocpx_promotion_link','scx_ocpx_media','scx_ocpx_monitor_task','scx_ocpx_deduction_rule','scx_ocpx_flow_log','scx_ocpx_log_feedback','scx_ocpx_log_feedback_day','scx_ocpx_log_callback')
+ AND table_name IN ('scx_ocpx_advertiser','scx_ocpx_promotion_link','scx_ocpx_creative','scx_ocpx_media','scx_ocpx_monitor_task','scx_ocpx_deduction_rule','scx_ocpx_flow_log','scx_ocpx_log_feedback','scx_ocpx_log_feedback_day','scx_ocpx_log_callback')
  AND column_name REGEXP '(^|_)(account|password|secret)(_|$)'
  AND NOT (table_name='scx_ocpx_advertiser' AND column_name='account_user_id')")"
 [[ "$secret_columns" -eq 0 ]] || fail "OCPX tables expose account/password/secret columns"
@@ -146,8 +167,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all')")"
-[[ "$required_permissions" -eq 9 ]] || fail "required OCPX action, billing, shared-role and data-scope permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all')")"
+[[ "$required_permissions" -eq 17 ]] || fail "required OCPX action, creative, billing, ledger, monitor-test and data-scope permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -162,16 +183,24 @@ invalid_advertiser_role_menus="$(scalar "SELECT COUNT(*)
  AND (m.id IS NULL
       OR NOT (m.permission LIKE 'ocpx:%'
               OR (COALESCE(m.permission,'')='' AND m.path LIKE '/ocpx%'))
-      OR m.permission IN ('ocpx:advertiser:role:manage','ocpx:advertiser:recharge','ocpx:monitor-task:billing'))")"
+      OR m.permission IN ('ocpx:advertiser:role:manage','ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test'))")"
 [[ "$invalid_advertiser_role_menus" -eq 0 ]] || fail "ROLE_ADVERTISER contains a non-OCPX or protected role-management permission"
 
-admin_finance_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
+admin_protected_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
  FROM sys_role r
  JOIN sys_role_menu rm ON rm.role_id=r.id
  JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
- AND m.permission IN ('ocpx:advertiser:recharge','ocpx:monitor-task:billing')")"
-[[ "$admin_finance_permissions" -eq 2 ]] || fail "system administrator finance permissions are incomplete"
+ AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test')")"
+[[ "$admin_protected_permissions" -eq 4 ]] || fail "system administrator finance and monitor-test permissions are incomplete"
+
+non_admin_monitor_test_grants="$(scalar "SELECT COUNT(*)
+ FROM sys_role_menu rm
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ LEFT JOIN sys_role r ON r.id=rm.role_id
+ WHERE m.permission='ocpx:monitor-task:test'
+ AND (r.id IS NULL OR r.role_code<>'ROLE_ADMIN' OR r.del_flag<>'0')")"
+[[ "$non_admin_monitor_test_grants" -eq 0 ]] || fail "monitor-task click testing must be granted only to active ROLE_ADMIN"
 
 advertiser_scope_dependency="$(scalar "SELECT COUNT(*)
  FROM sys_role_menu rm
@@ -215,11 +244,12 @@ admin_ocpx_crud="$(scalar "SELECT COUNT(DISTINCT m.permission)
  AND m.permission IN (
    'ocpx:advertiser:view','ocpx:advertiser:add','ocpx:advertiser:edit','ocpx:advertiser:delete',
    'ocpx:promotion-link:view','ocpx:promotion-link:add','ocpx:promotion-link:edit','ocpx:promotion-link:delete',
+   'ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind',
    'ocpx:media:view','ocpx:media:add','ocpx:media:edit','ocpx:media:delete',
    'ocpx:monitor-task:view','ocpx:monitor-task:add','ocpx:monitor-task:edit','ocpx:monitor-task:delete',
    'ocpx:deduction-rule:list','ocpx:deduction-rule:create','ocpx:deduction-rule:update','ocpx:deduction-rule:delete'
  )")"
-[[ "$admin_ocpx_crud" -eq 20 ]] || fail "ROLE_ADMIN must have complete CRUD permissions for all five OCPX resources"
+[[ "$admin_ocpx_crud" -eq 25 ]] || fail "ROLE_ADMIN must have complete management permissions for all OCPX resources"
 
 system_admin="$(scalar "SELECT COUNT(*) FROM sys_user u JOIN sys_user_role ur ON ur.user_id=u.id JOIN sys_role r ON r.id=ur.role_id WHERE u.username='system' AND u.del_flag='0' AND r.role_code='ROLE_ADMIN' AND r.del_flag='0'")"
 [[ "$system_admin" -eq 1 ]] || fail "system administrator role mapping changed"

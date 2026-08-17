@@ -2,6 +2,8 @@ package com.yzytech.scx.ocpx.admin.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Pattern;
@@ -36,6 +38,14 @@ public final class MonitorTaskRequests {
 		private String mediaId;
 
 		@NotNull
+		private Boolean billingEnabled = false;
+
+		@NotNull
+		@Min(1)
+		@Max(2)
+		private Integer billingType = 1;
+
+		@NotNull
 		@PositiveOrZero
 		@Digits(integer = 14, fraction = 6)
 		private BigDecimal unitPrice;
@@ -52,7 +62,8 @@ public final class MonitorTaskRequests {
 
 		public Create(String monitorName, String advertiserId, String promotionLinkId, String mediaId,
 				BigDecimal unitPrice, String bizId, String remark) {
-			this(monitorName, advertiserId, promotionLinkId, mediaId, unitPrice, "ACTIVATE", bizId, remark);
+			this(monitorName, advertiserId, promotionLinkId, mediaId, false, 1, unitPrice, "ACTIVATE", bizId,
+					remark);
 		}
 
 	}
@@ -75,6 +86,12 @@ public final class MonitorTaskRequests {
 		@NotBlank
 		private String mediaId;
 
+		private Boolean billingEnabled;
+
+		@Min(1)
+		@Max(2)
+		private Integer billingType;
+
 		@NotNull
 		@PositiveOrZero
 		@Digits(integer = 14, fraction = 6)
@@ -92,7 +109,14 @@ public final class MonitorTaskRequests {
 
 		public Update(String monitorName, String advertiserId, String promotionLinkId, String mediaId,
 				BigDecimal unitPrice, String bizId, String remark) {
-			this(monitorName, advertiserId, promotionLinkId, mediaId, unitPrice, "ACTIVATE", bizId, remark);
+			this(monitorName, advertiserId, promotionLinkId, mediaId, null, null, unitPrice, "ACTIVATE", bizId,
+					remark);
+		}
+
+		public Update(String monitorName, String advertiserId, String promotionLinkId, String mediaId,
+				BigDecimal unitPrice, String conversionEvent, String bizId, String remark) {
+			this(monitorName, advertiserId, promotionLinkId, mediaId, null, null, unitPrice, conversionEvent, bizId,
+					remark);
 		}
 
 	}

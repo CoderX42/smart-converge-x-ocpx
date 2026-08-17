@@ -61,6 +61,12 @@ public interface OcpxAdvertiserMapper extends BaseMapper<OcpxAdvertiser> {
 	@Delete("DELETE FROM scx_ocpx_flow_log WHERE advertiser_id=#{id}")
 	int deleteFlowLogs(@Param("id") String id);
 
+	@Delete("DELETE FROM scx_ocpx_creative_promotion_link WHERE advertiser_id=#{id}")
+	int deleteCreativeBindings(@Param("id") String id);
+
+	@Delete("DELETE FROM scx_ocpx_creative WHERE advertiser_id=#{id}")
+	int deleteCreatives(@Param("id") String id);
+
 	@Delete("""
 			DELETE r FROM scx_ocpx_deduction_rule r
 			JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id

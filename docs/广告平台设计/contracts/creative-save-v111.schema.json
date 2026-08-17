@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smart-converge-x.local/contracts/creative-save-v111.schema.json",
+  "title": "SCX OCPX V111 creative save request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "advertiserId",
+    "creativeName",
+    "sourceMaterialId",
+    "status",
+    "promotionLinkIds"
+  ],
+  "properties": {
+    "advertiserId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "creativeName": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sourceMaterialId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "status": { "type": "integer", "enum": [0, 1] },
+    "promotionLinkIds": {
+      "type": "array",
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+    },
+    "remark": { "type": "string", "maxLength": 500 }
+  }
+}

@@ -20,8 +20,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Feedback 核心处理实现。
  *
  * <p>
- * 每条请求先由 MySQL 唯一事实完成去重、计费和小时汇总。事务成功后才进入兼容日志队列，并且只有首次有效、
- * 允许投递的事件才会转发到广告主。
+ * 每条请求先由 MySQL 唯一事实完成去重、计费和小时汇总。事务成功后才进入兼容日志队列，并且只有首次有效、 允许投递的事件才会转发到广告主。
  */
 @Service
 public class FeedbackServiceImpl implements FeedbackService {
@@ -45,7 +44,9 @@ public class FeedbackServiceImpl implements FeedbackService {
 
 	@Override
 	public FeedbackHandleResult handleFeedback(FeedbackReq request) {
-		impressionLog.info("fb-->{}", JSON.toJSONString(request));
+		impressionLog.info("fb-->event:{} mId:{} tId:{} aId:{} lId:{} reqId:{} userType:{}", request.getEvent(),
+				request.getMId(), request.getTId(), request.getAId(), request.getLId(), request.getReqId(),
+				request.getUserType());
 		request.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
 		request.setFlagLog(ThreadLocalRandom.current().nextInt(10) == 1);
 		OcpxEventFactService.FeedbackFactResult factResult = eventFactService.recordFeedback(request);

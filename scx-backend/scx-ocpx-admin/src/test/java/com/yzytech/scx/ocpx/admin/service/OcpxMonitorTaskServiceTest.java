@@ -19,6 +19,7 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 
@@ -52,6 +53,8 @@ class OcpxMonitorTaskServiceTest {
 
 	private AdvertiserScope advertiserScope;
 
+	private JdbcTemplate jdbcTemplate;
+
 	private OcpxMonitorTaskService service;
 
 	@BeforeEach
@@ -64,8 +67,9 @@ class OcpxMonitorTaskServiceTest {
 		trackingProperties.setEngineBaseUrl("http://127.0.0.1:10000/ocpx");
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		advertiserScope = mock(AdvertiserScope.class);
+		jdbcTemplate = mock(JdbcTemplate.class);
 		service = new OcpxMonitorTaskService(taskMapper, advertiserMapper, linkMapper, mediaMapper, trackingProperties,
-				configRefreshPublisher, advertiserScope);
+				configRefreshPublisher, advertiserScope, jdbcTemplate);
 	}
 
 	@Test
@@ -99,6 +103,10 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(stored.get().getRemark()).isEqualTo("备注一");
 		assertThat(item.getShowUrl()).isEqualTo(expectedShow);
 		assertThat(item.getClkUrl()).isEqualTo(expectedClk);
+		verify(advertiserScope).requireInternalPermission("ocpx:monitor-task:billing");
+		verify(jdbcTemplate).update(
+				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_config_audit"),
+				any(Object[].class));
 		verify(configRefreshPublisher).mark();
 	}
 
@@ -276,11 +284,11 @@ class OcpxMonitorTaskServiceTest {
 
 		service.update("task-1", new MonitorTaskRequests.Update("任务改名", "adv-1", "link-1", "media-1",
 				new BigDecimal("2.500000"), "ACTIVATE", null, null));
-		verify(advertiserScope, never()).requireSystemAdministratorPermission(anyString());
+		verify(advertiserScope, never()).requireInternalPermission(anyString());
 
 		service.update("task-1", new MonitorTaskRequests.Update("任务改名", "adv-1", "link-1", "media-1",
 				new BigDecimal("3.000000"), "PAYMENT", null, null));
-		verify(advertiserScope).requireSystemAdministratorPermission("ocpx:monitor-task:billing");
+		verify(advertiserScope).requireInternalPermission("ocpx:monitor-task:billing");
 	}
 
 	private void stubActiveRelations() {

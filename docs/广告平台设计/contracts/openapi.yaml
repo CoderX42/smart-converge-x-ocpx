@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 6.1.0
-  description: SCX OCPX Feedback/Callback data plane and selected management-plane contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 8.0.0
+  description: SCX OCPX Feedback/Callback data plane, V111 creative management and billing, and V112 administrator-only monitor click testing contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -229,6 +229,244 @@ paths:
         '400': { description: requestId、金额或原因无效，同 requestId 改变金额或原因，或扣减金额超过可用余额 }
         '403': { description: 广告主账号或非 ROLE_ADMIN 尝试扣减 }
         '404': { description: 广告主或资金账户不存在 }
+  /creatives:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listCreatives
+      summary: 分页查询严格授权范围内的创意
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: keyword, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: status, in: query, required: false, schema: { type: integer, enum: [0, 1] } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses:
+        '200': { description: 创意分页, content: { application/json: { schema: { $ref: '#/components/schemas/CreativePageEnvelope' } } } }
+        '403': { description: 无创意查看权限或广告主对象范围越权 }
+    post:
+      operationId: createCreative
+      summary: 使用自有素材创建图片创意并设置最终绑定集合
+      description: 只接受 sourceMaterialId；素材 URL、格式、尺寸和哈希由服务端重新读取并校验。
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreativeSaveRequest' }
+      responses:
+        '200': { description: 创意详情, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeResultEnvelope' } } } }
+        '400': { description: 素材、创意名称或绑定关系无效 }
+        '403': { description: 无新增/绑定权限或跨广告主写入 }
+  /creatives/assets:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listOwnedCreativeAssets
+      summary: 查询广告主自有图片素材凭证
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: advertiserId, in: query, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: keyword, in: query, required: false, schema: { type: string, maxLength: 128 } }
+      responses:
+        '200': { description: 自有素材列表, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeAssetListEnvelope' } } } }
+        '403': { description: 跨广告主素材访问 }
+    post:
+      operationId: uploadCreativeAsset
+      summary: 上传并登记广告主自有图片素材
+      description: JPG/JPEG/PNG/WEBP；最大 20MB、最长边 8192px、总像素不超过 4000 万。
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [advertiserId, file]
+              properties:
+                advertiserId: { type: string, maxLength: 32 }
+                file: { type: string, format: binary }
+      responses:
+        '200': { description: 已登记的素材凭证和重复创意提示, content: { application/json: { schema: { $ref: '#/components/schemas/UploadedCreativeAssetEnvelope' } } } }
+        '400': { description: 文件类型、文件头、大小、尺寸或解码失败 }
+        '403': { description: 跨广告主上传 }
+  /creatives/{id}:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+    get:
+      operationId: getCreative
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 创意详情, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeResultEnvelope' } } } }
+        '403': { description: 对象范围越权 }
+        '404': { description: 创意不存在 }
+    put:
+      operationId: updateCreative
+      summary: 修改创意并设置最终绑定集合
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreativeSaveRequest' } } }
+      responses:
+        '200': { description: 创意详情, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeResultEnvelope' } } } }
+        '400': { description: 素材、名称或绑定无效 }
+        '403': { description: 跨广告主写入 }
+    delete:
+      operationId: deleteCreative
+      summary: 逻辑删除创意并物理解除当前绑定，不删除素材
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 删除成功 }
+        '403': { description: 跨广告主删除 }
+        '404': { description: 创意不存在 }
+  /creatives/{id}/promotion-links:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+    get:
+      operationId: listCreativePromotionLinks
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 当前绑定集合, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeLinkListEnvelope' } } } }
+    put:
+      operationId: replaceCreativePromotionLinks
+      summary: 幂等替换最终绑定集合；空数组解除全部绑定
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreativeBindingsRequest' } } }
+      responses:
+        '200': { description: 替换后的绑定集合, content: { application/json: { schema: { $ref: '#/components/schemas/CreativeLinkListEnvelope' } } } }
+        '400': { description: 推广链接不存在或不属于创意广告主 }
+        '403': { description: 无绑定权限或跨广告主写入 }
+  /monitor-tasks:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: createMonitorTaskWithBilling
+      summary: 创建监测任务并保存计费配置
+      description: 新任务默认关闭扣费；调用账号必须是内部账号并拥有 ocpx:monitor-task:billing。
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskSaveRequest' } } }
+      responses:
+        '200': { description: 创建成功并写入计费配置审计 }
+        '400': { description: 开启扣费时单价非正数，或转化目标事件无效 }
+        '403': { description: 广告主账号或无计费权限 }
+  /monitor-tasks/{id}:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    put:
+      operationId: updateMonitorTaskWithBilling
+      summary: 编辑监测任务和计费配置
+      description: 无计费权限时只能提交与当前值完全一致的计费字段；计费变化在同一事务写不可变审计快照。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskSaveRequest' } } }
+      responses:
+        '200': { description: 修改成功 }
+        '400': { description: 计费配置无效 }
+        '403': { description: 广告主账号修改计费，或无权限账号改变计费字段 }
+  /monitor-tasks/{id}/test-links:generate:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: generateMonitorTaskClickTestLink
+      summary: 生成随机且可编辑的 CLK 测试链接预览
+      description: 仅拥有 ocpx:monitor-task:test 的真实 ROLE_ADMIN 可用；不生成 IMP、Callback 或 callback_url。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestGenerateRequest' } } }
+      responses:
+        '200': { description: 参数、配置检查、预计扣费和完整测试链接, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestPreviewEnvelope' } } } }
+        '403': { description: 非真实系统管理员或缺少测试权限 }
+        '404': { description: 监测任务不存在 }
+  /monitor-tasks/{id}/test-links:execute:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: executeMonitorTaskClickTestLink
+      summary: 服务端重建链接并向固定 Engine 发送一次真实 CLK
+      description: 不接受目标 URL；同一测试 ID 已产生事实时不重复请求 Engine。请求可能产生真实上游流量和真实点击扣费。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestExecuteRequest' } } }
+      responses:
+        '200': { description: Engine HTTP 或稳定传输错误结果, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestExecutionEnvelope' } } } }
+        '400': { description: OS、参数格式、宏转发、平台或余额校验失败 }
+        '403': { description: 非真实系统管理员或缺少测试权限 }
+        '404': { description: 监测任务不存在 }
+  /monitor-tasks/{id}/test-results/{requestId}:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getMonitorTaskClickTestResult
+      summary: 查询现有事实、计费、上游流程和时间线
+      description: 上游 HTTP 200 只代表接口已响应，不代表合作方已经入库。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: requestId, in: path, required: true, schema: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' } }
+      responses:
+        '200': { description: 当前测试详情, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestResultEnvelope' } } } }
+        '403': { description: 非真实系统管理员或缺少测试权限 }
+        '404': { description: 监测任务不存在 }
+  /billing-entries:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listBillingEntries
+      summary: 查询不可变账务流水
+      description: 广告主账号始终强制使用自身 advertiserId。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: entryType, in: query, required: false, schema: { type: string, enum: [RECHARGE, MANUAL_DEBIT, CLICK_CHARGE, CONVERSION_CHARGE] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [POSTED, REJECTED] } }
+        - { name: businessKey, in: query, required: false, schema: { type: string, maxLength: 160 } }
+        - { name: startTime, in: query, required: false, schema: { type: string, format: date-time } }
+        - { name: endTime, in: query, required: false, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: 账务流水分页, content: { application/json: { schema: { $ref: '#/components/schemas/BillingEntryPageEnvelope' } } } }
+        '403': { description: 无流水查看权限 }
   /dashboard/summary:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -368,14 +606,301 @@ components:
         code: { type: integer, const: 0 }
         msg: { type: [string, 'null'] }
         data: { $ref: '#/components/schemas/AdvertiserDeductionResult' }
+    CreativeSaveRequest:
+      type: object
+      additionalProperties: false
+      required: [advertiserId, creativeName, sourceMaterialId, status, promotionLinkIds]
+      properties:
+        advertiserId: { type: string, minLength: 1, maxLength: 32 }
+        creativeName: { type: string, minLength: 1, maxLength: 128 }
+        sourceMaterialId: { type: string, minLength: 1, maxLength: 32 }
+        status: { type: integer, enum: [0, 1] }
+        promotionLinkIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 32 }
+        remark: { type: string, maxLength: 500 }
+    CreativeBindingsRequest:
+      type: object
+      additionalProperties: false
+      required: [promotionLinkIds]
+      properties:
+        promotionLinkIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          items: { type: string, minLength: 1, maxLength: 32 }
+    CreativeLink:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    Creative:
+      type: object
+      required: [id, advertiserId, advertiserName, creativeName, creativeType, assetUrl, sourceMaterialId, fileName, mimeType, fileSize, width, height, checksumSha256, status, promotionLinks, createTime, updateTime]
+      properties:
+        id: { type: string }
+        advertiserId: { type: string }
+        advertiserName: { type: string }
+        creativeName: { type: string }
+        creativeType: { type: integer, const: 1 }
+        assetUrl: { type: string, format: uri }
+        sourceMaterialId: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+        fileSize: { type: integer, format: int64, minimum: 1, maximum: 20971520 }
+        width: { type: integer, minimum: 1, maximum: 8192 }
+        height: { type: integer, minimum: 1, maximum: 8192 }
+        checksumSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        status: { type: integer, enum: [0, 1] }
+        remark: { type: [string, 'null'] }
+        promotionLinks: { type: array, items: { $ref: '#/components/schemas/CreativeLink' } }
+        createTime: { type: string, format: date-time }
+        updateTime: { type: string, format: date-time }
+    CreativeAsset:
+      type: object
+      required: [sourceMaterialId, fileName, assetUrl, fileSize, createTime]
+      properties:
+        sourceMaterialId: { type: string }
+        fileName: { type: string }
+        assetUrl: { type: string, format: uri }
+        fileSize: { type: integer, format: int64 }
+        createTime: { type: string, format: date-time }
+    UploadedCreativeAsset:
+      allOf:
+        - { $ref: '#/components/schemas/CreativeAsset' }
+        - type: object
+          required: [mimeType, width, height, checksumSha256, duplicateCreativeIds]
+          properties:
+            mimeType: { type: string, enum: [image/jpeg, image/png, image/webp] }
+            width: { type: integer, minimum: 1, maximum: 8192 }
+            height: { type: integer, minimum: 1, maximum: 8192 }
+            checksumSha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+            duplicateCreativeIds: { type: array, items: { type: string } }
+    CreativeResultEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/Creative' }
+    CreativePageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data:
+          type: object
+          required: [records, total, size, current]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/Creative' } }
+            total: { type: integer, format: int64, minimum: 0 }
+            size: { type: integer, format: int64, minimum: 1 }
+            current: { type: integer, format: int64, minimum: 1 }
+    CreativeAssetListEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { type: array, items: { $ref: '#/components/schemas/CreativeAsset' } }
+    UploadedCreativeAssetEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/UploadedCreativeAsset' }
+    CreativeLinkListEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { type: array, items: { $ref: '#/components/schemas/CreativeLink' } }
+    MonitorTaskSaveRequest:
+      type: object
+      additionalProperties: false
+      required: [monitorName, advertiserId, promotionLinkId, mediaId, billingEnabled, billingType, unitPrice, conversionEvent]
+      properties:
+        monitorName: { type: string, minLength: 1, maxLength: 128 }
+        advertiserId: { type: string, minLength: 1, maxLength: 32 }
+        promotionLinkId: { type: string, minLength: 1, maxLength: 32 }
+        mediaId: { type: string, minLength: 1, maxLength: 32 }
+        billingEnabled: { type: boolean, default: false }
+        billingType: { type: integer, enum: [1, 2], default: 1 }
+        unitPrice: { type: number, minimum: 0, maximum: 99999999999999.999999, multipleOf: 0.000001 }
+        conversionEvent:
+          type: string
+          default: ACTIVATE
+          enum: [ACTIVATE, EVOKE, LOGIN, REGISTER, PAYMENT, CUSTOMER_ACQUISITION, NEXT_STAY, VISITS, AUTHENTICATION, ORDER, FINISH_THE_ORDER, FIRST_ACTIVATION, FIRST_ORDER]
+        bizId: { type: string, maxLength: 64 }
+        remark: { type: string, maxLength: 255 }
+    MonitorTaskTestGenerateRequest:
+      type: object
+      additionalProperties: false
+      required: [os]
+      properties:
+        os: { type: string, enum: [ANDROID, IOS] }
+        parameters:
+          type: array
+          maxItems: 24
+          uniqueItems: true
+          items: { type: string, pattern: '^[a-z][a-z0-9_]{0,31}$' }
+    MonitorTaskTestExecuteRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, os, parameters]
+      properties:
+        requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
+        os: { type: string, enum: [ANDROID, IOS] }
+        parameters:
+          type: object
+          maxProperties: 24
+          propertyNames: { pattern: '^[a-z][a-z0-9_]{0,31}$' }
+          additionalProperties: { type: string, minLength: 1, maxLength: 1024 }
+    MonitorTaskTestParameter:
+      type: object
+      required: [key, label, group, macro, configuredByMedia, forwardedUpstream, selected, required, editable]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        group: { type: string, enum: [固定参数, 设备标识, 网络终端, 广告维度] }
+        macro: { type: string }
+        configuredByMedia: { type: boolean }
+        forwardedUpstream: { type: boolean }
+        selected: { type: boolean }
+        required: { type: boolean }
+        editable: { type: boolean }
+        value: { type: [string, 'null'] }
+    MonitorTaskTestPreview:
+      type: object
+      required: [requestId, event, os, taskId, monitorName, advertiserName, mediaName, promotionLinkName, platform, testUrl, expectedCharge, executable, blockers, warnings, parameters]
+      properties:
+        requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
+        event: { type: string, const: CLK }
+        os: { type: string, enum: [ANDROID, IOS] }
+        taskId: { type: string }
+        monitorName: { type: string }
+        advertiserName: { type: string }
+        mediaName: { type: string }
+        promotionLinkName: { type: string }
+        platform: { type: integer, enum: [1, 2, 3, 4] }
+        testUrl: { type: string, format: uri }
+        expectedCharge: { type: number, minimum: 0 }
+        availableBalance: { type: [number, 'null'] }
+        executable: { type: boolean }
+        blockers: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+        parameters: { type: array, items: { $ref: '#/components/schemas/MonitorTaskTestParameter' } }
+    MonitorTaskTestExecution:
+      type: object
+      required: [requestId, testUrl, alreadyExecuted, durationMs, executedAt]
+      properties:
+        requestId: { type: string }
+        testUrl: { type: string, format: uri }
+        alreadyExecuted: { type: boolean }
+        engineHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        engineResponse: { type: [string, 'null'], maxLength: 4099 }
+        errorCode: { type: [string, 'null'], enum: [ALREADY_EXECUTED, ENGINE_TIMEOUT, ENGINE_INTERRUPTED, ENGINE_IO_ERROR, null] }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+        executedAt: { type: string, format: date-time }
+    MonitorTaskTestFact:
+      type: object
+      required: [eventCode, billingStatus, spendAmount, receivedAt]
+      properties:
+        eventCode: { type: string, const: CLK }
+        billingStatus: { type: string, enum: [POSTED, NOT_APPLICABLE, REJECTED_INSUFFICIENT_BALANCE] }
+        billingReasonCode: { type: [string, 'null'] }
+        spendAmount: { type: number, minimum: 0 }
+        receivedAt: { type: string, format: date-time }
+    MonitorTaskTestFlow:
+      type: object
+      required: [resultStatus, durationMs]
+      properties:
+        resultStatus: { type: string, enum: [SUCCESS, FAILED] }
+        partnerHttpStatus: { type: [integer, 'null'] }
+        message: { type: [string, 'null'] }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+        eventTime: { type: [string, 'null'], format: date-time }
+    MonitorTaskTestTimelineItem:
+      type: object
+      required: [stage, status]
+      properties:
+        stage: { type: string, enum: [ENGINE_INGRESS, BILLING, UPSTREAM] }
+        status: { type: string }
+        occurredAt: { type: [string, 'null'], format: date-time }
+        durationMs: { type: [integer, 'null'], format: int64, minimum: 0 }
+        detail: { type: [string, 'null'] }
+    MonitorTaskTestResult:
+      type: object
+      required: [requestId, state, conclusion, timeline]
+      properties:
+        requestId: { type: string }
+        state: { type: string, enum: [WAITING, REJECTED, UPSTREAM_PENDING, UPSTREAM_RESPONDED, UPSTREAM_FAILED] }
+        fact: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFact' }, { type: 'null' }] }
+        flow: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFlow' }, { type: 'null' }] }
+        conclusion: { type: string }
+        timeline: { type: array, items: { $ref: '#/components/schemas/MonitorTaskTestTimelineItem' } }
+    MonitorTaskTestPreviewEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/MonitorTaskTestPreview' }
+    MonitorTaskTestExecutionEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/MonitorTaskTestExecution' }
+    MonitorTaskTestResultEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/MonitorTaskTestResult' }
+    BillingEntry:
+      type: object
+      required: [id, advertiserId, advertiserName, entryType, status, amount, balanceBefore, balanceAfter, businessKey, occurredAt]
+      properties:
+        id: { type: string }
+        advertiserId: { type: string }
+        advertiserName: { type: string }
+        monitorTaskId: { type: [string, 'null'] }
+        monitorTaskName: { type: [string, 'null'] }
+        eventFactId: { type: [string, 'null'] }
+        entryType: { type: string, enum: [RECHARGE, MANUAL_DEBIT, CLICK_CHARGE, CONVERSION_CHARGE] }
+        status: { type: string, enum: [POSTED, REJECTED] }
+        amount: { type: number, minimum: 0 }
+        balanceBefore: { type: number, minimum: 0 }
+        balanceAfter: { type: number, minimum: 0 }
+        businessKey: { type: string }
+        reasonCode: { type: [string, 'null'] }
+        operatorUserId: { type: [string, 'null'] }
+        remark: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }
+    BillingEntryPageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data:
+          type: object
+          required: [records, total, size, current]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/BillingEntry' } }
+            total: { type: integer, format: int64, minimum: 0 }
+            size: { type: integer, format: int64, minimum: 1 }
+            current: { type: integer, format: int64, minimum: 1 }
     DashboardAccount:
       type: object
-      required: [advertiserId, availableBalance, todaySpend, rejectedClickCount]
+      required: [advertiserId, availableBalance, todaySpend, rejectedClickCount, rejectedConversionCount]
       properties:
         advertiserId: { type: string }
         availableBalance: { type: number }
         todaySpend: { type: number }
         rejectedClickCount: { type: integer, format: int64, minimum: 0 }
+        rejectedConversionCount: { type: integer, format: int64, minimum: 0 }
     DashboardMetric:
       type: object
       required: [value, unit, status]

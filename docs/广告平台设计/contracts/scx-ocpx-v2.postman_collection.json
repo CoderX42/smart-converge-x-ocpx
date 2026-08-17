@@ -99,6 +99,91 @@
         ],
         "url": "{{adminBaseUrl}}/boot/ocpx/dashboard/summary?startDate=2026-08-15&endDate=2026-08-15&advertiserId={{advertiserId}}"
       }
+    },
+    {
+      "name": "查询创意列表",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/creatives?advertiserId={{advertiserId}}&current=1&size=30"
+      }
+    },
+    {
+      "name": "上传创意素材",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "advertiserId", "value": "{{advertiserId}}", "type": "text" },
+            { "key": "file", "src": "{{creativeAssetPath}}", "type": "file" }
+          ]
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/creatives/assets"
+      }
+    },
+    {
+      "name": "创建图片创意",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"advertiserId\": \"{{advertiserId}}\",\n  \"creativeName\": \"V111 local creative\",\n  \"sourceMaterialId\": \"{{sourceMaterialId}}\",\n  \"status\": 1,\n  \"promotionLinkIds\": [\"{{promotionLinkId}}\"],\n  \"remark\": \"local contract example\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/creatives"
+      }
+    },
+    {
+      "name": "替换创意推广链接绑定",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"promotionLinkIds\": [\"{{promotionLinkId}}\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/creatives/{{creativeId}}/promotion-links"
+      }
+    },
+    {
+      "name": "修改监测任务计费配置",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"monitorName\": \"V111 billing task\",\n  \"advertiserId\": \"{{advertiserId}}\",\n  \"promotionLinkId\": \"{{promotionLinkId}}\",\n  \"mediaId\": \"{{mediaId}}\",\n  \"billingEnabled\": true,\n  \"billingType\": 2,\n  \"unitPrice\": 12.5,\n  \"conversionEvent\": \"ACTIVATE\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/monitor-tasks/{{monitorTaskId}}"
+      }
+    },
+    {
+      "name": "查询广告主账务流水",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/billing-entries?advertiserId={{advertiserId}}&current=1&size=30"
+      }
     }
   ],
   "variable": [
@@ -111,6 +196,9 @@
     { "key": "rechargeRequestId", "value": "replace_with_unique_request_id" },
     { "key": "deductionRequestId", "value": "replace_with_unique_request_id" },
     { "key": "promotionLinkId", "value": "replace_with_scx_promotion_link_id" },
+    { "key": "creativeId", "value": "replace_with_scx_creative_id" },
+    { "key": "sourceMaterialId", "value": "replace_with_uploaded_source_material_id" },
+    { "key": "creativeAssetPath", "value": "replace_with_local_image_path" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
     { "key": "callbackExt", "value": "replace_with_runtime_ext" }
   ]

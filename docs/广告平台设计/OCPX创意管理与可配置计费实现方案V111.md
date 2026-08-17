@@ -1,9 +1,9 @@
-# OCPX 创意管理与可配置计费实现方案 V110（草案）
+# OCPX 创意管理与可配置计费实现方案 V111
 
-> 文档状态：Draft，待产品与研发评审，不代表已经实现、迁移、部署或验收。  
+> 文档状态：Accepted，作为 V111 源码与前向迁移实施基线；不代表目标库已迁移、服务已部署或合作方已验收。  
 > 编写日期：2026-08-17  
-> 当前源码基线：V109 最小 OCPX 管理面、V108 MySQL 账户/事实/流水/小时指标。  
-> 候选交付版本：V110；只有评审通过后，才可按本方案新增前向 SQL 和代码。
+> 前置源码基线：V110 人工余额扣减、V108 MySQL 账户/事实/流水/小时指标。  
+> 交付版本：V111；V108-V110 均为不可修改、不可重放的历史前向迁移。
 
 ## 1. 背景与目标
 
@@ -34,7 +34,8 @@
 - 预算、日限额、出价策略、定向、排期、频控和竞价；
 - 创意机器审核、人工审核工作流和媒体审核同步；
 - 退款、冲正、授信、负余额、欠款补扣、多币种和结算；
-- DCO、AIGC、素材自动裁剪和多版本实验。
+- DCO、AIGC、素材自动裁剪和多版本实验；
+- `cId`、创意级监测地址、Engine 创意校验、创意事实和创意报表维度。
 
 如果未来需要把一批创意和链接放在同一预算、出价、定向和投放状态下，再独立引入
 `scx_ocpx_campaign` 与 `scx_ocpx_ad_group`，不能把本期关联表伪装成广告组。
@@ -98,7 +99,7 @@
 | 管理员/财务 | 广告主充值、查看账务和权限配置 | 直接 SQL 改余额或流水 |
 | Engine | 事件去重、扣费、流水、指标和转发决策 | 接收浏览器传入的余额或最终消费值 |
 
-### 4.2 候选权限码
+### 4.2 权限码
 
 ```text
 ocpx:creative:view
@@ -138,27 +139,27 @@ erDiagram
 
 ### 5.1 `scx_ocpx_creative`
 
-候选字段：
+字段：
 
 | 字段 | 类型 | 规则 |
 |---|---|---|
 | `id` | `VARCHAR(32)` | 主键 |
 | `advertiser_id` | `VARCHAR(32)` | 必填，创意归属广告主 |
-| `creative_name` | `VARCHAR(128)` | 必填，同广告主下建议唯一 |
+| `creative_name` | `VARCHAR(128)` | 必填，活动创意在同广告主下唯一 |
 | `creative_type` | `TINYINT` | `1=图片`、`2=视频`；首期只开放图片 |
 | `asset_url` | `VARCHAR(2000)` | 服务端上传后返回的素材 URL 快照 |
-| `source_material_id` | `VARCHAR(32)` | 可空，仅用于追溯通用素材库来源，不作为运行依赖 |
+| `source_material_id` | `VARCHAR(32)` | 必填，指向有广告主归属的 `sys_material` 素材凭证 |
 | `file_name` | `VARCHAR(255)` | 原始文件名 |
 | `mime_type` | `VARCHAR(128)` | 由服务端检测，不信任前端声明 |
 | `file_size` | `BIGINT` | 字节数 |
-| `width`/`height` | `INT` | 图片尺寸，可空但建议保存 |
+| `width`/`height` | `INT` | 图片尺寸，必填并由服务端真实解析 |
 | `checksum_sha256` | `CHAR(64)` | 同广告主范围内辅助查重 |
 | `status` | `TINYINT` | `0=停用`、`1=启用` |
 | `remark` | `VARCHAR(500)` | 可空 |
 | `is_delete` | `TINYINT(1)` | 逻辑删除 |
 | 审计字段 |  | 创建人、创建时间、更新时间 |
 
-建议索引：
+索引：
 
 - `UNIQUE(advertiser_id,id)`：供关联表建立同广告主复合外键。
 - `UNIQUE(advertiser_id,creative_name,IF(is_delete=0,1,NULL))`：活动创意名称唯一。
@@ -203,18 +204,19 @@ erDiagram
 
 ### 5.4 事实、流水和指标扩展
 
-`scx_ocpx_event_fact` 建议冻结：
+`scx_ocpx_event_fact` 冻结：
 
 - `billing_enabled_snapshot`；
 - `billing_type_snapshot`；
 - `billing_unit_price_snapshot`；
 - `billing_status` 与可解释的 `billing_reason_code`；
-- 可选内部 `scx_creative_id`，不能复用外部媒体宏 `creative_id`。
+- `conversion_event_snapshot`，与开关、类型和单价一起冻结完整计费配置。
 
 `scx_ocpx_billing_entry.entry_type` 增加：
 
 ```text
 RECHARGE
+MANUAL_DEBIT
 CLICK_CHARGE
 CONVERSION_CHARGE
 ```
@@ -227,8 +229,8 @@ CONVERSION_CHARGE
 
 ### 6.1 首期素材范围
 
-首期建议只开放图片：JPG、JPEG、PNG、WEBP；具体大小和尺寸上限在接口契约中固定。
-数据库保留 `creative_type=2`，但前端和接口在视频规格未评审前拒绝视频。
+首期只开放图片：JPG、JPEG、PNG、WEBP；最大 20MB、最长边不超过 8192px、总像素不超过
+4000 万。数据库和接口均固定 `creative_type=1`，视频规格另立增量设计。
 
 ### 6.2 上传边界
 
@@ -246,8 +248,12 @@ Content-Type: multipart/form-data
 2. 校验真实文件头、MIME、大小和图片尺寸，不能只看扩展名。
 3. 由服务端计算 SHA-256；前端不得提交最终哈希作为可信值。
 4. 通过现有存储配置上传，不向浏览器返回 AccessKey、Bucket 密钥或内部凭据。
-5. 返回 `assetUrl/fileName/mimeType/fileSize/width/height/checksumSha256`。
-6. 创建创意失败时，对本次新上传且无其他引用的对象执行可审计清理；清理失败进入补偿记录，不能静默泄漏。
+5. 使用 ImageIO 和 TwelveMonkeys WebP 插件真实解码，返回
+   `sourceMaterialId/assetUrl/fileName/mimeType/fileSize/width/height/checksumSha256`。
+6. 存储成功但 `sys_material` 登记失败时删除存储对象；登记成功后素材成为可复用自有资产，创意创建失败或
+   删除创意时不自动删除素材。
+7. 创建创意只接受 `sourceMaterialId`；服务端重新读取素材并复核归属、文件头、格式、尺寸和哈希，
+   不接受浏览器提交最终 URL 或哈希。
 
 ### 6.3 创建与绑定
 
@@ -260,17 +266,12 @@ Content-Type: multipart/form-data
   -> 返回创意详情和绑定链接
 ```
 
-创建创意允许暂不绑定链接；只有状态为启用且至少绑定一个有效链接的创意，才可生成创意级投放地址。
+创建创意允许暂不绑定链接；空数组表示当前不绑定任何推广链接。本期不生成创意级投放地址。
 
-## 7. 创意进入 OCPX 流量链路
+## 7. 创意运行维度边界
 
-### 7.1 两阶段交付
-
-- **阶段 A（管理闭环）**：创意 CRUD、素材上传、链接多对多绑定和严格对象隔离。
-- **阶段 B（运行闭环）**：内部创意 ID 进入监测地址、事实、流水和报表。
-
-如果“模拟 DSP”要求创意能够产生可归因流量，则阶段 B 是完整验收的一部分；只完成阶段 A
-只能描述为创意台账和配置闭环。
+V111 只交付创意管理与推广链接绑定闭环。创意不进入当前
+`mId+tId+aId+lId` 路由，不影响 Feedback/Callback 的既有接口和幂等键。
 
 ### 7.2 内部创意标识
 
@@ -289,8 +290,8 @@ Engine 收到 `cId` 后必须校验：
 3. 创意已绑定 `lId`；
 4. `tId` 对应的监测任务本身也属于 `aId+lId+mId`。
 
-为避免破坏已发布监测地址，V110 迁移期允许旧地址不携带 `cId`；只有创意级地址强制校验。
-是否在后续版本全面要求 `cId`，需依据合作方 UAT 决定。
+V111 不新增 `cId`，也不新增 `scx_creative_id` 事实字段。现有外部 `creative_id` 继续表示合作方宏值，
+不得解释为 SCX 创意主键。未来如需创意级归因，必须另立前向迁移、路由兼容和合作方 UAT 方案。
 
 ## 8. 计费规则
 
@@ -333,9 +334,10 @@ Engine 收到 `cId` 后必须校验：
 6. 余额不足：写 `CONVERSION_CHARGE/REJECTED/INSUFFICIENT_BALANCE`，余额和消费不变。
 
 推荐默认：转化已经发生，余额不足不能抹掉事实，也不应通过吞掉 Callback 惩罚下游媒体；因此仍执行原有扣量和下游回传，
-同时告警。是否阻断后续新点击应由独立投放状态决定，不复用扣费开关。该规则需要产品最终确认。
+同时记录结构化 WARN 和拒绝指标。余额不足不阻断本次下游 Callback；后续新点击是否允许由独立投放状态决定，
+不复用扣费开关。
 
-## 9. API 草案
+## 9. API
 
 ### 9.1 创意 API
 
@@ -346,6 +348,7 @@ GET    /ocpx/creatives/{id}
 PUT    /ocpx/creatives/{id}
 DELETE /ocpx/creatives/{id}
 POST   /ocpx/creatives/assets
+GET    /ocpx/creatives/assets
 GET    /ocpx/creatives/{id}/promotion-links
 PUT    /ocpx/creatives/{id}/promotion-links
 ```
@@ -356,8 +359,7 @@ PUT    /ocpx/creatives/{id}/promotion-links
 {
   "advertiserId": "advertiser-1",
   "creativeName": "暑期活动主图",
-  "creativeType": 1,
-  "assetUrl": "https://storage.example/managed/path/image.webp",
+  "sourceMaterialId": "material-1",
   "status": 1,
   "promotionLinkIds": ["link-1", "link-2"],
   "remark": "首期素材"
@@ -380,11 +382,11 @@ PUT /ocpx/creatives/{id}/promotion-links
 
 ### 9.2 计费 API
 
-建议将计费修改从普通监测任务编辑接口中拆出，避免广告主编辑任务时夹带敏感字段：
+不新增独立计费接口，继续使用监测任务新增、编辑接口：
 
 ```http
-GET /ocpx/monitor-tasks/{id}/billing
-PUT /ocpx/monitor-tasks/{id}/billing
+POST /ocpx/monitor-tasks
+PUT  /ocpx/monitor-tasks/{id}
 ```
 
 ```json
@@ -396,7 +398,8 @@ PUT /ocpx/monitor-tasks/{id}/billing
 }
 ```
 
-更新接口必须写系统操作日志，日志保存操作者、任务、广告主和变更前后非敏感计费字段。
+没有计费权限的账号只能原样提交现有计费字段；任一计费字段变化均返回 403。更新在同一事务写系统操作日志和
+不可变计费配置审计快照，保存操作者、任务、广告主及修改前后配置。
 
 ### 9.3 账务查询 API
 
@@ -411,7 +414,7 @@ GET /ocpx/billing-entries
 
 ### 10.1 创意管理
 
-新增菜单：`创意管理`，建议路径 `/ocpx/creative`。
+新增菜单：`创意管理`，路径 `/ocpx/creative`。
 
 列表字段：
 
@@ -431,11 +434,11 @@ GET /ocpx/billing-entries
 
 ### 10.2 监测任务计费配置
 
-- 普通任务表单不再让无计费权限用户提交 `unitPrice/billingType/billingEnabled`。
-- 有 `ocpx:monitor-task:billing` 的内部运营看到独立“计费配置”入口。
+- 普通任务弹窗向无计费权限用户只读展示 `unitPrice/billingType/billingEnabled/conversionEvent`。
+- 有 `ocpx:monitor-task:billing` 的内部运营在原任务弹窗编辑计费配置。
 - 弹窗展示扣费开关、点击/转化、单次金额、目标转化事件和风险提示。
 - 从点击切换到转化或重新开启扣费时二次确认。
-- 广告主是否可只读查看自身计费条款需产品确认；默认建议可查看但不可编辑。
+- 广告主可只读查看自身计费条款，不可编辑。
 
 ### 10.3 账户与流水
 
@@ -446,9 +449,9 @@ GET /ocpx/billing-entries
 ## 11. 删除、停用与历史数据
 
 - 创意默认逻辑删除；删除前解除当前链接绑定。
-- 已产生事件事实的创意不能物理删除，历史报表继续显示创意 ID 和快照名称。
+- V111 不产生创意事实或创意报表维度；创意逻辑删除只解除当前绑定，不删除素材凭证。
 - 推广链接已有监测任务或创意绑定时，删除前必须明确提示并按当前引用保护策略处理。
-- 停用创意不删除历史事实，只禁止生成新的创意级地址；已在途事件仍按事件接收时的有效配置处理。
+- 停用创意不影响既有监测任务；V111 不生成创意级地址或创意事实。
 - 账务流水永不因创意、任务、链接或广告主页面删除而删除。
 - 广告主有余额、事实或流水时继续禁止物理删除。
 
@@ -464,9 +467,9 @@ GET /ocpx/billing-entries
 
 ## 13. 数据库与发布方案
 
-评审通过后新增前向 SQL `V110__add_creative_and_configurable_billing.sql`，不得修改 V108/V109。
+新增前向 SQL `V111__add_creative_and_configurable_billing.sql`，不得修改或重放 V108-V110。
 
-V110 至少包括：
+V111 包括：
 
 - 创建 `scx_ocpx_creative`；
 - 创建 `scx_ocpx_creative_promotion_link`；
@@ -491,7 +494,7 @@ V110 至少包括：
 
 ## 14. 实施拆分
 
-### V110-A：创意管理闭环
+### V111-A：创意管理闭环
 
 - 数据表、实体、Mapper、服务、Controller；
 - OCPX 专用图片上传；
@@ -499,22 +502,22 @@ V110 至少包括：
 - 创意页面和链接多选；
 - RBAC、契约、单元测试和本地 UI 测试。
 
-### V110-B：可配置计费闭环
+### V111-B：可配置计费闭环
 
 - 监测任务计费开关和计费类型；
-- 独立计费配置接口和运营权限；
+- 原监测任务接口计费字段和运营权限；
 - 点击/转化两种 Engine 扣费路径；
 - 流水、事实、指标和余额不足规则；
 - 账务查询页面和对账测试。
 
-### V110-C：创意运行维度
+### 后续增量：创意运行维度
 
 - 创意级监测地址和 `cId`；
 - Engine 绑定校验和索引刷新；
 - 事实、报表、Dashboard 创意筛选；
 - 旧地址兼容、合作方 UAT 和回归。
 
-推荐按 A -> B -> C 实施；只有 A/B/C 全部验收，才能称为“上游客户可用的轻量 DSP 创意与计费闭环”。
+V111 以 A+B 为交付范围；后续运行维度不得混入 V111，也不能把当前关联表描述为广告组。
 
 ## 15. 测试与验收标准
 
@@ -545,6 +548,7 @@ V110 至少包括：
 可用余额
 = 初始余额
 + POSTED 充值总额
+- POSTED 人工扣减总额
 - POSTED 点击消费总额
 - POSTED 转化消费总额
 ```
@@ -560,11 +564,11 @@ Dashboard/报表消费必须等于对应范围内事实表 `spend_amount` 的汇
 - 合作方 UAT：证明真实协议和业务语义。
 - 生产迁移、发布和对账：必须有目标环境证据，不能由本地成功替代。
 
-## 16. 待产品确认项与推荐默认值
+## 16. 已确认默认值
 
 | 待确认项 | 推荐默认值 |
 |---|---|
-| 创意只是管理台账，还是必须进入事实和报表 | 必须进入；分 A/C 两阶段交付 |
+| 创意只是管理台账，还是必须进入事实和报表 | V111 只做管理与绑定；运行维度另立增量 |
 | 首期素材类型 | 只开放图片，视频留字段但不开放 |
 | 转化计费余额不足是否继续下游回传 | 继续回传，记录拒绝和告警，不允许负余额 |
 | 广告主能否查看自己的计费配置 | 可以只读查看，不可编辑 |
@@ -572,5 +576,5 @@ Dashboard/报表消费必须等于对应范围内事实表 `spend_amount` 的汇
 | 是否需要创意审核 | 本期仅启用/停用，不做审核流 |
 | 是否引入广告组 | 本期不引入；出现预算/出价/定向需求时另立设计 |
 
-以上默认值全部确认后，本草案可升级为 Accepted 实现基线；任一项改变都需要同步更新数据模型、接口契约、
-权限和验收标准后再编码。
+以上默认值已经作为 V111 Accepted 实现基线；任一项改变都需要同步更新数据模型、接口契约、
+权限和验收标准，并使用新的前向版本实施。

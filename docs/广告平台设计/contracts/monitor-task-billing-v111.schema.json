@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smart-converge-x.local/contracts/monitor-task-billing-v111.schema.json",
+  "title": "SCX OCPX V111 monitor task billing fields",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "billingEnabled",
+    "billingType",
+    "unitPrice",
+    "conversionEvent"
+  ],
+  "properties": {
+    "billingEnabled": { "type": "boolean", "default": false },
+    "billingType": { "type": "integer", "enum": [1, 2], "default": 1 },
+    "unitPrice": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 99999999999999.999999,
+      "multipleOf": 0.000001
+    },
+    "conversionEvent": {
+      "type": "string",
+      "default": "ACTIVATE",
+      "enum": [
+        "ACTIVATE",
+        "EVOKE",
+        "LOGIN",
+        "REGISTER",
+        "PAYMENT",
+        "CUSTOMER_ACQUISITION",
+        "NEXT_STAY",
+        "VISITS",
+        "AUTHENTICATION",
+        "ORDER",
+        "FINISH_THE_ORDER",
+        "FIRST_ACTIVATION",
+        "FIRST_ORDER"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "billingEnabled": { "const": true } },
+        "required": ["billingEnabled"]
+      },
+      "then": { "properties": { "unitPrice": { "exclusiveMinimum": 0 } } }
+    }
+  ]
+}

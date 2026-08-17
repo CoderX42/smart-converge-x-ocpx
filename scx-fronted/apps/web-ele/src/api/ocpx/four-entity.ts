@@ -137,6 +137,8 @@ export type MediaUpdatePayload = MediaCreatePayload;
 export type MonitorTask = {
   advertiserId: string;
   advertiserName: string;
+  billingEnabled: boolean;
+  billingType: 1 | 2;
   bizId?: string;
   clkUrl: string;
   conversionEvent: ConversionEvent;
@@ -178,6 +180,8 @@ export type MonitorTaskQuery = {
 
 export type MonitorTaskCreatePayload = {
   advertiserId: string;
+  billingEnabled: boolean;
+  billingType: 1 | 2;
   bizId?: string;
   conversionEvent: ConversionEvent;
   mediaId: string;
@@ -344,6 +348,8 @@ function monitorTaskBody(
 ) {
   return {
     advertiserId: data.advertiserId,
+    billingEnabled: data.billingEnabled,
+    billingType: data.billingType,
     bizId: data.bizId,
     conversionEvent: data.conversionEvent,
     mediaId: data.mediaId,

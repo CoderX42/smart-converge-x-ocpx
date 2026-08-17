@@ -14,20 +14,23 @@ class OcpxFourEntityResetContractTest {
 	private static final String RESET = "db/migration/V96__reset_ocpx_ad_business_to_four_entities.sql";
 
 	private static final List<String> BUSINESS_TABLES = List.of("scx_ocpx_advertiser", "scx_ocpx_promotion_link",
-			"scx_ocpx_media", "scx_ocpx_monitor_task", "scx_ocpx_deduction_rule");
+			"scx_ocpx_creative", "scx_ocpx_media", "scx_ocpx_monitor_task", "scx_ocpx_deduction_rule");
 
 	private static final List<String> RETIRED_TABLES = List.of("scx_ocpx_channel", "scx_ocpx_app_link",
 			"scx_ocpx_monitor_link", "scx_ocpx_hourly_report", "scx_ocpx_adapter", "scx_ocpx_product",
 			"scx_ocpx_media_account", "scx_ocpx_media_credential", "scx_ocpx_task");
 
 	@Test
-	void currentSchemaHasFourBusinessEntitiesAndLegacyCompatibleDataLayer() throws Exception {
+	void currentSchemaHasCreativeManagementAndLegacyCompatibleDataLayer() throws Exception {
 		String schema = resource(CURRENT_SCHEMA);
 
-		assertThat(occurrences(schema, "COMMENT='BUSINESS:")).isEqualTo(5);
+		assertThat(occurrences(schema, "COMMENT='BUSINESS:")).isEqualTo(6);
 		BUSINESS_TABLES.forEach(table -> assertThat(schema).contains("CREATE TABLE IF NOT EXISTS " + table));
 		RETIRED_TABLES.forEach(table -> assertThat(schema).doesNotContain("CREATE TABLE IF NOT EXISTS " + table + " "));
 		assertThat(schema).contains("FOREIGN KEY (advertiser_id,promotion_link_id)",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_creative",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_creative_promotion_link",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_billing_config_audit",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser_account",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact",
 				"CREATE TABLE IF NOT EXISTS scx_ocpx_billing_entry",
@@ -41,7 +44,7 @@ class OcpxFourEntityResetContractTest {
 				"action_time BIGINT", "currency_amount DECIMAL(20,6)", "first_activation", "first_order")
 			.doesNotContain("CREATE TABLE IF NOT EXISTS scx_ocpx_report_hourly")
 			.doesNotContain("credential_ciphertext", "secret_ciphertext", "password_hash");
-		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(15);
+		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(18);
 	}
 
 	@Test

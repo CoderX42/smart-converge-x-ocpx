@@ -4,6 +4,7 @@ import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,13 +24,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * MySQL authoritative event, CPC billing and hourly projection transaction.
+ * MySQL authoritative event, configurable billing and hourly projection transaction.
  *
  * <p>The unique fact key is the final idempotency boundary. Redis may still be
  * used by compatibility paths, but does not decide whether a fact is counted
  * or billed.</p>
  */
 @Service
+@Slf4j
 public class OcpxEventFactService {
 
 	public static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
@@ -45,8 +47,8 @@ public class OcpxEventFactService {
 			  activate_count,evoke_count,login_count,register_count,payment_count,
 			  customer_acquisition_count,next_stay_count,visits_count,authentication_count,
 			  place_order_count,finish_the_order_count,first_activation_count,first_order_count,
-			  spend_amount,currency_amount,rejected_click_count
-			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			  spend_amount,currency_amount,rejected_click_count,rejected_conversion_count
+			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON DUPLICATE KEY UPDATE
 			  impression_count=impression_count+VALUES(impression_count),
 			  click_count=click_count+VALUES(click_count),
@@ -67,6 +69,7 @@ public class OcpxEventFactService {
 			  spend_amount=spend_amount+VALUES(spend_amount),
 			  currency_amount=currency_amount+VALUES(currency_amount),
 			  rejected_click_count=rejected_click_count+VALUES(rejected_click_count),
+			  rejected_conversion_count=rejected_conversion_count+VALUES(rejected_conversion_count),
 			  update_time=CURRENT_TIMESTAMP(3)
 			""";
 
@@ -84,8 +87,9 @@ public class OcpxEventFactService {
 		String eventCode = request.getEvent().getKey();
 		String factId = nextId();
 		String factKey = factKey(request, eventCode);
-		if (!insertFact(factId, factKey, "FEEDBACK", eventCode, request, false, ZERO, ZERO,
-				"NOT_APPLICABLE", receivedAt)) {
+		String initialReason = feedbackReason(request.getEvent(), task);
+		if (!insertFact(factId, factKey, "FEEDBACK", eventCode, request, task, false, ZERO, ZERO,
+				"NOT_APPLICABLE", initialReason, receivedAt)) {
 			return FeedbackFactResult.duplicate();
 		}
 
@@ -96,13 +100,17 @@ public class OcpxEventFactService {
 		if (request.getEvent() != EventTypeEnum.CLICK) {
 			return new FeedbackFactResult(true, true, "NOT_APPLICABLE", ZERO);
 		}
+		if (!task.billingEnabled() || task.billingType() != 1) {
+			upsertMetric(receivedAt, task, MetricDelta.forClick());
+			return new FeedbackFactResult(true, true, "NOT_APPLICABLE", ZERO);
+		}
 
 		BigDecimal price = money(task.unitPrice());
 		BigDecimal balanceBefore = lockBalance(task.advertiserId());
 		if (balanceBefore.compareTo(price) < 0) {
-			insertClickEntry(factId, task, price, balanceBefore, balanceBefore, "REJECTED",
+			insertChargeEntry("CLICK_CHARGE", "CLICK", factId, task, price, balanceBefore, balanceBefore, "REJECTED",
 					"INSUFFICIENT_BALANCE", receivedAt);
-			updateFactBilling(factId, ZERO, "REJECTED_INSUFFICIENT_BALANCE");
+			updateFactBilling(factId, ZERO, "REJECTED_INSUFFICIENT_BALANCE", "INSUFFICIENT_BALANCE");
 			upsertMetric(receivedAt, task, MetricDelta.forRejectedClick());
 			return new FeedbackFactResult(true, false, "REJECTED_INSUFFICIENT_BALANCE", ZERO);
 		}
@@ -113,8 +121,9 @@ public class OcpxEventFactService {
 				SET available_balance=?,update_time=CURRENT_TIMESTAMP(3)
 				WHERE advertiser_id=?
 				""", balanceAfter, task.advertiserId());
-		insertClickEntry(factId, task, price, balanceBefore, balanceAfter, "POSTED", null, receivedAt);
-		updateFactBilling(factId, price, "POSTED");
+		insertChargeEntry("CLICK_CHARGE", "CLICK", factId, task, price, balanceBefore, balanceAfter, "POSTED", null,
+				receivedAt);
+		updateFactBilling(factId, price, "POSTED", null);
 		upsertMetric(receivedAt, task, MetricDelta.postedClick(price));
 		return new FeedbackFactResult(true, true, "POSTED", price);
 	}
@@ -136,28 +145,58 @@ public class OcpxEventFactService {
 		}
 		String factId = nextId();
 		String factKey = factKey(feedback, eventCode);
-		if (!insertFact(factId, factKey, "CALLBACK", eventCode, feedback, targetConversion, ZERO,
-				currencyAmount, "NOT_APPLICABLE", receivedAt)) {
+		String initialReason = callbackReason(targetConversion, task);
+		if (!insertFact(factId, factKey, "CALLBACK", eventCode, feedback, task, targetConversion, ZERO,
+				currencyAmount, "NOT_APPLICABLE", initialReason, receivedAt)) {
 			return CallbackFactResult.duplicate();
 		}
+		if (!targetConversion || !task.billingEnabled() || task.billingType() != 2) {
+			upsertMetric(receivedAt, task,
+					MetricDelta.conversion(request.getActionType(), targetConversion, currencyAmount, ZERO, false));
+			return new CallbackFactResult(true, targetConversion);
+		}
+
+		BigDecimal price = money(task.unitPrice());
+		BigDecimal balanceBefore = lockBalance(task.advertiserId());
+		if (balanceBefore.compareTo(price) < 0) {
+			insertChargeEntry("CONVERSION_CHARGE", "CONVERSION", factId, task, price, balanceBefore, balanceBefore,
+					"REJECTED", "INSUFFICIENT_BALANCE", receivedAt);
+			updateFactBilling(factId, ZERO, "REJECTED_INSUFFICIENT_BALANCE", "INSUFFICIENT_BALANCE");
+			upsertMetric(receivedAt, task,
+					MetricDelta.conversion(request.getActionType(), true, currencyAmount, ZERO, true));
+			log.warn("conversion charge rejected advertiserId:{} taskId:{} factId:{} reason:INSUFFICIENT_BALANCE",
+					task.advertiserId(), task.id(), factId);
+			return new CallbackFactResult(true, true);
+		}
+		BigDecimal balanceAfter = balanceBefore.subtract(price).setScale(6, RoundingMode.UNNECESSARY);
+		jdbcTemplate.update("""
+				UPDATE scx_ocpx_advertiser_account
+				SET available_balance=?,update_time=CURRENT_TIMESTAMP(3)
+				WHERE advertiser_id=?
+				""", balanceAfter, task.advertiserId());
+		insertChargeEntry("CONVERSION_CHARGE", "CONVERSION", factId, task, price, balanceBefore, balanceAfter,
+				"POSTED", null, receivedAt);
+		updateFactBilling(factId, price, "POSTED", null);
 		upsertMetric(receivedAt, task,
-				MetricDelta.conversion(request.getActionType(), targetConversion, currencyAmount));
+				MetricDelta.conversion(request.getActionType(), true, currencyAmount, price, false));
 		return new CallbackFactResult(true, targetConversion);
 	}
 
 	private boolean insertFact(String factId, String factKey, String flowType, String eventCode,
-			FeedbackReq feedback, boolean targetConversion, BigDecimal spendAmount, BigDecimal currencyAmount,
-			String billingStatus, LocalDateTime receivedAt) {
+			FeedbackReq feedback, TaskSnapshot task, boolean targetConversion, BigDecimal spendAmount,
+			BigDecimal currencyAmount, String billingStatus, String billingReasonCode, LocalDateTime receivedAt) {
 		try {
 			jdbcTemplate.update("""
 					INSERT INTO scx_ocpx_event_fact (
 					  id,fact_key,flow_type,event_code,request_id,advertiser_id,promotion_link_id,
-					  media_id,monitor_task_id,target_conversion,spend_amount,currency_amount,
-					  billing_status,received_at
-					) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					  media_id,monitor_task_id,target_conversion,billing_enabled_snapshot,billing_type_snapshot,
+					  billing_unit_price_snapshot,conversion_event_snapshot,spend_amount,currency_amount,
+					  billing_status,billing_reason_code,received_at
+					) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					""", factId, factKey, flowType, eventCode, feedback.getReqId(), feedback.getAId(),
-					feedback.getLId(), feedback.getMId(), feedback.getTId(), targetConversion, spendAmount,
-					currencyAmount, billingStatus, receivedAt);
+					feedback.getLId(), feedback.getMId(), feedback.getTId(), targetConversion, task.billingEnabled(),
+					task.billingType(), money(task.unitPrice()), task.conversionEvent(), spendAmount, currencyAmount,
+					billingStatus, billingReasonCode, receivedAt);
 			return true;
 		}
 		catch (DuplicateKeyException ignored) {
@@ -167,12 +206,13 @@ public class OcpxEventFactService {
 
 	private TaskSnapshot requireTask(String taskId, String advertiserId, String linkId, String mediaId) {
 		List<TaskSnapshot> tasks = jdbcTemplate.query("""
-				SELECT id,advertiser_id,promotion_link_id,media_id,unit_price,conversion_event
+				SELECT id,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,unit_price,conversion_event
 				FROM scx_ocpx_monitor_task
 				WHERE id=? AND advertiser_id=? AND promotion_link_id=? AND media_id=? AND is_delete=0
 				""", (rs, rowNum) -> new TaskSnapshot(rs.getString("id"), rs.getString("advertiser_id"),
-					rs.getString("promotion_link_id"), rs.getString("media_id"), rs.getBigDecimal("unit_price"),
-					rs.getString("conversion_event")), taskId, advertiserId, linkId, mediaId);
+				rs.getString("promotion_link_id"), rs.getString("media_id"), rs.getBoolean("billing_enabled"),
+				rs.getInt("billing_type"), rs.getBigDecimal("unit_price"), rs.getString("conversion_event")), taskId,
+				advertiserId, linkId, mediaId);
 		if (tasks.size() != 1) {
 			throw new IllegalArgumentException("monitor task does not match advertiser, promotion link and media");
 		}
@@ -190,20 +230,22 @@ public class OcpxEventFactService {
 		return money(balances.get(0));
 	}
 
-	private void insertClickEntry(String factId, TaskSnapshot task, BigDecimal amount, BigDecimal balanceBefore,
-			BigDecimal balanceAfter, String status, String reasonCode, LocalDateTime occurredAt) {
+	private void insertChargeEntry(String entryType, String businessPrefix, String factId, TaskSnapshot task,
+			BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter, String status, String reasonCode,
+			LocalDateTime occurredAt) {
 		jdbcTemplate.update("""
 				INSERT INTO scx_ocpx_billing_entry (
 				  id,advertiser_id,monitor_task_id,event_fact_id,entry_type,status,amount,
 				  balance_before,balance_after,business_key,reason_code,occurred_at
 				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-				""", nextId(), task.advertiserId(), task.id(), factId, "CLICK_CHARGE", status,
-				amount, balanceBefore, balanceAfter, "CLICK:" + factId, reasonCode, occurredAt);
+				""", nextId(), task.advertiserId(), task.id(), factId, entryType, status, amount, balanceBefore,
+				balanceAfter, businessPrefix + ":" + factId, reasonCode, occurredAt);
 	}
 
-	private void updateFactBilling(String factId, BigDecimal spendAmount, String billingStatus) {
-		jdbcTemplate.update("UPDATE scx_ocpx_event_fact SET spend_amount=?,billing_status=? WHERE id=?", spendAmount,
-				billingStatus, factId);
+	private void updateFactBilling(String factId, BigDecimal spendAmount, String billingStatus, String reasonCode) {
+		jdbcTemplate.update(
+				"UPDATE scx_ocpx_event_fact SET spend_amount=?,billing_status=?,billing_reason_code=? WHERE id=?",
+				spendAmount, billingStatus, reasonCode, factId);
 	}
 
 	private void upsertMetric(LocalDateTime receivedAt, TaskSnapshot task, MetricDelta delta) {
@@ -212,7 +254,27 @@ public class OcpxEventFactService {
 				delta.activate(), delta.evoke(), delta.login(), delta.register(), delta.payment(),
 				delta.customerAcquisition(), delta.nextStay(), delta.visits(), delta.authentication(), delta.placeOrder(),
 				delta.finishTheOrder(), delta.firstActivation(), delta.firstOrder(), delta.spend(), delta.currency(),
-				delta.rejectedClick());
+				delta.rejectedClick(), delta.rejectedConversion());
+	}
+
+	private String feedbackReason(EventTypeEnum event, TaskSnapshot task) {
+		if (event != EventTypeEnum.CLICK) {
+			return "NON_BILLABLE_EVENT";
+		}
+		if (!task.billingEnabled()) {
+			return "BILLING_DISABLED";
+		}
+		return task.billingType() == 1 ? null : "BILLING_TYPE_MISMATCH";
+	}
+
+	private String callbackReason(boolean targetConversion, TaskSnapshot task) {
+		if (!targetConversion) {
+			return "NON_TARGET_CONVERSION";
+		}
+		if (!task.billingEnabled()) {
+			return "BILLING_DISABLED";
+		}
+		return task.billingType() == 2 ? null : "BILLING_TYPE_MISMATCH";
 	}
 
 	private static String factKey(FeedbackReq request, String eventCode) {
@@ -266,13 +328,13 @@ public class OcpxEventFactService {
 	}
 
 	private record TaskSnapshot(String id, String advertiserId, String promotionLinkId, String mediaId,
-			BigDecimal unitPrice, String conversionEvent) {
+			boolean billingEnabled, int billingType, BigDecimal unitPrice, String conversionEvent) {
 	}
 
 	private record MetricDelta(long impression, long click, long target, long activate, long evoke, long login,
 			long register, long payment, long customerAcquisition, long nextStay, long visits, long authentication,
 			long placeOrder, long finishTheOrder, long firstActivation, long firstOrder, BigDecimal spend,
-			BigDecimal currency, long rejectedClick) {
+			BigDecimal currency, long rejectedClick, long rejectedConversion) {
 
 		private static MetricDelta forImpression() {
 			return empty(1, 0, 0, ZERO, ZERO, 0, null);
@@ -282,12 +344,21 @@ public class OcpxEventFactService {
 			return empty(0, 1, 0, spend, ZERO, 0, null);
 		}
 
+		private static MetricDelta forClick() {
+			return empty(0, 1, 0, ZERO, ZERO, 0, null);
+		}
+
 		private static MetricDelta forRejectedClick() {
 			return empty(0, 1, 0, ZERO, ZERO, 1, null);
 		}
 
-		private static MetricDelta conversion(ActionTypeEnum action, boolean target, BigDecimal currency) {
-			return empty(0, 0, target ? 1 : 0, ZERO, currency, 0, action);
+		private static MetricDelta conversion(ActionTypeEnum action, boolean target, BigDecimal currency,
+				BigDecimal spend, boolean rejected) {
+			MetricDelta base = empty(0, 0, target ? 1 : 0, spend, currency, 0, action);
+			return new MetricDelta(base.impression(), base.click(), base.target(), base.activate(), base.evoke(),
+					base.login(), base.register(), base.payment(), base.customerAcquisition(), base.nextStay(), base.visits(),
+					base.authentication(), base.placeOrder(), base.finishTheOrder(), base.firstActivation(), base.firstOrder(),
+					base.spend(), base.currency(), base.rejectedClick(), rejected ? 1 : 0);
 		}
 
 		private static MetricDelta empty(long impression, long click, long target, BigDecimal spend,
@@ -300,7 +371,7 @@ public class OcpxEventFactService {
 					action == ActionTypeEnum.AUTHENTICATION ? 1 : 0, action == ActionTypeEnum.ORDER ? 1 : 0,
 					action == ActionTypeEnum.FINISH_THE_ORDER ? 1 : 0,
 					action == ActionTypeEnum.FIRST_ACTIVATION ? 1 : 0,
-					action == ActionTypeEnum.FIRST_ORDER ? 1 : 0, spend, currency, rejectedClick);
+					action == ActionTypeEnum.FIRST_ORDER ? 1 : 0, spend, currency, rejectedClick, 0);
 		}
 	}
 

@@ -39,6 +39,10 @@ public final class MonitorTaskViews {
 
 		private String clkUrl;
 
+		private Boolean billingEnabled;
+
+		private Integer billingType;
+
 		private BigDecimal unitPrice;
 
 		private String conversionEvent;

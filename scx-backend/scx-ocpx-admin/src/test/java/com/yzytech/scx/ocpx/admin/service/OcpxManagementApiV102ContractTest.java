@@ -48,7 +48,8 @@ class OcpxManagementApiV102ContractTest {
 		assertThat(fieldNames(PromotionLinkRequests.Create.class)).containsExactly("advertiserId", "linkName",
 				"platform", "linkChannel", "linkUrl", "deeplink", "linkExt", "remark");
 		assertThat(fieldNames(MonitorTaskRequests.Create.class)).containsExactly("monitorName", "advertiserId",
-				"promotionLinkId", "mediaId", "unitPrice", "conversionEvent", "bizId", "remark");
+				"promotionLinkId", "mediaId", "billingEnabled", "billingType", "unitPrice", "conversionEvent", "bizId",
+				"remark");
 	}
 
 	@Test

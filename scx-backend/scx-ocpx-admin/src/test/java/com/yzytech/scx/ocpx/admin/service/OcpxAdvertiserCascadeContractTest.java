@@ -23,6 +23,8 @@ class OcpxAdvertiserCascadeContractTest {
 		deleteTargets.put("deleteFeedbackDayLogs", "scx_ocpx_log_feedback_day");
 		deleteTargets.put("deleteFeedbackLogs", "scx_ocpx_log_feedback");
 		deleteTargets.put("deleteFlowLogs", "scx_ocpx_flow_log");
+		deleteTargets.put("deleteCreativeBindings", "scx_ocpx_creative_promotion_link");
+		deleteTargets.put("deleteCreatives", "scx_ocpx_creative");
 		deleteTargets.put("deleteDeductionRules", "scx_ocpx_deduction_rule");
 		deleteTargets.put("deleteMonitorTasks", "scx_ocpx_monitor_task");
 		deleteTargets.put("deletePromotionLinks", "scx_ocpx_promotion_link");

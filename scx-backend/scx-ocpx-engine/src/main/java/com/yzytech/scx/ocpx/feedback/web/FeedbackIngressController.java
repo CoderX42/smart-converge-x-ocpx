@@ -1,6 +1,5 @@
 package com.yzytech.scx.ocpx.feedback.web;
 
-import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,14 +44,16 @@ public class FeedbackIngressController {
 			return ResponseEntity.badRequest().build();
 		}
 		try {
-			feedbackLog.info("feedback ingress req:{}", JSON.toJSONString(request));
+			feedbackLog.info("feedback ingress event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}", request.getEvent(),
+					request.getMId(), request.getTId(), request.getAId(), request.getLId(), request.getRequest_id());
 			FeedbackReq feedback = requestAdapter.toFeedback(request);
 			feedbackService.handleFeedback(feedback);
 			return ResponseEntity.ok(FeedbackIngressResponse.success());
 		}
 		catch (Exception exception) {
-			errorLog.error("feedback ingress error:{},param:{}", exception.getMessage(),
-					JSON.toJSONString(request), exception);
+			errorLog.error("feedback ingress error type:{} event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}",
+					exception.getClass().getSimpleName(), request.getEvent(), request.getMId(), request.getTId(),
+					request.getAId(), request.getLId(), request.getRequest_id());
 			return ResponseEntity.internalServerError().build();
 		}
 	}

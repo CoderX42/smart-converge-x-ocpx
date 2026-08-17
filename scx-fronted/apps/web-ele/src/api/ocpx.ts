@@ -1,8 +1,11 @@
 import { requestClient } from '#/api/request';
 
 export * from './ocpx/advertiser-macros';
+export * from './ocpx/billing';
+export * from './ocpx/creative';
 export * from './ocpx/deduction';
 export * from './ocpx/four-entity';
+export * from './ocpx/monitor-task-test';
 export * from './ocpx/report';
 
 export type ReportOption = {
@@ -52,7 +55,7 @@ export type UnifiedReportPage = {
 
 export type DashboardMetric = {
   status: 'OK' | 'ZERO_DENOMINATOR';
-  unit: 'COUNT' | 'CNY' | 'PERCENT';
+  unit: 'CNY' | 'COUNT' | 'PERCENT';
   value: null | number;
 };
 
@@ -60,6 +63,7 @@ export type DashboardAccount = {
   advertiserId: string;
   availableBalance: number;
   rejectedClickCount: number;
+  rejectedConversionCount: number;
   todaySpend: number;
 };
 

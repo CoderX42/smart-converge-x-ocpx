@@ -24,16 +24,19 @@ for index, match in enumerate(table_starts):
         business.append(match.group(1))
 expected_business = {
     "scx_ocpx_advertiser",
+    "scx_ocpx_creative",
     "scx_ocpx_promotion_link",
     "scx_ocpx_media",
     "scx_ocpx_monitor_task",
     "scx_ocpx_deduction_rule",
 }
-if set(business) != expected_business or len(business) != 5:
-    raise SystemExit(f"four-entity gate failed: BUSINESS tables are {business!r}")
+if set(business) != expected_business or len(business) != 6:
+    raise SystemExit(f"OCPX management gate failed: BUSINESS tables are {business!r}")
 
 expected_data = {
     "scx_ocpx_advertiser_account",
+    "scx_ocpx_creative_promotion_link",
+    "scx_ocpx_billing_config_audit",
     "scx_ocpx_event_fact",
     "scx_ocpx_billing_entry",
     "scx_ocpx_hourly_metric",
@@ -45,8 +48,8 @@ expected_data = {
     "scx_ocpx_report_mat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 15:
-    raise SystemExit(f"four-entity gate failed: OCPX tables are {actual!r}")
+if set(actual) != expected_business | expected_data or len(actual) != 18:
+    raise SystemExit(f"OCPX management gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
 
@@ -65,6 +68,10 @@ v102_columns = {
         "required": ("advertiser_name", "account_user_id varchar(64)", "credential_config_key", "bid_url", "macro_params"),
         "retired": ("advertiser_code", "adapter_code", "credential_version", "status", "deleted", "active_marker"),
     },
+    "scx_ocpx_creative": {
+        "required": ("advertiser_id", "creative_name", "source_material_id", "checksum_sha256", "is_delete"),
+        "retired": ("creative_id", "group_id", "c_id"),
+    },
     "scx_ocpx_promotion_link": {
         "required": ("platform tinyint", "link_url", "deeplink", "link_ext", "is_delete"),
         "retired": ("link_code", "package_name", "link_type", "link_url_template", "deeplink_url", "download_url", "macro_set", "status", "active_marker"),
@@ -74,7 +81,7 @@ v102_columns = {
         "retired": ("media_code", "adapter_code", "auth_type", "credential_version", "ingress_uri", "callback_url", "status", "deleted", "active_marker"),
     },
     "scx_ocpx_monitor_task": {
-        "required": ("monitor_name", "unit_price decimal(20,6)", "conversion_event", "biz_id", "show_url text", "clk_url text", "is_delete"),
+        "required": ("monitor_name", "billing_enabled tinyint", "billing_type tinyint", "unit_price decimal(20,6)", "conversion_event", "biz_id", "show_url text", "clk_url text", "is_delete"),
         "retired": ("task_code", "task_name", "operator_user_id", "status", "config_version", "archived_at", "active_marker"),
     },
     "scx_ocpx_deduction_rule": {
@@ -230,6 +237,7 @@ for entity_root in (
             mapped.append(file.relative_to(root).as_posix())
 expected_mapped = {
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxAdvertiser.java",
+    "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxCreative.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxPromotionLink.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMedia.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMonitorTask.java",
@@ -250,7 +258,7 @@ for retired_name in (
     "advertiserCode", "mediaCode", "adapterCode", "credentialVersion",
     "upstreamHostAllowlist", "callbackHostAllowlist", "configVersion",
     "linkUrlTemplate", "deeplinkUrl", "downloadUrl", "macroSet",
-    "redirectEnabled", "taskCode", "taskName", "operatorUserId", "archivedAt",
+    "redirectEnabled", "taskCode", "taskName", "archivedAt",
 ):
     if re.search(rf"\b{retired_name}\b", active_management):
         raise SystemExit(f"V102 source gate failed: retired management field {retired_name} remains")
@@ -530,5 +538,5 @@ for relative in (
             if rta_pattern.search(file.read_text(encoding="utf-8")):
                 raise SystemExit(f"RTA retirement gate failed: active reference remains in {file}")
 
-print("OCPX four-entity and generic data-layer gate passed")
+print("OCPX management and generic data-layer gate passed")
 PY

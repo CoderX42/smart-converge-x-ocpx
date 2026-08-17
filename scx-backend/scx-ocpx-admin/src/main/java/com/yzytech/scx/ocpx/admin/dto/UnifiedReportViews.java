@@ -126,6 +126,8 @@ public final class UnifiedReportViews {
 
 		private long rejectedClickCount;
 
+		private long rejectedConversionCount;
+
 	}
 
 	@Data

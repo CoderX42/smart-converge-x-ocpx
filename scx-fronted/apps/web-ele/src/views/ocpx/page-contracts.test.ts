@@ -66,6 +66,17 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).not.toMatch(/v-model="form\.(showUrl|clkUrl)"/);
   });
 
+  it('protects real monitor click testing and exposes traceable details', () => {
+    const source = page('monitor-task');
+    expect(source).toContain("'ocpx:monitor-task:test'");
+    expect(source).toContain('测试链接');
+    expect(source).toContain('确认发送真实点击');
+    expect(source).toContain('会产生真实点击和上游流量');
+    expect(source).toContain('不代表合作方已经入库');
+    expect(source).toContain('refreshTestResult(true)');
+    expect(source).not.toContain('callback_url=');
+  });
+
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
     const advertiser = page('advertiser');
     expect(advertiser).toContain('请输入登录用户名');
@@ -176,7 +187,13 @@ describe('vientiane-aligned OCPX page contracts', () => {
     ]) {
       const source = page(name);
       expect(source).toContain('const canOperate = computed');
-      expect(source).toMatch(/v-if="canOperate"[\s\S]*label="操作"/);
+      if (name === 'monitor-task') {
+        expect(source).toMatch(
+          /v-if="canOperate \|\| canTest"[\s\S]*label="操作"/,
+        );
+      } else {
+        expect(source).toMatch(/v-if="canOperate"[\s\S]*label="操作"/);
+      }
     }
     const report = page('report');
     expect(report).toContain("hasAccessByCodes(['ocpx:report:export'])");
@@ -186,7 +203,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it('guards advertiser and media delete actions with dedicated codes', () => {
     expect(page('advertiser')).toContain("'ocpx:advertiser:delete'");
     expect(page('advertiser')).toContain('deleteAdvertiserV2(row.id)');
-    expect(page('advertiser')).toContain('无余额、无账务流水且无事件事实');
+    expect(page('advertiser')).toContain('无计费配置审计的广告主可以删除');
     expect(page('media')).toContain("'ocpx:media:delete'");
     expect(page('media')).toContain('deleteMedia(row.id)');
   });

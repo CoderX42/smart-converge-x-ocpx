@@ -275,14 +275,16 @@ public class OcpxUnifiedReportService {
 		int startHour = hourKey(businessDate, "00");
 		int endHour = hourKey(businessDate, "23");
 		AccountActivity activity = jdbcTemplate.queryForObject("""
-				SELECT IFNULL(SUM(spend_amount),0),IFNULL(SUM(rejected_click_count),0)
+				SELECT IFNULL(SUM(spend_amount),0),IFNULL(SUM(rejected_click_count),0),
+				       IFNULL(SUM(rejected_conversion_count),0)
 				FROM scx_ocpx_hourly_metric
 				WHERE advertiser_id=? AND time_hour BETWEEN ? AND ?
-				""", (rs, rowNum) -> new AccountActivity(rs.getBigDecimal(1), rs.getLong(2)), advertiserId, startHour,
+				""", (rs, rowNum) -> new AccountActivity(rs.getBigDecimal(1), rs.getLong(2), rs.getLong(3)), advertiserId, startHour,
 				endHour);
 		return new UnifiedReportViews.Account(advertiserId, advertiserAccountService.balance(advertiserId),
 				activity == null ? BigDecimal.ZERO.setScale(6) : activity.todaySpend(),
-				activity == null ? 0 : activity.rejectedClickCount());
+				activity == null ? 0 : activity.rejectedClickCount(),
+				activity == null ? 0 : activity.rejectedConversionCount());
 	}
 
 	private LocalDateTime aggregateWatermark(UnifiedReportQuery query) {
@@ -568,7 +570,7 @@ public class OcpxUnifiedReportService {
 
 	}
 
-	private record AccountActivity(BigDecimal todaySpend, long rejectedClickCount) {
+	private record AccountActivity(BigDecimal todaySpend, long rejectedClickCount, long rejectedConversionCount) {
 	}
 
 }

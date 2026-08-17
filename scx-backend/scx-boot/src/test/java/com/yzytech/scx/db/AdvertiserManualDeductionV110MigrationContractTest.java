@@ -28,7 +28,7 @@ class AdvertiserManualDeductionV110MigrationContractTest {
 	void currentSchemaKeepsManualDebitsNonnegativeAndOutOfTheAdvertiserRole() throws Exception {
 		String sql = resource(CURRENT_SCHEMA);
 
-		assertThat(sql).contains("entry_type IN ('RECHARGE','CLICK_CHARGE','MANUAL_DEBIT')",
+		assertThat(sql).contains("entry_type IN ('RECHARGE','MANUAL_DEBIT','CLICK_CHARGE','CONVERSION_CHARGE')",
 				"CONSTRAINT ck_ocpx_billing_amount CHECK (amount>=0)",
 				"CONSTRAINT ck_ocpx_billing_balances CHECK (balance_before>=0 AND balance_after>=0)",
 				"'perm_ocpx_advertiser_deduct','扣减广告主余额'", "'ocpx:advertiser:deduct'");

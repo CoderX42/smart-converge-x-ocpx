@@ -50,6 +50,49 @@ class AdvertiserScopeTest {
 	}
 
 	@Test
+	void allScopeNeverExpandsStrictCreativeOwnership() {
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			BootUser user = user("2", "advertiser-own");
+			user.setPermissions(List.of(SystemAccountConstants.ADVERTISER_ALL_SCOPE_PERMISSION));
+			security.when(SecurityUtils::getUser).thenReturn(user);
+
+			assertThat(scope.constrainSelfOwned("advertiser-own")).isEqualTo("advertiser-own");
+			assertThatThrownBy(() -> scope.constrainSelfOwned("advertiser-other"))
+				.isInstanceOfSatisfying(BootBusinessException.class,
+						error -> assertThat(error.getCode()).isEqualTo(403));
+			assertThatThrownBy(() -> scope.requireSelfOwnedAdvertiser("advertiser-other"))
+				.isInstanceOfSatisfying(BootBusinessException.class,
+						error -> assertThat(error.getCode()).isEqualTo(403));
+		}
+	}
+
+	@Test
+	void internalOperatorWithDedicatedPermissionCanChangeBillingWithoutAdminRole() {
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			BootUser operator = user("0", null);
+			operator.setRoles(List.of("ROLE_OPERATOR"));
+			operator.setPermissions(List.of(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION));
+			security.when(SecurityUtils::getUser).thenReturn(operator);
+
+			scope.requireInternalPermission(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
+		}
+	}
+
+	@Test
+	void advertiserCannotChangeBillingEvenWhenPermissionWasMisgranted() {
+		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
+			BootUser advertiser = user("2", "advertiser-own");
+			advertiser.setPermissions(List.of(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION));
+			security.when(SecurityUtils::getUser).thenReturn(advertiser);
+
+			assertThatThrownBy(
+					() -> scope.requireInternalPermission(SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION))
+				.isInstanceOfSatisfying(BootBusinessException.class,
+						error -> assertThat(error.getCode()).isEqualTo(403));
+		}
+	}
+
+	@Test
 	void allScopeAdvertiserStillSeesOnlyItsOwnAccountAndCannotMaintainBilling() {
 		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
 			BootUser user = user("2", "advertiser-own");

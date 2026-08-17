@@ -104,9 +104,11 @@ public class OcpxPromotionLinkService {
 		advertiserScope.requireOwner(current.getAdvertiserId());
 		advertiserScope.requireOwner(request.getAdvertiserId());
 		requireAdvertiser(request.getAdvertiserId());
-		if (!current.getAdvertiserId().equals(request.getAdvertiserId()) && taskMapper
-			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0) {
-			throw new BootBusinessException("已被监测任务引用的推广链接不能更换广告主");
+		if (!current.getAdvertiserId().equals(request.getAdvertiserId())
+				&& (taskMapper
+					.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0
+						|| linkMapper.countCreativeBindings(id) > 0)) {
+			throw new BootBusinessException("已被监测任务或创意引用的推广链接不能更换广告主");
 		}
 		OcpxPromotionLink update = new OcpxPromotionLink();
 		update.setId(id);
@@ -129,6 +131,7 @@ public class OcpxPromotionLinkService {
 			.selectCount(Wrappers.<OcpxDeductionRule>lambdaQuery().eq(OcpxDeductionRule::getPromotionLinkId, id)) > 0) {
 			throw new BootBusinessException("推广链接仍被扣量规则引用");
 		}
+		linkMapper.deleteCreativeBindings(id);
 		linkMapper.deleteById(id);
 		configRefreshPublisher.mark();
 	}

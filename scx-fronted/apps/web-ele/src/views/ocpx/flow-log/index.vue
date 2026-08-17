@@ -2,6 +2,7 @@
 import type { FlowLog } from '#/api/ocpx';
 
 import { onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { Page } from '@boot/common-ui';
 
@@ -21,6 +22,8 @@ import {
 import '../table.scss';
 
 defineOptions({ name: 'OcpxFlowLog' });
+
+const route = useRoute();
 
 const columns = [
   { key: 'time', label: '时间' },
@@ -46,7 +49,7 @@ const filters = reactive({
     dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
     dayjs().format('YYYY-MM-DD'),
   ] as [string, string] | null,
-  eventId: '',
+  eventId: typeof route.query.eventId === 'string' ? route.query.eventId : '',
   flowType: '',
   resultStatus: '',
   size: 30,

@@ -57,10 +57,11 @@ class OcpxEventFactMysqlIntegrationTest {
 				"V108 integration media", "/feedback");
 		jdbcTemplate.update("""
 				INSERT INTO scx_ocpx_monitor_task (
-				 id,monitor_name,advertiser_id,promotion_link_id,media_id,unit_price,conversion_event
-				) VALUES (?,?,?,?,?,?,?)
+				 id,monitor_name,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,
+				 unit_price,conversion_event
+				) VALUES (?,?,?,?,?,?,?,?,?)
 				""", TASK_ID, "V108 integration task", ADVERTISER_ID, LINK_ID, MEDIA_ID,
-				new BigDecimal("2.500000"), "ACTIVATE");
+				true, 1, new BigDecimal("2.500000"), "ACTIVATE");
 		jdbcTemplate.update(
 				"INSERT INTO scx_ocpx_advertiser_account (advertiser_id,currency,available_balance) VALUES (?,'CNY',?)",
 				ADVERTISER_ID, new BigDecimal("100.000000"));
@@ -148,6 +149,31 @@ class OcpxEventFactMysqlIntegrationTest {
 		assertThat(balance()).isEqualByComparingTo("100.000000");
 		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_event_fact WHERE advertiser_id=?")).isZero();
 		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?")).isZero();
+	}
+
+	@Test
+	void conversionBillingKeepsClicksDeliverableAndRejectsOnlyTheUnaffordableConversion() {
+		jdbcTemplate.update("UPDATE scx_ocpx_monitor_task SET billing_type=2 WHERE id=?", TASK_ID);
+		jdbcTemplate.update("UPDATE scx_ocpx_advertiser_account SET available_balance=2.500000 WHERE advertiser_id=?",
+				ADVERTISER_ID);
+
+		assertThat(recordFeedback("conversion-posted", EventTypeEnum.CLICK).forwardAllowed()).isTrue();
+		assertThat(recordCallback("conversion-posted").targetConversion()).isTrue();
+		assertThat(recordFeedback("conversion-rejected", EventTypeEnum.CLICK).forwardAllowed()).isTrue();
+		assertThat(recordCallback("conversion-rejected").targetConversion()).isTrue();
+
+		assertThat(balance()).isEqualByComparingTo("0.000000");
+		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?")).isEqualTo(2L);
+		assertThat(scalar(
+				"SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=? AND entry_type='CONVERSION_CHARGE' AND status='POSTED'"))
+			.isEqualTo(1L);
+		assertThat(scalar(
+				"SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=? AND entry_type='CONVERSION_CHARGE' AND status='REJECTED'"))
+			.isEqualTo(1L);
+		assertThat(scalar("SELECT SUM(rejected_conversion_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualTo(1L);
+		assertThat(amount("SELECT SUM(spend_amount) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualByComparingTo("2.500000");
 	}
 
 	private void assertAcceptanceTotals() {

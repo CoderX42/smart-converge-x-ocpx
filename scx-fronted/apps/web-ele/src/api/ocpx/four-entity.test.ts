@@ -103,6 +103,8 @@ describe('ocpx four-entity write contracts', () => {
 
     await createMonitorTask({
       advertiserId: 'advertiser-1',
+      billingEnabled: true,
+      billingType: 2,
       conversionEvent: 'ACTIVATE',
       mediaId: 'media-1',
       monitorName: '任务甲',
@@ -112,6 +114,8 @@ describe('ocpx four-entity write contracts', () => {
     } as Parameters<typeof createMonitorTask>[0] & { showUrl: string });
     expect(requestClient.post).toHaveBeenLastCalledWith('/ocpx/monitor-tasks', {
       advertiserId: 'advertiser-1',
+      billingEnabled: true,
+      billingType: 2,
       bizId: undefined,
       conversionEvent: 'ACTIVATE',
       mediaId: 'media-1',

@@ -98,18 +98,96 @@ class OcpxEventFactServiceTest {
 	}
 
 	@Test
-	void zeroPriceClickIsPostedAndForwardedWithExactZeroSpend() throws Exception {
-		Fixture fixture = fixture("0.000000", "ACTIVATE", "0.000000");
+	void disabledZeroPriceClickIsForwardedWithoutCharging() throws Exception {
+		Fixture fixture = fixture("0.000000", "ACTIVATE", "0.000000", false, 1);
 
 		var result = fixture.service.recordFeedback(feedback(EventTypeEnum.CLICK));
 
-		assertThat(result.billingStatus()).isEqualTo("POSTED");
+		assertThat(result.billingStatus()).isEqualTo("NOT_APPLICABLE");
 		assertThat(result.forwardAllowed()).isTrue();
 		assertThat(result.spendAmount()).isEqualByComparingTo("0.000000");
+		verify(fixture.jdbcTemplate, never()).query(
+				org.mockito.ArgumentMatchers.contains("FROM scx_ocpx_advertiser_account"), any(RowMapper.class),
+				any(Object[].class));
+	}
+
+	@Test
+	void conversionBillingForwardsClickWithoutCharging() throws Exception {
+		Fixture fixture = fixture("3.000000", "ACTIVATE", "100.000000", true, 2);
+
+		var result = fixture.service.recordFeedback(feedback(EventTypeEnum.CLICK));
+
+		assertThat(result.forwardAllowed()).isTrue();
+		assertThat(result.billingStatus()).isEqualTo("NOT_APPLICABLE");
+		verify(fixture.jdbcTemplate, never()).update(
+				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
+	}
+
+	@Test
+	void targetConversionChargesOnceAndProjectsSpend() throws Exception {
+		Fixture fixture = fixture("3.000000", "ACTIVATE", "100.000000", true, 2);
+		CallbackReq callback = CallbackReq.builder()
+			.feedback(feedback(EventTypeEnum.CLICK))
+			.actionType(ActionTypeEnum.ACTIVATE)
+			.build();
+
+		var result = fixture.service.recordCallback(callback);
+
+		assertThat(result.firstEvent()).isTrue();
+		assertThat(result.targetConversion()).isTrue();
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(fixture.jdbcTemplate, atLeastOnce()).update(sql.capture(), args.capture());
+		int ledger = indexContaining(sql.getAllValues(), "INSERT INTO scx_ocpx_billing_entry");
+		assertThat(args.getAllValues().get(ledger)[4]).isEqualTo("CONVERSION_CHARGE");
+		assertThat(args.getAllValues().get(ledger)[5]).isEqualTo("POSTED");
+		assertThat(sql.getAllValues()).anyMatch(value -> value.contains("UPDATE scx_ocpx_advertiser_account"));
+	}
+
+	@Test
+	void nonTargetConversionDoesNotCharge() throws Exception {
+		Fixture fixture = fixture("3.000000", "PAYMENT", "100.000000", true, 2);
+		CallbackReq callback = CallbackReq.builder()
+			.feedback(feedback(EventTypeEnum.CLICK))
+			.actionType(ActionTypeEnum.ACTIVATE)
+			.build();
+
+		var result = fixture.service.recordCallback(callback);
+
+		assertThat(result.targetConversion()).isFalse();
+		verify(fixture.jdbcTemplate, never()).update(
+				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
+	}
+
+	@Test
+	void insufficientConversionBalanceRejectsChargeButKeepsCallbackEligible() throws Exception {
+		Fixture fixture = fixture("3.000000", "ACTIVATE", "1.000000", true, 2);
+		CallbackReq callback = CallbackReq.builder()
+			.feedback(feedback(EventTypeEnum.CLICK))
+			.actionType(ActionTypeEnum.ACTIVATE)
+			.build();
+
+		var result = fixture.service.recordCallback(callback);
+
+		assertThat(result.firstEvent()).isTrue();
+		assertThat(result.targetConversion()).isTrue();
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(fixture.jdbcTemplate, atLeastOnce()).update(sql.capture(), args.capture());
+		int ledger = indexContaining(sql.getAllValues(), "INSERT INTO scx_ocpx_billing_entry");
+		assertThat(args.getAllValues().get(ledger)[4]).isEqualTo("CONVERSION_CHARGE");
+		assertThat(args.getAllValues().get(ledger)[5]).isEqualTo("REJECTED");
+		assertThat(sql.getAllValues()).noneMatch(value -> value.contains("UPDATE scx_ocpx_advertiser_account"));
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private Fixture fixture(String price, String conversionEvent, String balance) throws Exception {
+		return fixture(price, conversionEvent, balance, true, 1);
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private Fixture fixture(String price, String conversionEvent, String balance, boolean billingEnabled,
+			int billingType) throws Exception {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenAnswer(invocation -> {
@@ -121,6 +199,8 @@ class OcpxEventFactServiceTest {
 				when(resultSet.getString("advertiser_id")).thenReturn("advertiser-1");
 				when(resultSet.getString("promotion_link_id")).thenReturn("link-1");
 				when(resultSet.getString("media_id")).thenReturn("media-1");
+				when(resultSet.getBoolean("billing_enabled")).thenReturn(billingEnabled);
+				when(resultSet.getInt("billing_type")).thenReturn(billingType);
 				when(resultSet.getBigDecimal("unit_price")).thenReturn(new BigDecimal(price));
 				when(resultSet.getString("conversion_event")).thenReturn(conversionEvent);
 			}
