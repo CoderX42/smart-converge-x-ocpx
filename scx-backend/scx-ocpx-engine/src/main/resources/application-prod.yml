@@ -28,6 +28,7 @@ ocpx:
   protocols:
     advertisers:
       "2088520308582047745": AERIM
+      "2089268457885999105": AERIM
       "2089239825436160002": WEIFENG
   aerim:
     allowed-hosts:
