@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "weifeng-callback-req-v1.schema.json",
+  "title": "WEIFENG callback GET query parameters",
+  "type": "object",
+  "required": ["ext", "s", "event"],
+  "properties": {
+    "ext": { "type": "string", "minLength": 1 },
+    "s": { "type": "string", "minLength": 1 },
+    "event": {
+      "type": "string",
+      "enum": ["ACTIVATED", "REGISTERED", "PAID", "RETAINED", "FIRST_DAY_PAID", "APP_OPEN"]
+    },
+    "amount": {
+      "oneOf": [
+        { "type": "number", "minimum": 0 },
+        { "type": "string", "const": "__AMOUNT__" }
+      ]
+    },
+    "days": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0, "maximum": 3650 },
+        { "type": "string", "const": "__DAYS__" }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

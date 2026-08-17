@@ -18,6 +18,7 @@ required = [
     "feedback-req-v2.schema.json",
     "callback-req-v2.schema.json",
     "aerim-callback-req-v1.schema.json",
+    "weifeng-callback-req-v1.schema.json",
     "scx-ocpx-v2.postman_collection.json",
     "management-v107.md",
     "management-v108.md",
@@ -33,7 +34,7 @@ server_urls = {server.get("url") for server in openapi.get("servers", [])}
 assert "https://{domain}/ocpx" in server_urls
 assert "http://localhost:10000/ocpx" in server_urls
 assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
-data_plane_paths = {"/feedback", "/callback", "/aerim/callback"}
+data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback"}
 management_path = "/advertisers/account-role/permissions"
 recharge_path = "/advertisers/{id}/recharge"
 dashboard_path = "/dashboard/summary"
@@ -74,7 +75,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -89,7 +90,7 @@ postman_variables = {item.get("key"): item.get("value") for item in postman.get(
 assert postman_variables.get("baseUrl") == "http://localhost:10000"
 assert "/rtb" not in json.dumps(postman, ensure_ascii=False), "retired /rtb path must not return"
 item_names = {item.get("name") for item in postman.get("item", [])}
-assert {"媒体 Feedback GET", "广告主 Callback GET", "AERIM Callback GET"} <= item_names
+assert {"媒体 Feedback GET", "广告主 Callback GET", "AERIM Callback GET", "微风互动 Callback GET"} <= item_names
 methods = {item.get("name"): item.get("request", {}).get("method") for item in postman.get("item", [])}
 assert methods.get("读取共享广告主角色权限") == "GET"
 assert methods.get("全量替换共享广告主角色权限") == "PUT"
@@ -107,6 +108,7 @@ serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
 assert "/ocpx/aerim/callback" in serialized
+assert "/ocpx/weifeng/callback" in serialized
 assert "/boot/ocpx/advertisers/account-role/permissions" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/recharge" in serialized
 assert "/boot/ocpx/dashboard/summary" in serialized

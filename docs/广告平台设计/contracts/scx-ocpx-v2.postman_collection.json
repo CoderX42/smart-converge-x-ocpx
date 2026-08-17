@@ -26,6 +26,13 @@
       }
     },
     {
+      "name": "微风互动 Callback GET",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/ocpx/weifeng/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event=PAID&amount=123.45&days=__DAYS__"
+      }
+    },
+    {
       "name": "读取共享广告主角色权限",
       "request": {
         "method": "GET",

@@ -32,6 +32,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
 	private String caid1;
 
+	private String caid2;
+
 	private String last_caid;
 
 	private String prev_caid;
@@ -63,7 +65,11 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 	/** 设备网络、型号、系统、时间和 User-Agent。 */
 	private String ip;
 
+	private String ipv6;
+
 	private String model;
+
+	private String osv;
 
 	private String os;
 
@@ -93,7 +99,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
 	/** 返回清洗后的回调地址；未替换的宏视为缺失值。 */
 	public String getCallback_url() {
-		if (StringUtils.hasText(callback_url) && "__CALLBACK_URL__".equals(callback_url)) {
+		if (StringUtils.hasText(callback_url)
+				&& ("__CALLBACK_URL__".equals(callback_url) || "__CALLBACK__".equals(callback_url))) {
 			return null;
 		}
 		return callback_url;
@@ -126,6 +133,13 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return caid1;
+	}
+
+	public String getCaid2() {
+		if (StringUtils.hasText(caid2) && "__CAID2__".equals(caid2)) {
+			return null;
+		}
+		return caid2;
 	}
 
 	public String getLast_caid() {
@@ -185,7 +199,8 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 	}
 
 	public String getAndroidid() {
-		if (StringUtils.hasText(androidid) && "__ANDROIDID__".equals(androidid)) {
+		if (StringUtils.hasText(androidid)
+				&& ("__ANDROIDID__".equals(androidid) || "__ANDROID_ID__".equals(androidid))) {
 			return null;
 		}
 		return androidid;
@@ -210,6 +225,27 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return ip;
+	}
+
+	public String getIpv6() {
+		if (StringUtils.hasText(ipv6) && "__IPV6__".equals(ipv6)) {
+			return null;
+		}
+		return ipv6;
+	}
+
+	public String getOsv() {
+		if (StringUtils.hasText(osv) && "__OSV__".equals(osv)) {
+			return null;
+		}
+		return osv;
+	}
+
+	public String getModel() {
+		if (StringUtils.hasText(model) && "__MODEL__".equals(model)) {
+			return null;
+		}
+		return model;
 	}
 
 	public String getOs() {

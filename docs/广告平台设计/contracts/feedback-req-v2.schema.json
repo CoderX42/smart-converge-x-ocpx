@@ -15,6 +15,7 @@
     "caid": { "type": "string" },
     "caid_list": { "type": "string" },
     "caid1": { "type": "string" },
+    "caid2": { "type": "string" },
     "last_caid": { "type": "string" },
     "prev_caid": { "type": "string" },
     "idfa": { "type": "string" },
@@ -29,8 +30,10 @@
     "mac": { "type": "string" },
     "mac_md5": { "type": "string" },
     "ip": { "type": "string" },
+    "ipv6": { "type": "string" },
     "model": { "type": "string" },
-    "os": { "type": "string", "enum": ["0", "1"] },
+    "osv": { "type": "string" },
+    "os": { "type": "string", "enum": ["0", "1", "ANDROID", "IOS"] },
     "ts": { "type": "string" },
     "mts": { "type": "string" },
     "ua": { "type": "string" },
@@ -38,7 +41,8 @@
     "group_id": { "type": "string" },
     "plan_id": { "type": "string" },
     "creative_id": { "type": "string" },
-    "impresss_id": { "type": "string" }
+    "impresss_id": { "type": "string" },
+    "clickid": { "type": "string" }
   },
   "additionalProperties": false
 }

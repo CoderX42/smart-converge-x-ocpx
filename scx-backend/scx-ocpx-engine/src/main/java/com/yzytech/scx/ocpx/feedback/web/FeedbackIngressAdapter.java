@@ -10,6 +10,7 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /** 将媒体 Feedback Query 转换为 Engine 内部 {@link FeedbackReq}。 */
 @Component
@@ -35,6 +36,9 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.caid(request.getCaid())
 			.caidList(request.getCaid_list())
 			.caid1(request.getCaid1())
+			.caid2(request.getCaid2())
+			.lastCaid(request.getLast_caid())
+			.prevCaid(request.getPrev_caid())
 			.idfa(request.getIdfa())
 			.idfaMd5(request.getIdfa_md5())
 			.aaid(request.getAaid())
@@ -46,10 +50,12 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.androididMd5(request.getAndroidid_md5())
 			.mac(request.getMac())
 			.ip(request.getIp())
+			.ipv6(request.getIpv6())
 			.ts(request.getTs())
 			.tsMs(request.getTs_ms())
 			.ua(request.getUa())
 			.model(request.getModel())
+			.osv(request.getOsv())
 			.advId(request.getAdv_id())
 			.groupId(request.getGroup_id())
 			.planId(request.getPlan_id())
@@ -72,9 +78,9 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 		if (!StringUtils.hasText(os)) {
 			return OsTypeEnum.UNKNOWN;
 		}
-		return switch (os) {
-			case "0" -> OsTypeEnum.ANDROID;
-			case "1" -> OsTypeEnum.IOS;
+		return switch (os.trim().toUpperCase(Locale.ROOT)) {
+			case "0", "ANDROID" -> OsTypeEnum.ANDROID;
+			case "1", "IOS" -> OsTypeEnum.IOS;
 			default -> OsTypeEnum.UNKNOWN;
 		};
 	}

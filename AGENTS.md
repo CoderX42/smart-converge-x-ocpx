@@ -185,7 +185,7 @@ Maven 聚合坐标：`com.scx:scx:2.1.2`，默认 profile `boot`。Java 包根�
 | `scx-common` | 公共能力子模块群：`core`、`security`、`mybatis`、`redis`、`swagger`、`storage`、`excel`、`log-buffer`、`log`、`job`、`websocket`、`dubbo`、`sentinel`、`seata`、`sms`、`idempotent`、`datasource`、`logistics`。`log-buffer` 仅提供进程内有界脱敏日志缓冲，不包含系统日志落库自动配置。 |
 | `scx-ocpx-core` | OCPX 管理面与数据面共享的五个 MyBatis-Plus 实体（广告主、推广链接、媒体、监测任务、扣量规则）及最小契约；不包含 Spring 运行组件。 |
 | `scx-ocpx-admin` | 精简广告管理业务：五实体 CRUD、扣量规则（写库后同步 Redis 扣量比例）、广告主充值/余额（Redis 单值累加，无流水表）、流程日志查询、Dashboard、时段报表与 CSV 导出。 |
-| `scx-ocpx-engine` | 独立 OCPX 数据面应用；实现通用 Feedback/Callback GET 闭环与 AERIM 上游协议，默认监听 `10000/ocpx`。广告主主键通过服务端配置选择 `TEMPLATE_GET` 或 `AERIM`，下游媒体统一使用 Feedback 携带的 Callback URL；另有 logback 分文件滚动日志和 Feedback 日明细每日清理任务。 |
+| `scx-ocpx-engine` | 独立 OCPX 数据面应用；实现通用 Feedback/Callback GET 闭环，以及 AERIM、微风互动上游协议，默认监听 `10000/ocpx`。广告主主键通过服务端配置选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`，下游媒体统一使用 Feedback 携带的 Callback URL；另有 logback 分文件滚动日志和 Feedback 日明细每日清理任务。 |
 | `scx-visual` | `scx-generator` 代码生成 + `scx-monitor` Spring Boot Admin。 |
 
 典型包结构（以 `scx-ocpx-admin` 为例）：

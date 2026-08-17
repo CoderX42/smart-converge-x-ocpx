@@ -16,7 +16,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 管理端页面字段和交互以 `/Users/karl/code/sgyz-ocpx/vientiane-frontend/src/views` 为参考；`/manage/channel/channel` 映射为 SCX“媒体管理”。管理 API 始终使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`，不提供参考系统旧字段别名。
 
-`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环与 AERIM `/aerim/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主协议由服务端主键配置选择 `TEMPLATE_GET` 或 `AERIM`：未登记广告主拒绝上游转发并记录脱敏失败日志；下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
+`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主协议由服务端主键配置选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`：未登记广告主拒绝上游转发并记录脱敏失败日志；下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
 
 五个共享实体位于 `scx-ocpx-core`。V108 由 MySQL 唯一事件事实、不可变账务流水、广告主账户和小时汇总统一驱动 Dashboard 与报表；Redis 余额和旧报表队列不再是数据真相。Dashboard 默认展示今天，支持今天、昨天、过去 7 天、过去 30 天和自定义日期；过去 7/30 天采用不含今天的完整历史日口径。广告主只能查看自己的可用余额和今日消费；业务指标可按授权数据范围查询。浏览器只传输服务端凭据引用；广告主开户时一次性提交登录用户名和原始密码，密码只用于服务端 BCrypt，不进入业务表、响应或日志。Secret、AES Key 和解析后的合作方凭据始终不进入浏览器。
 
@@ -33,9 +33,14 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 9. [sgyz-ocpx 核心流程对照](sgyz-ocpx基础能力兼容基线.md)。
 10. [下游媒体 API 接入文档](OCPX下游渠道API接入文档.md)。
 11. [上游广告主接入指南](OCPX上游广告主适配器开发指南.md)。
-12. `contracts/` 中的 OpenAPI、JSON Schema、Postman 和管理端字段契约。
+12. [微风互动上游接入说明](微风互动上游接入说明v1.3.md)。
+13. `contracts/` 中的 OpenAPI、JSON Schema、Postman 和管理端字段契约。
 
 其余 MVP、竞品、ADR/RFC、旧模块规格、V72 点击计费/充值账务设计和 V79–V95 文档是历史或规划资料，不代表当前运行能力。
+
+## 待评审实现方案
+
+- [V110 创意管理与可配置计费实现方案（草案）](OCPX创意管理与可配置计费实现方案V110.md)：规划上游客户创意自助、创意与推广链接多对多、运营点击/转化计费和账务扩展；当前尚未实现、迁移或发布。
 
 ## 数据库与发布边界
 

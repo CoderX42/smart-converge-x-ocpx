@@ -5,6 +5,8 @@ import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import com.yzytech.scx.ocpx.callback.web.UpstreamCallbackController;
 import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackAdapter;
 import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackController;
+import com.yzytech.scx.ocpx.callback.web.weifeng.WeifengCallbackAdapter;
+import com.yzytech.scx.ocpx.callback.web.weifeng.WeifengCallbackController;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
 import com.yzytech.scx.ocpx.feedback.web.FeedbackIngressAdapter;
 import com.yzytech.scx.ocpx.feedback.web.FeedbackIngressController;
@@ -70,8 +72,7 @@ class OcpxIngressContractTest {
 			.param("mid", "task-id")
 			.param("dspid", "advertiser-id")
 			.param("linkid", "link-id")
-			.param("event", "CLK"))
-			.andExpect(status().isBadRequest());
+			.param("event", "CLK")).andExpect(status().isBadRequest());
 		verifyNoInteractions(feedbackService);
 	}
 
@@ -86,8 +87,7 @@ class OcpxIngressContractTest {
 			.param("aId", "advertiser-id")
 			.param("lId", "link-id")
 			.param("chid", "retired-media-id")
-			.param("event", "CLK"))
-			.andExpect(status().isBadRequest());
+			.param("event", "CLK")).andExpect(status().isBadRequest());
 		verifyNoInteractions(feedbackService);
 	}
 
@@ -126,8 +126,7 @@ class OcpxIngressContractTest {
 			.param("tId", routeId)
 			.param("aId", routeId)
 			.param("lId", routeId)
-			.param("event", "CLK"))
-			.andExpect(status().isOk());
+			.param("event", "CLK")).andExpect(status().isOk());
 		verify(feedbackService).handleFeedback(any());
 	}
 
@@ -172,7 +171,24 @@ class OcpxIngressContractTest {
 		mvc.perform(get("/ocpx/callback").contextPath("/ocpx")
 			.param("ext", "invalid")
 			.param("event_type", "1")
-				.param("event_time", "1")).andExpect(status().isInternalServerError()).andExpect(content().string(""));
+			.param("event_time", "1")).andExpect(status().isInternalServerError()).andExpect(content().string(""));
+	}
+
+	@Test
+	void exposesWeifengCallbackUnderTheScxContext() throws Exception {
+		CallbackService callbackService = mock(CallbackService.class);
+		WeifengCallbackAdapter adapter = mock(WeifengCallbackAdapter.class);
+		when(adapter.toCallback(any())).thenReturn(new CallbackReq());
+		when(callbackService.handleCallback(any()))
+			.thenReturn(new com.yzytech.scx.ocpx.callback.service.CallbackHandleResult(false,
+					com.yzytech.scx.ocpx.callback.service.CallbackDecision.FORWARDED));
+		MockMvc mvc = MockMvcBuilders.standaloneSetup(new WeifengCallbackController(callbackService, adapter)).build();
+
+		mvc.perform(get("/ocpx/weifeng/callback").contextPath("/ocpx")
+			.param("ext", "encrypted")
+			.param("s", "link_task")
+			.param("event", "ACTIVATED")).andExpect(status().isOk()).andExpect(content().string(""));
+		verify(callbackService).handleCallback(any());
 	}
 
 	@Test
@@ -181,10 +197,12 @@ class OcpxIngressContractTest {
 		CallbackService callbackService = mock(CallbackService.class);
 		CallbackRequestAdapter callbackAdapter = mock(CallbackRequestAdapter.class);
 		AerimCallbackAdapter aerimAdapter = mock(AerimCallbackAdapter.class);
+		WeifengCallbackAdapter weifengAdapter = mock(WeifengCallbackAdapter.class);
 		MockMvc mvc = MockMvcBuilders
 			.standaloneSetup(new FeedbackIngressController(feedbackService, new FeedbackIngressAdapter()),
 					new UpstreamCallbackController(callbackService, callbackAdapter),
-					new AerimCallbackController(callbackService, aerimAdapter))
+					new AerimCallbackController(callbackService, aerimAdapter),
+					new WeifengCallbackController(callbackService, weifengAdapter))
 			.build();
 
 		mvc.perform(post("/ocpx/kimi/callback").contextPath("/ocpx")).andExpect(status().isNotFound());

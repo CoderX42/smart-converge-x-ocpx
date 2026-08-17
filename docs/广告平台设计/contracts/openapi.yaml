@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 6.0.0
+  version: 6.1.0
   description: SCX OCPX Feedback/Callback data plane and selected management-plane contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
@@ -24,6 +24,7 @@ paths:
         - { name: caid, in: query, required: false, schema: { type: string } }
         - { name: caid_list, in: query, required: false, schema: { type: string } }
         - { name: caid1, in: query, required: false, schema: { type: string } }
+        - { name: caid2, in: query, required: false, schema: { type: string } }
         - { name: last_caid, in: query, required: false, schema: { type: string } }
         - { name: prev_caid, in: query, required: false, schema: { type: string } }
         - { name: idfa, in: query, required: false, schema: { type: string } }
@@ -38,8 +39,10 @@ paths:
         - { name: mac, in: query, required: false, schema: { type: string } }
         - { name: mac_md5, in: query, required: false, schema: { type: string } }
         - { name: ip, in: query, required: false, schema: { type: string } }
+        - { name: ipv6, in: query, required: false, schema: { type: string } }
         - { name: model, in: query, required: false, schema: { type: string } }
-        - { name: os, in: query, required: false, description: 0 Android, 1 iOS, schema: { type: string, enum: ['0', '1'] } }
+        - { name: osv, in: query, required: false, schema: { type: string } }
+        - { name: os, in: query, required: false, description: 0 or ANDROID for Android; 1 or IOS for iOS, schema: { type: string, enum: ['0', '1', ANDROID, IOS] } }
         - { name: ts, in: query, required: false, schema: { type: string } }
         - { name: mts, in: query, required: false, schema: { type: string } }
         - { name: ua, in: query, required: false, schema: { type: string } }
@@ -48,6 +51,7 @@ paths:
         - { name: plan_id, in: query, required: false, schema: { type: string } }
         - { name: creative_id, in: query, required: false, schema: { type: string } }
         - { name: impresss_id, in: query, required: false, schema: { type: string } }
+        - { name: clickid, in: query, required: false, schema: { type: string } }
       responses:
         '400': { description: 缺少短路由主键，或请求仍包含已退役的 chid/mid/dspid/linkid }
         '200':
@@ -91,6 +95,39 @@ paths:
       responses:
         '200': { description: Empty response for success, duplicate, or deducted conversion }
         '400': { description: Missing or unknown action, invalid amount, or invalid encrypted route context }
+        '500': { description: Internal handling exception }
+  /weifeng/callback:
+    get:
+      operationId: handleWeifengCallback
+      description: 微风互动 v1.3 字符串事件映射到 SCX 动作编号，action_time 使用接收时间。
+      parameters:
+        - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
+        - { name: s, in: query, required: true, description: lId_tId state, schema: { type: string } }
+        - name: event
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ACTIVATED, REGISTERED, PAID, RETAINED, FIRST_DAY_PAID, APP_OPEN]
+        - name: amount
+          in: query
+          required: false
+          description: PAID or FIRST_DAY_PAID amount; an unreplaced __AMOUNT__ macro is treated as absent.
+          schema:
+            oneOf:
+              - { type: number, minimum: 0 }
+              - { type: string, const: __AMOUNT__ }
+        - name: days
+          in: query
+          required: false
+          description: RETAINED day count; an unreplaced __DAYS__ macro is treated as absent and the value is not persisted as a separate current metric.
+          schema:
+            oneOf:
+              - { type: integer, minimum: 0, maximum: 3650 }
+              - { type: string, const: __DAYS__ }
+      responses:
+        '200': { description: Empty response for success, duplicate, or deducted conversion }
+        '400': { description: Missing or unknown event, invalid amount/days, or invalid encrypted route context }
         '500': { description: Internal handling exception }
   /advertisers/account-role/permissions:
     servers:

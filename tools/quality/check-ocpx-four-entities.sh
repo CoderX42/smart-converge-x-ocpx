@@ -125,9 +125,11 @@ required = {
     "feedback/delivery/UpstreamDeliveryDispatcher.java",
     "feedback/delivery/TemplateGetUpstreamDeliveryService.java",
 	"feedback/delivery/aerim/AerimUpstreamDeliveryService.java",
+    "feedback/delivery/weifeng/WeifengUpstreamDeliveryService.java",
     "callback/model/CallbackReq.java",
     "callback/web/UpstreamCallbackController.java",
 	"callback/web/aerim/AerimCallbackController.java",
+    "callback/web/weifeng/WeifengCallbackController.java",
     "callback/service/CallbackServiceImpl.java",
     "callback/delivery/DownstreamDeliveryDispatcher.java",
     "callback/delivery/CallbackUrlDownstreamDeliveryService.java",
@@ -452,6 +454,9 @@ if "name: http://127.0.0.1:10000/ocpx" not in application_dev_yml:
     raise SystemExit("configuration gate failed: dev callback domain is missing")
 if "name: https://ocpx.zhongsenyuedong.cn/ocpx" not in application_prod_yml:
     raise SystemExit("configuration gate failed: prod callback domain is missing")
+for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
+    if "ad.adapi.cn" not in source or "media-ids:" not in source:
+        raise SystemExit(f"configuration gate failed: WEIFENG host/media mapping is missing in {path}")
 for path, source in (
     ("application.yml", application_yml),
     ("application-dev.yml", application_dev_yml),
@@ -461,6 +466,20 @@ for path, source in (
         raise SystemExit(f"configuration gate failed: runtime environment placeholder found in {path}")
     if ": KIMI" in source or "\n    media:" in source:
         raise SystemExit(f"configuration gate failed: retired KIMI/MI configuration found in {path}")
+
+nginx_template = (
+    root / "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf"
+).read_text(encoding="utf-8")
+weifeng_location = "location = /ocpx/weifeng/callback {"
+if nginx_template.count(weifeng_location) != 1:
+    raise SystemExit("Nginx gate failed: WEIFENG callback must have one exact location")
+weifeng_prefix = (
+    weifeng_location
+    + "\n    limit_except GET { deny all; }"
+    + "\n    proxy_pass http://127.0.0.1:10000;"
+)
+if weifeng_prefix not in nginx_template:
+    raise SystemExit("Nginx gate failed: WEIFENG callback must be GET-only and proxy to Engine")
 
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):

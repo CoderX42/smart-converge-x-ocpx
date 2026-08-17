@@ -31,5 +31,9 @@ ocpx:
   aerim:
     allowed-hosts:
       - d.aerim.cn
+  weifeng:
+    allowed-hosts:
+      - ad.adapi.cn
+    media-ids: {}
   partner-credentials:
     advertisers: {}

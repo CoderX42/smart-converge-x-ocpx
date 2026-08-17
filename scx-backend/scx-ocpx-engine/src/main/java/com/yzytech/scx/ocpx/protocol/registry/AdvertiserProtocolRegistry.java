@@ -28,7 +28,9 @@ public class AdvertiserProtocolRegistry {
 
 		TEMPLATE_GET,
 
-		AERIM
+		AERIM,
+
+		WEIFENG
 
 	}
 

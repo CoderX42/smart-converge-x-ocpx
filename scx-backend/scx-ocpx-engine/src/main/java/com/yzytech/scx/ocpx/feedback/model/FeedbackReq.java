@@ -65,6 +65,8 @@ public class FeedbackReq {
 
 	private String caid1;
 
+	private String caid2;
+
 	private String lastCaid;
 
 	private String prevCaid;
@@ -90,6 +92,8 @@ public class FeedbackReq {
 	private String mac;
 
 	private String ip;
+
+	private String ipv6;
 
 	private OsTypeEnum os;
 
@@ -118,6 +122,8 @@ public class FeedbackReq {
 	private String marke;
 
 	private String model;
+
+	private String osv;
 
 	/** 合作方扩展数据及抽样日志标记。 */
 	private String ext;

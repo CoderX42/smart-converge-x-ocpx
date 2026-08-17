@@ -51,12 +51,16 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
   成功返回空 `200`，解析异常返回 `500`。
 - `GET /ocpx/aerim/callback`：接收 AERIM 的 `action_type/currency_amount`；
   成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
+- `GET /ocpx/weifeng/callback`：接收微风互动的 `event/amount/days`；
+  成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
 
 正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 按广告主主键
 选择协议 → 按 `OcpxAdvertiser.bidUrl + macroParams` 替换宏 → 广告主 GET。通用模板
 使用 `credentialConfigKey` 追加 MD5 `signature`；AERIM 只处理点击，生成
 `/aerim/callback` 地址，不追加签名，并要求 HTTP/HTTPS 监测域名命中
-`ocpx.aerim.allowed-hosts`。白名单只填写域名，不填写协议或路径。
+`ocpx.aerim.allowed-hosts`。微风互动同样只处理点击，任务 `bizId` 映射 `aid`、
+`ocpx.weifeng.media-ids` 映射 `did`，并要求 `/click` 域名命中
+`ocpx.weifeng.allowed-hosts`。白名单只填写域名，不填写协议或路径。
 
 反向链路为：解密 `ext` → Callback 去重 → Callback 队列 → 按
 `lId + mId` 读取 Redis 扣量数组 → 对允许回传的数据解码原 `callback_url`、
@@ -144,7 +148,8 @@ bash scripts/bt-deploy/02-manage.sh engine-restart
 ```
 
 生产 profile 只监听 `127.0.0.1:10000`。公网由 `ocpx` 专用 Nginx 站点精确开放
-Feedback、通用 Callback、AERIM Callback 和既有 Open API，不能直接放行 10000 端口。
+Feedback、通用 Callback、AERIM Callback、微风互动 Callback 和既有 Open API，不能直接放行
+10000 端口。
 没有可用公网域名时，可将 `ocpx.aerim.callback-base-url` 临时配置为公网 HTTP IP，并把
 `nginx-scx-ocpx-engine-ip-uat-rewrite.conf` 中的精确路由加入该 IP 站点。该配置只用于 UAT；
 取得域名和证书后应删除覆盖项，让 AERIM 恢复使用 `domain.name`。已生成的旧 IP Callback

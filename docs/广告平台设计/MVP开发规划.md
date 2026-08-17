@@ -34,6 +34,7 @@
 | P1-3 | 充值/余额极简版与监测任务删除 | 已交付 | `POST /ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`），Redis key `ocpx:advertiser:balance:{aId}` 单值累加，列表/详情逐行回填 balance，无流水表；`DELETE /ocpx/monitor-tasks/{id}`（逻辑删，权限 `ocpx:monitor-task:delete`）；V101 权限种子；前端广告主页余额列 + 充值弹窗、监测任务删除按钮 |
 | P1-4 | 报表对齐 SGYZ | 已交付 | `GET /ocpx/reports/summary` 支持小时/日/月/年、四实体级联、扣量、CTR、消耗、转化列、排序和分页；`GET /ocpx/reports/summary:export` 输出 CSV；V102 删除媒体导出接口，前端报表页对齐 AChannelTime 形态 |
 | P1-5 | 小米 + KIMI 合作方适配 | 已移除（2026-08-17） | 曾平移小米与 KIMI 专用协议；当前源码已删除两套入口、适配器、调度分支和专用凭据配置，仅保留通用媒体 Callback URL、`TEMPLATE_GET` 与 AERIM 上游协议 |
+| P1-6 | 微风互动 v1.3 上游适配 | 源码实现，外部 UAT/生产激活待执行 | 新增 `WEIFENG` CLICK 投递、固定域名校验、`aid/did` 映射、HTTP 200/402/500/501 处置和六类事件 Callback；刹车与 RTA 因当前无计划状态/曝光前决策模型，保留为后续独立切片 |
 | P2-6 | 数据面运维回补 | 已交付 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实未改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |
 | P0-7 | vientiane 管理端 V102 硬替换对齐 | 已实现，目标环境未迁移 | V102 精简五实体字段、平台转换、函数唯一索引和 RBAC；管理 API 删除旧动作且新增推广链接删除；Engine 改为主键固定注册表和服务端凭据引用；七个列表页完成字段、弹窗、列控制、复制、级联及分页对齐。目标库迁移、生产注册表/凭据、UAT、部署和重启均未执行 |
 | P0-8 | 广告主开户与只读数据范围 V103 | 已实现，目标环境未迁移 | 新增广告主原子创建 BCrypt 系统账号并绑定托管角色；type=2 账号只能查看自身六类页面与 CSV，options 和服务端查询强制收口；已有广告主不自动开户。目标库迁移、真实登录 UAT、部署和重启均未执行 |

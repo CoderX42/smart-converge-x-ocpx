@@ -1,12 +1,13 @@
 # SCX OCPX 契约包
 
-本目录描述 SCX 通用 Feedback/Callback、AERIM Callback 和当前管理端字段边界。
+本目录描述 SCX 通用 Feedback/Callback、AERIM Callback、微风互动 Callback 和当前管理端字段边界。
 
 | 文件 | 用途 |
 |---|---|
-| `openapi.yaml` | `/feedback`、`/callback`、媒体回传、幂等充值和真实首页摘要 |
+| `openapi.yaml` | `/feedback`、通用/AERIM/微风 Callback、媒体回传、幂等充值和真实首页摘要 |
 | `feedback-req-v2.schema.json` | Feedback Ingress Query 对象 |
 | `callback-req-v2.schema.json` | Upstream Callback Query 对象 |
+| `weifeng-callback-req-v1.schema.json` | 微风互动 Callback Query 对象 |
 | `scx-ocpx-v2.postman_collection.json` | 本机 GET 示例 |
 | `historical-contracts.md` | 已退出接口，不属于当前能力 |
 | `management-v102.md` | V102 管理 API 请求/响应字段和废弃操作边界 |
@@ -21,7 +22,7 @@
 `advId` 是广告主侧广告 ID，两者不得混用。Postman 只保留占位值，
 不得写入真实 AES Key、签名密钥、账号或生产域名。
 
-通用 Feedback/Callback、AERIM Callback 及媒体回传均使用 GET Query String。Feedback 只有在 MySQL 事实、账务和小时汇总事务提交后才返回成功；
+通用 Feedback/Callback、AERIM Callback、微风互动 Callback 及媒体回传均使用 GET Query String。Feedback 只有在 MySQL 事实、账务和小时汇总事务提交后才返回成功；
 重复事件和余额不足点击不向上游投递。Redis List 与 StorageTask 只保留兼容日志用途，不再驱动 Dashboard 或报表。
 
 ```bash
