@@ -626,11 +626,14 @@ public class OcpxMonitorTaskTestService {
 	private MonitorTaskTestViews.Flow callbackFlow(Context context, String requestId, boolean downstream) {
 		String predicate = downstream ? "message = 'TEST_CALLBACK_RECEIVED'"
 				: "message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')";
-		List<MonitorTaskTestViews.Flow> flows = jdbcTemplate.query("""
+		String sql = """
 				SELECT result_status,partner_http_status,message,duration_ms,event_time
 				FROM scx_ocpx_flow_log
 				WHERE monitor_task_id=? AND advertiser_id=? AND event_id=? AND flow_type='CALLBACK'
-				  AND """ + predicate + " ORDER BY create_time DESC,id DESC LIMIT 1",
+				  AND %s
+				ORDER BY create_time DESC,id DESC LIMIT 1
+				""".formatted(predicate);
+		List<MonitorTaskTestViews.Flow> flows = jdbcTemplate.query(sql,
 				(rs, rowNum) -> new MonitorTaskTestViews.Flow(rs.getString(1), (Integer) rs.getObject(2),
 						rs.getString(3), rs.getLong(4), time(rs.getTimestamp(5))),
 				context.task().getId(), context.task().getAdvertiserId(), requestId);

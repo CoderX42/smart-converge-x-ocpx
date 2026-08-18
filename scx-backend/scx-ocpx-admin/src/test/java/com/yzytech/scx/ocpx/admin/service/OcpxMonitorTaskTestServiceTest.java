@@ -270,6 +270,10 @@ class OcpxMonitorTaskTestServiceTest {
 		assertThat(result.getTimeline()).extracting(MonitorTaskTestViews.TimelineItem::getStage)
 			.containsExactly("ENGINE_INGRESS", "BILLING", "UPSTREAM", "ADVERTISER_CALLBACK", "CALLBACK_BILLING",
 					"MEDIA_DEDUCTION", "DOWNSTREAM_CALLBACK");
+		verify(jdbcTemplate).query(contains("AND message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
+				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId));
+		verify(jdbcTemplate).query(contains("AND message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class),
+				eq("task-1"), eq("adv-1"), eq(requestId));
 	}
 
 	private void stubContext(int platform, String mediaMacros, String advertiserMacros) {
