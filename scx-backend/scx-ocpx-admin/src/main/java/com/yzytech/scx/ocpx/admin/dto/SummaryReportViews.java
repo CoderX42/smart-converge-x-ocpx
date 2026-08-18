@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class SummaryReportViews {
@@ -36,6 +37,14 @@ public final class SummaryReportViews {
 		private String promotionLinkName;
 
 		private String linkRadio;
+
+		private long callbackCount;
+
+		private long deductionPassedCount;
+
+		private long deductionDeductedCount;
+
+		private long deductionPendingCount;
 
 		private long uniShowSmt;
 
@@ -87,6 +96,10 @@ public final class SummaryReportViews {
 		private long size;
 
 		private long total;
+
+		private LocalDateTime deductionCoverageStart;
+
+		private String deductionCoverageStatus;
 
 	}
 

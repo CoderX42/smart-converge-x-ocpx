@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 8.0.0
-  description: SCX OCPX Feedback/Callback data plane, V111 creative management and billing, and V112 administrator-only monitor click testing contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 9.0.0
+  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, and V113 media callback deduction contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -494,6 +494,105 @@ paths:
               schema: { $ref: '#/components/schemas/DashboardSummaryResultEnvelope' }
         '400': { description: 日期无效或业务对象归属关系不匹配 }
         '403': { description: 无首页权限或越权账户访问 }
+  /deduction-rules:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listMediaCallbackRatioRules
+      summary: 分页读取媒体回传比例规则
+      description: ratio 是 0 到 1 的媒体回传比例；未配置规则时 Engine 默认 1.0 全量放行。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses:
+        '200': { description: 媒体回传比例分页, content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRulePageEnvelope' } } } }
+        '403': { description: 非管理员账号或无扣量规则查看权限 }
+    post:
+      operationId: createMediaCallbackRatioRule
+      summary: 创建媒体回传比例规则并从零重置该路由实时计数
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRuleSaveRequest' } } }
+      responses:
+        '200': { description: 创建后的规则, content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRuleEnvelope' } } } }
+        '400': { description: ratio 超出 0 到 1 或链接媒体组合重复 }
+        '403': { description: 非管理员账号或无创建权限 }
+  /deduction-rules/{id}:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+    get:
+      operationId: getMediaCallbackRatioRule
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 规则详情, content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRuleEnvelope' } } } }
+        '404': { description: 规则不存在 }
+    put:
+      operationId: updateMediaCallbackRatioRule
+      summary: 修改媒体回传比例并从零重置对应路由实时计数
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRuleSaveRequest' } } }
+      responses:
+        '200': { description: 修改后的规则, content: { application/json: { schema: { $ref: '#/components/schemas/MediaCallbackRatioRuleEnvelope' } } } }
+        '400': { description: ratio 超出 0 到 1 或链接媒体组合重复 }
+        '404': { description: 规则不存在 }
+    delete:
+      operationId: deleteMediaCallbackRatioRule
+      summary: 删除规则并将该路由恢复为 1.0 全量放行
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 删除成功 }
+        '404': { description: 规则不存在 }
+  /reports/summary:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getAdvertiserSpendAndMediaDeductionSummary
+      summary: 查询广告主消费与媒体扣量事实报表
+      description: basePrice 是广告主消费；扣量数量只来自 V113 后持久化事实，不使用当前比例反推历史。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: dateType, in: query, required: false, schema: { type: integer, enum: [0, 1, 2, 3], default: 1 } }
+        - { name: startTime, in: query, required: true, schema: { type: string, pattern: '^[0-9]{8}$' } }
+        - { name: endTime, in: query, required: true, schema: { type: string, pattern: '^[0-9]{8}$' } }
+        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        '200': { description: 广告主消费、原始 Callback、放行、拦截、待判定及覆盖状态, content: { application/json: { schema: { $ref: '#/components/schemas/DeductionSummaryPageEnvelope' } } } }
+        '400': { description: 时间或业务对象归属关系无效 }
+        '403': { description: 无报表查看权限 }
+  /reports/summary:export:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: exportAdvertiserSpendAndMediaDeductionSummary
+      summary: 导出与页面同口径的 CSV
+      description: CSV 每行重复扣量统计起始时间；PASSED 只表示已进入媒体回传提交流程，不表示媒体已接收。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: startTime, in: query, required: true, schema: { type: string, pattern: '^[0-9]{8}$' } }
+        - { name: endTime, in: query, required: true, schema: { type: string, pattern: '^[0-9]{8}$' } }
+      responses:
+        '200': { description: UTF-8 CSV, content: { text/csv: { schema: { type: string } } } }
+        '403': { description: 无报表导出权限 }
 webhooks:
   downstreamConversionGet:
     get:
@@ -511,6 +610,80 @@ components:
       in: header
       name: satoken
   schemas:
+    MediaCallbackRatioRuleSaveRequest:
+      type: object
+      additionalProperties: false
+      required: [mediaId, promotionLinkId, ratio]
+      properties:
+        mediaId: { type: string, minLength: 1, maxLength: 32 }
+        promotionLinkId: { type: string, minLength: 1, maxLength: 32 }
+        ratio: { type: number, minimum: 0, maximum: 1, description: 媒体回传比例，0 全拦截，1 全放行 }
+    MediaCallbackRatioRule:
+      type: object
+      required: [id, mediaId, promotionLinkId, ratio, createTime, updateTime]
+      properties:
+        id: { type: string }
+        mediaId: { type: string }
+        mediaName: { type: [string, 'null'] }
+        promotionLinkId: { type: string }
+        promotionLinkName: { type: [string, 'null'] }
+        ratio: { type: number, minimum: 0, maximum: 1 }
+        createTime: { type: string, format: date-time }
+        updateTime: { type: string, format: date-time }
+    MediaCallbackRatioRuleEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/MediaCallbackRatioRule' }
+    MediaCallbackRatioRulePageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data:
+          type: object
+          required: [records, total, size, current]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/MediaCallbackRatioRule' } }
+            total: { type: integer, format: int64, minimum: 0 }
+            size: { type: integer, format: int64, minimum: 1 }
+            current: { type: integer, format: int64, minimum: 1 }
+    DeductionSummaryRow:
+      type: object
+      required: [reportTime, linkRadio, callbackCount, deductionPassedCount, deductionDeductedCount, deductionPendingCount, basePrice]
+      properties:
+        reportTime: { type: string }
+        mediaId: { type: string }
+        mediaName: { type: string }
+        monitorTaskId: { type: string }
+        monitorName: { type: string }
+        advertiserId: { type: string }
+        advertiserName: { type: string }
+        promotionLinkId: { type: string }
+        promotionLinkName: { type: string }
+        linkRadio: { type: [string, 'null'], description: 当前媒体回传比例的小数文本；未配置表示 Engine 默认 1.0 }
+        callbackCount: { type: integer, format: int64, minimum: 0 }
+        deductionPassedCount: { type: integer, format: int64, minimum: 0 }
+        deductionDeductedCount: { type: integer, format: int64, minimum: 0 }
+        deductionPendingCount: { type: integer, format: int64, minimum: 0 }
+        basePrice: { type: number, minimum: 0, description: 广告主消费 }
+    DeductionSummaryPage:
+      type: object
+      required: [records, current, size, total, deductionCoverageStart, deductionCoverageStatus]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/DeductionSummaryRow' } }
+        current: { type: integer, format: int64, minimum: 1 }
+        size: { type: integer, format: int64, minimum: 1 }
+        total: { type: integer, format: int64, minimum: 0 }
+        deductionCoverageStart: { type: [string, 'null'], format: date-time }
+        deductionCoverageStatus: { type: string, enum: [NONE, PARTIAL, FULL] }
+    DeductionSummaryPageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/DeductionSummaryPage' }
     AdvertiserRolePermissionsUpdate:
       type: object
       additionalProperties: false

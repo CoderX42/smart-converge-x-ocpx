@@ -9,13 +9,18 @@ import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxDeductionRuleMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
+import java.util.Collection;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -32,8 +37,6 @@ class OcpxDeductionRuleServiceTest {
 
 	private StringRedisTemplate redis;
 
-	private ValueOperations<String, String> values;
-
 	private OcpxConfigRefreshPublisher configRefreshPublisher;
 
 	private AdvertiserScope advertiserScope;
@@ -47,10 +50,8 @@ class OcpxDeductionRuleServiceTest {
 		mediaMapper = mock(OcpxMediaMapper.class);
 		linkMapper = mock(OcpxPromotionLinkMapper.class);
 		redis = mock(StringRedisTemplate.class);
-		values = mock(ValueOperations.class);
 		configRefreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		advertiserScope = mock(AdvertiserScope.class);
-		when(redis.opsForValue()).thenReturn(values);
 		service = new OcpxDeductionRuleService(ruleMapper, mediaMapper, linkMapper, redis, configRefreshPublisher,
 				advertiserScope);
 	}
@@ -79,9 +80,8 @@ class OcpxDeductionRuleServiceTest {
 		service.create(new DeductionRuleRequests.Create("media-1", "link-1", 0.6));
 
 		verify(ruleMapper).insert(any(OcpxDeductionRule.class));
-		verify(values).set("ocpx:route:ratio:link-1:media-1", "0.6");
-		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
-		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
+		verifyAtomicRatioReset("link-1", "media-1", "0.6");
+		verifyLegacyKeysDeleted("link-1:media-1");
 		verify(configRefreshPublisher).mark();
 	}
 
@@ -95,9 +95,8 @@ class OcpxDeductionRuleServiceTest {
 		service.update("rule-1", new DeductionRuleRequests.Update("media-1", "link-1", 0.3));
 
 		verify(ruleMapper).updateById(any(OcpxDeductionRule.class));
-		verify(values).set("ocpx:route:ratio:link-1:media-1", "0.3");
-		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
-		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
+		verifyAtomicRatioReset("link-1", "media-1", "0.3");
+		verifyLegacyKeysDeleted("link-1:media-1");
 		verify(configRefreshPublisher).mark();
 	}
 
@@ -110,12 +109,10 @@ class OcpxDeductionRuleServiceTest {
 
 		service.update("rule-1", new DeductionRuleRequests.Update("media-2", "link-2", 0.4));
 
-		verify(values).set("ocpx:route:ratio:link-1:media-1", "1.0");
-		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
-		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
-		verify(values).set("ocpx:route:ratio:link-2:media-2", "0.4");
-		verify(redis).delete("ocpx:route:original-count:link-2:media-2");
-		verify(redis).delete("ocpx:route:delivered-count:link-2:media-2");
+		verifyAtomicRatioReset("link-1", "media-1", "1.0");
+		verifyLegacyKeysDeleted("link-1:media-1");
+		verifyAtomicRatioReset("link-2", "media-2", "0.4");
+		verifyLegacyKeysDeleted("link-2:media-2");
 	}
 
 	@Test
@@ -125,10 +122,23 @@ class OcpxDeductionRuleServiceTest {
 		service.delete("rule-1");
 
 		verify(ruleMapper).deleteById("rule-1");
-		verify(values).set("ocpx:route:ratio:link-1:media-1", "1.0");
-		verify(redis).delete("ocpx:route:original-count:link-1:media-1");
-		verify(redis).delete("ocpx:route:delivered-count:link-1:media-1");
+		verifyAtomicRatioReset("link-1", "media-1", "1.0");
+		verifyLegacyKeysDeleted("link-1:media-1");
 		verify(configRefreshPublisher).mark();
+	}
+
+	@SuppressWarnings("unchecked")
+	private void verifyLegacyKeysDeleted(String route) {
+		verify(redis).delete(org.mockito.ArgumentMatchers
+			.argThat((Collection<String> keys) -> keys.containsAll(java.util.List.of("ocpx:route:ratio:" + route,
+					"ocpx:route:original-count:" + route, "ocpx:route:delivered-count:" + route))));
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private void verifyAtomicRatioReset(String promotionLinkId, String mediaId, String ratio) {
+		verify(redis).execute(any(RedisScript.class),
+				eq(java.util.List.of("ocpx:route:deduction:{" + promotionLinkId + ":" + mediaId + "}:state")),
+				eq("ratio"), eq(ratio));
 	}
 
 	@Test
@@ -156,6 +166,16 @@ class OcpxDeductionRuleServiceTest {
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("推广链接");
 		verifyNoInteractions(redis);
+	}
+
+	@Test
+	void apiRatioValidationAcceptsOnlyZeroThroughOne() {
+		var validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+		assertThat(validator.validate(new DeductionRuleRequests.Create("media-1", "link-1", 0.0))).isEmpty();
+		assertThat(validator.validate(new DeductionRuleRequests.Create("media-1", "link-1", 1.0))).isEmpty();
+		assertThat(validator.validate(new DeductionRuleRequests.Create("media-1", "link-1", -0.01))).isNotEmpty();
+		assertThat(validator.validate(new DeductionRuleRequests.Create("media-1", "link-1", 1.01))).isNotEmpty();
 	}
 
 	private OcpxDeductionRule rule() {

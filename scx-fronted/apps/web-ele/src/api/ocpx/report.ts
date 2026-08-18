@@ -7,9 +7,13 @@ export type SummaryReportRow = {
   advertiserName: string;
   authentication: number;
   basePrice: number;
-  clickRate: number;
+  callbackCount: number;
+  clickRate: null | number;
   currencyAmount: number;
   customerAcquisition: number;
+  deductionDeductedCount: number;
+  deductionPassedCount: number;
+  deductionPendingCount: number;
   evoke: number;
   finishTheOrder: number;
   firstActivation: number;
@@ -34,6 +38,8 @@ export type SummaryReportRow = {
 
 export type SummaryReportPage = {
   current: number;
+  deductionCoverageStart: null | string;
+  deductionCoverageStatus: 'FULL' | 'NONE' | 'PARTIAL';
   records: SummaryReportRow[];
   size: number;
   total: number;

@@ -41,6 +41,9 @@ public class OcpxUnifiedReportService {
 			new MetricColumn("UNIQUE_SHOW", "impression_count"), new MetricColumn("CLICK", "click_count"),
 			new MetricColumn("UNIQUE_CLICK", "click_count"),
 			new MetricColumn("TARGET_CONVERSION", "target_conversion_count"),
+			new MetricColumn("CALLBACK", "callback_count"),
+			new MetricColumn("DEDUCTION_PASSED", "deduction_passed_count"),
+			new MetricColumn("DEDUCTION_DEDUCTED", "deduction_deducted_count"),
 			new MetricColumn("ACTIVATE", "activate_count"), new MetricColumn("EVOKE", "evoke_count"),
 			new MetricColumn("LOGIN", "login_count"), new MetricColumn("REGISTER", "register_count"),
 			new MetricColumn("PAYMENT", "payment_count"),
@@ -57,15 +60,18 @@ public class OcpxUnifiedReportService {
 			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order",
 			"first_activation", "first_order");
 
-	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "链接扣量",
-			"去重展示数", "去重点击数", "点击率", "支出", "激活", "唤起", "登录", "注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单", "首活", "首购",
-			"订单金额");
+	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "媒体回传比例",
+			"原始Callback数", "扣量放行数", "扣量拦截数", "待判定数", "扣量统计起始时间", "去重展示数", "去重点击数", "点击率", "广告主消费", "激活", "唤起", "登录",
+			"注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单", "首活", "首购", "订单金额");
 
 	private static final Map<String, String> SUMMARY_SORT_COLUMNS = Map.ofEntries(
 			Map.entry("report_time", "reportTime"), Map.entry("uni_show_smt", "uni_show_smt"),
 			Map.entry("uni_clk_smt", "uni_clk_smt"), Map.entry("click_rate", "clickRate"),
-			Map.entry("base_price", "base_price"), Map.entry("activate", "activate"), Map.entry("evoke", "evoke"),
-			Map.entry("login", "login"), Map.entry("register", "register"), Map.entry("payment", "payment"),
+			Map.entry("callback_count", "callback_count"),
+			Map.entry("deduction_passed_count", "deduction_passed_count"),
+			Map.entry("deduction_deducted_count", "deduction_deducted_count"), Map.entry("base_price", "base_price"),
+			Map.entry("activate", "activate"), Map.entry("evoke", "evoke"), Map.entry("login", "login"),
+			Map.entry("register", "register"), Map.entry("payment", "payment"),
 			Map.entry("customer_acquisition", "customer_acquisition"), Map.entry("next_stay", "next_stay"),
 			Map.entry("visits", "visits"), Map.entry("authentication", "authentication"),
 			Map.entry("place_order", "place_order"), Map.entry("finish_the_order", "finish_the_order"),
@@ -103,8 +109,9 @@ public class OcpxUnifiedReportService {
 		args.add(query.getSize().intValue());
 		args.add((int) ((query.getCurrent() - 1) * query.getSize()));
 		List<SummaryReportViews.Row> rows = jdbcTemplate.query(pageSql.toString(), this::mapSummaryRow, args.toArray());
+		LocalDateTime coverageStart = deductionCoverageStart(query);
 		return new SummaryReportViews.Page(List.copyOf(rows), query.getCurrent(), query.getSize(),
-				total == null ? 0 : total);
+				total == null ? 0 : total, coverageStart, deductionCoverageStatus(query, coverageStart));
 	}
 
 	public String summaryCsv(SummaryReportQuery input) {
@@ -116,7 +123,9 @@ public class OcpxUnifiedReportService {
 		if (rows.isEmpty()) {
 			return "";
 		}
-		return OcpxCsv.content(SUMMARY_CSV_HEADER, rows.stream().map(this::summaryCsvRow).toList());
+		LocalDateTime coverageStart = deductionCoverageStart(query);
+		return OcpxCsv.content(SUMMARY_CSV_HEADER,
+				rows.stream().map(row -> summaryCsvRow(row, coverageStart)).toList());
 	}
 
 	private SummarySql summarySql(SummaryReportQuery query) {
@@ -135,6 +144,9 @@ public class OcpxUnifiedReportService {
 			stat.append(",IFNULL(SUM(r.").append(action).append("_count),0) AS ").append(action);
 		}
 		stat.append(",IFNULL(SUM(r.currency_amount),0) AS currency_amount");
+		stat.append(",IFNULL(SUM(r.callback_count),0) AS callback_count")
+			.append(",IFNULL(SUM(r.deduction_passed_count),0) AS deduction_passed_count")
+			.append(",IFNULL(SUM(r.deduction_deducted_count),0) AS deduction_deducted_count");
 		stat.append(",IFNULL(SUM(r.spend_amount),0) AS base_price")
 			.append(",CASE WHEN SUM(r.impression_count)=0 THEN NULL ")
 			.append("ELSE ROUND(SUM(r.click_count)/SUM(r.impression_count)*100,6) END AS clickRate")
@@ -172,22 +184,64 @@ public class OcpxUnifiedReportService {
 		return new SummaryReportViews.Row(rs.getString("reportTime"), rs.getString("m_id"), rs.getString("media_name"),
 				rs.getString("t_id"), rs.getString("monitor_name"), rs.getString("a_id"),
 				rs.getString("advertiser_name"), rs.getString("l_id"), rs.getString("link_name"),
-				ratio == null ? null : ratio.toString(), rs.getLong("uni_show_smt"), rs.getLong("uni_clk_smt"),
+				ratio == null ? null : ratio.toString(), rs.getLong("callback_count"),
+				rs.getLong("deduction_passed_count"), rs.getLong("deduction_deducted_count"),
+				Math.max(0,
+						rs.getLong("callback_count") - rs.getLong("deduction_passed_count")
+								- rs.getLong("deduction_deducted_count")),
+				rs.getLong("uni_show_smt"), rs.getLong("uni_clk_smt"),
 				rs.getObject("clickRate") == null ? null : rs.getDouble("clickRate"), rs.getBigDecimal("base_price"),
-				rs.getLong("activate"), rs.getLong("evoke"),
-				rs.getLong("login"), rs.getLong("register"), rs.getLong("payment"), rs.getLong("customer_acquisition"),
-				rs.getLong("next_stay"), rs.getLong("visits"), rs.getLong("authentication"), rs.getLong("place_order"),
+				rs.getLong("activate"), rs.getLong("evoke"), rs.getLong("login"), rs.getLong("register"),
+				rs.getLong("payment"), rs.getLong("customer_acquisition"), rs.getLong("next_stay"),
+				rs.getLong("visits"), rs.getLong("authentication"), rs.getLong("place_order"),
 				rs.getLong("finish_the_order"), rs.getLong("first_activation"), rs.getLong("first_order"),
 				rs.getBigDecimal("currency_amount"));
 	}
 
-	private List<Object> summaryCsvRow(SummaryReportViews.Row row) {
+	private List<Object> summaryCsvRow(SummaryReportViews.Row row, LocalDateTime coverageStart) {
 		return Arrays.asList(row.getReportTime(), row.getMediaName(), row.getMonitorName(), row.getAdvertiserName(),
-				row.getPromotionLinkName(), row.getLinkRadio(), row.getUniShowSmt(), row.getUniClkSmt(),
-				row.getClickRate(), row.getBasePrice(), row.getActivate(), row.getEvoke(), row.getLogin(),
-				row.getRegister(), row.getPayment(), row.getCustomerAcquisition(), row.getNextStay(), row.getVisits(),
+				row.getPromotionLinkName(), mediaCallbackRatio(row.getLinkRadio()), row.getCallbackCount(),
+				row.getDeductionPassedCount(), row.getDeductionDeductedCount(), row.getDeductionPendingCount(),
+				coverageStart == null ? "" : coverageStart, row.getUniShowSmt(), row.getUniClkSmt(), row.getClickRate(),
+				row.getBasePrice(), row.getActivate(), row.getEvoke(), row.getLogin(), row.getRegister(),
+				row.getPayment(), row.getCustomerAcquisition(), row.getNextStay(), row.getVisits(),
 				row.getAuthentication(), row.getPlaceOrder(), row.getFinishTheOrder(), row.getFirstActivation(),
 				row.getFirstOrder(), row.getCurrencyAmount());
+	}
+
+	private String mediaCallbackRatio(String ratio) {
+		if (!StringUtils.hasText(ratio)) {
+			return "100%";
+		}
+		return new BigDecimal(ratio).multiply(BigDecimal.valueOf(100)).stripTrailingZeros().toPlainString() + "%";
+	}
+
+	private LocalDateTime deductionCoverageStart(SummaryReportQuery query) {
+		StringBuilder sql = new StringBuilder("""
+				SELECT MIN(deduction_decided_at)
+				FROM scx_ocpx_event_fact
+				WHERE flow_type='CALLBACK' AND deduction_decision IN ('PASSED','DEDUCTED')
+				""");
+		List<Object> args = new ArrayList<>();
+		filter(sql, args, "media_id", query.getMediaId());
+		filter(sql, args, "monitor_task_id", query.getMonitorTaskId());
+		filter(sql, args, "advertiser_id", query.getAdvertiserId());
+		filter(sql, args, "promotion_link_id", query.getPromotionLinkId());
+		return jdbcTemplate.queryForObject(sql.toString(), LocalDateTime.class, args.toArray());
+	}
+
+	private String deductionCoverageStatus(SummaryReportQuery query, LocalDateTime coverageStart) {
+		if (coverageStart == null) {
+			return "NONE";
+		}
+		LocalDateTime start = LocalDate.parse(query.getStartTime(), DateTimeFormatter.BASIC_ISO_DATE).atStartOfDay();
+		LocalDateTime end = LocalDate.parse(query.getEndTime(), DateTimeFormatter.BASIC_ISO_DATE)
+			.plusDays(1)
+			.atStartOfDay();
+		if (!end.isAfter(coverageStart)) {
+			return "NONE";
+		}
+		return start.isBefore(coverageStart) ? "PARTIAL" : "FULL";
 	}
 
 	private SummaryReportQuery normalizeSummary(SummaryReportQuery input) {
@@ -230,9 +284,9 @@ public class OcpxUnifiedReportService {
 		String scopedAdvertiserId = advertiserScope.currentAdvertiserId();
 		List<UnifiedReportViews.Option> advertisers = advertiserOptions(scopedAdvertiserId);
 		if (StringUtils.hasText(scopedAdvertiserId)) {
-			return new UnifiedReportViews.Options(advertisers,
-					options("SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 AND advertiser_id=? ORDER BY link_name",
-							scopedAdvertiserId),
+			return new UnifiedReportViews.Options(advertisers, options(
+					"SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 AND advertiser_id=? ORDER BY link_name",
+					scopedAdvertiserId),
 					options("SELECT DISTINCT m.id,m.media_name FROM scx_ocpx_media m JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0 WHERE t.advertiser_id=? ORDER BY m.media_name",
 							scopedAdvertiserId),
 					options("SELECT id,monitor_name FROM scx_ocpx_monitor_task WHERE is_delete=0 AND advertiser_id=? ORDER BY monitor_name",
@@ -279,8 +333,8 @@ public class OcpxUnifiedReportService {
 				       IFNULL(SUM(rejected_conversion_count),0)
 				FROM scx_ocpx_hourly_metric
 				WHERE advertiser_id=? AND time_hour BETWEEN ? AND ?
-				""", (rs, rowNum) -> new AccountActivity(rs.getBigDecimal(1), rs.getLong(2), rs.getLong(3)), advertiserId, startHour,
-				endHour);
+				""", (rs, rowNum) -> new AccountActivity(rs.getBigDecimal(1), rs.getLong(2), rs.getLong(3)),
+				advertiserId, startHour, endHour);
 		return new UnifiedReportViews.Account(advertiserId, advertiserAccountService.balance(advertiserId),
 				activity == null ? BigDecimal.ZERO.setScale(6) : activity.todaySpend(),
 				activity == null ? 0 : activity.rejectedClickCount(),
@@ -326,8 +380,7 @@ public class OcpxUnifiedReportService {
 			requireExists(taskSql.toString(), "监测任务与筛选对象不匹配", args.toArray());
 		}
 		else if (specified(query.getAdvertiserId(), query.getPromotionLinkId(), query.getMediaId()) >= 2) {
-			StringBuilder routeSql = new StringBuilder(
-					"SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE is_delete=0");
+			StringBuilder routeSql = new StringBuilder("SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE is_delete=0");
 			List<Object> args = new ArrayList<>();
 			filter(routeSql, args, "advertiser_id", query.getAdvertiserId());
 			filter(routeSql, args, "promotion_link_id", query.getPromotionLinkId());
@@ -552,17 +605,13 @@ public class OcpxUnifiedReportService {
 
 		static Dimension of(String groupBy) {
 			return switch (groupBy) {
-				case "ADVERTISER" ->
-					new Dimension("r.advertiser_id", "a.advertiser_name",
-							"JOIN scx_ocpx_advertiser a ON a.id=r.advertiser_id");
-				case "PROMOTION_LINK" ->
-					new Dimension("r.promotion_link_id", "p.link_name",
-							"JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id");
-				case "MEDIA" -> new Dimension("r.media_id", "m.media_name",
-						"JOIN scx_ocpx_media m ON m.id=r.media_id");
-				case "MONITOR_TASK" ->
-					new Dimension("r.monitor_task_id", "t.monitor_name",
-							"JOIN scx_ocpx_monitor_task t ON t.id=r.monitor_task_id");
+				case "ADVERTISER" -> new Dimension("r.advertiser_id", "a.advertiser_name",
+						"JOIN scx_ocpx_advertiser a ON a.id=r.advertiser_id");
+				case "PROMOTION_LINK" -> new Dimension("r.promotion_link_id", "p.link_name",
+						"JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id");
+				case "MEDIA" -> new Dimension("r.media_id", "m.media_name", "JOIN scx_ocpx_media m ON m.id=r.media_id");
+				case "MONITOR_TASK" -> new Dimension("r.monitor_task_id", "t.monitor_name",
+						"JOIN scx_ocpx_monitor_task t ON t.id=r.monitor_task_id");
 				default -> new Dimension("r.time_hour",
 						"DATE_FORMAT(STR_TO_DATE(CAST(r.time_hour AS CHAR),'%Y%m%d%H'),'%Y-%m-%d %H:00')", "");
 			};

@@ -8,7 +8,6 @@ import com.yzytech.scx.ocpx.report.model.LogData;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
-import com.yzytech.scx.ocpx.shared.redis.RedisHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +21,7 @@ import java.time.format.DateTimeFormatter;
  * Callback 核心处理实现。
  *
  * <p>
- * 处理顺序为：动作校验、MySQL 事实去重与小时汇总、兼容日志队列、按链接与媒体维度执行扣量计算、异步回传媒体， 最后更新原始量和回传量计数。
+ * 处理顺序为：动作校验、MySQL 事实去重与广告主计费、Redis 原子扣量判定、MySQL 判定事实落库，最后仅对放行事件异步提交媒体回传。
  */
 @Service
 public class CallbackServiceImpl implements CallbackService {
@@ -35,17 +34,18 @@ public class CallbackServiceImpl implements CallbackService {
 
 	private final Integer reportBucket;
 
-	private final RedisHelper redisHelper;
+	private final DeductionDecisionService deductionDecisionService;
 
 	private final OcpxEventFactService eventFactService;
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
 	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
-			RedisHelper redisHelper, OcpxEventFactService eventFactService, OcpxFlowLogWriter flowLogWriter) {
+			DeductionDecisionService deductionDecisionService, OcpxEventFactService eventFactService,
+			OcpxFlowLogWriter flowLogWriter) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
-		this.redisHelper = redisHelper;
+		this.deductionDecisionService = deductionDecisionService;
 		this.eventFactService = eventFactService;
 		this.flowLogWriter = flowLogWriter;
 	}
@@ -67,81 +67,54 @@ public class CallbackServiceImpl implements CallbackService {
 			return complete(request, false, CallbackDecision.NOT_APPLICABLE);
 		}
 		OcpxEventFactService.CallbackFactResult factResult = eventFactService.recordCallback(request);
-		if (!factResult.firstEvent()) {
+		if (!factResult.pendingDeduction()) {
 			impressionLog.info("cb-->{}", "repeat " + request.getFeedback().getReqId() + "_" + request.getActionType());
 			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
 
-		// Callback 报表复用 Feedback 维度，并将本次动作映射为对应的 0/1 指标列。
-		LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
-		logData.setActionTime(request.getActionTime());
-		logData.setPartnerActionType(request.getPartnerActionType());
-		logData.setStandardActionType(request.getActionType().getIndex());
-		logData.setCurrencyAmount(request.getCurrencyAmount());
-		logData.setCallbackUrl("");
-		logData.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
-		setActionType(logData, request.getActionType());
-		saveCallback(logData);
+		if (factResult.firstEvent()) {
+			// 兼容报表日志只记录首次事实；扣量审计和新报表不依赖该 Redis 队列。
+			LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
+			logData.setActionTime(request.getActionTime());
+			logData.setPartnerActionType(request.getPartnerActionType());
+			logData.setStandardActionType(request.getActionType().getIndex());
+			logData.setCurrencyAmount(request.getCurrencyAmount());
+			logData.setCallbackUrl("");
+			logData.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
+			setActionType(logData, request.getActionType());
+			saveCallback(logData);
+		}
 
 		String lId = request.getFeedback().getLId();
 		String mId = request.getFeedback().getMId();
-		// 19 位数组覆盖全部已编号动作；RedisHelper 会把历史 11 位状态自动补零。
 		int typeIndex = request.getActionType().getIndex() - 1;
-		double ratio = redisHelper.getRouteRatio(lId, mId);
-		int[] originalCounts = redisHelper.getRouteOriginalCounts(lId, mId);
-		int[] deliveredCounts = redisHelper.getRouteDeliveredCounts(lId, mId);
-		int increment = 0;
-		CallbackDecision decision = CallbackDecision.DEDUCTED;
-		if (ratio < 1.0F) {
-			// 计算本次回传后的累计比例；只有该比例不超过目标值时才放行。
-			float a = deliveredCounts[typeIndex] * 1.0F / (originalCounts[typeIndex] + 1);
-			float b = (deliveredCounts[typeIndex] + 1) * 1.0F / (originalCounts[typeIndex] + 1);
-			if (b <= ratio) {
-				DownstreamDeliveryDispatcher.dispatch(request);
-				increment++;
-				decision = CallbackDecision.FORWARDED;
-				impressionLog.info("cb-->{}",
-						"skip keel:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex] + "="
-								+ (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
-			}
-			else {
-				impressionLog.info("cb-->{}",
-						"skip jump:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex] + "="
-								+ (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
-			}
+		DeductionDecisionService.Result deduction = deductionDecisionService.decide(factResult.factId(), lId, mId,
+				typeIndex);
+		boolean finalized = eventFactService.finalizeDeduction(factResult.factId(), deduction.ratio(),
+				deduction.decision());
+		if (!finalized) {
+			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
-		else {
+		deductionDecisionService.complete(factResult.factId(), lId, mId);
+		CallbackDecision decision = deduction.decision() == DeductionDecision.PASSED ? CallbackDecision.FORWARDED
+				: CallbackDecision.DEDUCTED;
+		if (decision == CallbackDecision.FORWARDED) {
+			// FORWARDED 只表示已经提交异步投递，不表示媒体已经成功接收。
 			DownstreamDeliveryDispatcher.dispatch(request);
-			increment++;
-			decision = CallbackDecision.FORWARDED;
-			float a = (deliveredCounts[typeIndex] + 1) * 1.0F / (originalCounts[typeIndex] + 1);
-			float b = (deliveredCounts[typeIndex] + 2) * 1.0F / (originalCounts[typeIndex] + 1);
-			if ((a + b) / 2 < ratio) {
-				impressionLog.info("cb-->{}", "skip add:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex]
-						+ "=" + (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
-			}
-			else {
-				impressionLog.info("cb-->{}",
-						"skip keep:" + deliveredCounts[typeIndex] + "/" + originalCounts[typeIndex] + "="
-								+ (deliveredCounts[typeIndex] * 1.0F / originalCounts[typeIndex]) + "~" + ratio);
-			}
 		}
-		// 先记录全部上游原始转化，再仅对实际下游回传事件增加计数。
-		originalCounts[typeIndex]++;
-		redisHelper.setRouteOriginalCounts(lId, mId, originalCounts);
-		if (increment != 0) {
-			deliveredCounts[typeIndex] += increment;
-			redisHelper.setRouteDeliveredCounts(lId, mId, deliveredCounts);
-		}
-		return complete(request, false, decision);
+		impressionLog.info("media deduction reqId:{} action:{} decision:{} ratio:{} replay:{}",
+				request.getFeedback().getReqId(), request.getActionType(), deduction.decision(), deduction.ratio(),
+				deduction.replay());
+		return complete(request, !factResult.firstEvent(), decision);
 	}
 
 	private CallbackHandleResult complete(CallbackReq request, boolean duplicate, CallbackDecision decision) {
-		String message = duplicate ? "CALLBACK_DUPLICATE" : switch (decision) {
-			case FORWARDED -> "DOWNSTREAM_DELIVERY_SUBMITTED";
-			case DEDUCTED -> "CALLBACK_DEDUCTED";
-			case NOT_APPLICABLE -> "CALLBACK_NOT_APPLICABLE";
-		};
+		String message = duplicate && decision == CallbackDecision.NOT_APPLICABLE ? "CALLBACK_DUPLICATE"
+				: switch (decision) {
+					case FORWARDED -> "DOWNSTREAM_DELIVERY_SUBMITTED";
+					case DEDUCTED -> "CALLBACK_DEDUCTED";
+					case NOT_APPLICABLE -> "CALLBACK_NOT_APPLICABLE";
+				};
 		flowLogWriter.callback(request, duplicate || decision != CallbackDecision.NOT_APPLICABLE, message);
 		return new CallbackHandleResult(duplicate, decision);
 	}

@@ -12,6 +12,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
   createDeductionRule,
+  deductionPercentageToRatio,
+  deductionRatioToPercentage,
   deleteDeductionRule,
   listDeductionRules,
   mediaOptions,
@@ -43,7 +45,7 @@ const columns = [
   { key: 'id', label: '规则编号' },
   { key: 'link', label: '推广链接' },
   { key: 'media', label: '媒体' },
-  { key: 'ratio', label: '扣量比例' },
+  { key: 'ratio', label: '媒体回传比例' },
   { key: 'createTime', label: '创建时间' },
   { key: 'updateTime', label: '修改时间' },
 ];
@@ -60,7 +62,7 @@ const form = reactive<{
 }>({
   mediaId: '',
   promotionLinkId: '',
-  ratio: 1,
+  ratio: 100,
 });
 
 function validateRatio(
@@ -69,13 +71,14 @@ function validateRatio(
   callback: (error?: Error) => void,
 ) {
   if (value === '' || value === undefined || value === null) {
-    callback(new Error('请输入扣量比例'));
+    callback(new Error('请输入媒体回传比例'));
     return;
   }
-  if (/^\d+(?:\.\d+)?$/.test(String(value))) {
+  const number = Number(value);
+  if (Number.isFinite(number) && number >= 0 && number <= 100) {
     callback();
   } else {
-    callback(new Error('请输入正确的数字格式'));
+    callback(new Error('媒体回传比例必须在 0%～100% 之间'));
   }
 }
 
@@ -85,7 +88,7 @@ const rules: FormRules = {
     { message: '请选择应用链接', required: true, trigger: 'blur' },
   ],
   ratio: [
-    { message: '请输入扣量比例', required: true, trigger: 'blur' },
+    { message: '请输入媒体回传比例', required: true, trigger: 'blur' },
     { trigger: 'blur', validator: validateRatio },
   ],
 };
@@ -138,7 +141,7 @@ function edit(row?: DeductionRule) {
   Object.assign(form, {
     mediaId: row?.mediaId || '',
     promotionLinkId: row?.promotionLinkId || '',
-    ratio: row?.ratio ?? 1,
+    ratio: deductionRatioToPercentage(row?.ratio ?? 1),
   });
   open.value = true;
 }
@@ -150,7 +153,7 @@ async function save() {
     const data = {
       mediaId: form.mediaId,
       promotionLinkId: form.promotionLinkId,
-      ratio: Number(form.ratio),
+      ratio: deductionPercentageToRatio(Number(form.ratio)),
     };
     if (editing.value) {
       await updateDeductionRule(editing.value.id, data);
@@ -187,7 +190,12 @@ async function remove(row: DeductionRule) {
 function handleDialogClose() {
   editing.value = undefined;
   formRef.value?.resetFields();
-  Object.assign(form, { mediaId: '', promotionLinkId: '', ratio: 1 });
+  Object.assign(form, { mediaId: '', promotionLinkId: '', ratio: 100 });
+}
+
+function ratioText(ratio: number) {
+  const passed = deductionRatioToPercentage(ratio ?? 1);
+  return `${passed}%（预计扣除 ${Math.round((100 - passed) * 100) / 100}%）`;
 }
 
 onMounted(async () => {
@@ -197,7 +205,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Page auto-content-height title="扣量规则">
+  <Page auto-content-height title="媒体回传扣量规则">
     <el-card shadow="never">
       <div v-show="showSearch" class="ocpx-query">
         <el-select
@@ -263,10 +271,12 @@ onMounted(async () => {
         />
         <el-table-column
           v-if="hasColumn('ratio')"
-          label="扣量比例"
-          min-width="110"
+          label="媒体回传比例"
+          min-width="210"
           prop="ratio"
-        />
+        >
+          <template #default="{ row }">{{ ratioText(row.ratio) }}</template>
+        </el-table-column>
         <el-table-column
           v-if="hasColumn('createTime')"
           label="创建时间"
@@ -353,8 +363,18 @@ onMounted(async () => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="扣量比例" prop="ratio">
-          <el-input v-model="form.ratio" placeholder="请输入扣量比例" />
+        <el-form-item label="媒体回传比例" prop="ratio">
+          <el-input-number
+            v-model="form.ratio"
+            :max="100"
+            :min="0"
+            :precision="2"
+            :step="1"
+          />
+          <span class="ml-2">%</span>
+          <div class="w-full text-xs text-gray-500">
+            100% 全部回传，0% 全部拦截；预计扣除比例 = 100% - 回传比例。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>

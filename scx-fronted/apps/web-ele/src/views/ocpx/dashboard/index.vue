@@ -33,7 +33,7 @@ const datePresets: Array<{ key: DatePreset; label: string }> = [
   { key: 'last-30-days', label: '过去30天' },
 ];
 const metricDefinitions: Array<{ code: MetricCode; label: string }> = [
-  { code: 'SPEND', label: '消耗' },
+  { code: 'SPEND', label: '广告主消费' },
   { code: 'IMPRESSION', label: '展示数' },
   { code: 'CLICK', label: '点击数' },
   { code: 'CONVERSION', label: '转化数' },
@@ -87,7 +87,7 @@ const accountCards = computed(() => {
     {
       hint: `${dashboard.value?.businessDate} 00:00—23:59`,
       icon: DataLine,
-      label: '今日消耗',
+      label: '今日广告主消费',
       value: `¥ ${formatDecimal(account.todaySpend)}`,
     },
   ];

@@ -29,6 +29,12 @@ public final class RedisConstants {
 	/** 推广链接与媒体组合的实际下游回传计数 Key 前缀。 */
 	public static final String ROUTE_DELIVERED_COUNT_PREFIX = "ocpx:route:delivered-count:";
 
+	/** V113 原子扣量状态 Key 前缀；完整 Key 以链接和媒体组成 Redis Cluster hash tag。 */
+	public static final String ROUTE_DEDUCTION_PREFIX = "ocpx:route:deduction:";
+
+	/** 原子扣量状态 Hash 中的目标媒体回传比例字段。 */
+	public static final String ROUTE_DEDUCTION_RATIO_FIELD = "ratio";
+
 	private RedisConstants() {
 	}
 

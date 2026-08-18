@@ -85,7 +85,7 @@ v102_columns = {
         "retired": ("task_code", "task_name", "operator_user_id", "status", "config_version", "archived_at", "active_marker"),
     },
     "scx_ocpx_deduction_rule": {
-        "required": ("promotion_link_id", "media_id", "ratio", "is_delete"),
+        "required": ("promotion_link_id", "media_id", "ratio decimal(9,6)", "is_delete", "ck_ocpx_deduction_ratio"),
         "retired": ("active_marker",),
     },
 }
@@ -99,6 +99,20 @@ for table, contract in v102_columns.items():
             raise SystemExit(f"V102 schema gate failed: {table} retains {retired_column}")
 if "(if(is_delete=0,1,null))" not in table_body("scx_ocpx_deduction_rule"):
     raise SystemExit("V102 schema gate failed: deduction functional unique index is missing")
+for required_fragment in (
+    "deduction_decision varchar(16)",
+    "deduction_ratio_snapshot decimal(9,6)",
+    "deduction_decided_at datetime(3)",
+):
+    if required_fragment not in table_body("scx_ocpx_event_fact"):
+        raise SystemExit(f"V113 schema gate failed: event fact missing {required_fragment}")
+for required_fragment in (
+    "callback_count bigint",
+    "deduction_passed_count bigint",
+    "deduction_deducted_count bigint",
+):
+    if required_fragment not in table_body("scx_ocpx_hourly_metric"):
+        raise SystemExit(f"V113 schema gate failed: hourly metric missing {required_fragment}")
 
 retired = re.compile(
     r"scx_ocpx_(channel|app_link|monitor_link|hourly_report|product|media_account|media_credential|task)(?:\W|$)"
@@ -416,9 +430,14 @@ for key_prefix in (
     'ROUTE_RATIO_PREFIX = "ocpx:route:ratio:"',
     'ROUTE_ORIGINAL_COUNT_PREFIX = "ocpx:route:original-count:"',
     'ROUTE_DELIVERED_COUNT_PREFIX = "ocpx:route:delivered-count:"',
+    'ROUTE_DEDUCTION_PREFIX = "ocpx:route:deduction:"',
 ):
     if key_prefix not in redis_constants:
         raise SystemExit(f"OCPX Redis route key gate failed: missing {key_prefix}")
+deduction_service = (java_root / "callback/service/DeductionDecisionService.java").read_text(encoding="utf-8")
+for required_fragment in ("DefaultRedisScript", "originalField", "passedField", "decisionKey", "factId"):
+    if required_fragment not in deduction_service:
+        raise SystemExit(f"V113 atomic media deduction gate failed: missing {required_fragment}")
 if "adm:u:dsp:" in redis_constants:
     raise SystemExit("OCPX Redis route key gate failed: retired adm:u:dsp key space remains")
 

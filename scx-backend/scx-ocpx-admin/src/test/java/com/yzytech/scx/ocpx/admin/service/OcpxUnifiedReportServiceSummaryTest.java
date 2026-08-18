@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.RowMapper;
 
 import java.math.BigDecimal;
 import java.sql.ResultSet;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,8 +39,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
 		when(advertiserScope.constrain(nullable(String.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope,
-				mock(OcpxAdvertiserAccountService.class));
+		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope, mock(OcpxAdvertiserAccountService.class));
 	}
 
 	@Test
@@ -87,6 +87,10 @@ class OcpxUnifiedReportServiceSummaryTest {
 		assertThat(row.getPromotionLinkId()).isEqualTo("link-1");
 		assertThat(row.getPromotionLinkName()).isEqualTo("链接一");
 		assertThat(row.getLinkRadio()).isEqualTo("0.6");
+		assertThat(row.getCallbackCount()).isEqualTo(100);
+		assertThat(row.getDeductionPassedCount()).isEqualTo(80);
+		assertThat(row.getDeductionDeductedCount()).isEqualTo(19);
+		assertThat(row.getDeductionPendingCount()).isEqualTo(1);
 		assertThat(row.getUniShowSmt()).isEqualTo(1000);
 		assertThat(row.getUniClkSmt()).isEqualTo(120);
 		assertThat(row.getClickRate()).isEqualTo(12.0d);
@@ -138,8 +142,8 @@ class OcpxUnifiedReportServiceSummaryTest {
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void appliesFiltersAndPagination() {
-		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class)))
-			.thenReturn(1L, 1L, 1L, 1L, 0L);
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L, 1L, 1L, 1L,
+				0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
 		service.summary(new SummaryReportQuery(1, "media-1", "task-1", "advertiser-1", "link-1", "20260801", "20260812",
@@ -205,9 +209,26 @@ class OcpxUnifiedReportServiceSummaryTest {
 		String[] lines = csv.split("\n");
 		assertThat(lines).hasSize(2);
 		assertThat(lines[0]).isEqualTo(
-				"报告时间,媒体名称,监测名称,广告主名称,链接名称,链接扣量,去重展示数,去重点击数,点击率,支出,激活,唤起," + "登录,注册,付费,获客,次留,访问,认证,下单,完单,首活,首购,订单金额");
-		assertThat(lines[1]).isEqualTo(
-				"20260812,示例媒体,任务一,示例广告主,链接一,0,1000,120,12.0,2.00,11,12,13,14,15,16,17,18," + "19,20,21,22,23,123.45");
+				"报告时间,媒体名称,监测名称,广告主名称,链接名称,媒体回传比例,原始Callback数,扣量放行数,扣量拦截数,待判定数,扣量统计起始时间,去重展示数,去重点击数,点击率,广告主消费,激活,唤起,"
+						+ "登录,注册,付费,获客,次留,访问,认证,下单,完单,首活,首购,订单金额");
+		assertThat(lines[1])
+			.isEqualTo("20260812,示例媒体,任务一,示例广告主,链接一,100%,100,80,19,1,,1000,120,12.0,2.00,11,12,13,14,15,16,17,18,"
+					+ "19,20,21,22,23,123.45");
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void reportsNonePartialAndFullDeductionCoverageWithoutHistoricalInference() {
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+		when(jdbcTemplate.queryForObject(org.mockito.ArgumentMatchers.contains("MIN(deduction_decided_at)"),
+				eq(LocalDateTime.class), any(Object[].class)))
+			.thenReturn(LocalDateTime.of(2026, 8, 13, 0, 0), LocalDateTime.of(2026, 8, 2, 10, 0),
+					LocalDateTime.of(2026, 7, 31, 23, 0));
+
+		assertThat(service.summary(query(1, null, null)).getDeductionCoverageStatus()).isEqualTo("NONE");
+		assertThat(service.summary(query(1, null, null)).getDeductionCoverageStatus()).isEqualTo("PARTIAL");
+		assertThat(service.summary(query(1, null, null)).getDeductionCoverageStatus()).isEqualTo("FULL");
 	}
 
 	@Test
@@ -234,6 +255,9 @@ class OcpxUnifiedReportServiceSummaryTest {
 		lenient().when(rs.getString("l_id")).thenReturn("link-1");
 		lenient().when(rs.getString("link_name")).thenReturn("链接一");
 		lenient().when(rs.getObject("link_radio")).thenReturn(ratio);
+		lenient().when(rs.getLong("callback_count")).thenReturn(100L);
+		lenient().when(rs.getLong("deduction_passed_count")).thenReturn(80L);
+		lenient().when(rs.getLong("deduction_deducted_count")).thenReturn(19L);
 		lenient().when(rs.getLong("uni_show_smt")).thenReturn(1000L);
 		lenient().when(rs.getLong("uni_clk_smt")).thenReturn(120L);
 		lenient().when(rs.getObject("clickRate")).thenReturn(12.0d);

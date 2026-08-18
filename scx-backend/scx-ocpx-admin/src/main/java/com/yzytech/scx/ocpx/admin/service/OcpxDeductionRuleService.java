@@ -14,6 +14,7 @@ import com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,16 @@ public class OcpxDeductionRuleService {
 	private static final String ROUTE_ORIGINAL_COUNT_PREFIX = "ocpx:route:original-count:";
 
 	private static final String ROUTE_DELIVERED_COUNT_PREFIX = "ocpx:route:delivered-count:";
+
+	private static final String ROUTE_DEDUCTION_PREFIX = "ocpx:route:deduction:";
+
+	private static final String ROUTE_DEDUCTION_RATIO_FIELD = "ratio";
+
+	private static final DefaultRedisScript<Long> RESET_ROUTE_SCRIPT = new DefaultRedisScript<>("""
+			redis.call('DEL', KEYS[1])
+			redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])
+			return 1
+			""", Long.class);
 
 	private final OcpxDeductionRuleMapper ruleMapper;
 
@@ -106,12 +117,18 @@ public class OcpxDeductionRuleService {
 		configRefreshPublisher.mark();
 	}
 
-	/** 写比例并重置该路由的原始/实际回传计数（平移 SGYZ 改比例清零计数的行为）。 */
+	/** 写媒体回传比例并重置该路由的实时扣量状态。 */
 	private void syncRouteRatio(String promotionLinkId, String mediaId, double ratio) {
 		String route = promotionLinkId + ":" + mediaId;
-		redis.opsForValue().set(ROUTE_RATIO_PREFIX + route, String.valueOf(ratio));
-		redis.delete(ROUTE_ORIGINAL_COUNT_PREFIX + route);
-		redis.delete(ROUTE_DELIVERED_COUNT_PREFIX + route);
+		String stateKey = atomicStateKey(promotionLinkId, mediaId);
+		redis.execute(RESET_ROUTE_SCRIPT, java.util.List.of(stateKey), ROUTE_DEDUCTION_RATIO_FIELD,
+				String.valueOf(ratio));
+		redis.delete(java.util.List.of(ROUTE_RATIO_PREFIX + route, ROUTE_ORIGINAL_COUNT_PREFIX + route,
+				ROUTE_DELIVERED_COUNT_PREFIX + route));
+	}
+
+	private String atomicStateKey(String promotionLinkId, String mediaId) {
+		return ROUTE_DEDUCTION_PREFIX + "{" + promotionLinkId + ":" + mediaId + "}:state";
 	}
 
 	private void requireMedia(String id) {

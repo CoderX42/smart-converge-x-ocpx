@@ -31,6 +31,7 @@ ocpx:
       "2089268457885999105": AERIM
       "2089274572543692802": AERIM
       "2089239825436160002": WEIFENG
+      "2089280261676670978": WEIFENG
   aerim:
     allowed-hosts:
       - d.aerim.cn

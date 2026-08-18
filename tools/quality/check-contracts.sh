@@ -25,6 +25,7 @@ required = [
     "management-v110.md",
     "management-v111.md",
     "management-v112.md",
+    "management-v113.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -54,7 +55,11 @@ v112_paths = {
     "/monitor-tasks/{id}/test-links:execute",
     "/monitor-tasks/{id}/test-results/{requestId}",
 }
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths
+v113_paths = {
+    "/deduction-rules", "/deduction-rules/{id}",
+    "/reports/summary", "/reports/summary:export",
+}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -87,6 +92,10 @@ assert set(paths["/billing-entries"]) >= {"get"}
 assert set(paths["/monitor-tasks/{id}/test-links:generate"]) == {"post", "servers"}
 assert set(paths["/monitor-tasks/{id}/test-links:execute"]) == {"post", "servers"}
 assert set(paths["/monitor-tasks/{id}/test-results/{requestId}"]) == {"get", "servers"}
+assert {"get", "post"} <= set(paths["/deduction-rules"])
+assert {"get", "put", "delete"} <= set(paths["/deduction-rules/{id}"])
+assert set(paths["/reports/summary"]) == {"get", "servers"}
+assert set(paths["/reports/summary:export"]) == {"get", "servers"}
 assert paths["/creatives"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("CreativeSaveRequest")
 assert paths["/creatives/assets"]["post"]["requestBody"]["content"].get("multipart/form-data")
 assert paths["/monitor-tasks/{id}"]["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskSaveRequest")
@@ -108,11 +117,17 @@ assert {
     "CreativeSaveRequest", "Creative", "CreativeAsset", "MonitorTaskSaveRequest",
     "BillingEntry", "BillingEntryPageEnvelope", "MonitorTaskTestGenerateRequest",
     "MonitorTaskTestExecuteRequest", "MonitorTaskTestPreview", "MonitorTaskTestExecution",
-    "MonitorTaskTestResult", "MonitorTaskTestTimelineItem"
+    "MonitorTaskTestResult", "MonitorTaskTestTimelineItem",
+    "MediaCallbackRatioRuleSaveRequest", "MediaCallbackRatioRule",
+    "DeductionSummaryRow", "DeductionSummaryPage"
 } <= set(schemas)
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
 assert set(schemas["AdvertiserDeductionRequest"]["required"]) == {"requestId", "amount", "remark"}
+ratio_schema = schemas["MediaCallbackRatioRuleSaveRequest"]["properties"]["ratio"]
+assert ratio_schema["minimum"] == 0 and ratio_schema["maximum"] == 1
+assert {"callbackCount", "deductionPassedCount", "deductionDeductedCount", "deductionPendingCount", "basePrice"} <= set(schemas["DeductionSummaryRow"]["properties"])
+assert set(schemas["DeductionSummaryPage"]["properties"]["deductionCoverageStatus"]["enum"]) == {"NONE", "PARTIAL", "FULL"}
 assert "callback_url" not in schemas["MonitorTaskTestGenerateRequest"]["properties"]
 assert "callback_url" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert "targetUrl" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]

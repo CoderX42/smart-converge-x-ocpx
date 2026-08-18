@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_deduction_rule (
   id VARCHAR(32) NOT NULL,
   promotion_link_id VARCHAR(32) NOT NULL,
   media_id VARCHAR(32) NOT NULL,
-  ratio DOUBLE NOT NULL DEFAULT 1.0,
+  ratio DECIMAL(9,6) NOT NULL DEFAULT 1.000000,
   is_delete TINYINT(1) NOT NULL DEFAULT 0,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -182,8 +182,9 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_deduction_rule (
   UNIQUE KEY uk_ocpx_deduction_rule_route (media_id,promotion_link_id,(IF(is_delete=0,1,NULL))),
   KEY idx_ocpx_deduction_rule_link (promotion_link_id),
   CONSTRAINT fk_ocpx_deduction_rule_promotion_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
-  CONSTRAINT fk_ocpx_deduction_rule_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: link-media deduction ratio rule';
+  CONSTRAINT fk_ocpx_deduction_rule_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
+  CONSTRAINT ck_ocpx_deduction_ratio CHECK (ratio>=0 AND ratio<=1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: link-media callback pass ratio rule';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
   id VARCHAR(32) NOT NULL,
@@ -200,6 +201,9 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
   billing_type_snapshot TINYINT UNSIGNED NULL,
   billing_unit_price_snapshot DECIMAL(20,6) NULL,
   conversion_event_snapshot VARCHAR(32) NULL,
+  deduction_decision VARCHAR(16) NULL,
+  deduction_ratio_snapshot DECIMAL(9,6) NULL,
+  deduction_decided_at DATETIME(3) NULL,
   spend_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   billing_status VARCHAR(40) NOT NULL DEFAULT 'NOT_APPLICABLE',
@@ -210,6 +214,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
   UNIQUE KEY uk_ocpx_event_fact_identity
     (advertiser_id,monitor_task_id,request_id,event_code),
   KEY idx_ocpx_event_fact_time_scope (received_at,advertiser_id,media_id,monitor_task_id,promotion_link_id),
+  KEY idx_ocpx_event_fact_deduction_time
+    (deduction_decided_at,advertiser_id,media_id,monitor_task_id,promotion_link_id),
   CONSTRAINT fk_ocpx_event_fact_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
   CONSTRAINT fk_ocpx_event_fact_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
   CONSTRAINT fk_ocpx_event_fact_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
@@ -224,6 +230,19 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
     CHECK (billing_type_snapshot IS NULL OR billing_type_snapshot IN (1,2)),
   CONSTRAINT ck_ocpx_event_fact_billing_price_snapshot
     CHECK (billing_unit_price_snapshot IS NULL OR billing_unit_price_snapshot>=0),
+  CONSTRAINT ck_ocpx_event_fact_deduction_decision CHECK (
+    deduction_decision IS NULL OR deduction_decision IN ('PENDING','PASSED','DEDUCTED')
+  ),
+  CONSTRAINT ck_ocpx_event_fact_deduction_ratio CHECK (
+    deduction_ratio_snapshot IS NULL
+    OR (deduction_ratio_snapshot>=0 AND deduction_ratio_snapshot<=1)
+  ),
+  CONSTRAINT ck_ocpx_event_fact_deduction_state CHECK (
+    (deduction_decision IS NULL AND deduction_ratio_snapshot IS NULL AND deduction_decided_at IS NULL)
+    OR (deduction_decision='PENDING' AND deduction_ratio_snapshot IS NULL AND deduction_decided_at IS NULL)
+    OR (deduction_decision IN ('PASSED','DEDUCTED')
+        AND deduction_ratio_snapshot IS NOT NULL AND deduction_decided_at IS NOT NULL)
+  ),
   CONSTRAINT ck_ocpx_event_fact_amounts CHECK (spend_amount>=0 AND currency_amount>=0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
   COMMENT='FACT: idempotent OCPX feedback and callback facts';
@@ -268,6 +287,9 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
   impression_count BIGINT NOT NULL DEFAULT 0,
   click_count BIGINT NOT NULL DEFAULT 0,
   target_conversion_count BIGINT NOT NULL DEFAULT 0,
+  callback_count BIGINT NOT NULL DEFAULT 0,
+  deduction_passed_count BIGINT NOT NULL DEFAULT 0,
+  deduction_deducted_count BIGINT NOT NULL DEFAULT 0,
   activate_count BIGINT NOT NULL DEFAULT 0,
   evoke_count BIGINT NOT NULL DEFAULT 0,
   login_count BIGINT NOT NULL DEFAULT 0,
@@ -297,6 +319,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
   CONSTRAINT fk_ocpx_hourly_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
   CONSTRAINT ck_ocpx_hourly_nonnegative CHECK (
     impression_count>=0 AND click_count>=0 AND target_conversion_count>=0
+    AND callback_count>=0 AND deduction_passed_count>=0 AND deduction_deducted_count>=0
+    AND deduction_passed_count+deduction_deducted_count<=callback_count
     AND spend_amount>=0 AND currency_amount>=0
     AND rejected_click_count>=0 AND rejected_conversion_count>=0
   )

@@ -33,6 +33,8 @@ public class OcpxAdvertiserService {
 
 	private static final String ROUTE_DELIVERED_COUNT_PREFIX = "ocpx:route:delivered-count:";
 
+	private static final String ROUTE_DEDUCTION_PREFIX = "ocpx:route:deduction:";
+
 	private final OcpxAdvertiserMapper advertiserMapper;
 
 	private final OcpxConfigRefreshPublisher configRefreshPublisher;
@@ -166,6 +168,7 @@ public class OcpxAdvertiserService {
 			keys.add(ROUTE_RATIO_PREFIX + routeKey);
 			keys.add(ROUTE_ORIGINAL_COUNT_PREFIX + routeKey);
 			keys.add(ROUTE_DELIVERED_COUNT_PREFIX + routeKey);
+			keys.add(ROUTE_DEDUCTION_PREFIX + "{" + routeKey + "}:state");
 		}
 		redis.delete(keys);
 	}

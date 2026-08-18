@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.fact.service;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.callback.service.DeductionDecision;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -47,9 +48,8 @@ class OcpxEventFactMysqlIntegrationTest {
 		transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
 		service = new OcpxEventFactService(jdbcTemplate);
 		cleanup();
-		jdbcTemplate.update(
-				"INSERT INTO scx_ocpx_advertiser (id,advertiser_name,bid_url) VALUES (?,?,?)", ADVERTISER_ID,
-				"V108 integration advertiser", "https://example.invalid/callback");
+		jdbcTemplate.update("INSERT INTO scx_ocpx_advertiser (id,advertiser_name,bid_url) VALUES (?,?,?)",
+				ADVERTISER_ID, "V108 integration advertiser", "https://example.invalid/callback");
 		jdbcTemplate.update(
 				"INSERT INTO scx_ocpx_promotion_link (id,advertiser_id,link_name,platform,link_url) VALUES (?,?,?,?,?)",
 				LINK_ID, ADVERTISER_ID, "V108 integration link", 1, "https://example.invalid/link");
@@ -60,8 +60,8 @@ class OcpxEventFactMysqlIntegrationTest {
 				 id,monitor_name,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,
 				 unit_price,conversion_event
 				) VALUES (?,?,?,?,?,?,?,?,?)
-				""", TASK_ID, "V108 integration task", ADVERTISER_ID, LINK_ID, MEDIA_ID,
-				true, 1, new BigDecimal("2.500000"), "ACTIVATE");
+				""", TASK_ID, "V108 integration task", ADVERTISER_ID, LINK_ID, MEDIA_ID, true, 1,
+				new BigDecimal("2.500000"), "ACTIVATE");
 		jdbcTemplate.update(
 				"INSERT INTO scx_ocpx_advertiser_account (advertiser_id,currency,available_balance) VALUES (?,'CNY',?)",
 				ADVERTISER_ID, new BigDecimal("100.000000"));
@@ -121,16 +121,14 @@ class OcpxEventFactMysqlIntegrationTest {
 				results.add(future.get());
 			}
 			assertThat(results).extracting(OcpxEventFactService.FeedbackFactResult::billingStatus)
-					.containsExactlyInAnyOrder("POSTED", "REJECTED_INSUFFICIENT_BALANCE");
+				.containsExactlyInAnyOrder("POSTED", "REJECTED_INSUFFICIENT_BALANCE");
 		}
 		finally {
 			executor.shutdownNow();
 		}
 		assertThat(balance()).isEqualByComparingTo("0.000000");
-		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?"))
-			.isEqualTo(2L);
-		assertThat(scalar("SELECT SUM(click_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
-			.isEqualTo(2L);
+		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=?")).isEqualTo(2L);
+		assertThat(scalar("SELECT SUM(click_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?")).isEqualTo(2L);
 		assertThat(amount("SELECT SUM(spend_amount) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
 			.isEqualByComparingTo("2.500000");
 		assertThat(scalar("SELECT SUM(rejected_click_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
@@ -176,6 +174,32 @@ class OcpxEventFactMysqlIntegrationTest {
 			.isEqualByComparingTo("2.500000");
 	}
 
+	@Test
+	void deductedTargetConversionStillChargesTheAdvertiserAndPersistsOnlyMediaQuantity() {
+		jdbcTemplate.update("UPDATE scx_ocpx_monitor_task SET billing_type=2 WHERE id=?", TASK_ID);
+
+		OcpxEventFactService.CallbackFactResult fact = transaction
+			.execute(status -> service.recordCallback(CallbackReq.builder()
+				.feedback(feedback("deducted-charge", EventTypeEnum.CLICK))
+				.actionType(ActionTypeEnum.ACTIVATE)
+				.build()));
+		assertThat(fact).isNotNull();
+		Boolean finalized = transaction.execute(status -> service.finalizeDeduction(fact.factId(),
+				new BigDecimal("0.000000"), DeductionDecision.DEDUCTED));
+		assertThat(finalized).isTrue();
+
+		assertThat(balance()).isEqualByComparingTo("97.500000");
+		assertThat(scalar(
+				"SELECT COUNT(*) FROM scx_ocpx_billing_entry WHERE advertiser_id=? AND entry_type='CONVERSION_CHARGE' AND status='POSTED'"))
+			.isEqualTo(1L);
+		assertThat(scalar("SELECT SUM(callback_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualTo(1L);
+		assertThat(scalar("SELECT SUM(deduction_deducted_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualTo(1L);
+		assertThat(amount("SELECT SUM(spend_amount) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualByComparingTo("2.500000");
+	}
+
 	private void assertAcceptanceTotals() {
 		assertThat(balance()).isEqualByComparingTo("75.000000");
 		assertThat(scalar("SELECT COUNT(*) FROM scx_ocpx_event_fact WHERE advertiser_id=?")).isEqualTo(112L);
@@ -183,10 +207,15 @@ class OcpxEventFactMysqlIntegrationTest {
 			.isEqualTo(10L);
 		assertThat(scalar("SELECT SUM(impression_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
 			.isEqualTo(100L);
-		assertThat(scalar("SELECT SUM(click_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
-			.isEqualTo(10L);
+		assertThat(scalar("SELECT SUM(click_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?")).isEqualTo(10L);
 		assertThat(scalar("SELECT SUM(target_conversion_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
 			.isEqualTo(2L);
+		assertThat(scalar("SELECT SUM(callback_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualTo(2L);
+		assertThat(scalar("SELECT SUM(deduction_passed_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isEqualTo(2L);
+		assertThat(scalar("SELECT SUM(deduction_deducted_count) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
+			.isZero();
 		assertThat(amount("SELECT SUM(spend_amount) FROM scx_ocpx_hourly_metric WHERE advertiser_id=?"))
 			.isEqualByComparingTo("25.000000");
 	}
@@ -196,10 +225,16 @@ class OcpxEventFactMysqlIntegrationTest {
 	}
 
 	private OcpxEventFactService.CallbackFactResult recordCallback(String requestId) {
-		return transaction.execute(status -> service.recordCallback(CallbackReq.builder()
-			.feedback(feedback(requestId, EventTypeEnum.CLICK))
-			.actionType(ActionTypeEnum.ACTIVATE)
-			.build()));
+		return transaction.execute(status -> {
+			OcpxEventFactService.CallbackFactResult fact = service.recordCallback(CallbackReq.builder()
+				.feedback(feedback(requestId, EventTypeEnum.CLICK))
+				.actionType(ActionTypeEnum.ACTIVATE)
+				.build());
+			if (fact.pendingDeduction()) {
+				service.finalizeDeduction(fact.factId(), BigDecimal.ONE, DeductionDecision.PASSED);
+			}
+			return fact;
+		});
 	}
 
 	private FeedbackReq feedback(String requestId, EventTypeEnum event) {

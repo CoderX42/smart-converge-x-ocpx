@@ -1102,6 +1102,12 @@ onBeforeUnmount(clearTestPolling);
             :disabled="!canManageBilling"
             placeholder="请输入投放单价"
         /></el-form-item>
+        <el-alert
+          class="mb-4"
+          :closable="false"
+          title="投放单价用于广告主账户计费，与媒体回传扣量相互独立。"
+          type="info"
+        />
         <el-form-item label="目标转化" prop="conversionEvent">
           <el-select
             v-model="form.conversionEvent"

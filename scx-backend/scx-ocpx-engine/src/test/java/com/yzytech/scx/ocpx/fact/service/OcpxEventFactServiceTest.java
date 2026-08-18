@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.fact.service;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.callback.service.DeductionDecision;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -66,16 +67,17 @@ class OcpxEventFactServiceTest {
 	void duplicateUniqueFactDoesNotChargeOrAggregateAgain() throws Exception {
 		Fixture fixture = fixture("2.500000", "ACTIVATE", "100.000000");
 		when(fixture.jdbcTemplate.update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_event_fact"),
-				any(Object[].class))).thenThrow(new DuplicateKeyException("duplicate"));
+				any(Object[].class)))
+			.thenThrow(new DuplicateKeyException("duplicate"));
 
 		var result = fixture.service.recordFeedback(feedback(EventTypeEnum.CLICK));
 
 		assertThat(result.firstEvent()).isFalse();
 		assertThat(result.forwardAllowed()).isFalse();
-		verify(fixture.jdbcTemplate, never()).update(
-				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
-		verify(fixture.jdbcTemplate, never()).update(
-				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_hourly_metric"), any(Object[].class));
+		verify(fixture.jdbcTemplate, never())
+			.update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
+		verify(fixture.jdbcTemplate, never())
+			.update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_hourly_metric"), any(Object[].class));
 	}
 
 	@Test
@@ -119,8 +121,8 @@ class OcpxEventFactServiceTest {
 
 		assertThat(result.forwardAllowed()).isTrue();
 		assertThat(result.billingStatus()).isEqualTo("NOT_APPLICABLE");
-		verify(fixture.jdbcTemplate, never()).update(
-				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
+		verify(fixture.jdbcTemplate, never())
+			.update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
 	}
 
 	@Test
@@ -155,8 +157,8 @@ class OcpxEventFactServiceTest {
 		var result = fixture.service.recordCallback(callback);
 
 		assertThat(result.targetConversion()).isFalse();
-		verify(fixture.jdbcTemplate, never()).update(
-				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
+		verify(fixture.jdbcTemplate, never())
+			.update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_entry"), any(Object[].class));
 	}
 
 	@Test
@@ -178,6 +180,36 @@ class OcpxEventFactServiceTest {
 		assertThat(args.getAllValues().get(ledger)[4]).isEqualTo("CONVERSION_CHARGE");
 		assertThat(args.getAllValues().get(ledger)[5]).isEqualTo("REJECTED");
 		assertThat(sql.getAllValues()).noneMatch(value -> value.contains("UPDATE scx_ocpx_advertiser_account"));
+	}
+
+	@Test
+	void firstDeductionFinalizationPersistsTheSnapshotAndProjectsOnlyItsOutcome() throws Exception {
+		Fixture fixture = fixture("3.000000", "ACTIVATE", "100.000000", true, 2);
+
+		assertThat(fixture.service.finalizeDeduction("fact-1", new BigDecimal("0.800000"), DeductionDecision.DEDUCTED))
+			.isTrue();
+
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(fixture.jdbcTemplate, atLeastOnce()).update(sql.capture(), args.capture());
+		int factUpdate = indexContaining(sql.getAllValues(), "deduction_decision=?");
+		assertThat(args.getAllValues().get(factUpdate)[0]).isEqualTo("DEDUCTED");
+		assertThat((BigDecimal) args.getAllValues().get(factUpdate)[1]).isEqualByComparingTo("0.800000");
+		int hourlyUpdate = indexContaining(sql.getAllValues(), "deduction_passed_count,deduction_deducted_count");
+		assertThat(args.getAllValues().get(hourlyUpdate)).startsWith(0L, 1L, "fact-1");
+	}
+
+	@Test
+	void repeatedDeductionFinalizationDoesNotProjectAgain() throws Exception {
+		Fixture fixture = fixture("3.000000", "ACTIVATE", "100.000000", true, 2);
+		when(fixture.jdbcTemplate.update(org.mockito.ArgumentMatchers.contains("deduction_decision=?"),
+				any(Object[].class)))
+			.thenReturn(0);
+
+		assertThat(fixture.service.finalizeDeduction("fact-1", BigDecimal.ONE, DeductionDecision.PASSED)).isFalse();
+		verify(fixture.jdbcTemplate, never()).update(
+				org.mockito.ArgumentMatchers.contains("deduction_passed_count,deduction_deducted_count"),
+				any(Object[].class));
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })

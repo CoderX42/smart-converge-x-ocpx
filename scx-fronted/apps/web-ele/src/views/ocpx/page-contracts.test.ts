@@ -39,8 +39,21 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '删除',
       ],
     ],
-    ['deduction', ['规则编号', '推广链接', '扣量比例', '删除']],
-    ['report', ['时段报表', 'CTR', '消耗', '完单', '首活', '首购', '订单金额']],
+    ['deduction', ['规则编号', '推广链接', '媒体回传比例', '删除']],
+    [
+      'report',
+      [
+        '时段报表',
+        'CTR',
+        '广告主消费',
+        '扣量放行',
+        '扣量拦截',
+        '完单',
+        '首活',
+        '首购',
+        '订单金额',
+      ],
+    ],
     ['flow-log', ['流程日志', '事件 ID', 'HTTP', '耗时(ms)', '说明']],
   ])('%s exposes the agreed table and action labels', (name, labels) => {
     const source = page(name);

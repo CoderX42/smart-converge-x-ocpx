@@ -27,6 +27,8 @@
 
 > 决策更新（2026-08-17）：V112 增加仅真实系统管理员可用的监测任务 CLK 测试链接与联调详情；后台固定向 Engine 发送，复用事实、账务和流程日志，不携带 `callback_url`，不把上游 HTTP 200 描述为合作方入库或完整回调闭环。
 
+> 决策更新（2026-08-18）：V113 保留监测任务广告主点击/目标转化计费，将扣量规则明确为媒体 Callback 回传比例。扣量使用分动作 Redis Lua 原子判定，并以 MySQL `PENDING/PASSED/DEDUCTED` 事实和小时计数审计；扣量不修改广告主余额、消费或账务，不引入媒体金额。历史扣量结果不反推，目标库迁移、Redis 切换、部署和合作方 UAT 仍需独立审批与证据。
+
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
 
 ## 执行快照增补（2026-08-13）：SGYZ 对齐迁移交付记录
@@ -35,10 +37,10 @@
 
 | 编号 | 交付项 | 状态 | 关键证据 |
 |---|---|---|---|
-| P0-1 | 扣量规则 | 已交付 | V99 新表 `scx_ocpx_deduction_rule`（`media_id`+`promotion_link_id`+`ratio`，软删唯一）；Admin CRUD `/ocpx/deduction-rules`（权限 `ocpx:deduction-rule:*`）；写库后同步 Redis `ocpx:route:ratio:{lId}:{mId}`，变更/删除清理 `ocpx:route:original-count:`/`ocpx:route:delivered-count:`，删除复位 1.0；菜单种子「扣量规则」`/ocpx/deduction`；前端 `views/ocpx/deduction/index.vue`、`api/ocpx/deduction.ts`；`check-ocpx-four-entities.sh` 放宽为五业务表 |
+| P0-1 | 媒体回传扣量规则 | 源码实现，目标环境未迁移 | V113 保留 `media_id`+`promotion_link_id` 唯一规则，将 `ratio` 固定为 `[0,1]` 的 `DECIMAL(9,6)` 媒体回传比例；前端按 `0%～100%` 输入/显示。Engine 使用同哈希槽 Redis Lua 按动作原子累计，事件事实 ID 幂等；比例变更只重置对应路由新状态，未配置和非法缓存比例均按 100% 放行。MySQL 持久化 `PENDING/PASSED/DEDUCTED`、比例快照与小时放行/拦截计数；目标库迁移和 Redis 切换未执行 |
 | P0-2 | 监测任务业务字段与双链接 | 已交付 | V100 为 `scx_ocpx_monitor_task` 增加 `unit_price`/`biz_id`/`show_url`/`clk_url`/`remark`；Admin 创建/更新时持久化生成 `show_url`/`clk_url`（`{engine-base}/feedback?{媒体宏参数}&event=IMP\|CLK&mId=&tId=&aId=&lId=`）；配置项 `scx.ocpx.admin.tracking.engine-base-url` yml 直写；旧 `/c/{taskCode}` trackingUrl 已移除；前端监测任务页对齐 SGYZ advertise/flow |
 | P1-3 | 充值/余额极简版与监测任务删除 | 已交付 | `POST /ocpx/advertisers/{id}/recharge`（权限 `ocpx:advertiser:recharge`），Redis key `ocpx:advertiser:balance:{aId}` 单值累加，列表/详情逐行回填 balance，无流水表；`DELETE /ocpx/monitor-tasks/{id}`（逻辑删，权限 `ocpx:monitor-task:delete`）；V101 权限种子；前端广告主页余额列 + 充值弹窗、监测任务删除按钮 |
-| P1-4 | 报表对齐 SGYZ | 已交付 | `GET /ocpx/reports/summary` 支持小时/日/月/年、四实体级联、扣量、CTR、消耗、转化列、排序和分页；`GET /ocpx/reports/summary:export` 输出 CSV；V102 删除媒体导出接口，前端报表页对齐 AChannelTime 形态 |
+| P1-4 | 报表对齐 SGYZ | 源码实现，V113 目标环境未迁移 | `GET /ocpx/reports/summary` 支持小时/日/月/年、四实体级联、CTR、广告主消费和转化列；V113 新增原始 Callback、扣量放行、扣量拦截、待判定、统计起始时间及 `NONE/PARTIAL/FULL` 覆盖状态，CSV 同口径输出。V113 前数据不估算、不按当前比例反推 |
 | P1-5 | 小米 + KIMI 合作方适配 | 已移除（2026-08-17） | 曾平移小米与 KIMI 专用协议；当前源码已删除两套入口、适配器、调度分支和专用凭据配置，仅保留通用媒体 Callback URL、`TEMPLATE_GET` 与 AERIM 上游协议 |
 | P1-6 | 微风互动 v1.3 上游适配 | 生产管理数据与广告主协议映射已登记，真实第三方 UAT 待验收 | 新增 `WEIFENG` CLICK 投递、固定域名校验、推广链接固定 `aid/did` 保留、HTTP 200/402/500/501 处置和六类事件 Callback；2026-08-17 已建立“赘婿ios激活”iOS 灰度任务并登记生产广告主协议，不再维护媒体/任务到 `aid/did` 的二次映射；刹车与 RTA 因当前无计划状态/曝光前决策模型，保留为后续独立切片。只有微风真实 Callback 与椰子媒体下游签收均确认后才认定第三方 UAT 闭环 |
 | P2-6 | 数据面运维回补 | 已交付 | 引擎 `logback-spring.xml`（fb/cb/imp/clk/error/other 等具名 logger 分文件滚动 + 异步）；`IndexDataLoader` 经 `@TableLogic` 自动过滤逻辑删除（核实未改代码，补锁定测试）；`scx_ocpx_log_feedback_day` 每日 00:10 清理任务（`ResetRedisKeyTask.deleteFeedbackDay`） |

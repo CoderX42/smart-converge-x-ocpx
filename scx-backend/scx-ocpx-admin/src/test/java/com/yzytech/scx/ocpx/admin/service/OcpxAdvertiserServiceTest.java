@@ -200,8 +200,8 @@ class OcpxAdvertiserServiceTest {
 			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
 		assertThat(validator.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("9.99"), null)))
 			.isEmpty();
-		assertThat(validator
-			.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("1.0000001"), null)))
+		assertThat(
+				validator.validate(new AdvertiserRequests.Recharge("request-001", new BigDecimal("1.0000001"), null)))
 			.anyMatch(violation -> "amount".equals(violation.getPropertyPath().toString()));
 	}
 
@@ -232,8 +232,7 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserAccountService.balancesByIds(any()))
 			.thenReturn(java.util.Map.of("adv-1", new BigDecimal("123.45"), "adv-2", BigDecimal.ZERO));
 
-		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service
-			.list(new Page<>(1, 10), null, null)
+		List<AdvertiserViews.Item> records = (List<AdvertiserViews.Item>) service.list(new Page<>(1, 10), null, null)
 			.getRecords();
 
 		assertThat(records.get(0).getBalance()).isEqualByComparingTo("123.45");
@@ -313,8 +312,8 @@ class OcpxAdvertiserServiceTest {
 		ArgumentCaptor<Collection<String>> keys = ArgumentCaptor.forClass(Collection.class);
 		verify(redis).delete(keys.capture());
 		assertThat(keys.getValue()).containsExactlyInAnyOrder("ocpx:route:ratio:link-1:media-1",
-				"ocpx:route:original-count:link-1:media-1",
-				"ocpx:route:delivered-count:link-1:media-1");
+				"ocpx:route:original-count:link-1:media-1", "ocpx:route:delivered-count:link-1:media-1",
+				"ocpx:route:deduction:{link-1:media-1}:state");
 		verify(configRefreshPublisher).mark();
 	}
 

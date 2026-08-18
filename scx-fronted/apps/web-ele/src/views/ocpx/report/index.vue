@@ -51,11 +51,45 @@ const columns: SummaryColumn[] = [
     label: '推广链接',
     width: 160,
   },
-  { field: 'linkRadio', key: 'linkRadio', label: '扣量', width: 90 },
+  {
+    field: 'linkRadio',
+    key: 'linkRadio',
+    label: '媒体回传比例',
+    width: 130,
+  },
+  {
+    field: 'callbackCount',
+    key: 'callbackCount',
+    label: '原始Callback',
+    width: 120,
+  },
+  {
+    field: 'deductionPassedCount',
+    key: 'deductionPassedCount',
+    label: '扣量放行',
+    width: 110,
+  },
+  {
+    field: 'deductionDeductedCount',
+    key: 'deductionDeductedCount',
+    label: '扣量拦截',
+    width: 110,
+  },
+  {
+    field: 'deductionPendingCount',
+    key: 'deductionPendingCount',
+    label: '待判定',
+    width: 100,
+  },
   { field: 'uniShowSmt', key: 'uniShowSmt', label: '展示', width: 100 },
   { field: 'uniClkSmt', key: 'uniClkSmt', label: '点击', width: 100 },
   { field: 'clickRate', key: 'clickRate', label: 'CTR', width: 90 },
-  { field: 'basePrice', key: 'basePrice', label: '消耗', width: 110 },
+  {
+    field: 'basePrice',
+    key: 'basePrice',
+    label: '广告主消费',
+    width: 120,
+  },
   { field: 'activate', key: 'activate', label: '激活', width: 90 },
   { field: 'evoke', key: 'evoke', label: '唤起', width: 90 },
   { field: 'login', key: 'login', label: '登录', width: 90 },
@@ -92,8 +126,12 @@ const additiveFields = new Set<keyof SummaryReportRow>([
   'activate',
   'authentication',
   'basePrice',
+  'callbackCount',
   'currencyAmount',
   'customerAcquisition',
+  'deductionDeductedCount',
+  'deductionPassedCount',
+  'deductionPendingCount',
   'evoke',
   'finishTheOrder',
   'firstActivation',
@@ -136,6 +174,8 @@ const dateShortcuts = [
 
 const rows = ref<SummaryReportRow[]>([]);
 const total = ref(0);
+const deductionCoverageStart = ref<null | string>(null);
+const deductionCoverageStatus = ref<'FULL' | 'NONE' | 'PARTIAL'>('NONE');
 const loading = ref(false);
 const exporting = ref(false);
 const showSearch = ref(true);
@@ -196,6 +236,8 @@ async function load() {
     if (loadGuard.isLatest(requestSequence)) {
       rows.value = result.records;
       total.value = result.total;
+      deductionCoverageStart.value = result.deductionCoverageStart;
+      deductionCoverageStatus.value = result.deductionCoverageStatus;
     }
   } finally {
     if (loadGuard.isLatest(requestSequence)) loading.value = false;
@@ -232,6 +274,23 @@ function sortChange({
 function sumField(data: SummaryReportRow[], field: keyof SummaryReportRow) {
   return data.reduce((sum, item) => sum + Number(item[field] || 0), 0);
 }
+
+function callbackRatio(value: null | string) {
+  const ratio = value === null ? 1 : Number(value);
+  return `${Math.round(ratio * 10_000) / 100}%`;
+}
+
+const coverageMessage = computed(() => {
+  if (deductionCoverageStatus.value === 'NONE') {
+    return '所选范围无新口径扣量事实；历史数据不使用当前比例反推。';
+  }
+  const start = deductionCoverageStart.value
+    ? dayjs(deductionCoverageStart.value).format('YYYY-MM-DD HH:mm:ss')
+    : '-';
+  return deductionCoverageStatus.value === 'PARTIAL'
+    ? `扣量数据部分覆盖，真实统计从 ${start} 开始；此前数据未估算。`
+    : `扣量数据已覆盖所选范围，统计起始时间：${start}。`;
+});
 
 function tableSummary({
   columns: renderedColumns,
@@ -390,6 +449,13 @@ onMounted(async () => {
           @search="showSearch = !showSearch"
         />
       </div>
+      <el-alert
+        class="mb-3"
+        :closable="false"
+        :title="coverageMessage"
+        :type="deductionCoverageStatus === 'FULL' ? 'success' : 'warning'"
+        show-icon
+      />
       <el-table
         v-loading="loading"
         class="ocpx-table"
@@ -413,8 +479,12 @@ onMounted(async () => {
           :sortable="sortableFields.has(column.field) ? 'custom' : false"
         >
           <template #default="{ row }"
-            ><span v-if="column.field === 'clickRate'"
-              >{{ row.clickRate }}%</span
+            ><span v-if="column.field === 'clickRate'">{{
+              row.clickRate === null ? '-' : `${row.clickRate}%`
+            }}</span
+            ><span v-else-if="column.field === 'linkRadio'">{{
+              callbackRatio(row.linkRadio)
+            }}</span
             ><span v-else>{{ row[column.field] ?? '-' }}</span></template
           >
         </el-table-column>

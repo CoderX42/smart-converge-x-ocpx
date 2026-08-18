@@ -18,6 +18,7 @@
 | `management-v110.md` | 人工余额扣减与管理员资金权限契约 |
 | `management-v111.md` | 创意、素材、多链接绑定、点击/转化计费和全量账务流水契约 |
 | `management-v112.md` | 管理员监测任务 CLK 测试链接、真实发送和联调详情契约 |
+| `management-v113.md` | 广告主计费与媒体回传比例解耦、扣量事实和报表覆盖契约 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

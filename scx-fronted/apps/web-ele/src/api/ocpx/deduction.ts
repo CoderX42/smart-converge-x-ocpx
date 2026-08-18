@@ -2,6 +2,11 @@ import type { PageResult } from '../business';
 
 import { requestClient } from '#/api/request';
 
+export {
+  deductionPercentageToRatio,
+  deductionRatioToPercentage,
+} from './deduction-ratio';
+
 export type DeductionRule = {
   createTime: string;
   id: string;

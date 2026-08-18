@@ -40,6 +40,8 @@ assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,mac
 assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,unit_price,conversion_event,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_billing_config_audit 'id,monitor_task_id,advertiser_id,action_type,before_config,after_config,operator_user_id,occurred_at'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
+assert_exact_columns scx_ocpx_event_fact 'id,fact_key,flow_type,event_code,request_id,advertiser_id,promotion_link_id,media_id,monitor_task_id,target_conversion,billing_enabled_snapshot,billing_type_snapshot,billing_unit_price_snapshot,conversion_event_snapshot,deduction_decision,deduction_ratio_snapshot,deduction_decided_at,spend_amount,currency_amount,billing_status,billing_reason_code,received_at'
+assert_exact_columns scx_ocpx_hourly_metric 'id,time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,impression_count,click_count,target_conversion_count,callback_count,deduction_passed_count,deduction_deducted_count,activate_count,evoke_count,login_count,register_count,payment_count,customer_acquisition_count,next_stay_count,visits_count,authentication_count,place_order_count,finish_the_order_count,first_activation_count,first_order_count,spend_amount,currency_amount,rejected_click_count,rejected_conversion_count,update_time'
 
 advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
@@ -75,6 +77,28 @@ invalid_billing_config="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task
  OR unit_price<0 OR (billing_enabled=1 AND unit_price<=0)")"
 [[ "$invalid_billing_config" -eq 0 ]] || fail "monitor billing configuration is invalid"
 
+deduction_ratio_contract="$(scalar "SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_deduction_rule'
+ AND column_name='ratio' AND data_type='decimal' AND numeric_precision=9 AND numeric_scale=6")"
+[[ "$deduction_ratio_contract" -eq 1 ]] || fail "media callback ratio must be DECIMAL(9,6)"
+
+invalid_deduction_ratios="$(scalar "SELECT COUNT(*) FROM scx_ocpx_deduction_rule WHERE ratio<0 OR ratio>1")"
+[[ "$invalid_deduction_ratios" -eq 0 ]] || fail "media callback ratio must be between 0 and 1"
+
+invalid_deduction_facts="$(scalar "SELECT COUNT(*) FROM scx_ocpx_event_fact
+ WHERE deduction_decision NOT IN ('PENDING','PASSED','DEDUCTED')
+ OR deduction_ratio_snapshot<0 OR deduction_ratio_snapshot>1
+ OR (deduction_decision IS NULL AND (deduction_ratio_snapshot IS NOT NULL OR deduction_decided_at IS NOT NULL))
+ OR (deduction_decision='PENDING' AND (deduction_ratio_snapshot IS NOT NULL OR deduction_decided_at IS NOT NULL))
+ OR (deduction_decision IN ('PASSED','DEDUCTED')
+     AND (deduction_ratio_snapshot IS NULL OR deduction_decided_at IS NULL))")"
+[[ "$invalid_deduction_facts" -eq 0 ]] || fail "media deduction facts contain an invalid decision or ratio"
+
+invalid_deduction_aggregates="$(scalar "SELECT COUNT(*) FROM scx_ocpx_hourly_metric
+ WHERE callback_count<0 OR deduction_passed_count<0 OR deduction_deducted_count<0
+ OR deduction_passed_count+deduction_deducted_count>callback_count")"
+[[ "$invalid_deduction_aggregates" -eq 0 ]] || fail "media deduction hourly counts violate the fact invariant"
+
 invalid_creatives="$(scalar "SELECT COUNT(*) FROM scx_ocpx_creative
  WHERE creative_type<>1 OR status NOT IN (0,1) OR file_size<=0 OR width<=0 OR height<=0
  OR width>8192 OR height>8192 OR CAST(width AS UNSIGNED)*CAST(height AS UNSIGNED)>40000000
@@ -101,6 +125,11 @@ truth_unique_indexes="$(scalar "SELECT COUNT(DISTINCT CONCAT(table_name,':',inde
   OR (table_name='scx_ocpx_billing_entry' AND index_name='uk_ocpx_billing_business_key')
   OR (table_name='scx_ocpx_hourly_metric' AND index_name='uk_ocpx_hourly_metric_scope'))")"
 [[ "$truth_unique_indexes" -eq 4 ]] || fail "truthful fact, billing or hourly idempotency index is missing"
+
+deduction_fact_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_event_fact'
+ AND index_name='idx_ocpx_event_fact_deduction_time'")"
+[[ "$deduction_fact_index" -eq 5 ]] || fail "media deduction coverage index is missing"
 
 invalid_platforms="$(scalar "SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE platform NOT IN (1,2,3,4)")"
 [[ "$invalid_platforms" -eq 0 ]] || fail "promotion-link platform must be one of 1 Android, 2 iOS, 3 Android+iOS, 4 quick app"

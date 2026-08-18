@@ -15,7 +15,7 @@ import java.util.Arrays;
  * Callback 扣量状态的 Redis 访问封装。
  *
  * <p>
- * 状态以“推广链接 ID + 媒体 ID”为维度保存：目标比例是标量，原始量和实际回传量是固定 19 位数组。历史 11 位数组读取时补零；数组的读取、修改和写回不是原子操作。
+ * V113 判定服务只从此处兼容读取旧扣量键；正常 Callback 路径不再向旧数组键写入。历史 11 位数组读取时补零。
  */
 @Slf4j
 @Service
@@ -39,7 +39,18 @@ public class RedisHelper {
 		double ratio = 1.0F;
 		String value = redis.opsForValue().get(routeKey(RedisConstants.ROUTE_RATIO_PREFIX, lId, mId));
 		if (StringUtils.hasText(value)) {
-			ratio = Double.parseDouble(value);
+			try {
+				ratio = Double.parseDouble(value);
+			}
+			catch (NumberFormatException exception) {
+				log.warn("invalid legacy media callback ratio failed open linkId:{} mediaId:{}", lId, mId);
+				return 1.0F;
+			}
+		}
+		if (!Double.isFinite(ratio) || ratio < 0 || ratio > 1) {
+			log.warn("out-of-range legacy media callback ratio failed open linkId:{} mediaId:{} ratio:{}", lId, mId,
+					ratio);
+			return 1.0F;
 		}
 		return ratio;
 	}
