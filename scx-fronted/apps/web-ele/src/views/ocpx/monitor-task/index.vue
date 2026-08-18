@@ -5,6 +5,8 @@ import type {
   ConversionEvent,
   EntityOption,
   MonitorTask,
+  MonitorTaskIntegrationCallbackResult,
+  MonitorTaskIntegrationFeedback,
   MonitorTaskTestExecution,
   MonitorTaskTestOs,
   MonitorTaskTestPreview,
@@ -25,6 +27,7 @@ import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import CryptoJS from 'crypto-js';
+import dayjs from 'dayjs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 import {
@@ -32,12 +35,14 @@ import {
   deleteMonitorTask,
   executeMonitorTaskTestLink,
   generateMonitorTaskTestLink,
+  getMonitorTaskIntegrationFeedback,
   getMonitorTaskTestResult,
   listMonitorTasks,
   mediaOptions,
   monitorTaskOptions,
   promotionLinkAdvertisers,
   promotionLinkOptions,
+  sendMonitorTaskIntegrationCallback,
   updateMonitorTask,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
@@ -93,6 +98,30 @@ const testOs = ref<MonitorTaskTestOs>('ANDROID');
 const testPreview = ref<MonitorTaskTestPreview>();
 const testExecution = ref<MonitorTaskTestExecution>();
 const testResult = ref<MonitorTaskTestResult>();
+const integrationDialogOpen = ref(false);
+const integrationLoading = ref(false);
+const integrationSending = ref(false);
+const integrationTarget = ref<MonitorTask>();
+const integrationRows = ref<MonitorTaskIntegrationFeedback[]>([]);
+const integrationTotal = ref(0);
+const integrationDetailOpen = ref(false);
+const integrationDetail = ref<MonitorTaskIntegrationFeedback>();
+const integrationCallbackOpen = ref(false);
+const integrationCallbackSource = ref<MonitorTaskIntegrationFeedback>();
+const integrationCallbackResult = ref<MonitorTaskIntegrationCallbackResult>();
+const integrationQuery = reactive({
+  current: 1,
+  dates: [dayjs().format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')] as [
+    string,
+    string,
+  ],
+  requestId: '',
+  size: 20,
+});
+const integrationCallbackForm = reactive({
+  currencyAmount: '' as number | string,
+  eventCode: 'ACTIVATE' as ConversionEvent,
+});
 let testPollTimer: ReturnType<typeof setTimeout> | undefined;
 let testPollCount = 0;
 const total = ref(0);
@@ -188,6 +217,9 @@ const canManageBilling = computed(() =>
   hasAccessByCodes(['ocpx:monitor-task:billing']),
 );
 const canTest = computed(() => hasAccessByCodes(['ocpx:monitor-task:test']));
+const canIntegrate = computed(() =>
+  hasAccessByCodes(['ocpx:monitor-task:integration']),
+);
 const currentTestUrl = computed(() => {
   const preview = testPreview.value;
   if (!preview) return '';
@@ -522,6 +554,120 @@ async function openTestFlowLog() {
   await router.push({ path: '/ocpx/flow-log', query: { eventId: requestId } });
 }
 
+async function loadIntegration() {
+  if (!integrationTarget.value) return;
+  integrationLoading.value = true;
+  try {
+    const result = await getMonitorTaskIntegrationFeedback(
+      integrationTarget.value.id,
+      {
+        current: integrationQuery.current,
+        endDate: integrationQuery.dates[1],
+        requestId: integrationQuery.requestId.trim() || undefined,
+        size: integrationQuery.size,
+        startDate: integrationQuery.dates[0],
+      },
+    );
+    integrationRows.value = result.records;
+    integrationTotal.value = result.total;
+  } finally {
+    integrationLoading.value = false;
+  }
+}
+
+async function openIntegration(row: MonitorTask) {
+  integrationTarget.value = row;
+  integrationQuery.current = 1;
+  integrationQuery.requestId = '';
+  integrationQuery.dates = [
+    dayjs().format('YYYY-MM-DD'),
+    dayjs().format('YYYY-MM-DD'),
+  ];
+  integrationRows.value = [];
+  integrationTotal.value = 0;
+  integrationDialogOpen.value = true;
+  await loadIntegration();
+}
+
+function searchIntegration() {
+  integrationQuery.current = 1;
+  void loadIntegration();
+}
+
+function showIntegrationDetail(row: MonitorTaskIntegrationFeedback) {
+  integrationDetail.value = row;
+  integrationDetailOpen.value = true;
+}
+
+function openIntegrationCallback(row: MonitorTaskIntegrationFeedback) {
+  integrationCallbackSource.value = row;
+  integrationCallbackForm.eventCode =
+    integrationTarget.value?.conversionEvent || 'ACTIVATE';
+  integrationCallbackForm.currencyAmount = '';
+  integrationCallbackResult.value = undefined;
+  integrationCallbackOpen.value = true;
+}
+
+async function sendIntegrationCallback() {
+  if (!(integrationTarget.value && integrationCallbackSource.value)) return;
+  const amount = integrationCallbackForm.currencyAmount;
+  if (
+    amount !== '' &&
+    (!/^\d+(?:\.\d{1,6})?$/.test(String(amount)) || Number(amount) < 0)
+  ) {
+    ElMessage.warning('金额必须是非负数字，最多 6 位小数');
+    return;
+  }
+  await ElMessageBox.confirm(
+    '该操作会向下游媒体 callback_url 发送一次真实 Callback。不会生成广告主转化、不会扣费，也不会进入正式扣量报表。确认发送？',
+    '确认发送媒体 Callback',
+    {
+      confirmButtonText: '确认真实发送',
+      type: 'warning',
+    },
+  );
+  integrationSending.value = true;
+  try {
+    integrationCallbackResult.value = await sendMonitorTaskIntegrationCallback(
+      integrationTarget.value.id,
+      {
+        ...(amount === '' ? {} : { currencyAmount: Number(amount) }),
+        eventCode: integrationCallbackForm.eventCode,
+        feedbackLogId: integrationCallbackSource.value.feedbackLogId,
+      },
+    );
+    ElMessage.success(
+      integrationCallbackResult.value.resultStatus === 'SUCCESS'
+        ? '媒体接口已响应'
+        : 'Callback 已执行，请查看失败详情',
+    );
+  } finally {
+    integrationSending.value = false;
+  }
+}
+
+async function openIntegrationFlowLog() {
+  const attemptId = integrationCallbackResult.value?.attemptId;
+  if (!attemptId) return;
+  integrationCallbackOpen.value = false;
+  integrationDialogOpen.value = false;
+  await router.push({ path: '/ocpx/flow-log', query: { eventId: attemptId } });
+}
+
+function closeIntegrationDialog() {
+  integrationTarget.value = undefined;
+  integrationRows.value = [];
+  integrationDetail.value = undefined;
+  integrationCallbackSource.value = undefined;
+  integrationCallbackResult.value = undefined;
+}
+
+function maskIntegrationValue(value?: string) {
+  if (!value) return '-';
+  if (value.length <= 8) return value;
+  return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
 onMounted(async () => {
   const [media, advertisers, monitors] = await Promise.all([
     mediaOptions(),
@@ -705,10 +851,10 @@ onBeforeUnmount(clearTestPolling);
           prop="updateTime"
         />
         <el-table-column
-          v-if="canOperate || canTest"
+          v-if="canOperate || canTest || canIntegrate"
           fixed="right"
           label="操作"
-          width="210"
+          width="250"
           ><template #default="{ row }"
             ><el-button
               v-if="canTest"
@@ -718,6 +864,14 @@ onBeforeUnmount(clearTestPolling);
               type="success"
               @click="openTest(row)"
               >测试链接</el-button
+            ><el-button
+              v-if="canIntegrate"
+              v-access:code="'ocpx:monitor-task:integration'"
+              :disabled="saving || Boolean(deletingId)"
+              link
+              type="warning"
+              @click="openIntegration(row)"
+              >联调</el-button
             ><el-button
               v-access:code="'ocpx:monitor-task:edit'"
               :disabled="saving || Boolean(deletingId)"
@@ -1021,6 +1175,339 @@ onBeforeUnmount(clearTestPolling);
     </el-dialog>
 
     <el-dialog
+      v-model="integrationDialogOpen"
+      :close-on-click-modal="false"
+      title="下游媒体联调"
+      width="1080px"
+      @close="closeIntegrationDialog"
+    >
+      <div class="ocpx-integration-dialog">
+        <el-alert
+          :closable="false"
+          show-icon
+          title="这里展示 Engine 异步落库的下游 Feedback 规范化快照，不是网络层原始报文；通常约 1 分钟可见，重复请求不会新增明细。"
+          type="info"
+        />
+
+        <el-descriptions
+          v-if="integrationTarget"
+          :column="4"
+          border
+          class="ocpx-test-section"
+          size="small"
+        >
+          <el-descriptions-item label="监测任务">
+            {{ integrationTarget.monitorName }}
+          </el-descriptions-item>
+          <el-descriptions-item label="广告主">
+            {{ integrationTarget.advertiserName }}
+          </el-descriptions-item>
+          <el-descriptions-item label="媒体">
+            {{ integrationTarget.mediaName }}
+          </el-descriptions-item>
+          <el-descriptions-item label="推广链接">
+            {{ integrationTarget.promotionLinkName }}
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <div class="ocpx-integration-query">
+          <el-date-picker
+            v-model="integrationQuery.dates"
+            :clearable="false"
+            end-placeholder="结束日期"
+            range-separator="至"
+            start-placeholder="开始日期"
+            type="daterange"
+            unlink-panels
+            value-format="YYYY-MM-DD"
+          />
+          <el-input
+            v-model="integrationQuery.requestId"
+            clearable
+            placeholder="精确查询 request_id"
+            @keyup.enter="searchIntegration"
+          />
+          <el-button
+            :disabled="integrationLoading"
+            type="primary"
+            @click="searchIntegration"
+            >查询</el-button
+          >
+          <el-button :loading="integrationLoading" @click="loadIntegration"
+            >刷新</el-button
+          >
+        </div>
+
+        <el-table
+          v-loading="integrationLoading"
+          :data="integrationRows"
+          border
+          class="ocpx-test-section"
+          max-height="430"
+          size="small"
+        >
+          <el-table-column label="接收时间" min-width="165" prop="receivedAt" />
+          <el-table-column label="request_id" min-width="190">
+            <template #default="{ row }">
+              <LongText :value="row.requestId" />
+            </template>
+          </el-table-column>
+          <el-table-column label="clickid" min-width="150">
+            <template #default="{ row }">
+              {{ maskIntegrationValue(row.clickId) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="系统 / 标识" min-width="145">
+            <template #default="{ row }">
+              <div>{{ row.deviceOs || '-' }}</div>
+              <div class="ocpx-test-muted">
+                {{ row.userType || 'UNKNOWN' }} ·
+                {{ maskIntegrationValue(row.userId) }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="Callback" width="110">
+            <template #default="{ row }">
+              <el-tag
+                :type="row.callbackAvailable ? 'success' : 'info'"
+                size="small"
+              >
+                {{ row.callbackAvailable ? '可回传' : '未携带' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column fixed="right" label="操作" width="145">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="showIntegrationDetail(row)"
+                >详情</el-button
+              >
+              <el-button
+                :disabled="!row.callbackAvailable"
+                link
+                type="danger"
+                @click="openIntegrationCallback(row)"
+                >发 Callback</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty
+          v-if="!integrationLoading && integrationRows.length === 0"
+          description="当前条件下暂无已落库的下游请求"
+        />
+        <el-pagination
+          v-model:current-page="integrationQuery.current"
+          v-model:page-size="integrationQuery.size"
+          class="ocpx-pagination"
+          layout="total, sizes, prev, pager, next"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="integrationTotal"
+          @change="loadIntegration"
+        />
+      </div>
+    </el-dialog>
+
+    <el-dialog
+      v-model="integrationDetailOpen"
+      append-to-body
+      title="下游请求明细（落库快照）"
+      width="820px"
+    >
+      <el-alert
+        :closable="false"
+        class="mb-3"
+        title="字段来自 Feedback 解析后的异步存储，不保证保留原始 URL 的参数顺序、编码形式或重复参数。"
+        type="warning"
+      />
+      <el-descriptions v-if="integrationDetail" :column="2" border size="small">
+        <el-descriptions-item label="接收时间">
+          {{ integrationDetail.receivedAt }}
+        </el-descriptions-item>
+        <el-descriptions-item label="明细 ID">
+          {{ integrationDetail.feedbackLogId }}
+        </el-descriptions-item>
+        <el-descriptions-item label="request_id">
+          <LongText :value="integrationDetail.requestId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="clickid">
+          <LongText :value="integrationDetail.clickId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="OS / 标识类型">
+          {{ integrationDetail.deviceOs || '-' }} /
+          {{ integrationDetail.userType || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="主标识">
+          <LongText :value="integrationDetail.userId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="IMEI">
+          <LongText :value="integrationDetail.imei" />
+        </el-descriptions-item>
+        <el-descriptions-item label="OAID">
+          <LongText :value="integrationDetail.oaid" />
+        </el-descriptions-item>
+        <el-descriptions-item label="Android ID">
+          <LongText :value="integrationDetail.androidId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="IDFA">
+          <LongText :value="integrationDetail.idfa" />
+        </el-descriptions-item>
+        <el-descriptions-item label="CAID / CAID1">
+          <LongText
+            :value="`${integrationDetail.caid || '-'} / ${integrationDetail.caid1 || '-'}`"
+          />
+        </el-descriptions-item>
+        <el-descriptions-item label="MAC">
+          <LongText :value="integrationDetail.mac" />
+        </el-descriptions-item>
+        <el-descriptions-item label="IP">
+          <LongText :value="integrationDetail.ip" />
+        </el-descriptions-item>
+        <el-descriptions-item label="时间戳">
+          {{ integrationDetail.timestamp || '-' }} /
+          {{ integrationDetail.timestampMs || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="User-Agent" :span="2">
+          <LongText :value="integrationDetail.ua" />
+        </el-descriptions-item>
+        <el-descriptions-item label="callback_url" :span="2">
+          <LongText :value="integrationDetail.callbackUrl" />
+        </el-descriptions-item>
+        <el-descriptions-item label="外部广告维度" :span="2">
+          adv={{ integrationDetail.externalAdvertiserId || '-' }}；plan={{
+            integrationDetail.planId || '-'
+          }}；group={{ integrationDetail.groupId || '-' }}；creative={{
+            integrationDetail.creativeId || '-'
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="SCX 路由关系" :span="2">
+          mId={{ integrationDetail.mediaId || '-' }}；tId={{
+            integrationDetail.monitorTaskId || '-'
+          }}；aId={{ integrationDetail.advertiserId || '-' }}；lId={{
+            integrationDetail.promotionLinkId || '-'
+          }}
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+
+    <el-dialog
+      v-model="integrationCallbackOpen"
+      append-to-body
+      :close-on-click-modal="false"
+      title="发送媒体 Callback"
+      width="700px"
+    >
+      <el-alert
+        :closable="false"
+        show-icon
+        title="这是一次真实外部请求，但不会生成广告主转化事实、不会扣费，也不会进入正式扣量和报表。"
+        type="error"
+      />
+      <el-descriptions
+        v-if="integrationCallbackSource"
+        :column="2"
+        border
+        class="ocpx-test-section"
+        size="small"
+      >
+        <el-descriptions-item label="request_id">
+          <LongText :value="integrationCallbackSource.requestId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="clickid">
+          <LongText :value="integrationCallbackSource.clickId" />
+        </el-descriptions-item>
+        <el-descriptions-item label="目标地址" :span="2">
+          <LongText :value="integrationCallbackSource.callbackUrl" />
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-form class="ocpx-test-section" label-width="100px">
+        <el-form-item label="转化事件">
+          <el-select v-model="integrationCallbackForm.eventCode">
+            <el-option
+              v-for="item in conversionEvents"
+              :key="item.value"
+              :label="`${item.label}（${item.value}）`"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="转化金额">
+          <el-input
+            v-model="integrationCallbackForm.currencyAmount"
+            clearable
+            placeholder="可选，最多 6 位小数"
+          />
+        </el-form-item>
+      </el-form>
+
+      <el-card
+        v-if="integrationCallbackResult"
+        class="ocpx-test-section"
+        shadow="never"
+      >
+        <template #header>
+          <div class="ocpx-test-result-header">
+            <span>发送结果</span>
+            <el-button link type="primary" @click="openIntegrationFlowLog"
+              >查看流程日志</el-button
+            >
+          </div>
+        </template>
+        <el-descriptions :column="3" border size="small">
+          <el-descriptions-item label="结果">
+            <el-tag
+              :type="
+                integrationCallbackResult.resultStatus === 'SUCCESS'
+                  ? 'success'
+                  : 'danger'
+              "
+            >
+              {{ integrationCallbackResult.resultStatus }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="HTTP">
+            {{ integrationCallbackResult.partnerHttpStatus ?? '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="耗时">
+            {{ integrationCallbackResult.durationMs }} ms
+          </el-descriptions-item>
+          <el-descriptions-item label="联调 ID" :span="3">
+            <LongText :value="integrationCallbackResult.attemptId" />
+          </el-descriptions-item>
+          <el-descriptions-item label="稳定结论码" :span="3">
+            {{ integrationCallbackResult.message }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-alert
+          :closable="false"
+          class="ocpx-test-alert"
+          title="HTTP 成功只表示媒体接口已响应，不代表媒体已经完成业务入库。"
+          type="warning"
+        />
+        <el-input
+          v-if="integrationCallbackResult.responsePreview"
+          :model-value="integrationCallbackResult.responsePreview"
+          :rows="3"
+          class="ocpx-test-alert"
+          readonly
+          type="textarea"
+        />
+      </el-card>
+      <template #footer>
+        <el-button
+          :disabled="integrationSending"
+          @click="integrationCallbackOpen = false"
+          >关闭</el-button
+        >
+        <el-button
+          :loading="integrationSending"
+          type="danger"
+          @click="sendIntegrationCallback"
+          >确认发送真实 Callback</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
       v-model="dialogOpen"
       :close-on-click-modal="false"
       :title="editing ? '编辑监测任务' : '新增监测任务'"
@@ -1207,5 +1694,22 @@ onBeforeUnmount(clearTestPolling);
 
 .ocpx-test-timeline {
   margin-top: 18px;
+}
+
+.ocpx-integration-dialog {
+  min-height: 260px;
+}
+
+.ocpx-integration-query {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.2fr) minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (width <= 900px) {
+  .ocpx-integration-query {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

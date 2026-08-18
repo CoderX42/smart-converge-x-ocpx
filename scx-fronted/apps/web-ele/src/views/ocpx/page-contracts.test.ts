@@ -90,6 +90,17 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).not.toContain('callback_url=');
   });
 
+  it('protects downstream media integration and states its evidence boundary', () => {
+    const source = page('monitor-task');
+    expect(source).toContain("'ocpx:monitor-task:integration'");
+    expect(source).toContain('>联调</el-button');
+    expect(source).toContain('下游请求明细（落库快照）');
+    expect(source).toContain('不是网络层原始报文');
+    expect(source).toContain('确认发送真实 Callback');
+    expect(source).toContain('不会生成广告主转化');
+    expect(source).toContain('不代表媒体已经完成业务入库');
+  });
+
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
     const advertiser = page('advertiser');
     expect(advertiser).toContain('请输入登录用户名');

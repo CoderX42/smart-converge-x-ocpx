@@ -639,6 +639,7 @@ VALUES
   ('perm_ocpx_monitor_task_delete','删除监测任务','','menu_ocpx_monitor_task','ocpx:monitor-task:delete',30,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_billing','配置监测任务计费','','menu_ocpx_monitor_task','ocpx:monitor-task:billing',40,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_test','执行监测任务点击测试','','menu_ocpx_monitor_task','ocpx:monitor-task:test',50,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_monitor_task_integration','下游媒体联调','','menu_ocpx_monitor_task','ocpx:monitor-task:integration',60,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_report_export','导出报表','','menu_ocpx_report','ocpx:report:export',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_list','查询扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:list',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_create','新增扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:create',20,'1','app_base',NOW(),NOW(),'0'),

@@ -6,6 +6,7 @@ export * from './ocpx/creative';
 export * from './ocpx/deduction';
 export * from './ocpx/four-entity';
 export * from './ocpx/monitor-task-test';
+export * from './ocpx/monitor-task-integration';
 export * from './ocpx/report';
 
 export type ReportOption = {

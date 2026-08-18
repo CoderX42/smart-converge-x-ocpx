@@ -444,6 +444,49 @@ paths:
         '200': { description: 当前测试详情, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskTestResultEnvelope' } } } }
         '403': { description: 非真实系统管理员或缺少测试权限 }
         '404': { description: 监测任务不存在 }
+  /monitor-tasks/{id}/integration/feedback-requests:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listMonitorTaskIntegrationFeedback
+      summary: 查询下游 Feedback 规范化落库快照
+      description: 仅拥有 ocpx:monitor-task:integration 的真实 ROLE_ADMIN 可用；数据异步写入且不是网络层原始报文。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: requestId, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: 下游请求明细分页, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskIntegrationFeedbackPageEnvelope' } } } }
+        '400': { description: 日期范围或 requestId 无效 }
+        '403': { description: 非真实系统管理员或缺少联调权限 }
+        '404': { description: 监测任务不存在 }
+  /monitor-tasks/{id}/integration/callbacks:send:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    post:
+      operationId: sendMonitorTaskIntegrationCallback
+      summary: 使用选中 Feedback 的 callback_url 发送真实媒体 Callback
+      description: 不接受任意目标 URL；不生成广告主转化事实、不扣费、不执行正式媒体扣量。HTTP 2xx 不代表媒体业务入库。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackRequest' } } }
+      responses:
+        '200': { description: Callback HTTP 或稳定传输错误结果, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackEnvelope' } } } }
+        '400': { description: 请求未携带 callback_url 或事件无效 }
+        '403': { description: 非真实系统管理员或缺少联调权限 }
+        '404': { description: 监测任务或请求明细不存在 }
+        '409': { description: 请求明细与监测任务关系不一致 }
   /billing-entries:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1032,6 +1075,82 @@ components:
       properties:
         code: { type: integer, const: 0 }
         data: { $ref: '#/components/schemas/MonitorTaskTestResult' }
+    MonitorTaskIntegrationFeedback:
+      type: object
+      required: [feedbackLogId, receivedAt, callbackAvailable]
+      properties:
+        feedbackLogId: { type: integer, format: int64, minimum: 1 }
+        receivedAt: { type: string, format: date-time }
+        requestId: { type: [string, 'null'], maxLength: 128 }
+        clickId: { type: [string, 'null'], maxLength: 128 }
+        userId: { type: [string, 'null'], maxLength: 128 }
+        userType: { type: [string, 'null'], maxLength: 64 }
+        deviceOs: { type: [string, 'null'], maxLength: 32 }
+        imei: { type: [string, 'null'], maxLength: 128 }
+        oaid: { type: [string, 'null'], maxLength: 128 }
+        androidId: { type: [string, 'null'], maxLength: 128 }
+        mac: { type: [string, 'null'], maxLength: 128 }
+        idfa: { type: [string, 'null'], maxLength: 128 }
+        caid: { type: [string, 'null'], maxLength: 128 }
+        caid1: { type: [string, 'null'], maxLength: 128 }
+        ip: { type: [string, 'null'], maxLength: 64 }
+        ua: { type: [string, 'null'], maxLength: 2000 }
+        callbackUrl: { type: [string, 'null'], maxLength: 5000 }
+        timestamp: { type: [string, 'null'], maxLength: 32 }
+        timestampMs: { type: [string, 'null'], maxLength: 32 }
+        externalAdvertiserId: { type: [string, 'null'], maxLength: 128 }
+        groupId: { type: [string, 'null'], maxLength: 128 }
+        planId: { type: [string, 'null'], maxLength: 128 }
+        creativeId: { type: [string, 'null'], maxLength: 128 }
+        mediaId: { type: [string, 'null'], maxLength: 32 }
+        advertiserId: { type: [string, 'null'], maxLength: 32 }
+        monitorTaskId: { type: [string, 'null'], maxLength: 32 }
+        promotionLinkId: { type: [string, 'null'], maxLength: 32 }
+        callbackAvailable: { type: boolean }
+    MonitorTaskIntegrationFeedbackPageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data:
+          type: object
+          required: [records, total, size, current]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/MonitorTaskIntegrationFeedback' } }
+            total: { type: integer, format: int64, minimum: 0 }
+            size: { type: integer, format: int64, minimum: 1 }
+            current: { type: integer, format: int64, minimum: 1 }
+    MonitorTaskIntegrationCallbackRequest:
+      type: object
+      additionalProperties: false
+      required: [feedbackLogId, eventCode]
+      properties:
+        feedbackLogId: { type: integer, format: int64, minimum: 1 }
+        eventCode:
+          type: string
+          enum: [ACTIVATE, EVOKE, LOGIN, REGISTER, PAYMENT, CUSTOMER_ACQUISITION, NEXT_STAY, VISITS, AUTHENTICATION, ORDER, FINISH_THE_ORDER, FIRST_ACTIVATION, FIRST_ORDER]
+        currencyAmount: { type: number, minimum: 0, maximum: 99999999999999999999.999999, multipleOf: 0.000001 }
+    MonitorTaskIntegrationCallbackResult:
+      type: object
+      required: [attemptId, eventCode, eventType, resultStatus, message, durationMs, sentAt]
+      properties:
+        attemptId: { type: string, pattern: '^SCX-CB-UAT-[0-9]{14}-[0-9a-f]{12}$' }
+        sourceRequestId: { type: [string, 'null'], maxLength: 128 }
+        eventCode: { type: string }
+        eventType: { type: integer, minimum: 1, maximum: 19 }
+        currencyAmount: { type: [number, 'null'], minimum: 0 }
+        resultStatus: { type: string, enum: [SUCCESS, FAILED] }
+        partnerHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        message: { type: string, maxLength: 500 }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+        responsePreview: { type: [string, 'null'], maxLength: 4099 }
+        sentAt: { type: string, format: date-time }
+    MonitorTaskIntegrationCallbackEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackResult' }
     BillingEntry:
       type: object
       required: [id, advertiserId, advertiserName, entryType, status, amount, balanceBefore, balanceAfter, businessKey, occurredAt]

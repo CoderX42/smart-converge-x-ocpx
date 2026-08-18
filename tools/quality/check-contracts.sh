@@ -26,6 +26,7 @@ required = [
     "management-v111.md",
     "management-v112.md",
     "management-v113.md",
+    "management-v114.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -59,7 +60,11 @@ v113_paths = {
     "/deduction-rules", "/deduction-rules/{id}",
     "/reports/summary", "/reports/summary:export",
 }
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths
+v114_paths = {
+    "/monitor-tasks/{id}/integration/feedback-requests",
+    "/monitor-tasks/{id}/integration/callbacks:send",
+}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -92,6 +97,8 @@ assert set(paths["/billing-entries"]) >= {"get"}
 assert set(paths["/monitor-tasks/{id}/test-links:generate"]) == {"post", "servers"}
 assert set(paths["/monitor-tasks/{id}/test-links:execute"]) == {"post", "servers"}
 assert set(paths["/monitor-tasks/{id}/test-results/{requestId}"]) == {"get", "servers"}
+assert set(paths["/monitor-tasks/{id}/integration/feedback-requests"]) == {"get", "servers"}
+assert set(paths["/monitor-tasks/{id}/integration/callbacks:send"]) == {"post", "servers"}
 assert {"get", "post"} <= set(paths["/deduction-rules"])
 assert {"get", "put", "delete"} <= set(paths["/deduction-rules/{id}"])
 assert set(paths["/reports/summary"]) == {"get", "servers"}
@@ -102,11 +109,16 @@ assert paths["/monitor-tasks/{id}"]["put"]["requestBody"]["content"]["applicatio
 test_generate = paths["/monitor-tasks/{id}/test-links:generate"]["post"]
 test_execute = paths["/monitor-tasks/{id}/test-links:execute"]["post"]
 test_result = paths["/monitor-tasks/{id}/test-results/{requestId}"]["get"]
+integration_feedback = paths["/monitor-tasks/{id}/integration/feedback-requests"]["get"]
+integration_callback = paths["/monitor-tasks/{id}/integration/callbacks:send"]["post"]
 assert test_generate["security"] == [{"saToken": []}]
 assert test_execute["security"] == [{"saToken": []}]
 assert test_result["security"] == [{"saToken": []}]
+assert integration_feedback["security"] == [{"saToken": []}]
+assert integration_callback["security"] == [{"saToken": []}]
 assert test_generate["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestGenerateRequest")
 assert test_execute["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestExecuteRequest")
+assert integration_callback["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskIntegrationCallbackRequest")
 billing_entry_types = next(item for item in paths["/billing-entries"]["get"]["parameters"] if item["name"] == "entryType")["schema"]["enum"]
 assert set(billing_entry_types) == {"RECHARGE", "MANUAL_DEBIT", "CLICK_CHARGE", "CONVERSION_CHARGE"}
 schemas = openapi.get("components", {}).get("schemas", {})
@@ -119,7 +131,9 @@ assert {
     "MonitorTaskTestExecuteRequest", "MonitorTaskTestPreview", "MonitorTaskTestExecution",
     "MonitorTaskTestResult", "MonitorTaskTestTimelineItem",
     "MediaCallbackRatioRuleSaveRequest", "MediaCallbackRatioRule",
-    "DeductionSummaryRow", "DeductionSummaryPage"
+    "DeductionSummaryRow", "DeductionSummaryPage",
+    "MonitorTaskIntegrationFeedback", "MonitorTaskIntegrationCallbackRequest",
+    "MonitorTaskIntegrationCallbackResult"
 } <= set(schemas)
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
@@ -131,6 +145,7 @@ assert set(schemas["DeductionSummaryPage"]["properties"]["deductionCoverageStatu
 assert "callback_url" not in schemas["MonitorTaskTestGenerateRequest"]["properties"]
 assert "callback_url" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert "targetUrl" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
+assert not ({"url", "callbackUrl", "targetUrl"} & set(schemas["MonitorTaskIntegrationCallbackRequest"]["properties"]))
 assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
 assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
     "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED"

@@ -70,7 +70,7 @@ class AdvertiserRolePermissionManagerImplTest {
 		assertThat(result.getSelectedMenuIds()).containsExactly("menu-adv", "perm-adv-edit");
 		assertThat(flatten(result.getMenuTree())).containsExactlyInAnyOrder("menu-adv", "menu-media", "perm-adv-edit")
 			.doesNotContain("perm-manage", "perm-recharge", "perm-deduct", "perm-billing", "perm-scope",
-					"menu-system", "menu-system-ocpx");
+					"perm-test", "perm-integration", "menu-system", "menu-system-ocpx");
 		assertThat(result.getMenuTree()).filteredOn(node -> "menu-media".equals(node.getId())).singleElement()
 			.extracting(AdvertiserRolePermissionManager.MenuNode::isRequiresAllDataScope)
 			.isEqualTo(true);
@@ -152,6 +152,12 @@ class AdvertiserRolePermissionManagerImplTest {
 		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-billing"), true))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("不可授予");
+		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-test"), true))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不可授予");
+		assertThatThrownBy(() -> manager.updateConfiguration(List.of("perm-integration"), true))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不可授予");
 		assertThatThrownBy(() -> manager.updateConfiguration(List.of("menu-system"), true))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("不可授予");
@@ -203,6 +209,9 @@ class AdvertiserRolePermissionManagerImplTest {
 				menu("menu-media", "0", "媒体管理", "/ocpx/media", "ocpx:media:view", 30),
 				menu("perm-billing", "menu-media", "计费", "", SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION,
 						40),
+				menu("perm-test", "menu-media", "测试", "", SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION, 50),
+				menu("perm-integration", "menu-media", "联调", "",
+						SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION, 60),
 				menu("perm-manage", "menu-adv", "角色权限", "",
 						SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION, 80),
 				menu("perm-scope", "menu-adv", "全量范围", "",

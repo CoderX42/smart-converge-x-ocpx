@@ -48,7 +48,9 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 			SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION,
 			SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION,
 			SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION,
-			SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION);
+			SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION,
+			SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION,
+			SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION);
 
 	private static final Comparator<SysMenu> MENU_ORDER = Comparator
 		.comparing((SysMenu menu) -> menu.getSort() == null ? 0 : menu.getSort())

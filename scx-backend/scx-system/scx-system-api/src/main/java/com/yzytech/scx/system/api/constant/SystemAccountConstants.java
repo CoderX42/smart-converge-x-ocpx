@@ -32,6 +32,9 @@ public final class SystemAccountConstants {
 	/** 真实监测点击测试仅允许拥有专用权限的系统管理员执行。 */
 	public static final String MONITOR_TASK_TEST_PERMISSION = "ocpx:monitor-task:test";
 
+	/** 查看下游请求并发送媒体联调 Callback，仅允许拥有专用权限的系统管理员执行。 */
+	public static final String MONITOR_TASK_INTEGRATION_PERMISSION = "ocpx:monitor-task:integration";
+
 	private SystemAccountConstants() {
 	}
 

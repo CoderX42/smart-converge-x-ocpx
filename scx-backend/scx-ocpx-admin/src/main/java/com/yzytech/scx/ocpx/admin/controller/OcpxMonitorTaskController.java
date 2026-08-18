@@ -6,16 +6,22 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
+import com.yzytech.scx.ocpx.admin.dto.MonitorTaskIntegrationRequests;
+import com.yzytech.scx.ocpx.admin.dto.MonitorTaskIntegrationViews;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskTestRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskTestViews;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskViews;
-import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
+import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskIntegrationService;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskService;
 import com.yzytech.scx.ocpx.admin.service.OcpxMonitorTaskTestService;
+import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -35,6 +42,8 @@ public class OcpxMonitorTaskController {
 	private final OcpxMonitorTaskService service;
 
 	private final OcpxMonitorTaskTestService testService;
+
+	private final OcpxMonitorTaskIntegrationService integrationService;
 
 	@GetMapping
 	@SaCheckPermission("ocpx:monitor-task:view")
@@ -97,6 +106,27 @@ public class OcpxMonitorTaskController {
 	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION)
 	public Result<MonitorTaskTestViews.Result> testResult(@PathVariable String id, @PathVariable String requestId) {
 		return Result.success(testService.result(id, requestId));
+	}
+
+	@GetMapping("/{id}/integration/feedback-requests")
+	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION)
+	public ResponseEntity<Result<MonitorTaskIntegrationViews.Page>> integrationFeedbackRequests(@PathVariable String id,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String requestId, Long current, Long size) {
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(Result.success(integrationService.feedbackRequests(id, startDate, endDate, requestId, current, size)));
+	}
+
+	@PostMapping("/{id}/integration/callbacks:send")
+	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION)
+	@SysLog("发送媒体联调 Callback")
+	public ResponseEntity<Result<MonitorTaskIntegrationViews.CallbackResult>> sendIntegrationCallback(
+			@PathVariable String id,
+			@Valid @RequestBody MonitorTaskIntegrationRequests.Callback request) {
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(Result.success(integrationService.sendCallback(id, request)));
 	}
 
 }
