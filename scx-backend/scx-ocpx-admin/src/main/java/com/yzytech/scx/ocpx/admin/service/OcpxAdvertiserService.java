@@ -89,8 +89,8 @@ public class OcpxAdvertiserService {
 		advertiserScope.requireAdministrator();
 		ensureUnique(null, request.getName());
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		apply(advertiser, request.getName(), request.getCredentialConfigKey(), request.getBidUrl(),
-				request.getMacroParams());
+		apply(advertiser, request.getName(), request.getUpstreamProtocol(), request.getCredentialConfigKey(),
+				request.getBidUrl(), request.getMacroParams());
 		if (advertiserMapper.insert(advertiser) != 1) {
 			throw new IllegalStateException("广告主创建失败");
 		}
@@ -123,8 +123,8 @@ public class OcpxAdvertiserService {
 		ensureUnique(id, request.getName());
 		OcpxAdvertiser update = new OcpxAdvertiser();
 		update.setId(id);
-		apply(update, request.getName(), request.getCredentialConfigKey(), request.getBidUrl(),
-				request.getMacroParams());
+		apply(update, request.getName(), request.getUpstreamProtocol(), request.getCredentialConfigKey(),
+				request.getBidUrl(), request.getMacroParams());
 		advertiserMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
@@ -211,10 +211,17 @@ public class OcpxAdvertiserService {
 	}
 
 	/** 对齐 SGYZ addDspInfo：请求地址按提交值落库，不做 URL 预检。 */
-	private void apply(OcpxAdvertiser target, String name, String key, String bidUrl, String macros) {
+	private void apply(OcpxAdvertiser target, String name,
+			com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol upstreamProtocol, String key, String bidUrl,
+			String macros) {
 		target.setAdvertiserName(name.trim());
+		target.setUpstreamProtocol(upstreamProtocol);
 		target.setCredentialConfigKey(trim(key));
-		target.setBidUrl(bidUrl.trim());
+		if (upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.TEMPLATE_GET
+				&& !StringUtils.hasText(bidUrl)) {
+			throw new BootBusinessException("通用模板协议必须填写请求地址");
+		}
+		target.setBidUrl(trim(bidUrl));
 		target.setMacroParams(trim(macros));
 	}
 
@@ -245,7 +252,7 @@ public class OcpxAdvertiserService {
 	}
 
 	private AdvertiserViews.Item view(OcpxAdvertiser value, String username, BigDecimal balance) {
-		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), username,
+		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), value.getUpstreamProtocol(), username,
 				value.getCredentialConfigKey(), value.getBidUrl(), value.getMacroParams(), balance,
 				value.getCreateTime(), value.getUpdateTime());
 	}

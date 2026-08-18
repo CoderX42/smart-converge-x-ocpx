@@ -1,15 +1,17 @@
 package com.yzytech.scx.ocpx.feedback.delivery.weifeng;
 
+import com.yzytech.scx.ocpx.configuration.index.OcpxProtocolAllowedHostIndex;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
+import com.yzytech.scx.ocpx.protocol.ProtocolHostContract;
+import com.yzytech.scx.ocpx.protocol.security.ProtocolAddressPolicy;
+import com.yzytech.scx.ocpx.protocol.security.ProtocolDnsResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.net.IDN;
 import java.net.InetAddress;
 import java.net.URI;
-import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /** 微风互动点击监测地址的域名白名单与 SSRF 校验。 */
 @Component
@@ -20,7 +22,9 @@ public class WeifengEndpointPolicy {
 
 	private static final String CLICK_PATH = "/click";
 
-	private final WeifengProperties properties;
+	private final OcpxProtocolAllowedHostIndex allowedHostIndex;
+
+	private final ProtocolDnsResolver dnsResolver;
 
 	public String requireAllowedClickUrl(String value) {
 		if (!StringUtils.hasText(value) || value.length() > MAX_URL_LENGTH
@@ -35,18 +39,17 @@ public class WeifengEndpointPolicy {
 					|| !CLICK_PATH.equals(uri.getPath())) {
 				throw new IllegalArgumentException("unsafe WEIFENG URL");
 			}
-			String host = normalizeHost(uri.getHost());
-			Set<String> allowedHosts = properties.getAllowedHosts()
-				.stream()
-				.map(this::normalizeHost)
-				.filter(StringUtils::hasText)
-				.collect(Collectors.toSet());
+			String host = ProtocolHostContract.normalizeConfiguredHost(uri.getHost());
+			Set<String> allowedHosts = allowedHostIndex.get(OcpxUpstreamProtocol.WEIFENG);
 			if (!StringUtils.hasText(host) || !allowedHosts.contains(host)) {
 				throw new IllegalArgumentException("WEIFENG host is not allowed");
 			}
-			for (InetAddress address : InetAddress.getAllByName(host)) {
-				if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
-						|| address.isSiteLocalAddress() || address.isMulticastAddress()) {
+			InetAddress[] addresses = dnsResolver.resolveAll(host);
+			if (addresses.length == 0) {
+				throw new IllegalArgumentException("unsafe WEIFENG URL");
+			}
+			for (InetAddress address : addresses) {
+				if (!ProtocolAddressPolicy.isPublic(address)) {
 					throw new IllegalArgumentException("unsafe WEIFENG URL");
 				}
 			}
@@ -58,17 +61,6 @@ public class WeifengEndpointPolicy {
 		catch (Exception exception) {
 			throw new IllegalArgumentException("unsafe WEIFENG URL", exception);
 		}
-	}
-
-	private String normalizeHost(String value) {
-		if (!StringUtils.hasText(value)) {
-			return null;
-		}
-		String host = value.trim().toLowerCase(Locale.ROOT);
-		if (host.endsWith(".")) {
-			host = host.substring(0, host.length() - 1);
-		}
-		return host.contains(":") ? host : IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES);
 	}
 
 }

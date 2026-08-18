@@ -9,7 +9,7 @@ SCX_REQUIRED_TABLES=(
   sys_material sys_material_group sys_menu sys_region sys_role sys_role_menu
   sys_sms_config sys_sms_send_record sys_social_account sys_storage_config
   sys_user sys_user_role
-  scx_ocpx_advertiser scx_ocpx_promotion_link scx_ocpx_creative
+  scx_ocpx_advertiser scx_ocpx_protocol_allowed_host scx_ocpx_promotion_link scx_ocpx_creative
   scx_ocpx_creative_promotion_link scx_ocpx_media scx_ocpx_monitor_task
   scx_ocpx_billing_config_audit
   scx_ocpx_deduction_rule

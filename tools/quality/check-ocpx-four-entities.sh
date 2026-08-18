@@ -34,6 +34,7 @@ if set(business) != expected_business or len(business) != 6:
     raise SystemExit(f"OCPX management gate failed: BUSINESS tables are {business!r}")
 
 expected_data = {
+    "scx_ocpx_protocol_allowed_host",
     "scx_ocpx_advertiser_account",
     "scx_ocpx_creative_promotion_link",
     "scx_ocpx_billing_config_audit",
@@ -48,7 +49,7 @@ expected_data = {
     "scx_ocpx_report_mat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 18:
+if set(actual) != expected_business | expected_data or len(actual) != 19:
     raise SystemExit(f"OCPX management gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
@@ -65,7 +66,7 @@ def table_body(table: str) -> str:
 
 v102_columns = {
     "scx_ocpx_advertiser": {
-        "required": ("advertiser_name", "account_user_id varchar(64)", "credential_config_key", "bid_url", "macro_params"),
+        "required": ("advertiser_name", "upstream_protocol varchar(32)", "account_user_id varchar(64)", "credential_config_key", "bid_url", "macro_params"),
         "retired": ("advertiser_code", "adapter_code", "credential_version", "status", "deleted", "active_marker"),
     },
     "scx_ocpx_creative": {
@@ -162,10 +163,13 @@ required = {
     "configuration/index/OcpxPromotionLinkIndex.java",
     "configuration/index/OcpxMediaIndex.java",
     "configuration/index/OcpxMonitorTaskIndex.java",
+    "configuration/index/OcpxProtocolAllowedHostIndex.java",
+    "configuration/mapper/OcpxProtocolAllowedHostConfigMapper.java",
     "configuration/task/ResetRedisKeyTask.java",
     "configuration/credential/PartnerCredentialProperties.java",
     "configuration/credential/PartnerCredentialResolver.java",
     "protocol/registry/AdvertiserProtocolRegistry.java",
+    "protocol/security/ProtocolDnsResolver.java",
     "report/service/OcpxFlowLogWriter.java",
     "shared/redis/RedisHelper.java",
 }
@@ -256,6 +260,7 @@ expected_mapped = {
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMedia.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxMonitorTask.java",
     "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxDeductionRule.java",
+    "scx-backend/scx-ocpx-core/src/main/java/com/yzytech/scx/ocpx/entity/OcpxProtocolAllowedHost.java",
 }
 if set(mapped) != expected_mapped:
     raise SystemExit(f"four-entity gate failed: shared entities are {sorted(mapped)!r}")
@@ -482,10 +487,34 @@ if "name: http://127.0.0.1:10000/ocpx" not in application_dev_yml:
 if "name: https://ocpx.zhongsenyuedong.cn/ocpx" not in application_prod_yml:
     raise SystemExit("configuration gate failed: prod callback domain is missing")
 for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
-    if "ad.adapi.cn" not in source:
-        raise SystemExit(f"configuration gate failed: WEIFENG host allowlist is missing in {path}")
+    if "protocols:" in source or "allowed-hosts:" in source:
+        raise SystemExit(f"configuration gate failed: database-managed protocol mapping or allowlist remains in {path}")
     if "media-ids:" in source:
         raise SystemExit(f"configuration gate failed: retired WEIFENG media mapping found in {path}")
+
+v115 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V115__database_driven_upstream_protocol_config.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "ADD COLUMN upstream_protocol VARCHAR(32) NULL",
+    "CREATE TABLE scx_ocpx_protocol_allowed_host",
+    "uk_ocpx_protocol_allowed_host",
+    "ocpx:protocol-config:manage",
+    "r.role_code='ROLE_ADMIN'",
+):
+    if required_fragment not in v115:
+        raise SystemExit(f"V115 migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v115:
+    raise SystemExit("V115 migration gate failed: retired migration ledger is referenced")
+
+aerim_delivery = (
+    engine / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/aerim/AerimUpstreamDeliveryService.java"
+).read_text(encoding="utf-8")
+for fragment in ("OcpxPromotionLinkIndex", "promotionLink.getLinkUrl()", "feedback.getLId()"):
+    if fragment not in aerim_delivery:
+        raise SystemExit(f"AERIM source gate failed: missing promotion-link fragment {fragment}")
+if "OcpxAdvertiserIndex" in aerim_delivery or "getBidUrl()" in aerim_delivery:
+    raise SystemExit("AERIM source gate failed: advertiser-level URL routing remains")
 
 weifeng_delivery = (
     engine

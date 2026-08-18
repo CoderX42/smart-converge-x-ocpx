@@ -15,15 +15,15 @@
 
 ## 协议注册与凭据
 
-`AdvertiserProtocolRegistry` 通过 Engine profile 的广告主主键配置选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`；未登记广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。下游媒体不再使用专用协议注册表，统一走通用回调。
+`AdvertiserProtocolRegistry` 从广告主 MySQL 索引的 `upstreamProtocol` 选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`；未选择协议的广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。下游媒体不再使用专用协议注册表，统一走通用回调。
 
-协议配置只保存主键到实现类型的映射。通用模板签名材料由广告主实体的 `credentialConfigKey` 通过 `PartnerCredentialResolver` 从 Engine profile 的 `ocpx.partner-credentials.advertisers` 解析，不进入业务表、响应或请求日志。管理端创建新主键后，接入提交必须显式配置协议；生产发布前未完成广告主主键分类即为 No-Go。
+协议由管理端创建或编辑广告主时显式选择。AERIM 与 WEIFENG 的精确域名白名单也由管理后台写入 MySQL，并随 `r:da:refresh` 热刷新；空白名单默认拒绝。通用模板签名材料仍由广告主实体的 `credentialConfigKey` 通过 `PartnerCredentialResolver` 从 Engine profile 的 `ocpx.partner-credentials.advertisers` 解析，不进入业务表、响应或请求日志。
 
 ## 正向 Feedback
 
 唯一媒体入口为 `GET /ocpx/feedback`。链路先在 MySQL 事务中校验四实体关系、完成事件去重、计费和小时汇总，再写兼容日志队列；只有首次有效且允许投递的事件才由 `UpstreamDeliveryDispatcher` 异步选择上游实现。
 
-`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 仅处理 CLICK 投递，并使用白名单限制上游监测域名。微风互动同样只处理 CLICK：关联推广链接保存上游提供的完整模板及固定 `aid/did`，Engine 只替换设备、毫秒时间戳和 Callback 宏，不再维护媒体或任务到 `aid/did` 的二次映射。
+`TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 与微风互动都仅处理 CLICK，并按 Feedback 的 `lId` 读取所属推广链接的完整上游模板；因此同一广告主可用多条推广链接承载多个产品。AERIM 支持多媒体宏别名并拒绝残留未知宏；微风保留模板固定 `aid/did`。两者均执行数据库精确域名白名单和 DNS 公网地址校验。
 
 ## 反向 Callback
 
@@ -35,4 +35,4 @@ Feedback 携带的通用回调地址属于服务端外发目标，必须限制�
 
 `StorageTask` 把 Redis List 中的 Feedback/Callback 写入明细、Feedback 日明细和临时报表；Admin 的 `OcpxDataMergeTask` 汇总到最终报表。时段报表输出扣量、展示、点击、CTR、消耗及全部转化事件列。
 
-当前 List 消费、固定线程池和扣量数组仍沿用 SGYZ 数据层实现；它们不等同于可靠消息、重试或 DLQ。V102 只改变管理模型、路由索引加载和协议选择方式，不执行目标数据库迁移，也不代表真实第三方 UAT 或生产激活。
+当前 List 消费、固定线程池和扣量数组仍沿用 SGYZ 数据层实现；它们不等同于可靠消息、重试或 DLQ。V115 改变协议选择、域名白名单和 AERIM 链接来源，不执行目标数据库迁移，也不代表真实第三方 UAT 或生产激活。

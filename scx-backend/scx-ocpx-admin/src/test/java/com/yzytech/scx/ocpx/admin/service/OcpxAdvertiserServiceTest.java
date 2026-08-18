@@ -9,6 +9,7 @@ import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.ocpx.admin.dto.ManagementRows;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import com.yzytech.scx.system.api.service.AdvertiserAccountProvisioner;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -83,10 +84,12 @@ class OcpxAdvertiserServiceTest {
 		when(advertiserMapper.selectUsernamesByAdvertiserIds(any())).thenReturn(List.of(username("adv-1", "adv-user")));
 		when(advertiserAccountService.balance("adv-1")).thenReturn(BigDecimal.ZERO);
 
-		AdvertiserViews.Item result = service.create(new AdvertiserRequests.Create(" 广告主一 ", " advertiser-signing ",
-				"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
+		AdvertiserViews.Item result = service
+			.create(new AdvertiserRequests.Create(" 广告主一 ", " advertiser-signing ", OcpxUpstreamProtocol.TEMPLATE_GET,
+					"http://127.0.0.1:8080/callback?oaid=__OAID__", " oaid=__OAID__ ", "adv-user", "Pass@123"));
 
 		assertThat(result.getAdvertiserName()).isEqualTo("广告主一");
+		assertThat(result.getUpstreamProtocol()).isEqualTo(OcpxUpstreamProtocol.TEMPLATE_GET);
 		assertThat(result.getCredentialConfigKey()).isEqualTo("advertiser-signing");
 		assertThat(result.getBidUrl()).isEqualTo("http://127.0.0.1:8080/callback?oaid=__OAID__");
 		assertThat(result.getMacroParams()).isEqualTo("oaid=__OAID__");
@@ -111,8 +114,8 @@ class OcpxAdvertiserServiceTest {
 		when(accountProvisioner.provision(anyString(), anyString(), anyString(), anyString()))
 			.thenThrow(new IllegalArgumentException("用户名已存在"));
 
-		assertThatThrownBy(() -> service.create(
-				new AdvertiserRequests.Create("广告主一", null, "custom://private/callback", null, "adv-user", "Pass@123")))
+		assertThatThrownBy(() -> service.create(new AdvertiserRequests.Create("广告主一", null, OcpxUpstreamProtocol.AERIM,
+				"custom://private/callback", null, "adv-user", "Pass@123")))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("用户名已存在");
 		assertThat(inserted.get().getMacroParams()).isNull();
@@ -132,8 +135,8 @@ class OcpxAdvertiserServiceTest {
 			.thenReturn(new AdvertiserAccountProvisioner.ProvisionedAccount("user-1", "adv-user"));
 		when(advertiserMapper.updateById(any(OcpxAdvertiser.class))).thenReturn(0);
 
-		assertThatThrownBy(() -> service.create(
-				new AdvertiserRequests.Create("广告主一", null, "custom://private/callback", null, "adv-user", "Pass@123")))
+		assertThatThrownBy(() -> service.create(new AdvertiserRequests.Create("广告主一", null, OcpxUpstreamProtocol.AERIM,
+				"custom://private/callback", null, "adv-user", "Pass@123")))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("绑定失败");
 		verify(configRefreshPublisher, never()).mark();

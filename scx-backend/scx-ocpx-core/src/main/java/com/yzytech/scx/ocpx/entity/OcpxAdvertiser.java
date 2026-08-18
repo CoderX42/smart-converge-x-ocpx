@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 
 import java.time.LocalDateTime;
 
@@ -17,6 +18,8 @@ public class OcpxAdvertiser {
 	private String id;
 
 	private String advertiserName;
+
+	private OcpxUpstreamProtocol upstreamProtocol;
 
 	private String bidUrl;
 

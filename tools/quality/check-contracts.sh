@@ -27,6 +27,7 @@ required = [
     "management-v112.md",
     "management-v113.md",
     "management-v114.md",
+    "management-v115.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -64,7 +65,8 @@ v114_paths = {
     "/monitor-tasks/{id}/integration/feedback-requests",
     "/monitor-tasks/{id}/integration/callbacks:send",
 }
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths
+v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -103,6 +105,13 @@ assert {"get", "post"} <= set(paths["/deduction-rules"])
 assert {"get", "put", "delete"} <= set(paths["/deduction-rules/{id}"])
 assert set(paths["/reports/summary"]) == {"get", "servers"}
 assert set(paths["/reports/summary:export"]) == {"get", "servers"}
+assert set(paths["/protocol-configs"]) == {"get", "servers"}
+assert set(paths["/protocol-configs/{protocol}/allowed-hosts"]) == {"put", "servers"}
+protocol_list = paths["/protocol-configs"]["get"]
+protocol_update = paths["/protocol-configs/{protocol}/allowed-hosts"]["put"]
+assert protocol_list["security"] == [{"saToken": []}]
+assert protocol_update["security"] == [{"saToken": []}]
+assert protocol_update["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("ProtocolAllowedHostsUpdate")
 assert paths["/creatives"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("CreativeSaveRequest")
 assert paths["/creatives/assets"]["post"]["requestBody"]["content"].get("multipart/form-data")
 assert paths["/monitor-tasks/{id}"]["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskSaveRequest")
@@ -134,7 +143,12 @@ assert {
     "DeductionSummaryRow", "DeductionSummaryPage",
     "MonitorTaskIntegrationFeedback", "MonitorTaskIntegrationCallbackRequest",
     "MonitorTaskIntegrationCallbackResult"
+    , "ProtocolAllowedHostsUpdate", "ProtocolConfig", "ProtocolConfigEnvelope",
+    "ProtocolConfigListEnvelope"
 } <= set(schemas)
+assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
+assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
+assert set(schemas["ProtocolConfig"]["properties"]["protocol"]["enum"]) == {"AERIM", "WEIFENG"}
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
 assert set(schemas["AdvertiserDeductionRequest"]["required"]) == {"requestId", "amount", "remark"}
@@ -192,6 +206,8 @@ assert methods.get("创建图片创意") == "POST"
 assert methods.get("替换创意推广链接绑定") == "PUT"
 assert methods.get("修改监测任务计费配置") == "PUT"
 assert methods.get("查询广告主账务流水") == "GET"
+assert methods.get("查询上游协议允许域名") == "GET"
+assert methods.get("替换 AERIM 允许域名") == "PUT"
 role_update = next(item for item in postman["item"] if item.get("name") == "全量替换共享广告主角色权限")
 role_update_body = json.loads(role_update["request"]["body"]["raw"])
 assert set(role_update_body) == {"menuIds", "allDataScope"}
@@ -212,12 +228,16 @@ assert "assetUrl" not in creative_body and "checksumSha256" not in creative_body
 billing_item = next(item for item in postman["item"] if item.get("name") == "修改监测任务计费配置")
 billing_body = json.loads(billing_item["request"]["body"]["raw"])
 assert {"billingEnabled", "billingType", "unitPrice", "conversionEvent"} <= set(billing_body)
+protocol_item = next(item for item in postman["item"] if item.get("name") == "替换 AERIM 允许域名")
+protocol_body = json.loads(protocol_item["request"]["body"]["raw"])
+assert protocol_body == {"allowedHosts": ["d.aerim.cn", "c.aerim.cn"]}
 serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
 assert "/ocpx/aerim/callback" in serialized
 assert "/ocpx/weifeng/callback" in serialized
 assert "/boot/ocpx/advertisers/account-role/permissions" in serialized
+assert "/boot/ocpx/protocol-configs" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/recharge" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/deduct" in serialized
 assert "/boot/ocpx/dashboard/summary" in serialized

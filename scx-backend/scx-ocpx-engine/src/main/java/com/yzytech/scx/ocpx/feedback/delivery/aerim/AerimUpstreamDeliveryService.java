@@ -2,9 +2,8 @@ package com.yzytech.scx.ocpx.feedback.delivery.aerim;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.contract.AdvertiserMacroContract;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
+import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
@@ -15,6 +14,7 @@ import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	@Value("${app.callback-aes-key}")
 	private String callbackAesKey;
 
-	private final OcpxAdvertiserIndex advertiserIndex;
+	private final OcpxPromotionLinkIndex promotionLinkIndex;
 
 	private final AerimEndpointPolicy endpointPolicy;
 
@@ -44,9 +44,9 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
-	public AerimUpstreamDeliveryService(OcpxAdvertiserIndex advertiserIndex, AerimEndpointPolicy endpointPolicy,
+	public AerimUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex, AerimEndpointPolicy endpointPolicy,
 			AerimHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
-		this.advertiserIndex = advertiserIndex;
+		this.promotionLinkIndex = promotionLinkIndex;
 		this.endpointPolicy = endpointPolicy;
 		this.httpClient = httpClient;
 		this.flowLogWriter = flowLogWriter;
@@ -58,7 +58,7 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 			return;
 		}
 		try {
-			String requestUrl = buildRequestUrl(advertiserIndex.get(feedback.getAId()), feedback);
+			String requestUrl = buildRequestUrl(feedback);
 			if (requestUrl == null) {
 				flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_REQUEST_REJECTED", 0L);
 				return;
@@ -82,11 +82,16 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	}
 
 	/** 构造不带签名、缺失宏参数已移除的 AERIM 正式请求地址。 */
-	public String buildRequestUrl(OcpxAdvertiser advertiser, FeedbackReq feedback) {
-		if (advertiser == null || !StringUtils.hasText(advertiser.getBidUrl())) {
+	public String buildRequestUrl(FeedbackReq feedback) {
+		if (feedback == null) {
 			return null;
 		}
-		String template = AdvertiserMacroContract.appendToBidUrl(advertiser.getBidUrl(), advertiser.getMacroParams());
+		OcpxPromotionLink promotionLink = promotionLinkIndex.get(feedback.getLId());
+		if (promotionLink == null || !feedback.getAId().equals(promotionLink.getAdvertiserId())
+				|| !StringUtils.hasText(promotionLink.getLinkUrl())) {
+			return null;
+		}
+		String template = promotionLink.getLinkUrl().trim();
 		if (!template.contains("__CALLBACK__") && !template.contains("__CALLBACK_URL__")) {
 			return null;
 		}
@@ -123,8 +128,7 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	public String buildCallbackUrl(FeedbackReq feedback) {
 		String state = feedback.getLId() + "_" + feedback.getTId();
 		String callbackExt = AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey);
-		return callbackExt == null ? null
-				: callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + "&s=" + state;
+		return callbackExt == null ? null : callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + "&s=" + state;
 	}
 
 	private Map<String, String> macros(FeedbackReq feedback, String callback) {
@@ -132,10 +136,14 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		put(values, "__REQUEST_ID__", feedback.getReqId());
 		put(values, "__CLICKID__",
 				StringUtils.hasText(feedback.getClickId()) ? feedback.getClickId() : feedback.getReqId());
+		put(values, "__CLICK_ID__",
+				StringUtils.hasText(feedback.getClickId()) ? feedback.getClickId() : feedback.getReqId());
 		put(values, "__IMEI__", feedback.getImei());
 		put(values, "__IMEI_MD5__", feedback.getImeiMd5());
+		put(values, "__IMEIMD5__", feedback.getImeiMd5());
 		put(values, "__OAID__", feedback.getOaid());
 		put(values, "__OAID_MD5__", feedback.getOaidMd5());
+		put(values, "__OAIDMD5__", feedback.getOaidMd5());
 		put(values, "__IDFA__", feedback.getIdfa());
 		put(values, "__IDFA_MD5__", feedback.getIdfaMd5());
 		put(values, "__CAID__", feedback.getCaid());
@@ -143,17 +151,33 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 				StringUtils.hasText(feedback.getCaidList()) ? feedback.getCaidList() : feedback.getCaid());
 		put(values, "__ANDROIDID__", feedback.getAndroidid());
 		put(values, "__ANDROIDID_MD5__", feedback.getAndroididMd5());
+		put(values, "__ANDROIDMD5__", feedback.getAndroididMd5());
 		put(values, "__AAID__", feedback.getAaid());
+		put(values, "__SID__", feedback.getUserId());
+		put(values, "__SIDMD5__", md5(feedback.getUserId()));
 		put(values, "__IP__", feedback.getIp());
+		put(values, "__IPV4__", feedback.getIp());
+		put(values, "__IPV6__", feedback.getIpv6());
+		put(values, "__IPMD5__", md5(feedback.getIp()));
 		put(values, "__UA__", feedback.getUa());
 		put(values, "__OS__", matchOs(feedback.getOs()));
+		put(values, "__OS_TYPE__", matchOs(feedback.getOs()));
+		put(values, "__TS__", feedback.getTs());
+		put(values, "__TSMS__", timestampMillis(feedback));
 		put(values, "__MODEL__", feedback.getModel());
 		put(values, "__CALLBACK__", callback);
 		put(values, "__CALLBACK_URL__", callback);
 		put(values, "__CAMPAIGNID__", feedback.getPlanId());
+		put(values, "__PLAN__", feedback.getPlanId());
+		put(values, "__PLAN_ID__", feedback.getPlanId());
 		put(values, "__ADGROUPID__", feedback.getGroupId());
+		put(values, "__UNIT__", feedback.getGroupId());
 		put(values, "__CREATIVEID__", feedback.getCreativeId());
+		put(values, "__CID__", feedback.getCreativeId());
+		put(values, "__IDEA_ID__", feedback.getCreativeId());
 		put(values, "__ADVERTISERID__", feedback.getAdvId());
+		put(values, "__UID__", feedback.getAdvId());
+		put(values, "__USER_ID__", feedback.getAdvId());
 		return values;
 	}
 
@@ -163,17 +187,47 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	}
 
 	private String replaceQueryPair(String pair, Map<String, String> macros) {
+		if (RESIDUAL_MACRO.matcher(pair).replaceAll("").contains("__")) {
+			throw new IllegalArgumentException("malformed AERIM macro");
+		}
 		String value = pair;
-		for (Map.Entry<String, String> entry : macros.entrySet()) {
-			if (!value.contains(entry.getKey())) {
-				continue;
+		var matcher = RESIDUAL_MACRO.matcher(value);
+		while (matcher.find()) {
+			String macro = matcher.group();
+			if (!macros.containsKey(macro)) {
+				throw new IllegalArgumentException("unsupported AERIM macro");
 			}
-			if (entry.getValue() == null) {
+			String replacement = macros.get(macro);
+			if (replacement == null) {
 				return null;
 			}
-			value = value.replace(entry.getKey(), entry.getValue());
+			value = value.replace(macro, replacement);
+			matcher = RESIDUAL_MACRO.matcher(value);
 		}
-		return RESIDUAL_MACRO.matcher(value).find() ? null : value;
+		return value;
+	}
+
+	private String timestampMillis(FeedbackReq feedback) {
+		String value = StringUtils.hasText(feedback.getTsMs()) ? feedback.getTsMs() : feedback.getTs();
+		if (!StringUtils.hasText(value) || !value.chars().allMatch(Character::isDigit)) {
+			return null;
+		}
+		if (value.length() == 13) {
+			return value;
+		}
+		if (value.length() == 10) {
+			try {
+				return String.valueOf(Math.multiplyExact(Long.parseLong(value), 1000L));
+			}
+			catch (ArithmeticException exception) {
+				return null;
+			}
+		}
+		return null;
+	}
+
+	private String md5(String value) {
+		return StringUtils.hasText(value) ? DigestUtils.md5DigestAsHex(value.getBytes(StandardCharsets.UTF_8)) : null;
 	}
 
 	private boolean hasCallbackParameter(String url) {
@@ -183,7 +237,8 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		}
 		for (String pair : url.substring(queryIndex + 1).split("&")) {
 			int separator = pair.indexOf('=');
-			if (separator > 0 && "callback".equals(pair.substring(0, separator)) && separator < pair.length() - 1) {
+			String name = separator > 0 ? pair.substring(0, separator).toLowerCase() : "";
+			if (("callback".equals(name) || "callback_url".equals(name)) && separator < pair.length() - 1) {
 				return true;
 			}
 		}

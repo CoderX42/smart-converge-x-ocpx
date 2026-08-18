@@ -3,8 +3,8 @@ package com.yzytech.scx.ocpx.feedback.delivery.aerim;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackAdapter;
 import com.yzytech.scx.ocpx.callback.web.aerim.AerimCallbackRequest;
-import com.yzytech.scx.ocpx.configuration.index.OcpxAdvertiserIndex;
-import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
+import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
@@ -30,7 +30,7 @@ class AerimUpstreamDeliveryServiceTest {
 
 	private static final String AES_KEY = "aerim-test-key16";
 
-	private final OcpxAdvertiserIndex advertiserIndex = mock(OcpxAdvertiserIndex.class);
+	private final OcpxPromotionLinkIndex promotionLinkIndex = mock(OcpxPromotionLinkIndex.class);
 
 	private final AerimEndpointPolicy endpointPolicy = mock(AerimEndpointPolicy.class);
 
@@ -42,22 +42,23 @@ class AerimUpstreamDeliveryServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new AerimUpstreamDeliveryService(advertiserIndex, endpointPolicy, httpClient, flowLogWriter);
+		service = new AerimUpstreamDeliveryService(promotionLinkIndex, endpointPolicy, httpClient, flowLogWriter);
 		ReflectionTestUtils.setField(service, "callbackBaseUrl", "https://engine.test/ocpx");
 		ReflectionTestUtils.setField(service, "callbackAesKey", AES_KEY);
 		when(endpointPolicy.requireAllowedHttpUrl(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+		when(promotionLinkIndex.get("link-id")).thenReturn(promotionLink());
 	}
 
 	@Test
 	void buildsAndroidUrlOmitsMissingMacrosAndEncodesCallbackExactlyOnce() {
-		String url = service.buildRequestUrl(advertiser(), feedback(OsTypeEnum.ANDROID));
+		String url = service.buildRequestUrl(feedback(OsTypeEnum.ANDROID));
 
 		assertThat(url).startsWith("https://track.example.com/ocpx/c?fixed=1&")
-			.contains("os=android", "ua=Dalvik%2F2.1%20%28Linux%29", "caid_list=%5B%7B%22version%22",
-					"idfa=idfa-value", "idfa_md5=idfa-md5", "imei_md5=imei-md5", "oaid_md5=oaid-md5",
-					"caid=caid-value", "android_id=android-id", "android_id_md5=androidid-md5",
-					"aaid=aaid-value", "clickid=click-id", "campaign_id=campaign-id", "adgroup_id=group-id",
-					"creative_id=creative-id", "advertiser_id=partner-advertiser-id")
+			.contains("os=android", "ua=Dalvik%2F2.1%20%28Linux%29", "caid_list=%5B%7B%22version%22", "idfa=idfa-value",
+					"idfa_md5=idfa-md5", "imei_md5=imei-md5", "oaid_md5=oaid-md5", "caid=caid-value",
+					"android_id=android-id", "android_id_md5=androidid-md5", "aaid=aaid-value", "clickid=click-id",
+					"campaign_id=campaign-id", "adgroup_id=group-id", "creative_id=creative-id",
+					"advertiser_id=partner-advertiser-id")
 			.contains("callback=https%3A%2F%2Fengine.test%2Focpx%2Faerim%2Fcallback%3Fext%3D")
 			.doesNotContain("model=", "__", "signature=");
 		String callback = decodedQueryValue(url, "callback");
@@ -67,32 +68,30 @@ class AerimUpstreamDeliveryServiceTest {
 	@Test
 	void buildsIosOsValueAndRejectsMissingCallbackOrResidualMacro() {
 		FeedbackReq feedback = feedback(OsTypeEnum.IOS);
-		assertThat(service.buildRequestUrl(advertiser(), feedback)).contains("os=ios");
+		assertThat(service.buildRequestUrl(feedback)).contains("os=ios");
 
-		OcpxAdvertiser missingCallback = advertiser();
-		missingCallback.setMacroParams("ip=__IP__");
-		assertThat(service.buildRequestUrl(missingCallback, feedback)).isNull();
-		OcpxAdvertiser unknownMacro = advertiser();
-		unknownMacro.setBidUrl("https://track.example.com/__UNKNOWN__");
-		unknownMacro.setMacroParams("callback=__CALLBACK__");
-		assertThat(service.buildRequestUrl(unknownMacro, feedback)).isNull();
+		OcpxPromotionLink missingCallback = promotionLink();
+		missingCallback.setLinkUrl("https://track.example.com/ocpx/c?ip=__IP__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(missingCallback);
+		assertThat(service.buildRequestUrl(feedback)).isNull();
+		OcpxPromotionLink unknownMacro = promotionLink();
+		unknownMacro.setLinkUrl("https://track.example.com/__UNKNOWN__?callback=__CALLBACK__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(unknownMacro);
+		assertThat(service.buildRequestUrl(feedback)).isNull();
 	}
 
 	@Test
 	void supportsAnHttpIpCallbackBaseForAerimUat() {
 		ReflectionTestUtils.setField(service, "callbackBaseUrl", "http://42.81.102.181/ocpx");
 
-		String callback = decodedQueryValue(service.buildRequestUrl(advertiser(), feedback(OsTypeEnum.IOS)),
-				"callback");
+		String callback = decodedQueryValue(service.buildRequestUrl(feedback(OsTypeEnum.IOS)), "callback");
 
-		assertThat(callback).startsWith("http://42.81.102.181/ocpx/aerim/callback?ext=")
-			.endsWith("&s=link-id_task-id");
+		assertThat(callback).startsWith("http://42.81.102.181/ocpx/aerim/callback?ext=").endsWith("&s=link-id_task-id");
 	}
 
 	@Test
 	void mockCaptureClosesFeedbackToPurchaseCallbackWithoutRealNetwork() {
 		FeedbackReq feedback = feedback(OsTypeEnum.ANDROID);
-		when(advertiserIndex.get("advertiser-id")).thenReturn(advertiser());
 		when(httpClient.get(anyString())).thenReturn(new NetUtil.HttpGetResult(200, "", null, 7L));
 
 		service.deliver(feedback);
@@ -119,7 +118,6 @@ class AerimUpstreamDeliveryServiceTest {
 	@Test
 	void treatsCode402AsFailureAndDoesNotSendNonClickEvents() {
 		FeedbackReq click = feedback(OsTypeEnum.ANDROID);
-		when(advertiserIndex.get("advertiser-id")).thenReturn(advertiser());
 		when(httpClient.get(anyString()))
 			.thenReturn(new NetUtil.HttpGetResult(200, "{\"code\":402,\"message\":\"limit\"}", null, 3L));
 
@@ -135,7 +133,6 @@ class AerimUpstreamDeliveryServiceTest {
 	@Test
 	void recordsNon2xxAndTimeoutWithoutLeakingTheRequestUrl() {
 		FeedbackReq click = feedback(OsTypeEnum.ANDROID);
-		when(advertiserIndex.get("advertiser-id")).thenReturn(advertiser());
 		when(httpClient.get(anyString())).thenReturn(new NetUtil.HttpGetResult(503, "unavailable", null, 9L),
 				new NetUtil.HttpGetResult(null, null, "TIMEOUT", 5000L));
 
@@ -146,17 +143,75 @@ class AerimUpstreamDeliveryServiceTest {
 		verify(flowLogWriter).upstreamDelivery(click, false, null, "AERIM_TIMEOUT", 5000L);
 	}
 
-	private OcpxAdvertiser advertiser() {
-		OcpxAdvertiser advertiser = new OcpxAdvertiser();
-		advertiser.setBidUrl("https://track.example.com/ocpx/c?fixed=1");
-		advertiser.setMacroParams("ip=__IP__&imei=__IMEI__&imei_md5=__IMEI_MD5__&idfa=__IDFA__"
-				+ "&idfa_md5=__IDFA_MD5__&caid=__CAID__&caid_list=__CAID_LIST__&oaid=__OAID__"
-				+ "&oaid_md5=__OAID_MD5__"
-				+ "&android_id=__ANDROIDID__&android_id_md5=__ANDROIDID_MD5__&aaid=__AAID__"
-				+ "&ua=__UA__&os=__OS__&model=__MODEL__&callback=__CALLBACK__"
-				+ "&clickid=__CLICKID__&campaign_id=__CAMPAIGNID__&adgroup_id=__ADGROUPID__"
-				+ "&creative_id=__CREATIVEID__&advertiser_id=__ADVERTISERID__");
-		return advertiser;
+	@Test
+	void selectsTheProductUrlByPromotionLinkIdAndAcceptsCallbackUrlAlias() {
+		OcpxPromotionLink second = promotionLink();
+		second.setId("link-2");
+		second.setLinkUrl(
+				"https://track.example.com/ocpx/product-two?callback_url=__CALLBACK_URL__&click_id=__CLICK_ID__");
+		when(promotionLinkIndex.get("link-2")).thenReturn(second);
+		FeedbackReq feedback = feedback(OsTypeEnum.ANDROID);
+		feedback.setLId("link-2");
+
+		String url = service.buildRequestUrl(feedback);
+
+		assertThat(url).contains("/ocpx/product-two?", "callback_url=", "click_id=click-id");
+	}
+
+	@Test
+	void rejectsPromotionLinksOwnedByAnotherAdvertiserAndUnknownQueryMacros() {
+		OcpxPromotionLink otherOwner = promotionLink();
+		otherOwner.setAdvertiserId("another-advertiser");
+		when(promotionLinkIndex.get("link-id")).thenReturn(otherOwner);
+		assertThat(service.buildRequestUrl(feedback(OsTypeEnum.ANDROID))).isNull();
+
+		OcpxPromotionLink unknown = promotionLink();
+		unknown.setLinkUrl("https://track.example.com/ocpx/c?sid=__UNSUPPORTED__&callback=__CALLBACK__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(unknown);
+		org.assertj.core.api.Assertions.assertThatIllegalArgumentException()
+			.isThrownBy(() -> service.buildRequestUrl(feedback(OsTypeEnum.ANDROID)));
+	}
+
+	@Test
+	void supportsQutoutiaoIdentityAndTimestampMacrosFromTheProvidedTemplates() {
+		OcpxPromotionLink link = promotionLink();
+		link.setLinkUrl("https://track.example.com/ocpx/c?sid=__SID__&sid_md5=__SIDMD5__&ip=__IPV4__"
+				+ "&ip_md5=__IPMD5__&ts=__TSMS__&callback=__CALLBACK_URL__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(link);
+		FeedbackReq feedback = feedback(OsTypeEnum.ANDROID);
+		feedback.setTs("1723975200");
+
+		String url = service.buildRequestUrl(feedback);
+
+		assertThat(decodedQueryValue(url, "sid")).isEqualTo("oaid-value");
+		assertThat(decodedQueryValue(url, "sid_md5")).hasSize(32);
+		assertThat(decodedQueryValue(url, "ip_md5")).hasSize(32);
+		assertThat(decodedQueryValue(url, "ts")).isEqualTo("1723975200000");
+	}
+
+	@Test
+	void rejectsMalformedMacrosInsteadOfForwardingTheirLiteralText() {
+		OcpxPromotionLink link = promotionLink();
+		link.setLinkUrl("https://track.example.com/ocpx/c?oaid_md5=__OAIDMD5&callback=__CALLBACK__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(link);
+
+		org.assertj.core.api.Assertions.assertThatIllegalArgumentException()
+			.isThrownBy(() -> service.buildRequestUrl(feedback(OsTypeEnum.ANDROID)));
+	}
+
+	private OcpxPromotionLink promotionLink() {
+		OcpxPromotionLink link = new OcpxPromotionLink();
+		link.setId("link-id");
+		link.setAdvertiserId("advertiser-id");
+		link.setLinkUrl(
+				"https://track.example.com/ocpx/c?fixed=1&ip=__IP__&imei=__IMEI__&imei_md5=__IMEI_MD5__&idfa=__IDFA__"
+						+ "&idfa_md5=__IDFA_MD5__&caid=__CAID__&caid_list=__CAID_LIST__&oaid=__OAID__"
+						+ "&oaid_md5=__OAID_MD5__"
+						+ "&android_id=__ANDROIDID__&android_id_md5=__ANDROIDID_MD5__&aaid=__AAID__"
+						+ "&ua=__UA__&os=__OS__&model=__MODEL__&callback=__CALLBACK__"
+						+ "&clickid=__CLICKID__&campaign_id=__CAMPAIGNID__&adgroup_id=__ADGROUPID__"
+						+ "&creative_id=__CREATIVEID__&advertiser_id=__ADVERTISERID__");
+		return link;
 	}
 
 	private FeedbackReq feedback(OsTypeEnum os) {

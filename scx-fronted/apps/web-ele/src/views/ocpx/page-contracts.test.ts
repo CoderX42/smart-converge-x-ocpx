@@ -13,6 +13,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
       'advertiser',
       [
         '广告主编号',
+        '上游协议',
         '用户名',
         '凭据引用',
         '请求地址',
@@ -21,6 +22,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '扣减',
         '删除',
         '账号角色权限',
+        '协议与域名',
       ],
     ],
     [
@@ -132,6 +134,16 @@ describe('vientiane-aligned OCPX page contracts', () => {
       expect(page(name)).toContain(':close-on-click-modal="false"');
       expect(page(name)).toContain('@close="handleDialogClose"');
     }
+  });
+
+  it('manages database-backed protocols and exact host allowlists', () => {
+    const advertiser = page('advertiser');
+    expect(advertiser).toContain("'ocpx:protocol-config:manage'");
+    expect(advertiser).toContain('getProtocolConfigs()');
+    expect(advertiser).toContain('updateProtocolAllowedHosts(protocol');
+    expect(advertiser).toContain('上游协议与允许域名');
+    expect(advertiser).toContain('不含协议、端口、路径、通配符或 IP');
+    expect(advertiser).toContain('一个广告主可以配置多个产品链接');
   });
 
   it('creates financial idempotency keys in browsers without randomUUID', () => {

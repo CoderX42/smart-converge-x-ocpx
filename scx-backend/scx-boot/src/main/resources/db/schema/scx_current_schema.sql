@@ -10,17 +10,45 @@ SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser (
   id VARCHAR(32) NOT NULL,
   advertiser_name VARCHAR(128) NOT NULL,
+  upstream_protocol VARCHAR(32) NULL,
   account_user_id VARCHAR(64) NULL,
   credential_config_key VARCHAR(128) NULL,
-  bid_url VARCHAR(5000) NOT NULL,
+  bid_url VARCHAR(5000) NULL,
   macro_params VARCHAR(4000) NULL,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   UNIQUE KEY uk_ocpx_advertiser_name (advertiser_name),
   UNIQUE KEY uk_ocpx_advertiser_account_user (account_user_id),
-  CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id)
+  CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id),
+  CONSTRAINT ck_ocpx_advertiser_upstream_protocol CHECK (
+    upstream_protocol IS NULL OR upstream_protocol IN ('TEMPLATE_GET','AERIM','WEIFENG')
+  )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: upstream advertiser';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_protocol_allowed_host (
+  id VARCHAR(32) NOT NULL,
+  protocol_type VARCHAR(32) NOT NULL,
+  host VARCHAR(253) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_protocol_allowed_host (protocol_type,host),
+  CONSTRAINT ck_ocpx_protocol_allowed_host_type CHECK (protocol_type IN ('AERIM','WEIFENG')),
+  CONSTRAINT ck_ocpx_protocol_allowed_host_value CHECK (
+    host=LOWER(host) AND host NOT LIKE '%://%' AND host NOT LIKE '%/%'
+    AND host NOT LIKE '%:%' AND host NOT LIKE '%*%'
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='CONFIG: administrator-managed exact upstream protocol hosts';
+
+INSERT INTO scx_ocpx_protocol_allowed_host
+  (id,protocol_type,host,create_time,update_time)
+VALUES
+  ('current_aerim_d','AERIM','d.aerim.cn',NOW(3),NOW(3)),
+  ('current_aerim_c','AERIM','c.aerim.cn',NOW(3),NOW(3)),
+  ('current_weifeng_adapi','WEIFENG','ad.adapi.cn',NOW(3),NOW(3))
+ON DUPLICATE KEY UPDATE host=VALUES(host),update_time=NOW(3);
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser_account (
   advertiser_id VARCHAR(32) NOT NULL,
@@ -624,6 +652,7 @@ VALUES
   ('perm_ocpx_advertiser_deduct','扣减广告主余额','','menu_ocpx_advertiser','ocpx:advertiser:deduct',35,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_billing_entry_view','查看账务流水','','menu_ocpx_advertiser','ocpx:billing-entry:view',45,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_advertiser_delete','删除广告主','','menu_ocpx_advertiser','ocpx:advertiser:delete',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_protocol_config_manage','管理上游协议与允许域名','','menu_ocpx_advertiser','ocpx:protocol-config:manage',70,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_add','新增推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:add',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_edit','编辑推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:edit',20,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_promotion_link_delete','删除推广链接','','menu_ocpx_promotion_link','ocpx:promotion-link:delete',30,'1','app_base',NOW(),NOW(),'0'),

@@ -57,21 +57,20 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
   已经存在扣量放行的正式 Callback 事实，幂等写入脱敏流程日志后返回空 `204`。该端点
   不接受目标地址，成功不代表真实媒体入库。
 
-正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 按广告主主键
-选择协议 → 按 `OcpxAdvertiser.bidUrl + macroParams` 替换宏 → 广告主 GET。通用模板
-使用 `credentialConfigKey` 追加 MD5 `signature`；AERIM 只处理点击，生成
-`/aerim/callback` 地址，不追加签名，并要求 HTTP/HTTPS 监测域名命中
-`ocpx.aerim.allowed-hosts`。微风互动同样只处理点击，从关联推广链接读取上游
-自带的固定 `aid/did`，只替换设备参数和 SCX Callback 宏，并要求 `/click`
-域名命中 `ocpx.weifeng.allowed-hosts`。白名单只填写域名，不填写协议或路径。
+正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 读取广告主
+`upstreamProtocol` 选择协议 → 广告主 GET。`TEMPLATE_GET` 按
+`OcpxAdvertiser.bidUrl + macroParams` 替换宏，并使用 `credentialConfigKey` 追加 MD5
+`signature`；AERIM 和微风互动都只处理点击，并按 `lId` 从关联推广链接读取完整
+上游模板。AERIM 生成 `/aerim/callback` 且不追加签名；微风保留模板自带的固定
+`aid/did`。两类地址都必须命中管理后台维护的精确域名白名单，并解析到公网地址。
 
 反向链路为：解密 `ext` → Callback 去重 → Callback 队列 → 按
 `lId + mId` 读取 Redis 扣量数组 → 对允许回传的数据解码原 `callback_url`、
 追加 `event_type` 与可选 `currency_amount` 后执行媒体 GET。AERIM 的九类字符串动作
 映射为 SCX 编号 `1/2/4/5/6/7/11/18/19`，金额只允许随 `purchase` 出现。
 
-配置由四个 Mapper 启动加载到 `ConcurrentHashMap` 索引。Admin 写入
-`r:da:refresh` 后，Engine 的分钟任务等待五秒、重载四索引并删除标记。
+配置由 Mapper 启动加载到不可变内存快照。Admin 写入 `r:da:refresh` 后，Engine 的
+分钟任务等待五秒，重载广告主、推广链接、媒体、任务和协议允许域名索引并删除标记。
 
 ## Redis、落库和报表
 
@@ -113,22 +112,14 @@ Admin 的 `OcpxDataMergeTask` 每分钟合并临时报表为 `mark=0`，每小�
 - `application-prod.yml`：线上 MySQL、Redis 和公网回调域名；生产数据库密码、Redis
   密码和 AES Key 必须由生产使用者在部署机私下替换后重新打包。
 
-配置全部使用 yml 字面量，不依赖环境变量占位符。AERIM 的登记示例：
-
-```yaml
-ocpx:
-  protocols:
-    advertisers:
-      "<AERIM广告主主键>": AERIM
-  aerim:
-    allowed-hosts:
-      - <商务提供的正式监测域名>
-```
-
-`credentialConfigKey` 对 AERIM 保持为空；未登记广告主或白名单为空时拒绝转发。修改
-profile yml 后必须重新打包并重启。正式环境未配置 `ocpx.aerim.callback-base-url` 时，AERIM
-沿用 `domain.name` 的 HTTPS Engine 域名；该覆盖项只用于临时 IP-UAT。生产登记、V106 执行和
-发布均需单独授权。
+配置全部使用 yml 字面量，不依赖环境变量占位符。广告主协议和 AERIM/微风允许域名
+不再放在 Engine yml：管理员在广告主页选择协议，并通过“协议与域名”维护精确域名；
+保存后由刷新标记同步到 Engine，无需因新增广告主或域名重新打包。白名单为空、广告主
+协议为空、链接不存在或链接不属于该广告主时拒绝转发。`credentialConfigKey` 对 AERIM
+保持为空；通用模板的真实凭据仍只存在 `ocpx.partner-credentials.advertisers` 服务端
+配置中。正式环境未配置 `ocpx.aerim.callback-base-url` 时，AERIM 沿用 `domain.name`
+的 HTTPS Engine 域名；该覆盖项只用于临时 IP-UAT。目标库迁移、生产配置和发布仍需
+单独授权。
 
 生产启动必须显式激活 `prod`：
 

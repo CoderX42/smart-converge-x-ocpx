@@ -4,15 +4,18 @@ import { requestClient } from '#/api/request';
 
 export type PlatformCode = 1 | 2 | 3 | 4;
 
+export type OcpxUpstreamProtocol = 'AERIM' | 'TEMPLATE_GET' | 'WEIFENG';
+
 export type AdvertiserV2 = {
   advertiserName: string;
   balance?: number;
-  bidUrl: string;
+  bidUrl?: string;
   createTime: string;
   credentialConfigKey?: string;
   id: string;
   macroParams?: string;
   updateTime: string;
+  upstreamProtocol?: OcpxUpstreamProtocol;
   username?: null | string;
 };
 
@@ -23,19 +26,26 @@ export type AdvertiserQuery = {
 };
 
 export type AdvertiserCreatePayload = {
-  bidUrl: string;
+  bidUrl?: string;
   credentialConfigKey?: string;
   macroParams?: string;
   name: string;
   password: string;
+  upstreamProtocol: OcpxUpstreamProtocol;
   username: string;
 };
 
 export type AdvertiserUpdatePayload = {
-  bidUrl: string;
+  bidUrl?: string;
   credentialConfigKey?: string;
   macroParams?: string;
   name: string;
+  upstreamProtocol: OcpxUpstreamProtocol;
+};
+
+export type ProtocolConfig = {
+  allowedHosts: string[];
+  protocol: Extract<OcpxUpstreamProtocol, 'AERIM' | 'WEIFENG'>;
 };
 
 export type AdvertiserRechargeResult = {
@@ -210,6 +220,7 @@ export function createAdvertiserV2(data: AdvertiserCreatePayload) {
     macroParams: data.macroParams,
     name: data.name,
     password: data.password,
+    upstreamProtocol: data.upstreamProtocol,
     username: data.username,
   });
 }
@@ -219,6 +230,7 @@ export function updateAdvertiserV2(id: string, data: AdvertiserUpdatePayload) {
     credentialConfigKey: data.credentialConfigKey,
     macroParams: data.macroParams,
     name: data.name,
+    upstreamProtocol: data.upstreamProtocol,
   });
 }
 export function deleteAdvertiserV2(id: string) {
@@ -254,6 +266,20 @@ export function updateAdvertiserRolePermissions(data: {
   return requestClient.put<AdvertiserRolePermissions>(
     '/ocpx/advertisers/account-role/permissions',
     data,
+  );
+}
+
+export function getProtocolConfigs() {
+  return requestClient.get<ProtocolConfig[]>('/ocpx/protocol-configs');
+}
+
+export function updateProtocolAllowedHosts(
+  protocol: ProtocolConfig['protocol'],
+  allowedHosts: string[],
+) {
+  return requestClient.put<ProtocolConfig>(
+    `/ocpx/protocol-configs/${protocol}/allowed-hosts`,
+    { allowedHosts },
   );
 }
 

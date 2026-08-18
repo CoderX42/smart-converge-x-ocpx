@@ -7,6 +7,8 @@ import type {
   AdvertiserV2,
   BillingEntry,
   EntityOption,
+  OcpxUpstreamProtocol,
+  ProtocolConfig,
 } from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
@@ -23,11 +25,13 @@ import {
   deductAdvertiser,
   deleteAdvertiserV2,
   getAdvertiserRolePermissions,
+  getProtocolConfigs,
   listAdvertisers,
   listBillingEntries,
   rechargeAdvertiser,
   updateAdvertiserRolePermissions,
   updateAdvertiserV2,
+  updateProtocolAllowedHosts,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 import {
@@ -51,6 +55,7 @@ defineOptions({ name: 'OcpxAdvertiserManagement' });
 const columns = [
   { key: 'id', label: '广告主编号' },
   { key: 'name', label: '名称' },
+  { key: 'protocol', label: '上游协议' },
   { key: 'username', label: '用户名' },
   { key: 'balance', label: '余额' },
   { key: 'credential', label: '凭据引用' },
@@ -78,8 +83,19 @@ const form = reactive({
   credentialConfigKey: '',
   macroParams: '',
   password: '',
+  upstreamProtocol: '' as '' | OcpxUpstreamProtocol,
   username: '',
 });
+const protocolOptions: Array<{ label: string; value: OcpxUpstreamProtocol }> = [
+  { label: 'AERIM', value: 'AERIM' },
+  { label: '微风互动', value: 'WEIFENG' },
+  { label: '通用 GET 模板', value: 'TEMPLATE_GET' },
+];
+const protocolLabels: Record<OcpxUpstreamProtocol, string> = {
+  AERIM: 'AERIM',
+  TEMPLATE_GET: '通用 GET 模板',
+  WEIFENG: '微风互动',
+};
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
   hasAccessByCodes([
@@ -129,7 +145,21 @@ const rules: FormRules = {
   advertiserName: [
     { message: '请输入广告主名称', required: true, trigger: 'blur' },
   ],
-  bidUrl: [{ message: '请输入请求地址', required: true, trigger: 'blur' }],
+  bidUrl: [
+    {
+      trigger: 'blur',
+      validator: (
+        _rule: unknown,
+        value: string,
+        callback: (error?: Error) => void,
+      ) =>
+        callback(
+          form.upstreamProtocol === 'TEMPLATE_GET' && !value.trim()
+            ? new Error('通用 GET 模板必须填写请求地址')
+            : undefined,
+        ),
+    },
+  ],
   password: [{ trigger: 'blur', validator: validatePassword }],
   username: [
     {
@@ -140,7 +170,76 @@ const rules: FormRules = {
     },
     { max: 100, message: '用户名不能超过 100 个字符', trigger: 'blur' },
   ],
+  upstreamProtocol: [
+    { message: '请选择上游协议', required: true, trigger: 'change' },
+  ],
 };
+
+const protocolConfigOpen = ref(false);
+const protocolConfigLoading = ref(false);
+const protocolConfigSaving = ref<ProtocolConfig['protocol']>();
+const protocolConfigs = reactive<Record<ProtocolConfig['protocol'], string[]>>({
+  AERIM: [],
+  WEIFENG: [],
+});
+
+async function openProtocolConfig() {
+  protocolConfigOpen.value = true;
+  protocolConfigLoading.value = true;
+  try {
+    const result = await getProtocolConfigs();
+    protocolConfigs.AERIM = [
+      ...(result.find((item) => item.protocol === 'AERIM')?.allowedHosts || []),
+    ];
+    protocolConfigs.WEIFENG = [
+      ...(result.find((item) => item.protocol === 'WEIFENG')?.allowedHosts ||
+        []),
+    ];
+  } catch {
+    protocolConfigOpen.value = false;
+  } finally {
+    protocolConfigLoading.value = false;
+  }
+}
+
+function addProtocolHost(protocol: ProtocolConfig['protocol']) {
+  protocolConfigs[protocol].push('');
+}
+
+function removeProtocolHost(
+  protocol: ProtocolConfig['protocol'],
+  index: number,
+) {
+  protocolConfigs[protocol].splice(index, 1);
+}
+
+async function saveProtocolHosts(protocol: ProtocolConfig['protocol']) {
+  const allowedHosts = protocolConfigs[protocol]
+    .map((host) => host.trim())
+    .filter(Boolean);
+  if (
+    new Set(allowedHosts.map((host) => host.toLowerCase())).size !==
+    allowedHosts.length
+  ) {
+    ElMessage.warning('允许域名不能重复');
+    return;
+  }
+  if (allowedHosts.length === 0) {
+    await ElMessageBox.confirm(
+      `保存空白名单后，${protocolLabels[protocol]} 的所有上游请求都会被拒绝。确认继续？`,
+      '确认停用协议出网',
+      { confirmButtonText: '确认保存', type: 'warning' },
+    );
+  }
+  protocolConfigSaving.value = protocol;
+  try {
+    const result = await updateProtocolAllowedHosts(protocol, allowedHosts);
+    protocolConfigs[protocol] = [...result.allowedHosts];
+    ElMessage.success(`${protocolLabels[protocol]} 允许域名已更新`);
+  } finally {
+    protocolConfigSaving.value = undefined;
+  }
+}
 
 const rechargeOpen = ref(false);
 const rechargeLoading = ref(false);
@@ -359,6 +458,7 @@ function edit(row?: AdvertiserV2) {
     credentialConfigKey: row?.credentialConfigKey || '',
     macroParams: row?.macroParams || '',
     password: '',
+    upstreamProtocol: row?.upstreamProtocol || '',
     username: '',
   });
   dialogOpen.value = true;
@@ -375,6 +475,7 @@ async function save() {
       credentialConfigKey: form.credentialConfigKey || undefined,
       macroParams: form.macroParams || undefined,
       name: form.advertiserName,
+      upstreamProtocol: form.upstreamProtocol as OcpxUpstreamProtocol,
     };
     await (editingId
       ? updateAdvertiserV2(editingId, createPayload)
@@ -401,6 +502,7 @@ function handleDialogClose() {
     credentialConfigKey: '',
     macroParams: '',
     password: '',
+    upstreamProtocol: '',
     username: '',
   });
 }
@@ -597,6 +699,13 @@ onMounted(async () => {
         >
           账号角色权限
         </el-button>
+        <el-button
+          v-access:code="'ocpx:protocol-config:manage'"
+          :disabled="loading || saving || Boolean(deletingId)"
+          @click="openProtocolConfig"
+        >
+          协议与域名
+        </el-button>
         <RightToolbar
           v-model:visible-columns="visibleColumns"
           :columns="columns"
@@ -616,6 +725,17 @@ onMounted(async () => {
         max-height="560"
         size="small"
       >
+        <el-table-column
+          v-if="hasColumn('protocol')"
+          label="上游协议"
+          min-width="130"
+        >
+          <template #default="{ row }">{{
+            row.upstreamProtocol
+              ? protocolLabels[row.upstreamProtocol as OcpxUpstreamProtocol]
+              : '未配置'
+          }}</template>
+        </el-table-column>
         <el-table-column
           v-if="hasColumn('id')"
           label="广告主编号"
@@ -777,7 +897,34 @@ onMounted(async () => {
             v-model="form.advertiserName"
             placeholder="请输入广告主名称"
         /></el-form-item>
-        <el-form-item label="请求地址" prop="bidUrl"
+        <el-form-item label="上游协议" prop="upstreamProtocol">
+          <el-select
+            v-model="form.upstreamProtocol"
+            aria-label="上游协议"
+            placeholder="请选择上游协议"
+          >
+            <el-option
+              v-for="item in protocolOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-alert
+          v-if="
+            form.upstreamProtocol && form.upstreamProtocol !== 'TEMPLATE_GET'
+          "
+          :closable="false"
+          class="field-alert"
+          show-icon
+          title="AERIM 与微风互动按推广链接中的投放链接转发；一个广告主可以配置多个产品链接。"
+          type="info"
+        />
+        <el-form-item
+          v-if="form.upstreamProtocol === 'TEMPLATE_GET'"
+          label="请求地址"
+          prop="bidUrl"
           ><el-input
             v-model="form.bidUrl"
             autosize
@@ -827,6 +974,79 @@ onMounted(async () => {
           >确定</el-button
         >
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="protocolConfigOpen"
+      :close-on-click-modal="false"
+      title="上游协议与允许域名"
+      width="760px"
+    >
+      <div v-loading="protocolConfigLoading" class="protocol-config-dialog">
+        <el-alert
+          :closable="false"
+          show-icon
+          title="仅填写精确域名，不含协议、端口、路径、通配符或 IP。保存后由 Engine 动态刷新，空白名单表示拒绝该协议全部出网。"
+          type="warning"
+        />
+        <section
+          v-for="protocol in ['AERIM', 'WEIFENG'] as const"
+          :key="protocol"
+          class="protocol-host-section"
+        >
+          <div class="protocol-host-header">
+            <div>
+              <strong>{{ protocolLabels[protocol] }}</strong>
+              <p>精确匹配上游点击监测地址的域名。</p>
+            </div>
+            <el-button
+              :disabled="Boolean(protocolConfigSaving)"
+              link
+              type="primary"
+              @click="addProtocolHost(protocol)"
+              >添加域名</el-button
+            >
+          </div>
+          <div
+            v-if="protocolConfigs[protocol].length > 0"
+            class="protocol-host-list"
+          >
+            <div
+              v-for="(_host, index) in protocolConfigs[protocol]"
+              :key="`${protocol}-${index}`"
+              class="protocol-host-row"
+            >
+              <el-input
+                v-model="protocolConfigs[protocol][index]"
+                :aria-label="`${protocolLabels[protocol]} 允许域名 ${index + 1}`"
+                maxlength="253"
+                placeholder="例如：track.partner.example"
+              />
+              <el-button
+                :aria-label="`删除 ${protocolLabels[protocol]} 允许域名 ${index + 1}`"
+                :disabled="Boolean(protocolConfigSaving)"
+                link
+                type="danger"
+                @click="removeProtocolHost(protocol, index)"
+                >删除</el-button
+              >
+            </div>
+          </div>
+          <el-empty
+            v-else
+            :image-size="48"
+            description="当前为空：该协议禁止出网"
+          />
+          <div class="protocol-host-footer">
+            <el-button
+              :loading="protocolConfigSaving === protocol"
+              type="primary"
+              @click="saveProtocolHosts(protocol)"
+              >保存 {{ protocolLabels[protocol] }}</el-button
+            >
+          </div>
+        </section>
+      </div>
     </el-dialog>
 
     <el-dialog
@@ -1116,6 +1336,52 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.4;
   color: var(--el-text-color-secondary);
+}
+
+.field-alert {
+  margin-bottom: 18px;
+}
+
+.protocol-config-dialog {
+  display: grid;
+  gap: 18px;
+}
+
+.protocol-host-section {
+  padding: 16px;
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: var(--el-border-radius-base);
+}
+
+.protocol-host-header,
+.protocol-host-row,
+.protocol-host-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.protocol-host-header p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.protocol-host-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.protocol-host-row :deep(.el-input) {
+  flex: 1;
+}
+
+.protocol-host-footer {
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .role-permission-dialog {

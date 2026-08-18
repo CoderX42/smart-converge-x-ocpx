@@ -4,9 +4,16 @@ import com.yzytech.scx.ocpx.configuration.mapper.OcpxAdvertiserConfigMapper;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxMediaConfigMapper;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxMonitorTaskConfigMapper;
 import com.yzytech.scx.ocpx.configuration.mapper.OcpxPromotionLinkConfigMapper;
+import com.yzytech.scx.ocpx.configuration.mapper.OcpxProtocolAllowedHostConfigMapper;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.EnumMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /** 从数据库全量加载四个 OCPX 业务实体，并刷新 Engine 内存索引。 */
 @Slf4j
@@ -22,6 +29,8 @@ public class IndexDataLoader {
 
 	private final OcpxMonitorTaskConfigMapper monitorTaskMapper;
 
+	private final OcpxProtocolAllowedHostConfigMapper protocolAllowedHostMapper;
+
 	private final OcpxAdvertiserIndex advertiserIndex;
 
 	private final OcpxPromotionLinkIndex promotionLinkIndex;
@@ -29,6 +38,8 @@ public class IndexDataLoader {
 	private final OcpxMediaIndex mediaIndex;
 
 	private final OcpxMonitorTaskIndex monitorTaskIndex;
+
+	private final OcpxProtocolAllowedHostIndex protocolAllowedHostIndex;
 
 	/**
 	 * 清空旧快照并按广告主、链接、媒体、任务顺序重新装载。
@@ -46,6 +57,11 @@ public class IndexDataLoader {
 		mediaMapper.selectList(null).forEach(item -> mediaIndex.add(item.getId(), item));
 		monitorTaskIndex.clear();
 		monitorTaskMapper.selectList(null).forEach(item -> monitorTaskIndex.add(item.getId(), item));
+		Map<OcpxUpstreamProtocol, Set<String>> allowedHosts = new EnumMap<>(OcpxUpstreamProtocol.class);
+		protocolAllowedHostMapper.selectList(null)
+			.forEach(item -> allowedHosts.computeIfAbsent(item.getProtocolType(), ignored -> new LinkedHashSet<>())
+				.add(item.getHost()));
+		protocolAllowedHostIndex.replace(allowedHosts);
 		log.info("IndexDataLoader end");
 	}
 

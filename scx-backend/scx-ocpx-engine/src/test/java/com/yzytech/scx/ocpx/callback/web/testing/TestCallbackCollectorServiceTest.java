@@ -46,7 +46,8 @@ class TestCallbackCollectorServiceTest {
 			.build();
 
 		assertThat(service.arm(request)).isTrue();
-		verify(jdbcTemplate).update(contains("TEST_CALLBACK_ARMED"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_flow_log"), any(), any(), any(), any(), any(), any(),
+				any(), any(), any(), any(), any(), any(), eq("TEST_CALLBACK_ARMED"), any(), any());
 	}
 
 	@Test
@@ -63,7 +64,8 @@ class TestCallbackCollectorServiceTest {
 				"link-1", 1, new BigDecimal("1.250000"), signature(requestId, new BigDecimal("1.250000")));
 
 		assertThat(inserted).isTrue();
-		verify(jdbcTemplate).update(contains("TEST_CALLBACK_RECEIVED"), any(Object[].class));
+		verify(jdbcTemplate).update(contains("INSERT INTO scx_ocpx_flow_log"), any(), any(), any(), any(), any(), any(),
+				any(), any(), any(), any(), any(), any(), eq("TEST_CALLBACK_RECEIVED"), any(), any());
 	}
 
 	@Test

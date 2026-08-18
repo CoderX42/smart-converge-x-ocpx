@@ -9,9 +9,11 @@ import {
   deleteAdvertiserV2,
   deleteMedia,
   getAdvertiserRolePermissions,
+  getProtocolConfigs,
   rechargeAdvertiser,
   updateAdvertiserRolePermissions,
   updateAdvertiserV2,
+  updateProtocolAllowedHosts,
 } from './four-entity';
 
 const requestClient = vi.hoisted(() => ({
@@ -35,6 +37,7 @@ describe('ocpx four-entity write contracts', () => {
       macroParams: 'id=__ID__',
       name: '广告主甲',
       password: 'Password1!',
+      upstreamProtocol: 'TEMPLATE_GET',
       username: 'advertiser_a',
     });
     expect(requestClient.post).toHaveBeenCalledWith('/ocpx/advertisers', {
@@ -43,12 +46,14 @@ describe('ocpx four-entity write contracts', () => {
       macroParams: 'id=__ID__',
       name: '广告主甲',
       password: 'Password1!',
+      upstreamProtocol: 'TEMPLATE_GET',
       username: 'advertiser_a',
     });
 
     await updateAdvertiserV2('advertiser-1', {
       bidUrl: 'http://localhost/changed',
       name: '广告主甲-更新',
+      upstreamProtocol: 'AERIM',
       password: 'must-not-leak',
       username: 'must-not-leak',
     } as Parameters<typeof updateAdvertiserV2>[1] & {
@@ -62,6 +67,7 @@ describe('ocpx four-entity write contracts', () => {
         credentialConfigKey: undefined,
         macroParams: undefined,
         name: '广告主甲-更新',
+        upstreamProtocol: 'AERIM',
       },
     );
   });
@@ -182,6 +188,17 @@ describe('ocpx four-entity write contracts', () => {
         allDataScope: false,
         menuIds: ['menu_ocpx_advertiser', 'perm_ocpx_advertiser_edit'],
       },
+    );
+  });
+
+  it('loads and replaces administrator-managed protocol host allowlists', async () => {
+    await getProtocolConfigs();
+    await updateProtocolAllowedHosts('AERIM', ['d.aerim.cn', 'c.aerim.cn']);
+
+    expect(requestClient.get).toHaveBeenCalledWith('/ocpx/protocol-configs');
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/ocpx/protocol-configs/AERIM/allowed-hosts',
+      { allowedHosts: ['d.aerim.cn', 'c.aerim.cn'] },
     );
   });
 });

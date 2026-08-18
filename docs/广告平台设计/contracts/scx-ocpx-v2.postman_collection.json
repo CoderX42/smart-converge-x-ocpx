@@ -176,6 +176,32 @@
       }
     },
     {
+      "name": "查询上游协议允许域名",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs"
+      }
+    },
+    {
+      "name": "替换 AERIM 允许域名",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allowedHosts\": [\"d.aerim.cn\", \"c.aerim.cn\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/AERIM/allowed-hosts"
+      }
+    },
+    {
       "name": "查询广告主账务流水",
       "request": {
         "method": "GET",

@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.admin.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,6 +21,8 @@ public final class AdvertiserViews {
 		private String id;
 
 		private String advertiserName;
+
+		private OcpxUpstreamProtocol upstreamProtocol;
 
 		private String username;
 

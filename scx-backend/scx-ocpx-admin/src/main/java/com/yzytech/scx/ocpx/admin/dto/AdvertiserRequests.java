@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,7 +31,9 @@ public final class AdvertiserRequests {
 		@Size(max = 128)
 		private String credentialConfigKey;
 
-		@NotBlank
+		@NotNull
+		private OcpxUpstreamProtocol upstreamProtocol;
+
 		@Size(max = 5000)
 		private String bidUrl;
 
@@ -60,7 +63,9 @@ public final class AdvertiserRequests {
 		@Size(max = 128)
 		private String credentialConfigKey;
 
-		@NotBlank
+		@NotNull
+		private OcpxUpstreamProtocol upstreamProtocol;
+
 		@Size(max = 5000)
 		private String bidUrl;
 

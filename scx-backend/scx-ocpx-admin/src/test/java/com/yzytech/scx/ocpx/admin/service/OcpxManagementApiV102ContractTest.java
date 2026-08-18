@@ -40,9 +40,9 @@ class OcpxManagementApiV102ContractTest {
 	}
 
 	@Test
-	void writeDtosContainOnlyV102Fields() {
-		assertThat(fieldNames(AdvertiserRequests.Create.class)).containsExactly("name", "credentialConfigKey", "bidUrl",
-				"macroParams", "username", "password");
+	void writeDtosContainCurrentManagementFields() {
+		assertThat(fieldNames(AdvertiserRequests.Create.class)).containsExactly("name", "credentialConfigKey",
+				"upstreamProtocol", "bidUrl", "macroParams", "username", "password");
 		assertThat(fieldNames(MediaRequests.Create.class)).containsExactly("mediaName", "credentialConfigKey", "uri",
 				"macroParams");
 		assertThat(fieldNames(PromotionLinkRequests.Create.class)).containsExactly("advertiserId", "linkName",
@@ -54,7 +54,7 @@ class OcpxManagementApiV102ContractTest {
 
 	@Test
 	void advertiserViewAddsOnlyNullableUsernameAndNeverReturnsAccountSecrets() {
-		assertThat(fieldNames(AdvertiserViews.Item.class)).contains("username")
+		assertThat(fieldNames(AdvertiserViews.Item.class)).contains("username", "upstreamProtocol")
 			.doesNotContain("accountUserId", "password");
 	}
 

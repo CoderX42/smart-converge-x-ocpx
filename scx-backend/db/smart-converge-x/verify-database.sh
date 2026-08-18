@@ -23,7 +23,7 @@ expected_business_tables='scx_ocpx_advertiser,scx_ocpx_creative,scx_ocpx_deducti
 [[ "$business_tables" == "$expected_business_tables" ]] || fail "the OCPX business main tables are not exact"
 
 ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {
@@ -32,7 +32,8 @@ assert_exact_columns() {
   [[ "$actual" == "$expected" ]] || fail "${table} columns do not match the current management model"
 }
 
-assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,account_user_id,credential_config_key,bid_url,macro_params,create_time,update_time'
+assert_exact_columns scx_ocpx_advertiser 'id,advertiser_name,upstream_protocol,account_user_id,credential_config_key,bid_url,macro_params,create_time,update_time'
+assert_exact_columns scx_ocpx_protocol_allowed_host 'id,protocol_type,host,create_time,update_time'
 assert_exact_columns scx_ocpx_promotion_link 'id,advertiser_id,link_name,platform,link_channel,link_url,deeplink,link_ext,remark,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_creative 'id,advertiser_id,creative_name,creative_type,asset_url,source_material_id,file_name,mime_type,file_size,width,height,checksum_sha256,status,remark,is_delete,create_by,create_time,update_time'
 assert_exact_columns scx_ocpx_creative_promotion_link 'advertiser_id,creative_id,promotion_link_id,create_by,create_time'
@@ -48,6 +49,16 @@ advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.col
  AND column_name='account_user_id' AND data_type='varchar'
  AND character_maximum_length=64 AND is_nullable='YES'")"
 [[ "$advertiser_account_column" -eq 1 ]] || fail "advertiser account_user_id must be nullable VARCHAR(64)"
+
+invalid_upstream_protocols="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser
+ WHERE upstream_protocol IS NOT NULL
+ AND upstream_protocol NOT IN ('TEMPLATE_GET','AERIM','WEIFENG')")"
+[[ "$invalid_upstream_protocols" -eq 0 ]] || fail "advertiser upstream protocol is invalid"
+
+invalid_protocol_hosts="$(scalar "SELECT COUNT(*) FROM scx_ocpx_protocol_allowed_host
+ WHERE protocol_type NOT IN ('AERIM','WEIFENG') OR host<>LOWER(host)
+ OR host LIKE '%://%' OR host LIKE '%/%' OR host LIKE '%:%' OR host LIKE '%*%'")"
+[[ "$invalid_protocol_hosts" -eq 0 ]] || fail "protocol allowed hosts contain an invalid value"
 
 advertiser_account_unique="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
@@ -196,8 +207,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all')")"
-[[ "$required_permissions" -eq 18 ]] || fail "required OCPX action, creative, billing, ledger, monitor-test, integration and data-scope permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all','ocpx:protocol-config:manage')")"
+[[ "$required_permissions" -eq 19 ]] || fail "required OCPX action, creative, billing, ledger, protocol-config, monitor-test, integration and data-scope permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -220,8 +231,16 @@ admin_protected_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
  JOIN sys_role_menu rm ON rm.role_id=r.id
  JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
- AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration')")"
-[[ "$admin_protected_permissions" -eq 5 ]] || fail "system administrator finance, monitor-test and integration permissions are incomplete"
+ AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:protocol-config:manage')")"
+[[ "$admin_protected_permissions" -eq 6 ]] || fail "system administrator finance, protocol-config, monitor-test and integration permissions are incomplete"
+
+non_admin_protocol_config_grants="$(scalar "SELECT COUNT(*)
+ FROM sys_role_menu rm
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ LEFT JOIN sys_role r ON r.id=rm.role_id
+ WHERE m.permission='ocpx:protocol-config:manage'
+ AND (r.id IS NULL OR r.role_code<>'ROLE_ADMIN' OR r.del_flag<>'0')")"
+[[ "$non_admin_protocol_config_grants" -eq 0 ]] || fail "protocol configuration must be granted only to active ROLE_ADMIN"
 
 non_admin_monitor_test_grants="$(scalar "SELECT COUNT(*)
  FROM sys_role_menu rm

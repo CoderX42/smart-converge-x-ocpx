@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 9.0.0
-  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, and V113 media callback deduction contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 10.0.0
+  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, and V115 database-driven upstream protocol configuration contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -149,6 +149,57 @@ paths:
         '400': { description: 测试身份、路由、事件或金额格式无效 }
         '409': { description: 对应正式 Callback 尚未形成 PASSED 扣量事实 }
         '500': { description: 脱敏审计写入失败 }
+  /protocol-configs:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listUpstreamProtocolConfigs
+      summary: 查询上游协议允许域名
+      description: 仅管理员可读；返回 AERIM 与 WEIFENG 的当前精确域名白名单。空列表表示该协议全部拒绝。
+      security:
+        - saToken: []
+      responses:
+        '200':
+          description: 当前协议允许域名配置
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProtocolConfigListEnvelope' }
+        '403': { description: 非管理员或缺少 ocpx:protocol-config:manage 权限 }
+  /protocol-configs/{protocol}/allowed-hosts:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables:
+          domain:
+            default: sandbox.example.invalid
+      - url: http://localhost:9999/boot/ocpx
+    put:
+      operationId: replaceUpstreamProtocolAllowedHosts
+      summary: 全量替换上游协议允许域名
+      description: 仅支持 AERIM 与 WEIFENG。服务端规范化、去重并校验精确域名；禁止 URL、端口、通配符、IP 和单标签主机。保存成功后通知 Engine 刷新索引。
+      security:
+        - saToken: []
+      parameters:
+        - name: protocol
+          in: path
+          required: true
+          schema: { type: string, enum: [AERIM, WEIFENG] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProtocolAllowedHostsUpdate' }
+      responses:
+        '200':
+          description: 保存后的协议允许域名配置
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProtocolConfigEnvelope' }
+        '400': { description: 协议或域名格式无效 }
+        '403': { description: 非管理员或缺少 ocpx:protocol-config:manage 权限 }
   /advertisers/account-role/permissions:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -673,6 +724,46 @@ components:
       in: header
       name: satoken
   schemas:
+    ProtocolAllowedHostsUpdate:
+      type: object
+      additionalProperties: false
+      required: [allowedHosts]
+      properties:
+        allowedHosts:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          description: 精确域名列表；空列表表示禁用该协议的所有上游请求。
+          items:
+            type: string
+            minLength: 3
+            maxLength: 253
+            pattern: '^(?=.{3,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'
+    ProtocolConfig:
+      type: object
+      required: [protocol, allowedHosts]
+      properties:
+        protocol: { type: string, enum: [AERIM, WEIFENG] }
+        allowedHosts:
+          type: array
+          uniqueItems: true
+          items: { type: string }
+    ProtocolConfigEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data: { $ref: '#/components/schemas/ProtocolConfig' }
+    ProtocolConfigListEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        msg: { type: [string, 'null'] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProtocolConfig' }
     MediaCallbackRatioRuleSaveRequest:
       type: object
       additionalProperties: false

@@ -1,15 +1,17 @@
 package com.yzytech.scx.ocpx.feedback.delivery.aerim;
 
+import com.yzytech.scx.ocpx.configuration.index.OcpxProtocolAllowedHostIndex;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
+import com.yzytech.scx.ocpx.protocol.ProtocolHostContract;
+import com.yzytech.scx.ocpx.protocol.security.ProtocolAddressPolicy;
+import com.yzytech.scx.ocpx.protocol.security.ProtocolDnsResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.net.IDN;
 import java.net.InetAddress;
 import java.net.URI;
-import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /** AERIM HTTP/HTTPS 监测地址的白名单与 SSRF 校验。 */
 @Component
@@ -18,7 +20,9 @@ public class AerimEndpointPolicy {
 
 	private static final int MAX_URL_LENGTH = 5000;
 
-	private final AerimProperties properties;
+	private final OcpxProtocolAllowedHostIndex allowedHostIndex;
+
+	private final ProtocolDnsResolver dnsResolver;
 
 	public String requireAllowedHttpUrl(String value) {
 		if (!StringUtils.hasText(value) || value.length() > MAX_URL_LENGTH
@@ -29,22 +33,20 @@ public class AerimEndpointPolicy {
 			URI uri = URI.create(value.trim()).normalize();
 			String scheme = uri.getScheme();
 			if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) || uri.getUserInfo() != null
-					|| uri.getFragment() != null
-					|| uri.getPort() == 0 || uri.getPort() > 65535) {
+					|| uri.getFragment() != null || uri.getPort() == 0 || uri.getPort() > 65535) {
 				throw new IllegalArgumentException("unsafe AERIM URL");
 			}
-			String host = normalizeHost(uri.getHost());
-			Set<String> allowedHosts = properties.getAllowedHosts()
-				.stream()
-				.map(this::normalizeHost)
-				.filter(StringUtils::hasText)
-				.collect(Collectors.toSet());
+			String host = ProtocolHostContract.normalizeConfiguredHost(uri.getHost());
+			Set<String> allowedHosts = allowedHostIndex.get(OcpxUpstreamProtocol.AERIM);
 			if (!StringUtils.hasText(host) || !allowedHosts.contains(host)) {
 				throw new IllegalArgumentException("AERIM host is not allowed");
 			}
-			for (InetAddress address : InetAddress.getAllByName(host)) {
-				if (address.isAnyLocalAddress() || address.isLoopbackAddress() || address.isLinkLocalAddress()
-						|| address.isSiteLocalAddress() || address.isMulticastAddress()) {
+			InetAddress[] addresses = dnsResolver.resolveAll(host);
+			if (addresses.length == 0) {
+				throw new IllegalArgumentException("unsafe AERIM URL");
+			}
+			for (InetAddress address : addresses) {
+				if (!ProtocolAddressPolicy.isPublic(address)) {
 					throw new IllegalArgumentException("unsafe AERIM URL");
 				}
 			}
@@ -56,17 +58,6 @@ public class AerimEndpointPolicy {
 		catch (Exception exception) {
 			throw new IllegalArgumentException("unsafe AERIM URL", exception);
 		}
-	}
-
-	private String normalizeHost(String value) {
-		if (!StringUtils.hasText(value)) {
-			return null;
-		}
-		String host = value.trim().toLowerCase(Locale.ROOT);
-		if (host.endsWith(".")) {
-			host = host.substring(0, host.length() - 1);
-		}
-		return host.contains(":") ? host : IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES);
 	}
 
 }
