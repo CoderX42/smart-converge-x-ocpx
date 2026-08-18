@@ -147,6 +147,8 @@ assert "callback_url" not in schemas["MonitorTaskTestExecuteRequest"]["propertie
 assert "targetUrl" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert "callbackToken" in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert not ({"url", "callbackUrl", "targetUrl"} & set(schemas["MonitorTaskIntegrationCallbackRequest"]["properties"]))
+assert "manualCallbackAllowed" in schemas["MonitorTaskIntegrationFeedback"]["required"]
+assert schemas["MonitorTaskIntegrationFeedback"]["properties"]["manualCallbackAllowed"]["type"] == "boolean"
 assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
 assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
     "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED",

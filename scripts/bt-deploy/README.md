@@ -70,7 +70,7 @@ bash scripts/bt-deploy/03-deploy_all.sh --no-restart
 
 管理前端 `ht` 站点使用 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf)。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`；该域名始终拒绝 `/ocpx/**`。
 
-独立 `ocpx` 站点使用 [templates/nginx-scx-ocpx-engine-rewrite.conf](templates/nginx-scx-ocpx-engine-rewrite.conf)。它只转发 `/ocpx/feedback`、`/ocpx/callback`、`/ocpx/aerim/callback`、`/ocpx/weifeng/callback` 和 `/ocpx/open-api/**`，其他路径（含 actuator/internal）返回 404。模板保留完整 `/ocpx/...` 路径，`proxy_pass` 不得附加 URI。
+独立 `ocpx` 站点使用 [templates/nginx-scx-ocpx-engine-rewrite.conf](templates/nginx-scx-ocpx-engine-rewrite.conf)。它只转发 `/ocpx/feedback`、`/ocpx/callback`、`/ocpx/aerim/callback`、`/ocpx/weifeng/callback`、受签名保护的完整测试接收端 `/ocpx/test-callback` 和 `/ocpx/open-api/**`，其他路径（含 actuator/internal）返回 404。模板保留完整 `/ocpx/...` 路径，`proxy_pass` 不得附加 URI。
 
 前端单独发布只需要 Node.js、pnpm 和站点目录写权限，不要求本机安装 Maven/JDK；脚本会优先使用 `rsync`，未安装时回退到 `cp`。如果宝塔站点根不是默认目录，请显式设置 `SCX_WEB_ROOT`，并确保宝塔网站根与该目录一致。
 

@@ -522,6 +522,31 @@ weifeng_prefix = (
 if weifeng_prefix not in nginx_template:
     raise SystemExit("Nginx gate failed: WEIFENG callback must be GET-only and proxy to Engine")
 
+test_callback_location = "location = /ocpx/test-callback {"
+for template_path in (
+    "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf",
+    "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-ip-uat-rewrite.conf",
+):
+    template = (root / template_path).read_text(encoding="utf-8")
+    if template.count(test_callback_location) != 1:
+        raise SystemExit(f"Nginx gate failed: {template_path} must expose one exact test callback location")
+    expected_proxy = (
+        test_callback_location
+        + "\n    limit_except GET { deny all; }"
+        + "\n    proxy_pass http://127.0.0.1:10000;"
+    )
+    if expected_proxy not in template:
+        raise SystemExit(f"Nginx gate failed: {template_path} test callback must be GET-only and proxy to Engine")
+
+frontend_nginx = (root / "scx-fronted/scripts/deploy/scx-fronted.conf").read_text(encoding="utf-8")
+frontend_test_proxy = (
+    test_callback_location
+    + "\n        limit_except GET { deny all; }"
+    + "\n        proxy_pass http://scx-ocpx-engine:10000;"
+)
+if frontend_nginx.count(test_callback_location) != 1 or frontend_test_proxy not in frontend_nginx:
+    raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only test callback route")
+
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):
     if mapper_package not in entrypoint:

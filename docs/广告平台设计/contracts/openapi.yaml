@@ -494,7 +494,7 @@ paths:
     post:
       operationId: sendMonitorTaskIntegrationCallback
       summary: 使用选中 Feedback 的 callback_url 发送真实媒体 Callback
-      description: 不接受任意目标 URL；不生成广告主转化事实、不扣费、不执行正式媒体扣量。HTTP 2xx 不代表媒体业务入库。
+      description: 不接受任意目标 URL；不生成广告主转化事实、不扣费、不执行正式媒体扣量；拒绝把完整测试的 Engine /test-callback 当作媒体地址手工发送。HTTP 2xx 不代表媒体业务入库。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -503,7 +503,7 @@ paths:
         content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackRequest' } } }
       responses:
         '200': { description: Callback HTTP 或稳定传输错误结果, content: { application/json: { schema: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackEnvelope' } } } }
-        '400': { description: 请求未携带 callback_url 或事件无效 }
+        '400': { description: 请求未携带 callback_url、事件无效，或目标为只允许 Engine 正式签名投递的内部测试接收端 }
         '403': { description: 非真实系统管理员或缺少联调权限 }
         '404': { description: 监测任务或请求明细不存在 }
         '409': { description: 请求明细与监测任务关系不一致 }
@@ -1115,7 +1115,7 @@ components:
         data: { $ref: '#/components/schemas/MonitorTaskTestResult' }
     MonitorTaskIntegrationFeedback:
       type: object
-      required: [feedbackLogId, receivedAt, callbackAvailable]
+      required: [feedbackLogId, receivedAt, callbackAvailable, manualCallbackAllowed]
       properties:
         feedbackLogId: { type: integer, format: int64, minimum: 1 }
         receivedAt: { type: string, format: date-time }
@@ -1145,6 +1145,7 @@ components:
         monitorTaskId: { type: [string, 'null'], maxLength: 32 }
         promotionLinkId: { type: [string, 'null'], maxLength: 32 }
         callbackAvailable: { type: boolean }
+        manualCallbackAllowed: { type: boolean, description: 仅普通媒体 callback_url 为 true；SCX 完整测试接收端固定为 false。 }
     MonitorTaskIntegrationFeedbackPageEnvelope:
       type: object
       required: [code, data]

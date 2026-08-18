@@ -74,6 +74,8 @@ public final class MonitorTaskIntegrationViews {
 
 		private boolean callbackAvailable;
 
+		private boolean manualCallbackAllowed;
+
 	}
 
 	@Data

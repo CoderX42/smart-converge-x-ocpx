@@ -8,6 +8,7 @@
 - Engine 地址固定读取 `scx.ocpx.admin.tracking.engine-base-url`；禁止重定向，连接超时 3 秒、读取超时 5 秒，响应正文最多保留 4096 字节。
 - 执行可能形成真实点击、上游流量、点击或目标转化扣费和媒体扣量。上游 HTTP 200 只代表点击接口已响应；只有广告主真实发送 Callback 且媒体扣量放行后，测试接收端才会形成最后一跳证据。
 - 测试接收端成功证明 SCX 正式 Callback 链路的最后一跳可达，不代表真实媒体已经业务入库；真实媒体地址仍通过“联调”功能验证。
+- 公网 Nginx 只精确开放 `GET /ocpx/test-callback`，其余未知 `/ocpx/**` 继续返回 404；公开路由不替代 Controller 的测试令牌、PASSED 事实与 HMAC 签名校验。
 
 ## API
 

@@ -607,6 +607,14 @@ function showIntegrationDetail(row: MonitorTaskIntegrationFeedback) {
 }
 
 function openIntegrationCallback(row: MonitorTaskIntegrationFeedback) {
+  if (!row.manualCallbackAllowed) {
+    ElMessage.warning(
+      row.callbackAvailable
+        ? '完整测试 Callback 由 Engine 自动签名投递，请在“测试链接”中查看闭环结果'
+        : '该请求没有 callback_url，无法发送 Callback',
+    );
+    return;
+  }
   integrationCallbackSource.value = row;
   integrationCallbackForm.eventCode =
     integrationTarget.value?.conversionEvent || 'ACTIVATE';
@@ -643,11 +651,11 @@ async function sendIntegrationCallback() {
         feedbackLogId: integrationCallbackSource.value.feedbackLogId,
       },
     );
-    ElMessage.success(
-      integrationCallbackResult.value.resultStatus === 'SUCCESS'
-        ? '媒体接口已响应'
-        : 'Callback 已执行，请查看失败详情',
-    );
+    if (integrationCallbackResult.value.resultStatus === 'SUCCESS') {
+      ElMessage.success('媒体接口已响应');
+    } else {
+      ElMessage.error('Callback 请求失败，请查看 HTTP 状态和响应详情');
+    }
   } finally {
     integrationSending.value = false;
   }
@@ -1306,10 +1314,22 @@ onBeforeUnmount(clearTestPolling);
           <el-table-column label="Callback" width="110">
             <template #default="{ row }">
               <el-tag
-                :type="row.callbackAvailable ? 'success' : 'info'"
+                :type="
+                  row.manualCallbackAllowed
+                    ? 'success'
+                    : row.callbackAvailable
+                      ? 'warning'
+                      : 'info'
+                "
                 size="small"
               >
-                {{ row.callbackAvailable ? '可回传' : '未携带' }}
+                {{
+                  row.manualCallbackAllowed
+                    ? '可回传'
+                    : row.callbackAvailable
+                      ? '完整测试'
+                      : '未携带'
+                }}
               </el-tag>
             </template>
           </el-table-column>
@@ -1318,13 +1338,21 @@ onBeforeUnmount(clearTestPolling);
               <el-button link type="primary" @click="showIntegrationDetail(row)"
                 >详情</el-button
               >
-              <el-button
-                :disabled="!row.callbackAvailable"
-                link
-                type="danger"
-                @click="openIntegrationCallback(row)"
-                >发 Callback</el-button
+              <el-tooltip
+                :disabled="row.manualCallbackAllowed || !row.callbackAvailable"
+                content="完整测试由 Engine 自动签名回调，请在“测试链接”中查看闭环结果"
+                placement="top"
               >
+                <span class="ocpx-integration-callback-action">
+                  <el-button
+                    :disabled="!row.manualCallbackAllowed"
+                    link
+                    type="danger"
+                    @click="openIntegrationCallback(row)"
+                    >发 Callback</el-button
+                  >
+                </span>
+              </el-tooltip>
             </template>
           </el-table-column>
         </el-table>
@@ -1448,6 +1476,7 @@ onBeforeUnmount(clearTestPolling);
       v-model="integrationCallbackOpen"
       append-to-body
       :close-on-click-modal="false"
+      class="ocpx-integration-callback-dialog"
       title="发送媒体 Callback"
       width="700px"
     >
@@ -1461,17 +1490,17 @@ onBeforeUnmount(clearTestPolling);
         v-if="integrationCallbackSource"
         :column="2"
         border
-        class="ocpx-test-section"
+        class="ocpx-integration-callback__summary ocpx-test-section"
         size="small"
       >
         <el-descriptions-item label="request_id">
-          <LongText :value="integrationCallbackSource.requestId" />
+          <LongText :value="integrationCallbackSource.requestId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="clickid">
-          <LongText :value="integrationCallbackSource.clickId" />
+          <LongText :value="integrationCallbackSource.clickId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="目标地址" :span="2">
-          <LongText :value="integrationCallbackSource.callbackUrl" />
+          <LongText :value="integrationCallbackSource.callbackUrl" wrap />
         </el-descriptions-item>
       </el-descriptions>
       <el-form class="ocpx-test-section" label-width="100px">
@@ -1533,10 +1562,22 @@ onBeforeUnmount(clearTestPolling);
           </el-descriptions-item>
         </el-descriptions>
         <el-alert
+          v-if="integrationCallbackResult.resultStatus === 'SUCCESS'"
           :closable="false"
           class="ocpx-test-alert"
           title="HTTP 成功只表示媒体接口已响应，不代表媒体已经完成业务入库。"
           type="warning"
+        />
+        <el-alert
+          v-else
+          :closable="false"
+          class="ocpx-test-alert"
+          :title="
+            integrationCallbackResult.partnerHttpStatus
+              ? `Callback 请求失败，媒体接口返回 HTTP ${integrationCallbackResult.partnerHttpStatus}。`
+              : 'Callback 请求失败，未获得媒体接口的有效 HTTP 响应。'
+          "
+          type="error"
         />
         <el-input
           v-if="integrationCallbackResult.responsePreview"
@@ -1753,6 +1794,27 @@ onBeforeUnmount(clearTestPolling);
 
 .ocpx-integration-dialog {
   min-height: 260px;
+}
+
+.ocpx-integration-callback-action {
+  display: inline-flex;
+  margin-left: 12px;
+}
+
+.ocpx-integration-callback-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.ocpx-integration-callback__summary :deep(.el-descriptions__table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ocpx-integration-callback__summary
+  :deep(.el-descriptions__content.el-descriptions__cell.is-bordered-content) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ocpx-integration-detail-dialog {

@@ -102,6 +102,12 @@ describe('vientiane-aligned OCPX page contracts', () => {
       '<LongText :value="integrationDetail.callbackUrl" wrap />',
     );
     expect(source).toContain('不是网络层原始报文');
+    expect(source).toContain('row.manualCallbackAllowed');
+    expect(source).toContain('完整测试 Callback 由 Engine 自动签名投递');
+    expect(source).toContain(
+      "integrationCallbackResult.resultStatus === 'SUCCESS'",
+    );
+    expect(source).toContain('Callback 请求失败，媒体接口返回 HTTP');
     expect(source).toContain('确认发送真实 Callback');
     expect(source).toContain('不会生成广告主转化');
     expect(source).toContain('不代表媒体已经完成业务入库');
@@ -219,7 +225,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
       expect(source).toContain('const canOperate = computed');
       if (name === 'monitor-task') {
         expect(source).toMatch(
-          /v-if="canOperate \|\| canTest"[\s\S]*label="操作"/,
+          /v-if="canOperate \|\| canTest \|\| canIntegrate"[\s\S]*label="操作"/,
         );
       } else {
         expect(source).toMatch(/v-if="canOperate"[\s\S]*label="操作"/);

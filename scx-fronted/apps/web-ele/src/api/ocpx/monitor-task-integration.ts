@@ -19,6 +19,7 @@ export type MonitorTaskIntegrationFeedback = {
   imei?: string;
   ip?: string;
   mac?: string;
+  manualCallbackAllowed: boolean;
   mediaId?: string;
   monitorTaskId?: string;
   oaid?: string;

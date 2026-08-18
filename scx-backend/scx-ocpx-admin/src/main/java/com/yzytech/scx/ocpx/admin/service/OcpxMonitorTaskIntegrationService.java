@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.admin.service;
 
 import com.yzytech.scx.common.security.handler.BootBusinessException;
+import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskIntegrationRequests;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskIntegrationViews;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskMapper;
@@ -54,6 +55,8 @@ public class OcpxMonitorTaskIntegrationService {
 
 	private final OcpxIntegrationCallbackHttpClient httpClient;
 
+	private final OcpxTrackingProperties trackingProperties;
+
 	private final PublicCallbackUrlContract callbackUrlContract = new PublicCallbackUrlContract();
 
 	public MonitorTaskIntegrationViews.Page feedbackRequests(String taskId, LocalDate startDate, LocalDate endDate,
@@ -81,8 +84,8 @@ public class OcpxMonitorTaskIntegrationService {
 			where.append(" AND req_id=?");
 			args.add(normalizedRequestId);
 		}
-		Long totalValue = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_log_feedback" + where,
-				Long.class, args.toArray());
+		Long totalValue = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_log_feedback" + where, Long.class,
+				args.toArray());
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(size);
 		pageArgs.add((current - 1) * size);
@@ -92,15 +95,17 @@ public class OcpxMonitorTaskIntegrationService {
 				       adv_id,group_id,plan_id,creative_id,m_id,a_id,t_id,l_id
 				FROM scx_ocpx_log_feedback
 				""" + where + " ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?";
-		List<MonitorTaskIntegrationViews.FeedbackItem> records = jdbcTemplate.query(sql,
-				(rs, rowNum) -> new MonitorTaskIntegrationViews.FeedbackItem(rs.getLong(1), time(rs.getTimestamp(2)),
-						rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7),
-						rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12),
-						rs.getString(13), rs.getString(14), rs.getString(15), rs.getString(16),
-						decodedCallbackUrl(rs.getString(17)), rs.getString(18), rs.getString(19), rs.getString(20),
-						rs.getString(21), rs.getString(22), rs.getString(23), rs.getString(24), rs.getString(25),
-						rs.getString(26), rs.getString(27), StringUtils.hasText(rs.getString(17))),
-				pageArgs.toArray());
+		List<MonitorTaskIntegrationViews.FeedbackItem> records = jdbcTemplate.query(sql, (rs, rowNum) -> {
+			String callbackUrl = decodedCallbackUrl(rs.getString(17));
+			boolean callbackAvailable = StringUtils.hasText(callbackUrl);
+			return new MonitorTaskIntegrationViews.FeedbackItem(rs.getLong(1), time(rs.getTimestamp(2)),
+					rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7),
+					rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12),
+					rs.getString(13), rs.getString(14), rs.getString(15), rs.getString(16), callbackUrl,
+					rs.getString(18), rs.getString(19), rs.getString(20), rs.getString(21), rs.getString(22),
+					rs.getString(23), rs.getString(24), rs.getString(25), rs.getString(26), rs.getString(27),
+					callbackAvailable, callbackAvailable && !isInternalTestCallback(callbackUrl));
+		}, pageArgs.toArray());
 		return new MonitorTaskIntegrationViews.Page(records, current, size, totalValue == null ? 0 : totalValue);
 	}
 
@@ -117,6 +122,10 @@ public class OcpxMonitorTaskIntegrationService {
 		if (!StringUtils.hasText(feedback.callbackUrl())) {
 			throw new BootBusinessException("该下游请求没有 callback_url，无法回传");
 		}
+		String callbackUrl = decodedCallbackUrl(feedback.callbackUrl());
+		if (isInternalTestCallback(callbackUrl)) {
+			throw new BootBusinessException("SCX 完整测试 Callback 由 Engine 自动签名投递，不能通过媒体联调手工发送");
+		}
 		String eventCode = request.getEventCode().trim().toUpperCase(Locale.ROOT);
 		if (!OcpxConversionEvent.supports(eventCode) || !EVENT_TYPES.containsKey(eventCode)) {
 			throw new BootBusinessException("Callback 事件不受支持");
@@ -128,7 +137,6 @@ public class OcpxMonitorTaskIntegrationService {
 		String resultStatus;
 		String message;
 		try {
-			String callbackUrl = URLDecoder.decode(feedback.callbackUrl(), StandardCharsets.UTF_8);
 			String publicUrl = callbackUrlContract.requirePublicHttpUrl(callbackUrl);
 			String requestUrl = callbackUrlContract.appendCallbackFields(publicUrl, eventType,
 					request.getCurrencyAmount());
@@ -219,6 +227,35 @@ public class OcpxMonitorTaskIntegrationService {
 		catch (IllegalArgumentException exception) {
 			return null;
 		}
+	}
+
+	private boolean isInternalTestCallback(String callbackUrl) {
+		if (!StringUtils.hasText(callbackUrl)) {
+			return false;
+		}
+		try {
+			URI base = URI.create(trackingProperties.getEngineBaseUrl().trim().replaceAll("/+$", "")).normalize();
+			URI callback = URI.create(callbackUrl.trim()).normalize();
+			String basePath = base.getPath() == null ? "" : base.getPath().replaceAll("/+$", "");
+			return sameIgnoreCase(base.getScheme(), callback.getScheme())
+					&& sameIgnoreCase(base.getHost(), callback.getHost())
+					&& effectivePort(base) == effectivePort(callback)
+					&& (basePath + "/test-callback").equals(callback.getPath());
+		}
+		catch (RuntimeException exception) {
+			return false;
+		}
+	}
+
+	private int effectivePort(URI uri) {
+		if (uri.getPort() >= 0) {
+			return uri.getPort();
+		}
+		return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+	}
+
+	private boolean sameIgnoreCase(String left, String right) {
+		return left != null && right != null && left.equalsIgnoreCase(right);
 	}
 
 	private String nextAttemptId() {
