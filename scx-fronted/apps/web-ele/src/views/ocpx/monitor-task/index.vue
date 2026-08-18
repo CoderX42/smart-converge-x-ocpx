@@ -1347,16 +1347,24 @@ onBeforeUnmount(clearTestPolling);
     <el-dialog
       v-model="integrationDetailOpen"
       append-to-body
+      class="ocpx-integration-detail-dialog"
       title="下游请求明细（落库快照）"
-      width="820px"
+      top="5vh"
+      width="920px"
     >
       <el-alert
         :closable="false"
-        class="mb-3"
+        class="ocpx-integration-detail__notice"
         title="字段来自 Feedback 解析后的异步存储，不保证保留原始 URL 的参数顺序、编码形式或重复参数。"
         type="warning"
       />
-      <el-descriptions v-if="integrationDetail" :column="2" border size="small">
+      <el-descriptions
+        v-if="integrationDetail"
+        :column="2"
+        border
+        class="ocpx-integration-detail__descriptions"
+        size="small"
+      >
         <el-descriptions-item label="接收时间">
           {{ integrationDetail.receivedAt }}
         </el-descriptions-item>
@@ -1364,64 +1372,74 @@ onBeforeUnmount(clearTestPolling);
           {{ integrationDetail.feedbackLogId }}
         </el-descriptions-item>
         <el-descriptions-item label="request_id">
-          <LongText :value="integrationDetail.requestId" />
+          <LongText :value="integrationDetail.requestId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="clickid">
-          <LongText :value="integrationDetail.clickId" />
+          <LongText :value="integrationDetail.clickId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="OS / 标识类型">
           {{ integrationDetail.deviceOs || '-' }} /
           {{ integrationDetail.userType || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="主标识">
-          <LongText :value="integrationDetail.userId" />
+          <LongText :value="integrationDetail.userId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="IMEI">
-          <LongText :value="integrationDetail.imei" />
+          <LongText :value="integrationDetail.imei" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="OAID">
-          <LongText :value="integrationDetail.oaid" />
+          <LongText :value="integrationDetail.oaid" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="Android ID">
-          <LongText :value="integrationDetail.androidId" />
+          <LongText :value="integrationDetail.androidId" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="IDFA">
-          <LongText :value="integrationDetail.idfa" />
+          <LongText :value="integrationDetail.idfa" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="CAID / CAID1">
           <LongText
             :value="`${integrationDetail.caid || '-'} / ${integrationDetail.caid1 || '-'}`"
+            wrap
           />
         </el-descriptions-item>
         <el-descriptions-item label="MAC">
-          <LongText :value="integrationDetail.mac" />
+          <LongText :value="integrationDetail.mac" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="IP">
-          <LongText :value="integrationDetail.ip" />
+          <LongText :value="integrationDetail.ip" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="时间戳">
           {{ integrationDetail.timestamp || '-' }} /
           {{ integrationDetail.timestampMs || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="User-Agent" :span="2">
-          <LongText :value="integrationDetail.ua" />
+          <LongText :value="integrationDetail.ua" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="callback_url" :span="2">
-          <LongText :value="integrationDetail.callbackUrl" />
+          <LongText :value="integrationDetail.callbackUrl" wrap />
         </el-descriptions-item>
         <el-descriptions-item label="外部广告维度" :span="2">
-          adv={{ integrationDetail.externalAdvertiserId || '-' }}；plan={{
-            integrationDetail.planId || '-'
-          }}；group={{ integrationDetail.groupId || '-' }}；creative={{
-            integrationDetail.creativeId || '-'
-          }}
+          <div class="ocpx-integration-detail__relations">
+            <span
+              ><b>adv</b
+              >{{ integrationDetail.externalAdvertiserId || '-' }}</span
+            >
+            <span><b>plan</b>{{ integrationDetail.planId || '-' }}</span>
+            <span><b>group</b>{{ integrationDetail.groupId || '-' }}</span>
+            <span
+              ><b>creative</b>{{ integrationDetail.creativeId || '-' }}</span
+            >
+          </div>
         </el-descriptions-item>
         <el-descriptions-item label="SCX 路由关系" :span="2">
-          mId={{ integrationDetail.mediaId || '-' }}；tId={{
-            integrationDetail.monitorTaskId || '-'
-          }}；aId={{ integrationDetail.advertiserId || '-' }}；lId={{
-            integrationDetail.promotionLinkId || '-'
-          }}
+          <div class="ocpx-integration-detail__relations">
+            <span><b>mId</b>{{ integrationDetail.mediaId || '-' }}</span>
+            <span><b>tId</b>{{ integrationDetail.monitorTaskId || '-' }}</span>
+            <span><b>aId</b>{{ integrationDetail.advertiserId || '-' }}</span>
+            <span
+              ><b>lId</b>{{ integrationDetail.promotionLinkId || '-' }}</span
+            >
+          </div>
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
@@ -1737,6 +1755,68 @@ onBeforeUnmount(clearTestPolling);
   min-height: 260px;
 }
 
+.ocpx-integration-detail-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.ocpx-integration-detail-dialog :deep(.el-dialog__body) {
+  max-height: calc(90vh - 72px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.ocpx-integration-detail__notice {
+  margin-bottom: 12px;
+}
+
+.ocpx-integration-detail__descriptions {
+  width: 100%;
+  min-width: 0;
+}
+
+.ocpx-integration-detail__descriptions :deep(.el-descriptions__table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.ocpx-integration-detail__descriptions
+  :deep(.el-descriptions__label.el-descriptions__cell.is-bordered-label) {
+  width: 112px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ocpx-integration-detail__descriptions
+  :deep(.el-descriptions__content.el-descriptions__cell.is-bordered-content) {
+  min-width: 0;
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ocpx-integration-detail__relations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+  min-width: 0;
+}
+
+.ocpx-integration-detail__relations span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.ocpx-integration-detail__relations b {
+  display: inline-block;
+  min-width: 58px;
+  margin-right: 6px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+
 .ocpx-integration-query {
   display: grid;
   grid-template-columns: minmax(300px, 1.2fr) minmax(220px, 1fr) auto auto;
@@ -1746,6 +1826,10 @@ onBeforeUnmount(clearTestPolling);
 
 @media (width <= 900px) {
   .ocpx-integration-query {
+    grid-template-columns: 1fr;
+  }
+
+  .ocpx-integration-detail__relations {
     grid-template-columns: 1fr;
   }
 }

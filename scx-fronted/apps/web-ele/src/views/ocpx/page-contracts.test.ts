@@ -96,6 +96,11 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain("'ocpx:monitor-task:integration'");
     expect(source).toContain('>联调</el-button');
     expect(source).toContain('下游请求明细（落库快照）');
+    expect(source).toContain('ocpx-integration-detail-dialog');
+    expect(source).toContain('table-layout: fixed');
+    expect(source).toContain(
+      '<LongText :value="integrationDetail.callbackUrl" wrap />',
+    );
     expect(source).toContain('不是网络层原始报文');
     expect(source).toContain('确认发送真实 Callback');
     expect(source).toContain('不会生成广告主转化');

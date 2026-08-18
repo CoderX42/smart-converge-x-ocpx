@@ -3,7 +3,9 @@ import { CopyDocument } from '@element-plus/icons-vue';
 
 import { copyLongText } from './table';
 
-defineProps<{ value?: null | string }>();
+withDefaults(defineProps<{ value?: null | string; wrap?: boolean }>(), {
+  wrap: false,
+});
 </script>
 
 <template>
@@ -11,7 +13,7 @@ defineProps<{ value?: null | string }>();
     <button
       v-if="value"
       :aria-label="`复制：${value}`"
-      class="long-text"
+      :class="['long-text', { 'long-text--wrap': wrap }]"
       type="button"
       @click="copyLongText(value)"
     >
@@ -42,6 +44,23 @@ defineProps<{ value?: null | string }>();
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.long-text--wrap {
+  align-items: flex-start;
+}
+
+.long-text--wrap span {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.long-text--wrap .el-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .long-text:focus-visible {
