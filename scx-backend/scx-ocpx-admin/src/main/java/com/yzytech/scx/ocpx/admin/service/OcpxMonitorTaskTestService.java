@@ -49,6 +49,8 @@ public class OcpxMonitorTaskTestService {
 
 	private static final Pattern TEST_ID = Pattern.compile("SCX-UAT-\\d{14}-[0-9a-f]{12}");
 
+	private static final Pattern CALLBACK_TOKEN = Pattern.compile("[0-9a-f]{32}");
+
 	private static final Pattern MD5 = Pattern.compile("[0-9a-fA-F]{32}");
 
 	private static final Pattern HEX_16 = Pattern.compile("[0-9a-fA-F]{16}");
@@ -112,8 +114,9 @@ public class OcpxMonitorTaskTestService {
 		String os = normalizeOs(request.getOs());
 		Set<String> selected = selectedParameters(request.getParameters(), context, os);
 		String requestId = nextRequestId();
+		String callbackToken = randomHex(16);
 		Map<String, String> values = randomValues(os);
-		return preview(context, requestId, os, selected, values);
+		return preview(context, requestId, callbackToken, os, selected, values);
 	}
 
 	public MonitorTaskTestViews.Execution execute(String taskId, MonitorTaskTestRequests.Execute request) {
@@ -121,9 +124,11 @@ public class OcpxMonitorTaskTestService {
 		Context context = context(taskId);
 		String os = normalizeOs(request.getOs());
 		validateRequestId(request.getRequestId());
+		validateCallbackToken(request.getCallbackToken());
 		Map<String, String> values = normalizeValues(request.getParameters(), os);
 		Set<String> selected = new LinkedHashSet<>(values.keySet());
-		MonitorTaskTestViews.Preview validation = preview(context, request.getRequestId(), os, selected, values);
+		MonitorTaskTestViews.Preview validation = preview(context, request.getRequestId(), request.getCallbackToken(),
+				os, selected, values);
 		if (!validation.isExecutable()) {
 			throw new BootBusinessException(String.join("；", validation.getBlockers()));
 		}
@@ -131,7 +136,7 @@ public class OcpxMonitorTaskTestService {
 			return new MonitorTaskTestViews.Execution(request.getRequestId(), validation.getTestUrl(), true, null, null,
 					"ALREADY_EXECUTED", 0L, LocalDateTime.now(BUSINESS_ZONE));
 		}
-		URI testUri = buildUri(context, request.getRequestId(), os, selected, values);
+		URI testUri = buildUri(context, request.getRequestId(), request.getCallbackToken(), os, selected, values);
 		OcpxMonitorTaskTestHttpClient.Response response = httpClient.get(testUri);
 		return new MonitorTaskTestViews.Execution(request.getRequestId(), testUri.toASCIIString(), false,
 				response.statusCode(), response.body(), response.errorCode(), response.durationMs(),
@@ -162,6 +167,20 @@ public class OcpxMonitorTaskTestService {
 						rs.getString(3), rs.getLong(4), time(rs.getTimestamp(5))),
 				context.task().getId(), context.task().getAdvertiserId(), requestId);
 		MonitorTaskTestViews.Flow flow = flows.isEmpty() ? null : flows.get(0);
+		List<MonitorTaskTestViews.CallbackFact> callbackFacts = jdbcTemplate.query("""
+				SELECT event_code,billing_status,billing_reason_code,spend_amount,currency_amount,
+				       deduction_decision,deduction_ratio_snapshot,deduction_decided_at,received_at
+				FROM scx_ocpx_event_fact
+				WHERE monitor_task_id=? AND advertiser_id=? AND request_id=? AND flow_type='CALLBACK'
+				ORDER BY received_at DESC LIMIT 1
+				""",
+				(rs, rowNum) -> new MonitorTaskTestViews.CallbackFact(rs.getString(1), rs.getString(2), rs.getString(3),
+						rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getString(6), rs.getBigDecimal(7),
+						time(rs.getTimestamp(8)), time(rs.getTimestamp(9))),
+				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		MonitorTaskTestViews.CallbackFact callbackFact = callbackFacts.isEmpty() ? null : callbackFacts.get(0);
+		MonitorTaskTestViews.Flow callbackFlow = callbackFlow(context, requestId, false);
+		MonitorTaskTestViews.Flow downstreamFlow = callbackFlow(context, requestId, true);
 		String state;
 		String conclusion;
 		if (fact == null) {
@@ -176,19 +195,41 @@ public class OcpxMonitorTaskTestService {
 			state = "UPSTREAM_PENDING";
 			conclusion = "Feedback 已入站，上游投递结果仍待确认";
 		}
-		else if ("SUCCESS".equals(flow.getResultStatus())) {
-			state = "UPSTREAM_RESPONDED";
-			conclusion = "上游接口已响应；HTTP 成功不代表合作方已经入库";
-		}
-		else {
+		else if (!"SUCCESS".equals(flow.getResultStatus())) {
 			state = "UPSTREAM_FAILED";
 			conclusion = "Feedback 已入站，但上游投递失败";
 		}
-		return new MonitorTaskTestViews.Result(requestId, state, fact, flow, conclusion, timeline(fact, flow));
+		else if (downstreamFlow != null && "SUCCESS".equals(downstreamFlow.getResultStatus())) {
+			state = "COMPLETED";
+			conclusion = "完整测试闭环已完成：SCX 测试回调接收器已收到最后一跳；不代表真实媒体已经入库";
+		}
+		else if (callbackFlow != null && "FAILED".equals(callbackFlow.getResultStatus())) {
+			state = "CALLBACK_FAILED";
+			conclusion = "广告主 Callback 已到达，但 SCX 处理失败";
+		}
+		else if (callbackFact == null) {
+			state = "UPSTREAM_RESPONDED";
+			conclusion = "上游点击接口已响应，等待广告主发送转化 Callback；HTTP 成功不代表合作方已经入库";
+		}
+		else if ("DEDUCTED".equals(callbackFact.getDeductionDecision())) {
+			state = "CALLBACK_DEDUCTED";
+			conclusion = "广告主 Callback 已到达，但媒体扣量规则拦截了最后一跳";
+		}
+		else if (!"PASSED".equals(callbackFact.getDeductionDecision())) {
+			state = "CALLBACK_PROCESSING";
+			conclusion = "广告主 Callback 已到达，正在等待计费和媒体扣量判定";
+		}
+		else {
+			state = "DOWNSTREAM_PENDING";
+			conclusion = "广告主 Callback 已处理并通过媒体扣量，等待测试回调接收器确认最后一跳";
+		}
+		return new MonitorTaskTestViews.Result(requestId, state, fact, flow, callbackFact, callbackFlow, downstreamFlow,
+				conclusion, timeline(fact, flow, callbackFact, callbackFlow, downstreamFlow));
 	}
 
 	private List<MonitorTaskTestViews.TimelineItem> timeline(MonitorTaskTestViews.Fact fact,
-			MonitorTaskTestViews.Flow flow) {
+			MonitorTaskTestViews.Flow flow, MonitorTaskTestViews.CallbackFact callbackFact,
+			MonitorTaskTestViews.Flow callbackFlow, MonitorTaskTestViews.Flow downstreamFlow) {
 		List<MonitorTaskTestViews.TimelineItem> timeline = new ArrayList<>();
 		if (fact == null) {
 			timeline.add(new MonitorTaskTestViews.TimelineItem("ENGINE_INGRESS", "WAITING", null, null,
@@ -206,11 +247,39 @@ public class OcpxMonitorTaskTestService {
 			timeline.add(new MonitorTaskTestViews.TimelineItem("UPSTREAM", flow.getResultStatus(), flow.getEventTime(),
 					flow.getDurationMs(), flow.getMessage()));
 		}
+		if (callbackFact == null) {
+			timeline.add(new MonitorTaskTestViews.TimelineItem("ADVERTISER_CALLBACK",
+					callbackFlow == null ? "WAITING" : callbackFlow.getResultStatus(),
+					callbackFlow == null ? null : callbackFlow.getEventTime(),
+					callbackFlow == null ? null : callbackFlow.getDurationMs(),
+					callbackFlow == null ? "等待广告主回传转化事件" : callbackFlow.getMessage()));
+			return List.copyOf(timeline);
+		}
+		timeline.add(new MonitorTaskTestViews.TimelineItem("ADVERTISER_CALLBACK",
+				callbackFlow == null ? "SUCCESS" : callbackFlow.getResultStatus(), callbackFact.getReceivedAt(),
+				callbackFlow == null ? null : callbackFlow.getDurationMs(), callbackFact.getEventCode()));
+		timeline.add(new MonitorTaskTestViews.TimelineItem("CALLBACK_BILLING", callbackFact.getBillingStatus(),
+				callbackFact.getReceivedAt(), null, callbackFact.getBillingReasonCode()));
+		timeline.add(new MonitorTaskTestViews.TimelineItem("MEDIA_DEDUCTION", callbackFact.getDeductionDecision(),
+				callbackFact.getDeductionDecidedAt(), null, callbackFact.getDeductionRatio() == null ? null
+						: "媒体回传比例 " + callbackFact.getDeductionRatio().stripTrailingZeros().toPlainString()));
+		if ("DEDUCTED".equals(callbackFact.getDeductionDecision())) {
+			timeline
+				.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", "SKIPPED", null, null, "媒体扣量规则已拦截"));
+		}
+		else if (downstreamFlow == null) {
+			timeline.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", "WAITING", null, null,
+					"等待 SCX 测试回调接收器确认"));
+		}
+		else {
+			timeline.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", downstreamFlow.getResultStatus(),
+					downstreamFlow.getEventTime(), downstreamFlow.getDurationMs(), downstreamFlow.getMessage()));
+		}
 		return List.copyOf(timeline);
 	}
 
-	private MonitorTaskTestViews.Preview preview(Context context, String requestId, String os, Set<String> selected,
-			Map<String, String> values) {
+	private MonitorTaskTestViews.Preview preview(Context context, String requestId, String callbackToken, String os,
+			Set<String> selected, Map<String, String> values) {
 		List<String> blockers = new ArrayList<>();
 		List<String> warnings = new ArrayList<>();
 		validatePlatform(context.link().getPlatform(), os, blockers);
@@ -238,26 +307,30 @@ public class OcpxMonitorTaskTestService {
 		if (!upstreamMacros.contains("__OS__")) {
 			warnings.add("广告主模板未配置 OS，合作方将无法直接识别测试平台");
 		}
+		if (!mediaMacros.contains("__CALLBACK_URL__")) {
+			warnings.add("媒体宏未配置 CALLBACK_URL，本次完整测试将临时加入 SCX 测试回调接收器");
+		}
 		BigDecimal expectedCharge = expectedCharge(context.task());
 		BigDecimal availableBalance = availableBalance(context.task().getAdvertiserId());
 		if (expectedCharge.signum() > 0 && availableBalance == null) {
-			blockers.add("广告主账户不存在，无法执行真实点击测试");
+			blockers.add("广告主账户不存在，无法执行完整测试");
 		}
 		else if (expectedCharge.signum() > 0 && availableBalance.compareTo(expectedCharge) < 0) {
-			blockers.add("广告主余额不足，真实点击不会向上游投递");
+			blockers.add("广告主余额不足，无法保证完整测试中的点击或目标转化计费完成");
 		}
-		List<MonitorTaskTestViews.Parameter> parameters = parameterViews(requestId, os, selected, values, mediaMacros,
-				upstreamMacros);
-		String testUrl = buildUri(context, requestId, os, selected, values).toASCIIString();
+		String callbackUrl = buildCallbackUrl(context, requestId, callbackToken);
+		List<MonitorTaskTestViews.Parameter> parameters = parameterViews(requestId, callbackUrl, os, selected, values,
+				mediaMacros, upstreamMacros);
+		String testUrl = buildUri(context, requestId, callbackToken, os, selected, values).toASCIIString();
 		return new MonitorTaskTestViews.Preview(requestId, "CLK", os, context.task().getId(),
 				context.task().getMonitorName(), context.advertiser().getAdvertiserName(),
 				context.media().getMediaName(), context.link().getLinkName(), context.link().getPlatform(), testUrl,
-				expectedCharge, availableBalance, blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings),
-				parameters);
+				callbackToken, expectedCharge, availableBalance, blockers.isEmpty(), List.copyOf(blockers),
+				List.copyOf(warnings), parameters);
 	}
 
-	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String os, Set<String> selected,
-			Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros) {
+	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String callbackUrl, String os,
+			Set<String> selected, Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros) {
 		List<MonitorTaskTestViews.Parameter> result = new ArrayList<>();
 		result.add(new MonitorTaskTestViews.Parameter("request_id", "请求/测试 ID", "固定参数", "__REQUEST_ID__", true, false,
 				true, true, false, requestId));
@@ -266,6 +339,8 @@ public class OcpxMonitorTaskTestService {
 				requestId));
 		result.add(new MonitorTaskTestViews.Parameter("os", "操作系统", "固定参数", "__OS__", mediaMacros.contains("__OS__"),
 				upstreamMacros.contains("__OS__"), true, true, false, "IOS".equals(os) ? "1" : "0"));
+		result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环", "__CALLBACK_URL__",
+				mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (!spec.os().supports(os)) {
 				continue;
@@ -387,10 +462,11 @@ public class OcpxMonitorTaskTestService {
 		return values;
 	}
 
-	private URI buildUri(Context context, String requestId, String os, Set<String> selected,
+	private URI buildUri(Context context, String requestId, String callbackToken, String os, Set<String> selected,
 			Map<String, String> values) {
 		Map<String, String> parameters = new LinkedHashMap<>();
 		parameters.put("request_id", requestId);
+		parameters.put("callback_url", buildCallbackUrl(context, requestId, callbackToken));
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (selected.contains(spec.key())) {
 				parameters.put(spec.key(), values.get(spec.key()));
@@ -409,12 +485,10 @@ public class OcpxMonitorTaskTestService {
 			.reduce((left, right) -> left + "&" + right)
 			.orElse("");
 		try {
-			String baseValue = trackingProperties.getEngineBaseUrl().trim().replaceAll("/+$", "");
-			URI base = URI.create(baseValue);
+			URI base = engineBase();
+			String baseValue = base.toString();
 			String mediaPath = context.media().getUri().trim();
-			if (!Set.of("http", "https").contains(base.getScheme()) || !StringUtils.hasText(base.getHost())
-					|| base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null
-					|| !StringUtils.hasText(mediaPath) || mediaPath.contains("://") || mediaPath.contains("?")
+			if (!StringUtils.hasText(mediaPath) || mediaPath.contains("://") || mediaPath.contains("?")
 					|| mediaPath.contains("#") || mediaPath.contains("\\") || mediaPath.contains("..")
 					|| mediaPath.chars().anyMatch(Character::isISOControl)) {
 				throw new IllegalArgumentException("unsafe Engine route");
@@ -430,6 +504,39 @@ public class OcpxMonitorTaskTestService {
 		catch (RuntimeException exception) {
 			throw new BootBusinessException("Engine 测试地址配置无效");
 		}
+	}
+
+	private String buildCallbackUrl(Context context, String requestId, String callbackToken) {
+		validateCallbackToken(callbackToken);
+		try {
+			URI base = engineBase();
+			Map<String, String> parameters = new LinkedHashMap<>();
+			parameters.put("request_id", requestId);
+			parameters.put("token", callbackToken);
+			parameters.put("mId", context.task().getMediaId());
+			parameters.put("tId", context.task().getId());
+			parameters.put("aId", context.task().getAdvertiserId());
+			parameters.put("lId", context.task().getPromotionLinkId());
+			String query = parameters.entrySet()
+				.stream()
+				.map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
+				.reduce((left, right) -> left + "&" + right)
+				.orElse("");
+			return URI.create(base + "/test-callback?" + query).toASCIIString();
+		}
+		catch (RuntimeException exception) {
+			throw new BootBusinessException("Engine 测试回调地址配置无效");
+		}
+	}
+
+	private URI engineBase() {
+		String baseValue = trackingProperties.getEngineBaseUrl().trim().replaceAll("/+$", "");
+		URI base = URI.create(baseValue);
+		if (!Set.of("http", "https").contains(base.getScheme()) || !StringUtils.hasText(base.getHost())
+				|| base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null) {
+			throw new IllegalArgumentException("unsafe Engine base URL");
+		}
+		return base;
 	}
 
 	private Context context(String taskId) {
@@ -467,8 +574,8 @@ public class OcpxMonitorTaskTestService {
 	}
 
 	private BigDecimal expectedCharge(OcpxMonitorTask task) {
-		return Boolean.TRUE.equals(task.getBillingEnabled()) && Integer.valueOf(1).equals(task.getBillingType())
-				? task.getUnitPrice() : BigDecimal.ZERO;
+		return Boolean.TRUE.equals(task.getBillingEnabled()) && task.getUnitPrice() != null ? task.getUnitPrice()
+				: BigDecimal.ZERO;
 	}
 
 	private BigDecimal availableBalance(String advertiserId) {
@@ -496,7 +603,7 @@ public class OcpxMonitorTaskTestService {
 				result.add(spec.macro());
 			}
 		}
-		for (String fixed : List.of("__REQUEST_ID__", "__CLICKID__", "__OS__")) {
+		for (String fixed : List.of("__REQUEST_ID__", "__CLICKID__", "__OS__", "__CALLBACK_URL__")) {
 			if (value.contains(fixed)) {
 				result.add(fixed);
 			}
@@ -508,6 +615,26 @@ public class OcpxMonitorTaskTestService {
 		if (!TEST_ID.matcher(requestId).matches()) {
 			throw new BootBusinessException("测试 ID 格式无效");
 		}
+	}
+
+	private void validateCallbackToken(String callbackToken) {
+		if (callbackToken == null || !CALLBACK_TOKEN.matcher(callbackToken).matches()) {
+			throw new BootBusinessException("测试回调令牌格式无效");
+		}
+	}
+
+	private MonitorTaskTestViews.Flow callbackFlow(Context context, String requestId, boolean downstream) {
+		String predicate = downstream ? "message = 'TEST_CALLBACK_RECEIVED'"
+				: "message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')";
+		List<MonitorTaskTestViews.Flow> flows = jdbcTemplate.query("""
+				SELECT result_status,partner_http_status,message,duration_ms,event_time
+				FROM scx_ocpx_flow_log
+				WHERE monitor_task_id=? AND advertiser_id=? AND event_id=? AND flow_type='CALLBACK'
+				  AND """ + predicate + " ORDER BY create_time DESC,id DESC LIMIT 1",
+				(rs, rowNum) -> new MonitorTaskTestViews.Flow(rs.getString(1), (Integer) rs.getObject(2),
+						rs.getString(3), rs.getLong(4), time(rs.getTimestamp(5))),
+				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		return flows.isEmpty() ? null : flows.get(0);
 	}
 
 	private String nextRequestId() {

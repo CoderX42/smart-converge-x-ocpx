@@ -30,6 +30,7 @@ describe('monitor-task click test API', () => {
 
   it('executes without accepting an arbitrary target URL', async () => {
     await executeMonitorTaskTestLink('task-1', {
+      callbackToken: '0123456789abcdef0123456789abcdef',
       os: 'ANDROID',
       parameters: { oaid: 'device-value' },
       requestId: 'SCX-UAT-20260817183000-abcdef123456',
@@ -38,6 +39,7 @@ describe('monitor-task click test API', () => {
     expect(requestClient.post).toHaveBeenCalledWith(
       '/ocpx/monitor-tasks/task-1/test-links:execute',
       {
+        callbackToken: '0123456789abcdef0123456789abcdef',
         os: 'ANDROID',
         parameters: { oaid: 'device-value' },
         requestId: 'SCX-UAT-20260817183000-abcdef123456',

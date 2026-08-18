@@ -169,9 +169,13 @@ const conversionEventLabels = Object.fromEntries(
   conversionEvents.map((item) => [item.value, item.label]),
 );
 const testTimelineStageLabel = {
-  BILLING: '计费',
+  ADVERTISER_CALLBACK: '广告主 Callback',
+  BILLING: '点击计费',
+  CALLBACK_BILLING: '转化计费',
+  DOWNSTREAM_CALLBACK: '测试回调接收',
   ENGINE_INGRESS: 'Engine 入站',
-  UPSTREAM: '上游投递',
+  MEDIA_DEDUCTION: '媒体扣量',
+  UPSTREAM: '上游点击投递',
 } as const;
 
 function validateNumber(
@@ -484,9 +488,11 @@ async function refreshTestResult(schedule = false) {
   } finally {
     if (testDialogOpen.value && testTarget.value && testPreview.value) {
       const terminal = [
+        'CALLBACK_DEDUCTED',
+        'CALLBACK_FAILED',
+        'COMPLETED',
         'REJECTED',
         'UPSTREAM_FAILED',
-        'UPSTREAM_RESPONDED',
       ].includes(testResult.value?.state || '');
       if (schedule && !terminal && testPollCount < 30) {
         testPollCount += 1;
@@ -508,8 +514,8 @@ async function executeTest() {
   if (!(testTarget.value && testPreview.value)) return;
   const charge = Number(testPreview.value.expectedCharge || 0);
   await ElMessageBox.confirm(
-    `该操作会产生真实点击和上游流量${charge > 0 ? `，预计真实扣费 ${charge}` : ''}，确认发送？`,
-    '确认执行点击测试',
+    `该操作会产生真实点击、上游流量和后续转化处理${charge > 0 ? `，全链路预计最多真实扣费 ${charge}` : ''}。广告主回传后会执行真实媒体扣量，并向 SCX 测试接收器发送最后一跳，确认开始？`,
+    '确认执行完整测试',
     {
       confirmButtonText: '确认发送',
       type: 'warning',
@@ -521,6 +527,7 @@ async function executeTest() {
     testExecution.value = await executeMonitorTaskTestLink(
       testTarget.value.id,
       {
+        callbackToken: testPreview.value.callbackToken,
         os: testOs.value,
         parameters: selectedTestValues(),
         requestId: testPreview.value.requestId,
@@ -905,7 +912,7 @@ onBeforeUnmount(clearTestPolling);
     <el-dialog
       v-model="testDialogOpen"
       :close-on-click-modal="false"
-      title="点击测试链接与联调详情"
+      title="完整点击测试与联调详情"
       width="960px"
       @close="closeTestDialog"
     >
@@ -913,7 +920,7 @@ onBeforeUnmount(clearTestPolling);
         <el-alert
           :closable="false"
           show-icon
-          title="本功能会向真实 Engine 发送 CLK 点击；不携带 callback_url，不代表完整回调闭环。"
+          title="本功能会发送真实 CLK 点击，并携带不可编辑的 SCX 测试 callback_url。广告主回传后将执行真实转化计费、媒体扣量和最后一跳；测试接收成功不代表真实媒体已经入库。"
           type="warning"
         />
 
@@ -942,7 +949,7 @@ onBeforeUnmount(clearTestPolling);
           <el-descriptions-item label="测试 ID">
             <LongText :value="testPreview.requestId" />
           </el-descriptions-item>
-          <el-descriptions-item label="预计扣费">
+          <el-descriptions-item label="预计全链路扣费">
             {{ testPreview.expectedCharge || 0 }}
           </el-descriptions-item>
           <el-descriptions-item label="当前余额">
@@ -1062,7 +1069,7 @@ onBeforeUnmount(clearTestPolling);
               :loading="testExecuting"
               type="danger"
               @click="executeTest"
-              >确认发送真实点击</el-button
+              >确认开始完整测试</el-button
             >
           </div>
         </template>
@@ -1117,8 +1124,29 @@ onBeforeUnmount(clearTestPolling);
             <el-descriptions-item label="上游耗时">
               {{ testResult?.flow ? `${testResult.flow.durationMs} ms` : '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="稳定结论码" :span="3">
-              {{ testResult?.flow?.message || testExecution?.errorCode || '-' }}
+            <el-descriptions-item label="广告主 Callback">
+              {{ testResult?.callbackFact?.eventCode || '等待中' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="转化计费">
+              {{ testResult?.callbackFact?.billingStatus || '-' }}
+              <template v-if="testResult?.callbackFact">
+                · {{ testResult.callbackFact.spendAmount ?? 0 }}
+              </template>
+            </el-descriptions-item>
+            <el-descriptions-item label="媒体扣量">
+              {{ testResult?.callbackFact?.deductionDecision || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="最后一跳">
+              {{ testResult?.downstreamFlow ? '测试接收器已收到' : '等待中' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="稳定结论码" :span="2">
+              {{
+                testResult?.downstreamFlow?.message ||
+                testResult?.callbackFlow?.message ||
+                testResult?.flow?.message ||
+                testExecution?.errorCode ||
+                '-'
+              }}
             </el-descriptions-item>
           </el-descriptions>
           <el-alert
@@ -1128,12 +1156,16 @@ onBeforeUnmount(clearTestPolling);
             show-icon
             :title="testResult.conclusion"
             :type="
-              testResult.state === 'UPSTREAM_RESPONDED'
-                ? 'warning'
-                : testResult.state === 'UPSTREAM_FAILED' ||
-                    testResult.state === 'REJECTED'
-                  ? 'error'
-                  : 'info'
+              testResult.state === 'COMPLETED'
+                ? 'success'
+                : testResult.state === 'UPSTREAM_RESPONDED' ||
+                    testResult.state === 'CALLBACK_DEDUCTED'
+                  ? 'warning'
+                  : testResult.state === 'UPSTREAM_FAILED' ||
+                      testResult.state === 'REJECTED' ||
+                      testResult.state === 'CALLBACK_FAILED'
+                    ? 'error'
+                    : 'info'
             "
           />
           <el-timeline v-if="testResult" class="ocpx-test-timeline">
@@ -1142,12 +1174,16 @@ onBeforeUnmount(clearTestPolling);
               :key="`${item.stage}-${item.status}`"
               :timestamp="item.occurredAt || '等待中'"
               :type="
-                item.status === 'SUCCESS' || item.status === 'POSTED'
+                item.status === 'SUCCESS' ||
+                item.status === 'POSTED' ||
+                item.status === 'PASSED'
                   ? 'success'
                   : item.status.startsWith('REJECTED') ||
                       item.status === 'FAILED'
                     ? 'danger'
-                    : 'primary'
+                    : item.status === 'DEDUCTED' || item.status === 'SKIPPED'
+                      ? 'warning'
+                      : 'primary'
               "
             >
               {{ testTimelineStageLabel[item.stage] }} · {{ item.status }}
@@ -1160,7 +1196,8 @@ onBeforeUnmount(clearTestPolling);
             </el-timeline-item>
           </el-timeline>
           <div class="ocpx-test-result-tip">
-            上游 HTTP 200 只表示接口已响应，不代表合作方已经入库。
+            上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；SCX
+            测试接收器成功只证明系统最后一跳可达，不代表真实媒体已经业务入库。
           </div>
           <el-input
             v-if="testExecution?.engineResponse"

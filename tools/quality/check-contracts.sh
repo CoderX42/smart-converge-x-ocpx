@@ -41,7 +41,7 @@ server_urls = {server.get("url") for server in openapi.get("servers", [])}
 assert "https://{domain}/ocpx" in server_urls
 assert "http://localhost:10000/ocpx" in server_urls
 assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
-data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback"}
+data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback", "/test-callback"}
 management_path = "/advertisers/account-role/permissions"
 recharge_path = "/advertisers/{id}/recharge"
 deduction_path = "/advertisers/{id}/deduct"
@@ -129,7 +129,7 @@ assert {
     "CreativeSaveRequest", "Creative", "CreativeAsset", "MonitorTaskSaveRequest",
     "BillingEntry", "BillingEntryPageEnvelope", "MonitorTaskTestGenerateRequest",
     "MonitorTaskTestExecuteRequest", "MonitorTaskTestPreview", "MonitorTaskTestExecution",
-    "MonitorTaskTestResult", "MonitorTaskTestTimelineItem",
+    "MonitorTaskTestResult", "MonitorTaskTestTimelineItem", "MonitorTaskTestCallbackFact",
     "MediaCallbackRatioRuleSaveRequest", "MediaCallbackRatioRule",
     "DeductionSummaryRow", "DeductionSummaryPage",
     "MonitorTaskIntegrationFeedback", "MonitorTaskIntegrationCallbackRequest",
@@ -145,10 +145,12 @@ assert set(schemas["DeductionSummaryPage"]["properties"]["deductionCoverageStatu
 assert "callback_url" not in schemas["MonitorTaskTestGenerateRequest"]["properties"]
 assert "callback_url" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert "targetUrl" not in schemas["MonitorTaskTestExecuteRequest"]["properties"]
+assert "callbackToken" in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert not ({"url", "callbackUrl", "targetUrl"} & set(schemas["MonitorTaskIntegrationCallbackRequest"]["properties"]))
 assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
 assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
-    "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED"
+    "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED",
+    "CALLBACK_PROCESSING", "CALLBACK_FAILED", "CALLBACK_DEDUCTED", "DOWNSTREAM_PENDING", "COMPLETED"
 }
 assert set(schemas["DashboardSummary"]["properties"]["metrics"]["required"]) == {
     "SPEND", "IMPRESSION", "CLICK", "CONVERSION", "CTR", "CVR", "CPM", "CPC", "CPA"

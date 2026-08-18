@@ -87,8 +87,15 @@ class OcpxMonitorTaskTestServiceTest {
 		assertThat(preview.getRequestId()).matches("SCX-UAT-\\d{14}-[0-9a-f]{12}");
 		assertThat(preview.getTestUrl())
 			.contains("request_id=" + preview.getRequestId(), "clickid=" + preview.getRequestId(), "os=0", "event=CLK",
-					"mId=media-1", "tId=task-1", "aId=adv-1", "lId=link-1")
+					"mId=media-1", "tId=task-1", "aId=adv-1", "lId=link-1", "callback_url=")
 			.doesNotContain("__");
+		assertThat(preview.getCallbackToken()).matches("[0-9a-f]{32}");
+		assertThat(preview.getParameters()).anySatisfy(parameter -> {
+			assertThat(parameter.getKey()).isEqualTo("callback_url");
+			assertThat(parameter.isRequired()).isTrue();
+			assertThat(parameter.isEditable()).isFalse();
+			assertThat(parameter.getValue()).contains("/ocpx/test-callback?request_id=" + preview.getRequestId());
+		});
 		Map<String, String> values = preview.getParameters()
 			.stream()
 			.filter(MonitorTaskTestViews.Parameter::isSelected)
@@ -132,6 +139,7 @@ class OcpxMonitorTaskTestServiceTest {
 	void rejectsInvalidEditedValuesBeforeCallingEngine() {
 		assertThatThrownBy(() -> service.execute("task-1",
 				new MonitorTaskTestRequests.Execute("SCX-UAT-20260817183000-abcdef123456", "ANDROID",
+						"0123456789abcdef0123456789abcdef",
 						Map.of("oaid", "not-an-oaid"))))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("OAID 格式无效");
@@ -139,6 +147,7 @@ class OcpxMonitorTaskTestServiceTest {
 
 		assertThatThrownBy(() -> service.execute("task-1",
 				new MonitorTaskTestRequests.Execute("SCX-UAT-20260817183000-abcdef123456", "ANDROID",
+						"0123456789abcdef0123456789abcdef",
 						Map.of("oaid", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "oaid_md5",
 								"00000000000000000000000000000000"))))
 			.isInstanceOf(BootBusinessException.class)
@@ -174,7 +183,7 @@ class OcpxMonitorTaskTestServiceTest {
 			.thenReturn(new OcpxMonitorTaskTestHttpClient.Response(200, "{\"code\":200,\"msg\":\"提交成功\"}", null, 18L));
 
 		MonitorTaskTestViews.Execution execution = service.execute("task-1",
-				new MonitorTaskTestRequests.Execute(requestId, "ANDROID",
+				new MonitorTaskTestRequests.Execute(requestId, "ANDROID", "0123456789abcdef0123456789abcdef",
 						Map.of("oaid", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")));
 
 		assertThat(execution.isAlreadyExecuted()).isFalse();
@@ -190,7 +199,7 @@ class OcpxMonitorTaskTestServiceTest {
 			.thenReturn(1L);
 
 		MonitorTaskTestViews.Execution execution = service.execute("task-1",
-				new MonitorTaskTestRequests.Execute(requestId, "ANDROID",
+				new MonitorTaskTestRequests.Execute(requestId, "ANDROID", "0123456789abcdef0123456789abcdef",
 						Map.of("oaid", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")));
 
 		assertThat(execution.isAlreadyExecuted()).isTrue();
@@ -206,11 +215,11 @@ class OcpxMonitorTaskTestServiceTest {
 				new BigDecimal("5.000000"), LocalDateTime.now());
 		MonitorTaskTestViews.Flow flow = new MonitorTaskTestViews.Flow("SUCCESS", 200, "AERIM_DELIVERED", 22L,
 				LocalDateTime.now());
-		when(jdbcTemplate.query(contains("FROM scx_ocpx_event_fact"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
+		when(jdbcTemplate.query(contains("flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
 				eq(requestId)))
 			.thenReturn(List.of(fact));
-		when(jdbcTemplate.query(contains("FROM scx_ocpx_flow_log"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
-				eq(requestId)))
+		when(jdbcTemplate.query(contains("event_id=? AND flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of(flow));
 
 		MonitorTaskTestViews.Result result = service.result("task-1", requestId);
@@ -220,7 +229,47 @@ class OcpxMonitorTaskTestServiceTest {
 		assertThat(result.getFlow().getPartnerHttpStatus()).isEqualTo(200);
 		assertThat(result.getConclusion()).contains("不代表合作方已经入库");
 		assertThat(result.getTimeline()).extracting(MonitorTaskTestViews.TimelineItem::getStage)
-			.containsExactly("ENGINE_INGRESS", "BILLING", "UPSTREAM");
+			.containsExactly("ENGINE_INGRESS", "BILLING", "UPSTREAM", "ADVERTISER_CALLBACK");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void reportsCompleteLoopOnlyAfterTheControlledCollectorReceivesCallback() {
+		String requestId = "SCX-UAT-20260817183000-abcdef123456";
+		LocalDateTime now = LocalDateTime.now();
+		MonitorTaskTestViews.Fact fact = new MonitorTaskTestViews.Fact("CLK", "NOT_APPLICABLE", "BILLING_DISABLED",
+				BigDecimal.ZERO, now);
+		MonitorTaskTestViews.Flow upstream = new MonitorTaskTestViews.Flow("SUCCESS", 200, "WEIFENG_DELIVERED", 22L,
+				now);
+		MonitorTaskTestViews.CallbackFact callbackFact = new MonitorTaskTestViews.CallbackFact("ACTIVATE", "POSTED",
+				null, new BigDecimal("5.000000"), BigDecimal.ZERO, "PASSED", BigDecimal.ONE, now, now);
+		MonitorTaskTestViews.Flow callback = new MonitorTaskTestViews.Flow("SUCCESS", null,
+				"DOWNSTREAM_DELIVERY_SUBMITTED", 0L, now);
+		MonitorTaskTestViews.Flow downstream = new MonitorTaskTestViews.Flow("SUCCESS", null,
+				"TEST_CALLBACK_RECEIVED", 0L, now);
+		when(jdbcTemplate.query(contains("flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
+				eq(requestId)))
+			.thenReturn(List.of(fact));
+		when(jdbcTemplate.query(contains("event_id=? AND flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of(upstream));
+		when(jdbcTemplate.query(contains("flow_type='CALLBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
+				eq(requestId)))
+			.thenReturn(List.of(callbackFact));
+		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of(callback));
+		when(jdbcTemplate.query(contains("message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of(downstream));
+
+		MonitorTaskTestViews.Result result = service.result("task-1", requestId);
+
+		assertThat(result.getState()).isEqualTo("COMPLETED");
+		assertThat(result.getConclusion()).contains("测试回调接收器已收到").contains("不代表真实媒体");
+		assertThat(result.getTimeline()).extracting(MonitorTaskTestViews.TimelineItem::getStage)
+			.containsExactly("ENGINE_INGRESS", "BILLING", "UPSTREAM", "ADVERTISER_CALLBACK", "CALLBACK_BILLING",
+					"MEDIA_DEDUCTION", "DOWNSTREAM_CALLBACK");
 	}
 
 	private void stubContext(int platform, String mediaMacros, String advertiserMacros) {

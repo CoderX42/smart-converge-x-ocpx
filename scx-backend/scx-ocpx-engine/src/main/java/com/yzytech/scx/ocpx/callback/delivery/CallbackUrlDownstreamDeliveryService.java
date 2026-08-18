@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.callback.delivery;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.callback.service.TestCallbackCollectorService;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 public class CallbackUrlDownstreamDeliveryService extends DownstreamDeliveryService {
 
 	private final PublicCallbackUrlPolicy callbackUrlPolicy;
+
+	private final TestCallbackCollectorService testCallbackCollectorService;
 
 	/**
 	 * 解码原媒体回调地址，追加 {@code event_type} 后发起 GET 请求。
@@ -35,6 +38,8 @@ public class CallbackUrlDownstreamDeliveryService extends DownstreamDeliveryServ
 		String callbackUrl = URLDecoder.decode(request.getFeedback().getCallbackUrl(), StandardCharsets.UTF_8);
 		callbackUrl = callbackUrlPolicy.requirePublicHttpUrl(callbackUrl);
 		callbackUrl = callbackUrlPolicy.appendCallbackFields(callbackUrl, eventType, request.getCurrencyAmount());
+		callbackUrl = testCallbackCollectorService.signDeliveryIfTestCallback(callbackUrl, eventType,
+				request.getCurrencyAmount());
 		String content = NetUtil.httpGet(callbackUrl, null);
 		if (StringUtils.hasText(content)) {
 			log.debug("downstream callback response length:{}", content.length());

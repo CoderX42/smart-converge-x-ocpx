@@ -53,6 +53,9 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
   成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
 - `GET /ocpx/weifeng/callback`：接收微风互动的 `event/amount/days`；
   成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
+- `GET /ocpx/test-callback`：只接收管理端完整测试生成的最后一跳；要求同路由、同事件
+  已经存在扣量放行的正式 Callback 事实，幂等写入脱敏流程日志后返回空 `204`。该端点
+  不接受目标地址，成功不代表真实媒体入库。
 
 正向链路为：Feedback 参数转换 → Redis 去重计数 → Feedback 队列 → 按广告主主键
 选择协议 → 按 `OcpxAdvertiser.bidUrl + macroParams` 替换宏 → 广告主 GET。通用模板

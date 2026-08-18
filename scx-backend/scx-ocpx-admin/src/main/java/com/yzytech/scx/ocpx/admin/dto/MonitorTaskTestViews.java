@@ -65,6 +65,8 @@ public final class MonitorTaskTestViews {
 
 		private String testUrl;
 
+		private String callbackToken;
+
 		private BigDecimal expectedCharge;
 
 		private BigDecimal availableBalance;
@@ -122,6 +124,31 @@ public final class MonitorTaskTestViews {
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
+	public static class CallbackFact {
+
+		private String eventCode;
+
+		private String billingStatus;
+
+		private String billingReasonCode;
+
+		private BigDecimal spendAmount;
+
+		private BigDecimal currencyAmount;
+
+		private String deductionDecision;
+
+		private BigDecimal deductionRatio;
+
+		private LocalDateTime deductionDecidedAt;
+
+		private LocalDateTime receivedAt;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
 	public static class Flow {
 
 		private String resultStatus;
@@ -165,6 +192,12 @@ public final class MonitorTaskTestViews {
 		private Fact fact;
 
 		private Flow flow;
+
+		private CallbackFact callbackFact;
+
+		private Flow callbackFlow;
+
+		private Flow downstreamFlow;
 
 		private String conclusion;
 

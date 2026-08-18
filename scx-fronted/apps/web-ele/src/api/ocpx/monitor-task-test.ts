@@ -19,6 +19,7 @@ export type MonitorTaskTestPreview = {
   advertiserName: string;
   availableBalance?: number;
   blockers: string[];
+  callbackToken: string;
   event: 'CLK';
   executable: boolean;
   expectedCharge: number;
@@ -53,6 +54,18 @@ export type MonitorTaskTestFact = {
   spendAmount: number;
 };
 
+export type MonitorTaskTestCallbackFact = {
+  billingReasonCode?: string;
+  billingStatus: string;
+  currencyAmount: number;
+  deductionDecidedAt?: string;
+  deductionDecision: 'DEDUCTED' | 'PASSED' | 'PENDING';
+  deductionRatio?: number;
+  eventCode: string;
+  receivedAt: string;
+  spendAmount: number;
+};
+
 export type MonitorTaskTestFlow = {
   durationMs: number;
   eventTime: string;
@@ -65,16 +78,31 @@ export type MonitorTaskTestTimelineItem = {
   detail?: string;
   durationMs?: number;
   occurredAt?: string;
-  stage: 'BILLING' | 'ENGINE_INGRESS' | 'UPSTREAM';
+  stage:
+    | 'ADVERTISER_CALLBACK'
+    | 'BILLING'
+    | 'CALLBACK_BILLING'
+    | 'DOWNSTREAM_CALLBACK'
+    | 'ENGINE_INGRESS'
+    | 'MEDIA_DEDUCTION'
+    | 'UPSTREAM';
   status: string;
 };
 
 export type MonitorTaskTestResult = {
+  callbackFact?: MonitorTaskTestCallbackFact;
+  callbackFlow?: MonitorTaskTestFlow;
   conclusion: string;
+  downstreamFlow?: MonitorTaskTestFlow;
   fact?: MonitorTaskTestFact;
   flow?: MonitorTaskTestFlow;
   requestId: string;
   state:
+    | 'CALLBACK_DEDUCTED'
+    | 'CALLBACK_FAILED'
+    | 'CALLBACK_PROCESSING'
+    | 'COMPLETED'
+    | 'DOWNSTREAM_PENDING'
     | 'REJECTED'
     | 'UPSTREAM_FAILED'
     | 'UPSTREAM_PENDING'
@@ -96,6 +124,7 @@ export function generateMonitorTaskTestLink(
 export function executeMonitorTaskTestLink(
   taskId: string,
   data: {
+    callbackToken: string;
     os: MonitorTaskTestOs;
     parameters: Record<string, string>;
     requestId: string;

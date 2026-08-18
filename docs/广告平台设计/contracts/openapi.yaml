@@ -129,6 +129,26 @@ paths:
         '200': { description: Empty response for success, duplicate, or deducted conversion }
         '400': { description: Missing or unknown event, invalid amount/days, or invalid encrypted route context }
         '500': { description: Internal handling exception }
+  /test-callback:
+    get:
+      operationId: collectMonitorTaskTestCallback
+      summary: 接收完整测试的正式下游 Callback 最后一跳
+      description: 目标地址只能由管理端按固定 Engine 地址生成；只有相同路由与事件已经形成 PASSED Callback 事实时才会幂等记录。该成功证据不代表真实媒体入库。
+      parameters:
+        - { name: request_id, in: query, required: true, schema: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' } }
+        - { name: token, in: query, required: true, schema: { type: string, pattern: '^[0-9a-f]{32}$' } }
+        - { name: mId, in: query, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: tId, in: query, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: aId, in: query, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: lId, in: query, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 19 } }
+        - { name: currency_amount, in: query, required: false, schema: { type: number, minimum: 0, multipleOf: 0.000001 } }
+        - { name: delivery_signature, in: query, required: true, description: Engine 正式下游投递使用服务端密钥生成的 HMAC-SHA256；不会出现在测试 Feedback 中。, schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
+      responses:
+        '204': { description: 首次或重复接收成功 }
+        '400': { description: 测试身份、路由、事件或金额格式无效 }
+        '409': { description: 对应正式 Callback 尚未形成 PASSED 扣量事实 }
+        '500': { description: 脱敏审计写入失败 }
   /advertisers/account-role/permissions:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -395,8 +415,8 @@ paths:
       - url: http://localhost:9999/boot/ocpx
     post:
       operationId: generateMonitorTaskClickTestLink
-      summary: 生成随机且可编辑的 CLK 测试链接预览
-      description: 仅拥有 ocpx:monitor-task:test 的真实 ROLE_ADMIN 可用；不生成 IMP、Callback 或 callback_url。
+      summary: 生成随机且可编辑的完整 CLK 测试链接预览
+      description: 仅拥有 ocpx:monitor-task:test 的真实 ROLE_ADMIN 可用；callback_url 自动指向固定 Engine 的受控测试接收端，浏览器不能编辑目标地址。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -414,8 +434,8 @@ paths:
       - url: http://localhost:9999/boot/ocpx
     post:
       operationId: executeMonitorTaskClickTestLink
-      summary: 服务端重建链接并向固定 Engine 发送一次真实 CLK
-      description: 不接受目标 URL；同一测试 ID 已产生事实时不重复请求 Engine。请求可能产生真实上游流量和真实点击扣费。
+      summary: 服务端重建链接并向固定 Engine 发送一次真实完整 CLK 测试
+      description: 不接受目标 URL；同一测试 ID 已产生事实时不重复请求 Engine。请求可能产生真实上游流量、点击或目标转化扣费和媒体扣量。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -434,8 +454,8 @@ paths:
       - url: http://localhost:9999/boot/ocpx
     get:
       operationId: getMonitorTaskClickTestResult
-      summary: 查询现有事实、计费、上游流程和时间线
-      description: 上游 HTTP 200 只代表接口已响应，不代表合作方已经入库。
+      summary: 查询点击、广告主 Callback、计费、扣量和最后一跳时间线
+      description: 上游 HTTP 200 只代表点击接口已响应；测试接收端成功只证明 SCX 最后一跳可达，均不代表真实合作方或媒体业务入库。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -965,10 +985,11 @@ components:
     MonitorTaskTestExecuteRequest:
       type: object
       additionalProperties: false
-      required: [requestId, os, parameters]
+      required: [requestId, os, callbackToken, parameters]
       properties:
         requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
         os: { type: string, enum: [ANDROID, IOS] }
+        callbackToken: { type: string, pattern: '^[0-9a-f]{32}$' }
         parameters:
           type: object
           maxProperties: 24
@@ -980,7 +1001,7 @@ components:
       properties:
         key: { type: string }
         label: { type: string }
-        group: { type: string, enum: [固定参数, 设备标识, 网络终端, 广告维度] }
+        group: { type: string, enum: [固定参数, 回调闭环, 设备标识, 网络终端, 广告维度] }
         macro: { type: string }
         configuredByMedia: { type: boolean }
         forwardedUpstream: { type: boolean }
@@ -990,7 +1011,7 @@ components:
         value: { type: [string, 'null'] }
     MonitorTaskTestPreview:
       type: object
-      required: [requestId, event, os, taskId, monitorName, advertiserName, mediaName, promotionLinkName, platform, testUrl, expectedCharge, executable, blockers, warnings, parameters]
+      required: [requestId, event, os, taskId, monitorName, advertiserName, mediaName, promotionLinkName, platform, testUrl, callbackToken, expectedCharge, executable, blockers, warnings, parameters]
       properties:
         requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
         event: { type: string, const: CLK }
@@ -1002,6 +1023,7 @@ components:
         promotionLinkName: { type: string }
         platform: { type: integer, enum: [1, 2, 3, 4] }
         testUrl: { type: string, format: uri }
+        callbackToken: { type: string, pattern: '^[0-9a-f]{32}$' }
         expectedCharge: { type: number, minimum: 0 }
         availableBalance: { type: [number, 'null'] }
         executable: { type: boolean }
@@ -1038,11 +1060,24 @@ components:
         message: { type: [string, 'null'] }
         durationMs: { type: integer, format: int64, minimum: 0 }
         eventTime: { type: [string, 'null'], format: date-time }
+    MonitorTaskTestCallbackFact:
+      type: object
+      required: [eventCode, billingStatus, spendAmount, currencyAmount, deductionDecision, receivedAt]
+      properties:
+        eventCode: { type: string }
+        billingStatus: { type: string, enum: [POSTED, NOT_APPLICABLE, REJECTED_INSUFFICIENT_BALANCE] }
+        billingReasonCode: { type: [string, 'null'] }
+        spendAmount: { type: number, minimum: 0 }
+        currencyAmount: { type: number, minimum: 0 }
+        deductionDecision: { type: string, enum: [PENDING, PASSED, DEDUCTED] }
+        deductionRatio: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        deductionDecidedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: string, format: date-time }
     MonitorTaskTestTimelineItem:
       type: object
       required: [stage, status]
       properties:
-        stage: { type: string, enum: [ENGINE_INGRESS, BILLING, UPSTREAM] }
+        stage: { type: string, enum: [ENGINE_INGRESS, BILLING, UPSTREAM, ADVERTISER_CALLBACK, CALLBACK_BILLING, MEDIA_DEDUCTION, DOWNSTREAM_CALLBACK] }
         status: { type: string }
         occurredAt: { type: [string, 'null'], format: date-time }
         durationMs: { type: [integer, 'null'], format: int64, minimum: 0 }
@@ -1052,9 +1087,12 @@ components:
       required: [requestId, state, conclusion, timeline]
       properties:
         requestId: { type: string }
-        state: { type: string, enum: [WAITING, REJECTED, UPSTREAM_PENDING, UPSTREAM_RESPONDED, UPSTREAM_FAILED] }
+        state: { type: string, enum: [WAITING, REJECTED, UPSTREAM_PENDING, UPSTREAM_RESPONDED, UPSTREAM_FAILED, CALLBACK_PROCESSING, CALLBACK_FAILED, CALLBACK_DEDUCTED, DOWNSTREAM_PENDING, COMPLETED] }
         fact: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFact' }, { type: 'null' }] }
         flow: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFlow' }, { type: 'null' }] }
+        callbackFact: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestCallbackFact' }, { type: 'null' }] }
+        callbackFlow: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFlow' }, { type: 'null' }] }
+        downstreamFlow: { oneOf: [{ $ref: '#/components/schemas/MonitorTaskTestFlow' }, { type: 'null' }] }
         conclusion: { type: string }
         timeline: { type: array, items: { $ref: '#/components/schemas/MonitorTaskTestTimelineItem' } }
     MonitorTaskTestPreviewEnvelope:

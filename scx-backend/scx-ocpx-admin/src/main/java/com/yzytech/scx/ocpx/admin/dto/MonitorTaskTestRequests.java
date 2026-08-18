@@ -43,6 +43,10 @@ public final class MonitorTaskTestRequests {
 		@Pattern(regexp = "ANDROID|IOS")
 		private String os;
 
+		@NotBlank
+		@Pattern(regexp = "[0-9a-f]{32}")
+		private String callbackToken;
+
 		@NotNull
 		@Size(max = 24)
 		private Map<String, String> parameters;

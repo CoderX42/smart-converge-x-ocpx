@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.feedback.service;
 
+import com.yzytech.scx.ocpx.callback.service.TestCallbackCollectorService;
 import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -26,7 +27,8 @@ class FeedbackServiceImplTest {
 		OcpxEventFactService eventFactService = mock(OcpxEventFactService.class);
 		when(eventFactService.recordFeedback(org.mockito.ArgumentMatchers.any()))
 			.thenReturn(new OcpxEventFactService.FeedbackFactResult(false, false, "DUPLICATE", BigDecimal.ZERO));
-		FeedbackServiceImpl service = new FeedbackServiceImpl(redis, 1, eventFactService);
+		TestCallbackCollectorService collectorService = mock(TestCallbackCollectorService.class);
+		FeedbackServiceImpl service = new FeedbackServiceImpl(redis, 1, eventFactService, collectorService);
 		FeedbackReq request = FeedbackReq.builder()
 			.mId("media-id")
 			.tId("task-id")

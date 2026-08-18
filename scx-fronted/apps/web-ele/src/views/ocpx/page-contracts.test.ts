@@ -83,11 +83,12 @@ describe('vientiane-aligned OCPX page contracts', () => {
     const source = page('monitor-task');
     expect(source).toContain("'ocpx:monitor-task:test'");
     expect(source).toContain('测试链接');
-    expect(source).toContain('确认发送真实点击');
-    expect(source).toContain('会产生真实点击和上游流量');
+    expect(source).toContain('确认开始完整测试');
+    expect(source).toContain('会产生真实点击、上游流量和后续转化处理');
+    expect(source).toContain('不可编辑的 SCX 测试 callback_url');
+    expect(source).toContain('测试接收器已收到');
     expect(source).toContain('不代表合作方已经入库');
     expect(source).toContain('refreshTestResult(true)');
-    expect(source).not.toContain('callback_url=');
   });
 
   it('protects downstream media integration and states its evidence boundary', () => {
