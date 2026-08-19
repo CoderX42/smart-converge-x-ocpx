@@ -7,6 +7,7 @@ import com.yzytech.scx.ocpx.admin.dto.ProtocolConfigRequests;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxProtocolAllowedHostMapper;
 import com.yzytech.scx.ocpx.entity.OcpxProtocolAllowedHost;
 import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
+import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +38,11 @@ class OcpxProtocolConfigServiceTest {
 		refreshPublisher = mock(OcpxConfigRefreshPublisher.class);
 		advertiserScope = mock(AdvertiserScope.class);
 		service = new OcpxProtocolConfigService(mapper, refreshPublisher, advertiserScope);
+	}
+
+	@Test
+	void mapperIsRegisteredForSpringDiscovery() {
+		assertThat(OcpxProtocolAllowedHostMapper.class).hasAnnotation(Mapper.class);
 	}
 
 	@Test
