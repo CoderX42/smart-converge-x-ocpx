@@ -23,6 +23,7 @@
 | `management-v115.md` | 数据库驱动的广告主上游协议与精确允许域名契约 |
 | `management-v116.md` | 流程日志管理员详情、规范化下游请求参数留存和原始报文边界 |
 | `management-v117.md` | 流程日志结果摘要、脱敏限长响应预览与历史数据边界 |
+| `management-v118.md` | 上游 Callback 唯一转化事实查询、扣量状态与数据范围契约 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

@@ -218,8 +218,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all','ocpx:protocol-config:manage')")"
-[[ "$required_permissions" -eq 19 ]] || fail "required OCPX action, creative, billing, ledger, protocol-config, monitor-test, integration and data-scope permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:callback-record:view','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all','ocpx:protocol-config:manage')")"
+[[ "$required_permissions" -eq 20 ]] || fail "required OCPX action, creative, billing, ledger, callback-record, protocol-config, monitor-test, integration and data-scope permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -244,6 +244,14 @@ admin_protected_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
  AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:protocol-config:manage')")"
 [[ "$admin_protected_permissions" -eq 6 ]] || fail "system administrator finance, protocol-config, monitor-test and integration permissions are incomplete"
+
+admin_callback_record="$(scalar "SELECT COUNT(DISTINCT m.permission)
+ FROM sys_role r
+ JOIN sys_role_menu rm ON rm.role_id=r.id
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
+ AND m.permission='ocpx:callback-record:view'")"
+[[ "$admin_callback_record" -eq 1 ]] || fail "system administrator upstream callback record permission is missing"
 
 non_admin_protocol_config_grants="$(scalar "SELECT COUNT(*)
  FROM sys_role_menu rm

@@ -2,6 +2,7 @@ import { requestClient } from '#/api/request';
 
 export * from './ocpx/advertiser-macros';
 export * from './ocpx/billing';
+export * from './ocpx/callback-record';
 export * from './ocpx/creative';
 export * from './ocpx/deduction';
 export * from './ocpx/four-entity';

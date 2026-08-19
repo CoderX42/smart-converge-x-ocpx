@@ -645,6 +645,7 @@ VALUES
   ('menu_ocpx_monitor_task','监测任务','/ocpx/monitor-task','0','lucide:list-checks','ocpx/monitor-task/index','ocpx:monitor-task:view',40,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_deduction_rule','扣量规则','/ocpx/deduction','0','lucide:percent','ocpx/deduction/index','ocpx:deduction-rule:list',45,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_report','报表中心','/ocpx/report','0','lucide:chart-column','ocpx/report/index','ocpx:report:view',50,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_ocpx_callback_record','上游转化记录','/ocpx/callback-record','0','lucide:webhook','ocpx/callback-record/index','ocpx:callback-record:view',55,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_flow_log','流程日志','/ocpx/flow-log','0','lucide:scroll-text','ocpx/flow-log/index','ocpx:flow-log:view',60,'0','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),icon=VALUES(icon),
   component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),type=VALUES(type),
@@ -700,7 +701,7 @@ SELECT CONCAT('current_',LEFT(SHA2(CONCAT('role_advertiser','|',m.id),256),52)),
 FROM sys_menu m
 WHERE m.del_flag='0' AND m.id IN (
   'menu_ocpx_home','menu_ocpx_advertiser','menu_ocpx_promotion_link','menu_ocpx_creative','menu_ocpx_media',
-  'menu_ocpx_monitor_task','menu_ocpx_deduction_rule','menu_ocpx_report','menu_ocpx_flow_log',
+  'menu_ocpx_monitor_task','menu_ocpx_deduction_rule','menu_ocpx_report','menu_ocpx_callback_record','menu_ocpx_flow_log',
   'perm_ocpx_advertiser_add','perm_ocpx_advertiser_edit','perm_ocpx_billing_entry_view',
   'perm_ocpx_advertiser_delete','perm_ocpx_promotion_link_add','perm_ocpx_promotion_link_edit',
   'perm_ocpx_promotion_link_delete','perm_ocpx_media_add','perm_ocpx_media_edit','perm_ocpx_media_delete',

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 10.1.0
-  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, V115 database-driven upstream protocol configuration, and V116 flow-log request detail contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 10.2.0
+  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, V115 database-driven upstream protocol configuration, V117 flow-log diagnostics, and V118 authoritative upstream Callback record contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -574,6 +574,33 @@ paths:
         '200': { description: 流程结果、响应预览与可选的下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
         '403': { description: 非真实系统管理员或缺少联调权限 }
         '404': { description: 流程日志不存在 }
+  /callback-records:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listAuthoritativeUpstreamCallbackRecords
+      summary: 分页查询上游 Callback 唯一转化事实
+      description: 仅查询 scx_ocpx_event_fact 中 flow_type=CALLBACK 的首次唯一事实。广告主账号始终强制使用自身 advertiserId；PASSED 只表示 SCX 已提交下游投递，不表示媒体签收或入库。重试尝试应在流程日志中诊断。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: startDate, in: query, required: false, description: 默认结束日期前 6 天，最大跨度 366 天, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: false, description: 默认今天, schema: { type: string, format: date } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: eventCode, in: query, required: false, schema: { $ref: '#/components/schemas/CallbackEventCode' } }
+        - { name: targetConversion, in: query, required: false, schema: { type: boolean } }
+        - { name: deductionDecision, in: query, required: false, schema: { type: string, enum: [PENDING, PASSED, DEDUCTED, UNAVAILABLE] } }
+        - { name: requestId, in: query, required: false, description: 精确匹配, schema: { type: string, maxLength: 128 } }
+        - { name: current, in: query, required: false, schema: { type: integer, format: int64, minimum: 1, default: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, format: int64, minimum: 1, maximum: 100, default: 30 } }
+      responses:
+        '200': { description: 上游 Callback 唯一转化事实分页, content: { application/json: { schema: { $ref: '#/components/schemas/CallbackRecordPageEnvelope' } } } }
+        '400': { description: 日期跨度、事件、扣量状态或 requestId 无效 }
+        '403': { description: 无 ocpx:callback-record:view 权限或尝试越权查看其他广告主 }
   /billing-entries:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1359,6 +1386,46 @@ components:
       properties:
         code: { type: integer, const: 0 }
         data: { $ref: '#/components/schemas/FlowLogRequestDetail' }
+    CallbackEventCode:
+      type: string
+      enum: [ACTIVATE, EVOKE, LOGIN, REGISTER, PAYMENT, CUSTOMER_ACQUISITION, NEXT_STAY, VISITS, AUTHENTICATION, ORDER, FINISH_THE_ORDER, EVOKE_C, EVOKE_FIRST, EVOKE_C_VALID, LAHUO, LAHUI, HUIFANG, FIRST_ACTIVATION, FIRST_ORDER]
+    CallbackRecord:
+      type: object
+      required: [id, requestId, eventCode, targetConversion, advertiserId, promotionLinkId, mediaId, monitorTaskId, billingStatus, spendAmount, currencyAmount, deductionDecision, receivedAt]
+      properties:
+        id: { type: string, maxLength: 32 }
+        requestId: { type: string, maxLength: 128 }
+        eventCode: { $ref: '#/components/schemas/CallbackEventCode' }
+        targetConversion: { type: boolean }
+        advertiserId: { type: string, maxLength: 32 }
+        advertiserName: { type: [string, 'null'] }
+        promotionLinkId: { type: string, maxLength: 32 }
+        promotionLinkName: { type: [string, 'null'] }
+        mediaId: { type: string, maxLength: 32 }
+        mediaName: { type: [string, 'null'] }
+        monitorTaskId: { type: string, maxLength: 32 }
+        monitorTaskName: { type: [string, 'null'] }
+        billingStatus: { type: string, enum: [NOT_APPLICABLE, POSTED, REJECTED_INSUFFICIENT_BALANCE] }
+        billingReasonCode: { type: [string, 'null'], maxLength: 64 }
+        spendAmount: { type: number, minimum: 0 }
+        currencyAmount: { type: number, minimum: 0 }
+        deductionDecision: { type: [string, 'null'], enum: [PENDING, PASSED, DEDUCTED, null], description: V113 前的历史 Callback 可能没有持久化扣量判定 }
+        deductionRatioSnapshot: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        deductionDecidedAt: { type: [string, 'null'], format: date-time }
+        receivedAt: { type: string, format: date-time }
+    CallbackRecordPageEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data:
+          type: object
+          required: [records, total, size, current]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/CallbackRecord' } }
+            total: { type: integer, format: int64, minimum: 0 }
+            size: { type: integer, format: int64, minimum: 1 }
+            current: { type: integer, format: int64, minimum: 1 }
     BillingEntry:
       type: object
       required: [id, advertiserId, advertiserName, entryType, status, amount, balanceBefore, balanceAfter, businessKey, occurredAt]

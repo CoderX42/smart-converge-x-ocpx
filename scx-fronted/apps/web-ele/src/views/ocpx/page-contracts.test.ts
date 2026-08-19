@@ -57,6 +57,19 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '订单金额',
       ],
     ],
+    [
+      'callback-record',
+      [
+        '上游转化记录',
+        '上游回传时间',
+        '目标转化',
+        '广告主计费',
+        '下游回传提交',
+        'SCX 扣量拦截',
+        '历史无判定数据',
+        '查看完整流程',
+      ],
+    ],
     ['flow-log', ['流程日志', '事件 ID', 'HTTP', '耗时(ms)', '说明', '详情']],
   ])('%s exposes the agreed table and action labels', (name, labels) => {
     const source = page(name);
@@ -220,6 +233,21 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(report).toContain('callback-direction-metric__line is-downstream');
   });
 
+  it('reads authoritative callback facts and keeps retry evidence in flow logs', () => {
+    const source = page('callback-record');
+    expect(source).toContain('getCallbackRecords({');
+    expect(source).toContain('上游 Callback 已进入 SCX 的唯一转化事实');
+    expect(source).toContain('相同广告主、监测任务、请求 ID');
+    expect(source).toContain('和事件的重试不会重复计数');
+    expect(source).toContain('下游回传提交');
+    expect(source).toContain('不代表媒体已经签收或入库');
+    expect(source).toContain("return '历史无判定数据'");
+    expect(source).toContain("hasAccessByCodes(['ocpx:flow-log:view'])");
+    expect(source).toContain("path: '/ocpx/flow-log'");
+    expect(source).toContain('query: { eventId: row.requestId }');
+    expect(source).not.toContain('callbackUrl');
+  });
+
   it('renders only server-computed dashboard cards and no ranking section', () => {
     const dashboard = page('dashboard');
     for (const metric of [
@@ -254,6 +282,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
   it('guards every page against stale list responses', () => {
     for (const name of [
       'advertiser',
+      'callback-record',
       'dashboard',
       'deduction',
       'flow-log',
