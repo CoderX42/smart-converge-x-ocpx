@@ -60,9 +60,10 @@ public class OcpxUnifiedReportService {
 			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order",
 			"first_activation", "first_order");
 
-	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "媒体回传比例",
-			"原始Callback数", "扣量放行数", "扣量拦截数", "待判定数", "扣量统计起始时间", "去重展示数", "去重点击数", "点击率", "广告主消费", "激活", "唤起", "登录",
-			"注册", "付费", "获客", "次留", "访问", "认证", "下单", "完单", "首活", "首购", "订单金额");
+	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "下游配置放行率",
+			"上游Callback数", "下游回传提交数", "SCX扣量拦截数", "SCX待判定数", "扣量统计起始时间", "去重展示数", "去重点击数", "点击率", "广告主消费", "上游激活数",
+			"上游唤起数", "上游登录数", "上游注册数", "上游付费数", "上游获客数", "上游次留数", "上游访问数", "上游认证数", "上游下单数", "上游完单数", "上游首活数", "上游首购数",
+			"订单金额");
 
 	private static final Map<String, String> SUMMARY_SORT_COLUMNS = Map.ofEntries(
 			Map.entry("report_time", "reportTime"), Map.entry("uni_show_smt", "uni_show_smt"),

@@ -20,6 +20,8 @@
 | `management-v112.md` | 管理员监测任务 CLK 测试链接、真实发送和联调详情契约 |
 | `management-v113.md` | 广告主计费与媒体回传比例解耦、扣量事实和报表覆盖契约 |
 | `management-v114.md` | 下游 Feedback 落库快照查询与管理员真实媒体 Callback 联调契约 |
+| `management-v115.md` | 数据库驱动的广告主上游协议与精确允许域名契约 |
+| `management-v116.md` | 流程日志管理员详情、规范化下游请求参数留存和原始报文边界 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

@@ -28,6 +28,7 @@ required = [
     "management-v113.md",
     "management-v114.md",
     "management-v115.md",
+    "management-v116.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -66,7 +67,8 @@ v114_paths = {
     "/monitor-tasks/{id}/integration/callbacks:send",
 }
 v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths
+v116_paths = {"/flow-logs/{id}/request-detail"}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -107,6 +109,7 @@ assert set(paths["/reports/summary"]) == {"get", "servers"}
 assert set(paths["/reports/summary:export"]) == {"get", "servers"}
 assert set(paths["/protocol-configs"]) == {"get", "servers"}
 assert set(paths["/protocol-configs/{protocol}/allowed-hosts"]) == {"put", "servers"}
+assert set(paths["/flow-logs/{id}/request-detail"]) == {"get", "servers"}
 protocol_list = paths["/protocol-configs"]["get"]
 protocol_update = paths["/protocol-configs/{protocol}/allowed-hosts"]["put"]
 assert protocol_list["security"] == [{"saToken": []}]
@@ -120,11 +123,13 @@ test_execute = paths["/monitor-tasks/{id}/test-links:execute"]["post"]
 test_result = paths["/monitor-tasks/{id}/test-results/{requestId}"]["get"]
 integration_feedback = paths["/monitor-tasks/{id}/integration/feedback-requests"]["get"]
 integration_callback = paths["/monitor-tasks/{id}/integration/callbacks:send"]["post"]
+flow_log_request_detail = paths["/flow-logs/{id}/request-detail"]["get"]
 assert test_generate["security"] == [{"saToken": []}]
 assert test_execute["security"] == [{"saToken": []}]
 assert test_result["security"] == [{"saToken": []}]
 assert integration_feedback["security"] == [{"saToken": []}]
 assert integration_callback["security"] == [{"saToken": []}]
+assert flow_log_request_detail["security"] == [{"saToken": []}]
 assert test_generate["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestGenerateRequest")
 assert test_execute["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskTestExecuteRequest")
 assert integration_callback["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("MonitorTaskIntegrationCallbackRequest")
@@ -145,6 +150,7 @@ assert {
     "MonitorTaskIntegrationCallbackResult"
     , "ProtocolAllowedHostsUpdate", "ProtocolConfig", "ProtocolConfigEnvelope",
     "ProtocolConfigListEnvelope"
+    , "FlowLogRequestDetail", "FlowLogRequestDetailEnvelope"
 } <= set(schemas)
 assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
 assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
@@ -163,6 +169,7 @@ assert "callbackToken" in schemas["MonitorTaskTestExecuteRequest"]["properties"]
 assert not ({"url", "callbackUrl", "targetUrl"} & set(schemas["MonitorTaskIntegrationCallbackRequest"]["properties"]))
 assert "manualCallbackAllowed" in schemas["MonitorTaskIntegrationFeedback"]["required"]
 assert schemas["MonitorTaskIntegrationFeedback"]["properties"]["manualCallbackAllowed"]["type"] == "boolean"
+assert {"model", "osVersion", "ipv6", "caid2"} <= set(schemas["FlowLogRequestDetail"]["properties"])
 assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
 assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
     "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED",

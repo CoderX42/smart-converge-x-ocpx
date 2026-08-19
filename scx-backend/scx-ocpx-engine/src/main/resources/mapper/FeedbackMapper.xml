@@ -5,28 +5,36 @@
         INSERT INTO scx_ocpx_log_feedback
         (time_key_req,time_key_res,time_hour_res,date_res,m_id,a_id,t_id,l_id,userid,user_type,
          adv_id,group_id,plan_id,creative_id,imp_id,clk_id,req_id,ua,ip,device_os,device_did,device_oaid,
-         device_dpid,device_mac,device_idfa,device_caid,device_caid1,callback_url,ts,ts_ms,base_price)
+         device_dpid,device_androidid_md5,device_mac,device_idfa,device_idfa_md5,aaid,device_caid,
+         device_caid1,device_caid2,device_caid_list,last_caid,prev_caid,device_imei_md5,device_oaid_md5,
+         ipv6,model,osv,callback_url,ts,ts_ms,base_price)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.timeKeyRes},#{item.timeKeyRes},LEFT(${item.timeKeyRes},10),LEFT(${item.timeKeyRes},8),
              #{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.userId},#{item.userType},#{item.advId},
              #{item.groupId},#{item.planId},#{item.creativeId},#{item.impresssId},#{item.clickId},#{item.reqId},
-             #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.mac},#{item.idfa},
-             #{item.caid},#{item.caid1},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
+             #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.androididMd5},
+             #{item.mac},#{item.idfa},#{item.idfaMd5},#{item.aaid},#{item.caid},#{item.caid1},#{item.caid2},
+             #{item.caidList},#{item.lastCaid},#{item.prevCaid},#{item.imeiMd5},#{item.oaidMd5},#{item.ipv6},
+             #{item.model},#{item.osv},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
         </foreach>
     </insert>
     <insert id="addLogFeedbackDay">
         INSERT INTO scx_ocpx_log_feedback_day
         (time_key_req,time_key_res,time_hour_res,date_res,m_id,a_id,t_id,l_id,userid,user_type,
          adv_id,group_id,plan_id,creative_id,imp_id,clk_id,req_id,ua,ip,device_os,device_did,device_oaid,
-         device_dpid,device_mac,device_idfa,device_caid,device_caid1,callback_url,ts,ts_ms,base_price)
+         device_dpid,device_androidid_md5,device_mac,device_idfa,device_idfa_md5,aaid,device_caid,
+         device_caid1,device_caid2,device_caid_list,last_caid,prev_caid,device_imei_md5,device_oaid_md5,
+         ipv6,model,osv,callback_url,ts,ts_ms,base_price)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.timeKeyRes},#{item.timeKeyRes},LEFT(${item.timeKeyRes},10),LEFT(${item.timeKeyRes},8),
              #{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.userId},#{item.userType},#{item.advId},
              #{item.groupId},#{item.planId},#{item.creativeId},#{item.impresssId},#{item.clickId},#{item.reqId},
-             #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.mac},#{item.idfa},
-             #{item.caid},#{item.caid1},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
+             #{item.ua},#{item.ip},#{item.os},#{item.imei},#{item.oaid},#{item.androidid},#{item.androididMd5},
+             #{item.mac},#{item.idfa},#{item.idfaMd5},#{item.aaid},#{item.caid},#{item.caid1},#{item.caid2},
+             #{item.caidList},#{item.lastCaid},#{item.prevCaid},#{item.imeiMd5},#{item.oaidMd5},#{item.ipv6},
+             #{item.model},#{item.osv},#{item.callbackUrl},#{item.ts},#{item.tsMs},IFNULL(#{item.basePrice},0))
         </foreach>
     </insert>
     <insert id="addReport">

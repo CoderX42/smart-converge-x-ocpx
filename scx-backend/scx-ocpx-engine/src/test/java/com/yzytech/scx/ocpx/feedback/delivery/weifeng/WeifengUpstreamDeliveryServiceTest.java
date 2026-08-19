@@ -117,6 +117,30 @@ class WeifengUpstreamDeliveryServiceTest {
 	}
 
 	@Test
+	void recordsSpecificRequestRejectionWithoutCallingPartner() {
+		FeedbackReq feedback = androidFeedback();
+		feedback.setModel(null);
+
+		service.deliver(feedback);
+
+		verify(flowLogWriter).upstreamDelivery(feedback, false, null, "WEIFENG_REQUEST_MODEL_MISSING", 0L);
+		verify(httpClient, never()).get(anyString());
+	}
+
+	@Test
+	void recordsSpecificTemplateRejectionWithoutExposingTemplate() {
+		FeedbackReq feedback = androidFeedback();
+		OcpxPromotionLink missingDid = promotionLink();
+		missingDid.setLinkUrl(missingDid.getLinkUrl().replace("&did=yz", ""));
+		when(promotionLinkIndex.get("link-id")).thenReturn(missingDid);
+
+		service.deliver(feedback);
+
+		verify(flowLogWriter).upstreamDelivery(feedback, false, null, "WEIFENG_TEMPLATE_DID_MISSING", 0L);
+		verify(httpClient, never()).get(anyString());
+	}
+
+	@Test
 	void recordsDocumentedHttpStatusesAndTransportFailure() {
 		FeedbackReq feedback = androidFeedback();
 		when(httpClient.get(anyString())).thenReturn(new NetUtil.HttpGetResult(200, "", null, 3L),

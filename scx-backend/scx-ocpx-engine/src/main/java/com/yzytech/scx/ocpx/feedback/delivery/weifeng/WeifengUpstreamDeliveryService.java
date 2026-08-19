@@ -58,11 +58,12 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			return;
 		}
 		try {
-			String requestUrl = buildRequestUrl(feedback);
-			if (!StringUtils.hasText(requestUrl)) {
-				flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_REQUEST_REJECTED", 0L);
+			RequestBuildResult requestBuild = buildRequest(feedback);
+			if (!requestBuild.success()) {
+				flowLogWriter.upstreamDelivery(feedback, false, null, requestBuild.rejectionCode(), 0L);
 				return;
 			}
+			String requestUrl = requestBuild.requestUrl();
 			requestUrl = endpointPolicy.requireAllowedClickUrl(requestUrl);
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			Integer status = result.statusCode();
@@ -81,17 +82,33 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	/** 使用上游推广链接中的固定参数替换设备与 Callback 宏，每个值仅编码一次。 */
 	public String buildRequestUrl(FeedbackReq feedback) {
+		return buildRequest(feedback).requestUrl();
+	}
+
+	private RequestBuildResult buildRequest(FeedbackReq feedback) {
 		if (feedback == null || feedback.getOs() == null || feedback.getOs() == OsTypeEnum.UNKNOWN) {
-			return null;
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_INVALID_OS");
 		}
 		OcpxPromotionLink promotionLink = promotionLinkIndex.get(feedback.getLId());
+		if (promotionLink == null) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_LINK_NOT_FOUND");
+		}
+		if (!StringUtils.hasText(promotionLink.getLinkUrl())) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_LINK_URL_MISSING");
+		}
+		if (!StringUtils.hasText(feedback.getModel())) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_MODEL_MISSING");
+		}
 		String timestamp = timestampMillis(feedback);
+		if (!StringUtils.hasText(timestamp)) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_TIMESTAMP_INVALID");
+		}
 		String callback = buildCallbackUrl(feedback);
-		if (promotionLink == null || !StringUtils.hasText(promotionLink.getLinkUrl())
-				|| !StringUtils.hasText(feedback.getModel())
-				|| !StringUtils.hasText(timestamp) || !StringUtils.hasText(callback)
-				|| !hasAttributionIdentity(feedback)) {
-			return null;
+		if (!StringUtils.hasText(callback)) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_CALLBACK_BUILD_FAILED");
+		}
+		if (!hasAttributionIdentity(feedback)) {
+			return RequestBuildResult.rejected("WEIFENG_REQUEST_IDENTITY_MISSING");
 		}
 
 		Map<String, String> macros = new LinkedHashMap<>();
@@ -113,13 +130,13 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		return expandPromotionLink(promotionLink.getLinkUrl(), macros, feedback.getOs());
 	}
 
-	private String expandPromotionLink(String template, Map<String, String> macros, OsTypeEnum os) {
+	private RequestBuildResult expandPromotionLink(String template, Map<String, String> macros, OsTypeEnum os) {
 		String allowedTemplate = endpointPolicy.requireAllowedClickUrl(template);
 		try {
 			URI uri = URI.create(allowedTemplate);
 			String rawQuery = uri.getRawQuery();
 			if (!StringUtils.hasText(rawQuery)) {
-				return null;
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_QUERY_MISSING");
 			}
 
 			Map<String, String> expandedParameters = new LinkedHashMap<>();
@@ -128,13 +145,16 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			for (String segment : rawQuery.split("&", -1)) {
 				int separator = segment.indexOf('=');
 				if (separator <= 0) {
-					return null;
+					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_PARAMETER_INVALID");
 				}
 				String name = URLDecoder.decode(segment.substring(0, separator), StandardCharsets.UTF_8).trim();
 				String configuredValue = URLDecoder.decode(segment.substring(separator + 1), StandardCharsets.UTF_8);
 				String normalizedName = name.toLowerCase(Locale.ROOT);
-				if (!StringUtils.hasText(name) || !parameterNames.add(normalizedName)) {
-					return null;
+				if (!StringUtils.hasText(name)) {
+					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_PARAMETER_INVALID");
+				}
+				if (!parameterNames.add(normalizedName)) {
+					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_PARAMETER_DUPLICATE");
 				}
 
 				String expandedValue = configuredValue;
@@ -144,23 +164,36 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 							&& "__CALLBACK__".equals(configuredValue) && StringUtils.hasText(expandedValue);
 				}
 				else if (containsUnresolvedMacro(configuredValue)) {
-					return null;
+					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_MACRO_UNRESOLVED");
 				}
 				else if (DEVICE_QUERY_PARAMETERS.contains(normalizedName)) {
-					return null;
+					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_DEVICE_PARAMETER_LITERAL");
 				}
 				if (StringUtils.hasText(expandedValue)) {
 					expandedParameters.put(normalizedName, expandedValue);
 				}
 			}
 
-			if (!StringUtils.hasText(expandedParameters.get("aid"))
-					|| !StringUtils.hasText(expandedParameters.get("did")) || !callbackMacroReplaced
-					|| !StringUtils.hasText(expandedParameters.get("ts"))
-					|| !StringUtils.hasText(expandedParameters.get("model"))
-					|| !os.getIndex().equalsIgnoreCase(expandedParameters.get("os"))
-					|| !hasExpandedAttributionIdentity(os, expandedParameters)) {
-				return null;
+			if (!StringUtils.hasText(expandedParameters.get("aid"))) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_AID_MISSING");
+			}
+			if (!StringUtils.hasText(expandedParameters.get("did"))) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_DID_MISSING");
+			}
+			if (!callbackMacroReplaced) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_CALLBACK_MISSING");
+			}
+			if (!StringUtils.hasText(expandedParameters.get("ts"))) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_TIMESTAMP_MISSING");
+			}
+			if (!StringUtils.hasText(expandedParameters.get("model"))) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_MODEL_MISSING");
+			}
+			if (!os.getIndex().equalsIgnoreCase(expandedParameters.get("os"))) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_OS_MISMATCH");
+			}
+			if (!hasExpandedAttributionIdentity(os, expandedParameters)) {
+				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_IDENTITY_MISSING");
 			}
 
 			StringBuilder requestUrl = new StringBuilder(allowedTemplate.substring(0, allowedTemplate.indexOf('?')));
@@ -172,11 +205,27 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 					.append(NetUtil.strictUrlEncode(entry.getValue(), StandardCharsets.UTF_8));
 				separator = "&";
 			}
-			return requestUrl.toString();
+			return RequestBuildResult.success(requestUrl.toString());
 		}
 		catch (IllegalArgumentException exception) {
-			return null;
+			return RequestBuildResult.rejected("WEIFENG_TEMPLATE_INVALID");
 		}
+	}
+
+	private record RequestBuildResult(String requestUrl, String rejectionCode) {
+
+		private static RequestBuildResult success(String requestUrl) {
+			return new RequestBuildResult(requestUrl, null);
+		}
+
+		private static RequestBuildResult rejected(String rejectionCode) {
+			return new RequestBuildResult(null, rejectionCode);
+		}
+
+		private boolean success() {
+			return StringUtils.hasText(requestUrl);
+		}
+
 	}
 
 	private boolean hasExpandedAttributionIdentity(OsTypeEnum os, Map<String, String> parameters) {

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 10.0.0
-  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, and V115 database-driven upstream protocol configuration contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 10.1.0
+  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, V115 database-driven upstream protocol configuration, and V116 flow-log request detail contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -558,6 +558,22 @@ paths:
         '403': { description: 非真实系统管理员或缺少联调权限 }
         '404': { description: 监测任务或请求明细不存在 }
         '409': { description: 请求明细与监测任务关系不一致 }
+  /flow-logs/{id}/request-detail:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getFlowLogRequestDetail
+      summary: 查询流程日志关联的下游 Feedback 规范化请求参数
+      description: 仅拥有 ocpx:monitor-task:integration 的真实 ROLE_ADMIN 可用；按源 request ID 和 mId/aId/tId/lId 精确关联，不返回原始 URL、签名、凭据、重复参数或参数顺序。响应禁止缓存。
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
+      responses:
+        '200': { description: 下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
+        '403': { description: 非真实系统管理员或缺少联调权限 }
+        '404': { description: 流程日志不存在、异步明细尚未落库或明细已过期 }
   /billing-entries:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -816,11 +832,11 @@ components:
         advertiserName: { type: string }
         promotionLinkId: { type: string }
         promotionLinkName: { type: string }
-        linkRadio: { type: [string, 'null'], description: 当前媒体回传比例的小数文本；未配置表示 Engine 默认 1.0 }
-        callbackCount: { type: integer, format: int64, minimum: 0 }
-        deductionPassedCount: { type: integer, format: int64, minimum: 0 }
-        deductionDeductedCount: { type: integer, format: int64, minimum: 0 }
-        deductionPendingCount: { type: integer, format: int64, minimum: 0 }
+        linkRadio: { type: [string, 'null'], description: 当前下游配置放行率的小数文本；未配置表示 Engine 默认 1.0 }
+        callbackCount: { type: integer, format: int64, minimum: 0, description: SCX 收到的上游 Callback 数 }
+        deductionPassedCount: { type: integer, format: int64, minimum: 0, description: 扣量放行并提交异步下游投递的 Callback 数，不表示媒体已经签收 }
+        deductionDeductedCount: { type: integer, format: int64, minimum: 0, description: SCX 扣量拦截的 Callback 数 }
+        deductionPendingCount: { type: integer, format: int64, minimum: 0, description: SCX 尚未完成扣量判定的 Callback 数 }
         basePrice: { type: number, minimum: 0, description: 广告主消费 }
     DeductionSummaryPage:
       type: object
@@ -1281,6 +1297,56 @@ components:
       properties:
         code: { type: integer, const: 0 }
         data: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackResult' }
+    FlowLogRequestDetail:
+      type: object
+      required: [feedbackLogId, receivedAt, requestId, mediaId, advertiserId, monitorTaskId, promotionLinkId]
+      properties:
+        feedbackLogId: { type: integer, format: int64, minimum: 1 }
+        receivedAt: { type: string, format: date-time }
+        requestId: { type: string, maxLength: 128 }
+        clickId: { type: [string, 'null'], maxLength: 128 }
+        impressionId: { type: [string, 'null'], maxLength: 128 }
+        userId: { type: [string, 'null'], maxLength: 128 }
+        userType: { type: [string, 'null'], maxLength: 64 }
+        deviceOs: { type: [string, 'null'], maxLength: 32 }
+        osVersion: { type: [string, 'null'], maxLength: 128 }
+        model: { type: [string, 'null'], maxLength: 512 }
+        imei: { type: [string, 'null'], maxLength: 128 }
+        imeiMd5: { type: [string, 'null'], maxLength: 64 }
+        oaid: { type: [string, 'null'], maxLength: 128 }
+        oaidMd5: { type: [string, 'null'], maxLength: 64 }
+        androidId: { type: [string, 'null'], maxLength: 128 }
+        androidIdMd5: { type: [string, 'null'], maxLength: 64 }
+        idfa: { type: [string, 'null'], maxLength: 128 }
+        idfaMd5: { type: [string, 'null'], maxLength: 64 }
+        aaid: { type: [string, 'null'], maxLength: 128 }
+        caid: { type: [string, 'null'], maxLength: 128 }
+        caid1: { type: [string, 'null'], maxLength: 128 }
+        caid2: { type: [string, 'null'], maxLength: 128 }
+        caidList: { type: [string, 'null'], maxLength: 1024 }
+        lastCaid: { type: [string, 'null'], maxLength: 128 }
+        previousCaid: { type: [string, 'null'], maxLength: 128 }
+        mac: { type: [string, 'null'], maxLength: 128 }
+        ip: { type: [string, 'null'], maxLength: 64 }
+        ipv6: { type: [string, 'null'], maxLength: 64 }
+        ua: { type: [string, 'null'], maxLength: 2000 }
+        callbackUrl: { type: [string, 'null'], maxLength: 3000 }
+        timestamp: { type: [string, 'null'], maxLength: 32 }
+        timestampMs: { type: [string, 'null'], maxLength: 32 }
+        externalAdvertiserId: { type: [string, 'null'], maxLength: 128 }
+        groupId: { type: [string, 'null'], maxLength: 128 }
+        planId: { type: [string, 'null'], maxLength: 128 }
+        creativeId: { type: [string, 'null'], maxLength: 128 }
+        mediaId: { type: string, maxLength: 32 }
+        advertiserId: { type: string, maxLength: 32 }
+        monitorTaskId: { type: string, maxLength: 32 }
+        promotionLinkId: { type: string, maxLength: 32 }
+    FlowLogRequestDetailEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { $ref: '#/components/schemas/FlowLogRequestDetail' }
     BillingEntry:
       type: object
       required: [id, advertiserId, advertiserName, entryType, status, amount, balanceBefore, balanceAfter, businessKey, occurredAt]

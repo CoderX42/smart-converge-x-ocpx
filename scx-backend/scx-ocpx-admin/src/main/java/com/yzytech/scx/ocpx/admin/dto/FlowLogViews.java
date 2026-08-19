@@ -72,4 +72,91 @@ public final class FlowLogViews {
 
 	}
 
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class RequestDetail {
+
+		private Long feedbackLogId;
+
+		private LocalDateTime receivedAt;
+
+		private String requestId;
+
+		private String clickId;
+
+		private String impressionId;
+
+		private String userId;
+
+		private String userType;
+
+		private String deviceOs;
+
+		private String osVersion;
+
+		private String model;
+
+		private String imei;
+
+		private String imeiMd5;
+
+		private String oaid;
+
+		private String oaidMd5;
+
+		private String androidId;
+
+		private String androidIdMd5;
+
+		private String idfa;
+
+		private String idfaMd5;
+
+		private String aaid;
+
+		private String caid;
+
+		private String caid1;
+
+		private String caid2;
+
+		private String caidList;
+
+		private String lastCaid;
+
+		private String previousCaid;
+
+		private String mac;
+
+		private String ip;
+
+		private String ipv6;
+
+		private String ua;
+
+		private String callbackUrl;
+
+		private String timestamp;
+
+		private String timestampMs;
+
+		private String externalAdvertiserId;
+
+		private String groupId;
+
+		private String planId;
+
+		private String creativeId;
+
+		private String mediaId;
+
+		private String advertiserId;
+
+		private String monitorTaskId;
+
+		private String promotionLinkId;
+
+	}
+
 }

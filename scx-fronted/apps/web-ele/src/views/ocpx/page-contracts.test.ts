@@ -48,15 +48,16 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '时段报表',
         'CTR',
         '广告主消费',
-        '扣量放行',
-        '扣量拦截',
-        '完单',
-        '首活',
-        '首购',
+        '上游 Callback',
+        '下游回传提交',
+        'SCX 扣量拦截',
+        '上游完单',
+        '上游首活',
+        '上游首购',
         '订单金额',
       ],
     ],
-    ['flow-log', ['流程日志', '事件 ID', 'HTTP', '耗时(ms)', '说明']],
+    ['flow-log', ['流程日志', '事件 ID', 'HTTP', '耗时(ms)', '说明', '详情']],
   ])('%s exposes the agreed table and action labels', (name, labels) => {
     const source = page(name);
     for (const label of labels) expect(source).toContain(label);
@@ -113,6 +114,19 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('确认发送真实 Callback');
     expect(source).toContain('不会生成广告主转化');
     expect(source).toContain('不代表媒体已经完成业务入库');
+  });
+
+  it('protects normalized flow-log request detail and explains its boundary', () => {
+    const source = page('flow-log');
+    expect(source).toContain("'ocpx:monitor-task:integration'");
+    expect(source).toContain('getFlowLogRequestDetail(row.id)');
+    expect(source).toContain('下游请求参数详情');
+    expect(source).toContain('Engine 解析后的异步落库快照');
+    expect(source).toContain('不会展示签名、凭据、参数顺序或重复参数');
+    expect(source).toContain('requestDetail.model');
+    expect(source).toContain('requestDetail.osVersion');
+    expect(source).toContain('requestDetail.ipv6');
+    expect(source).toContain('requestDetail.caid2');
   });
 
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
@@ -174,6 +188,17 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(dashboard).toContain("filters.promotionLinkId = ''");
     expect(dashboard).toContain("filters.mediaId = ''");
     expect(dashboard).toContain("filters.monitorTaskId = ''");
+  });
+
+  it('distinguishes upstream callbacks from downstream delivery submissions', () => {
+    const report = page('report');
+    expect(report).toContain('下游配置放行率');
+    expect(report).toContain('Callback 回传（上游 / 下游）');
+    expect(report).toContain('row.callbackCount');
+    expect(report).toContain('row.deductionPassedCount');
+    expect(report).toContain('下游数表示 SCX 已提交投递，不代表媒体签收');
+    expect(report).toContain('callback-direction-metric__line is-upstream');
+    expect(report).toContain('callback-direction-metric__line is-downstream');
   });
 
   it('renders only server-computed dashboard cards and no ranking section', () => {

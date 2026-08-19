@@ -173,6 +173,12 @@ aerim_report_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns 
  AND column_name IN ('first_activation','first_order','currency_amount')")"
 [[ "$aerim_report_columns" -eq 6 ]] || fail "AERIM report columns are incomplete"
 
+feedback_detail_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN ('scx_ocpx_log_feedback','scx_ocpx_log_feedback_day')
+ AND column_name IN ('device_androidid_md5','device_idfa_md5','aaid','device_caid2','device_caid_list',
+ 'last_caid','prev_caid','device_imei_md5','device_oaid_md5','ipv6','model','osv')")"
+[[ "$feedback_detail_columns" -eq 24 ]] || fail "normalized Feedback request detail columns are incomplete"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

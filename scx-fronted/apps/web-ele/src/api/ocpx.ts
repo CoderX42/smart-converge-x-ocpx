@@ -5,8 +5,8 @@ export * from './ocpx/billing';
 export * from './ocpx/creative';
 export * from './ocpx/deduction';
 export * from './ocpx/four-entity';
-export * from './ocpx/monitor-task-test';
 export * from './ocpx/monitor-task-integration';
+export * from './ocpx/monitor-task-test';
 export * from './ocpx/report';
 
 export type ReportOption = {
@@ -108,6 +108,49 @@ export type FlowLogPage = {
   total: number;
 };
 
+export type FlowLogRequestDetail = {
+  aaid?: string;
+  advertiserId: string;
+  androidId?: string;
+  androidIdMd5?: string;
+  caid?: string;
+  caid1?: string;
+  caid2?: string;
+  caidList?: string;
+  callbackUrl?: string;
+  clickId?: string;
+  creativeId?: string;
+  deviceOs?: string;
+  externalAdvertiserId?: string;
+  feedbackLogId: number;
+  groupId?: string;
+  idfa?: string;
+  idfaMd5?: string;
+  imei?: string;
+  imeiMd5?: string;
+  impressionId?: string;
+  ip?: string;
+  ipv6?: string;
+  lastCaid?: string;
+  mac?: string;
+  mediaId: string;
+  model?: string;
+  monitorTaskId: string;
+  oaid?: string;
+  oaidMd5?: string;
+  osVersion?: string;
+  planId?: string;
+  previousCaid?: string;
+  promotionLinkId: string;
+  receivedAt: string;
+  requestId: string;
+  timestamp?: string;
+  timestampMs?: string;
+  ua?: string;
+  userId?: string;
+  userType?: string;
+};
+
 export function getReport(params: UnifiedReportQuery) {
   return requestClient.get<UnifiedReportPage>('/ocpx/reports/hourly', {
     params,
@@ -132,4 +175,10 @@ export function getDashboardOptions() {
 
 export function getFlowLogs(params: Record<string, unknown>) {
   return requestClient.get<FlowLogPage>('/ocpx/flow-logs', { params });
+}
+
+export function getFlowLogRequestDetail(id: string) {
+  return requestClient.get<FlowLogRequestDetail>(
+    `/ocpx/flow-logs/${id}/request-detail`,
+  );
 }

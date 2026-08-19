@@ -58,7 +58,11 @@ public class LogData {
 
 	private String caid;
 
+	private String caidList;
+
 	private String caid1;
+
+	private String caid2;
 
 	private String lastCaid;
 
@@ -66,7 +70,13 @@ public class LogData {
 
 	private String idfa;
 
+	private String idfaMd5;
+
+	private String aaid;
+
 	private String imei;
+
+	private String imeiMd5;
 
 	private String oaid;
 
@@ -74,9 +84,13 @@ public class LogData {
 
 	private String androidid;
 
+	private String androididMd5;
+
 	private String mac;
 
 	private String ip;
+
+	private String ipv6;
 
 	private OsTypeEnum os;
 
@@ -104,6 +118,8 @@ public class LogData {
 	private String marke;
 
 	private String model;
+
+	private String osv;
 
 	/** 由设备标识归一化得到的用户标识及类型。 */
 	private String userId;
@@ -157,31 +173,51 @@ public class LogData {
 	}
 
 	public String getCaid() {
-		return StringUtil.checkStrLength(caid, 50);
+		return StringUtil.checkStrLength(caid, 128);
+	}
+
+	public String getCaidList() {
+		return StringUtil.checkStrLength(caidList, 1024);
 	}
 
 	public String getCaid1() {
-		return StringUtil.checkStrLength(caid1, 50);
+		return StringUtil.checkStrLength(caid1, 128);
+	}
+
+	public String getCaid2() {
+		return StringUtil.checkStrLength(caid2, 128);
 	}
 
 	public String getLastCaid() {
-		return StringUtil.checkStrLength(lastCaid, 50);
+		return StringUtil.checkStrLength(lastCaid, 128);
 	}
 
 	public String getPrevCaid() {
-		return StringUtil.checkStrLength(prevCaid, 50);
+		return StringUtil.checkStrLength(prevCaid, 128);
 	}
 
 	public String getIdfa() {
-		return StringUtil.checkStrLength(idfa, 50);
+		return StringUtil.checkStrLength(idfa, 128);
+	}
+
+	public String getIdfaMd5() {
+		return StringUtil.checkStrLength(idfaMd5, 64);
+	}
+
+	public String getAaid() {
+		return StringUtil.checkStrLength(aaid, 128);
 	}
 
 	public String getImei() {
-		return StringUtil.checkStrLength(imei, 50);
+		return StringUtil.checkStrLength(imei, 128);
+	}
+
+	public String getImeiMd5() {
+		return StringUtil.checkStrLength(imeiMd5, 64);
 	}
 
 	public String getOaid() {
-		return StringUtil.checkStrLength(oaid, 100);
+		return StringUtil.checkStrLength(oaid, 128);
 	}
 
 	public String getOaidMd5() {
@@ -189,7 +225,11 @@ public class LogData {
 	}
 
 	public String getAndroidid() {
-		return StringUtil.checkStrLength(androidid, 50);
+		return StringUtil.checkStrLength(androidid, 128);
+	}
+
+	public String getAndroididMd5() {
+		return StringUtil.checkStrLength(androididMd5, 64);
 	}
 
 	public String getMac() {
@@ -197,7 +237,11 @@ public class LogData {
 	}
 
 	public String getIp() {
-		return StringUtil.checkStrLength(ip, 32);
+		return StringUtil.checkStrLength(ip, 64);
+	}
+
+	public String getIpv6() {
+		return StringUtil.checkStrLength(ipv6, 64);
 	}
 
 	public String getTs() {
@@ -245,7 +289,11 @@ public class LogData {
 	}
 
 	public String getModel() {
-		return StringUtil.checkStrLength(model, 32);
+		return StringUtil.checkStrLength(model, 512);
+	}
+
+	public String getOsv() {
+		return StringUtil.checkStrLength(osv, 128);
 	}
 
 	public String getUserId() {

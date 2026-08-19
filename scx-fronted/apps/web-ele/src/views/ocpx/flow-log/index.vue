@@ -1,14 +1,15 @@
 <script lang="ts" setup>
-import type { FlowLog } from '#/api/ocpx';
+import type { FlowLog, FlowLogRequestDetail } from '#/api/ocpx';
 
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import dayjs from 'dayjs';
 
-import { getFlowLogs } from '#/api/ocpx';
+import { getFlowLogRequestDetail, getFlowLogs } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
@@ -24,6 +25,10 @@ import '../table.scss';
 defineOptions({ name: 'OcpxFlowLog' });
 
 const route = useRoute();
+const { hasAccessByCodes } = useAccess();
+const canViewRequestDetail = computed(() =>
+  hasAccessByCodes(['ocpx:monitor-task:integration']),
+);
 
 const columns = [
   { key: 'time', label: '时间' },
@@ -43,6 +48,10 @@ const rows = ref<FlowLog[]>([]);
 const loading = ref(false);
 const total = ref(0);
 const showSearch = ref(true);
+const detailOpen = ref(false);
+const detailLoading = ref(false);
+const detailMessage = ref('');
+const requestDetail = ref<FlowLogRequestDetail>();
 const filters = reactive({
   current: 1,
   dates: [
@@ -108,6 +117,25 @@ function reset() {
     resultStatus: '',
   });
   search();
+}
+
+async function openRequestDetail(row: FlowLog) {
+  detailOpen.value = true;
+  detailLoading.value = true;
+  detailMessage.value = '';
+  requestDetail.value = undefined;
+  try {
+    requestDetail.value = await getFlowLogRequestDetail(row.id);
+  } catch {
+    detailMessage.value = '明细尚未落库或已过期，请稍后重试';
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+function closeRequestDetail() {
+  detailMessage.value = '';
+  requestDetail.value = undefined;
 }
 
 onMounted(load);
@@ -246,6 +274,18 @@ onMounted(load);
           ><template #default="{ row }"
             ><LongText :value="row.message" /></template
         ></el-table-column>
+        <el-table-column
+          v-if="canViewRequestDetail"
+          fixed="right"
+          label="操作"
+          min-width="90"
+        >
+          <template #default="{ row }">
+            <el-button link type="primary" @click="openRequestDetail(row)">
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
       <el-pagination
         v-model:current-page="filters.current"
@@ -257,5 +297,134 @@ onMounted(load);
         @change="load"
       />
     </el-card>
+    <el-dialog
+      v-model="detailOpen"
+      :close-on-click-modal="false"
+      destroy-on-close
+      title="下游请求参数详情"
+      top="5vh"
+      width="min(1040px, 94vw)"
+      @closed="closeRequestDetail"
+    >
+      <el-alert
+        :closable="false"
+        class="mb-4"
+        show-icon
+        title="以下为 Engine 解析后的异步落库快照，不是网络层原始 URL；不会展示签名、凭据、参数顺序或重复参数。新请求通常约 1 分钟可见。"
+        type="info"
+      />
+      <div v-loading="detailLoading" class="min-h-32">
+        <el-descriptions v-if="requestDetail" :column="2" border size="small">
+          <el-descriptions-item label="接收时间">
+            {{ requestDetail.receivedAt || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="明细 ID">
+            {{ requestDetail.feedbackLogId }}
+          </el-descriptions-item>
+          <el-descriptions-item label="request_id">
+            <LongText :value="requestDetail.requestId" wrap />
+          </el-descriptions-item>
+          <el-descriptions-item label="clickid / impresss_id">
+            <LongText
+              :value="`${requestDetail.clickId || '-'} / ${requestDetail.impressionId || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="OS / 系统版本">
+            {{ requestDetail.deviceOs || '-' }} /
+            {{ requestDetail.osVersion || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="设备型号">
+            <LongText :value="requestDetail.model" wrap />
+          </el-descriptions-item>
+          <el-descriptions-item label="主标识 / 类型">
+            <LongText
+              :value="`${requestDetail.userId || '-'} / ${requestDetail.userType || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="IMEI / IMEI MD5">
+            <LongText
+              :value="`${requestDetail.imei || '-'} / ${requestDetail.imeiMd5 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="OAID / OAID MD5">
+            <LongText
+              :value="`${requestDetail.oaid || '-'} / ${requestDetail.oaidMd5 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="Android ID / MD5">
+            <LongText
+              :value="`${requestDetail.androidId || '-'} / ${requestDetail.androidIdMd5 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="IDFA / IDFA MD5">
+            <LongText
+              :value="`${requestDetail.idfa || '-'} / ${requestDetail.idfaMd5 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="AAID / MAC">
+            <LongText
+              :value="`${requestDetail.aaid || '-'} / ${requestDetail.mac || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="CAID / CAID1 / CAID2" :span="2">
+            <LongText
+              :value="`${requestDetail.caid || '-'} / ${requestDetail.caid1 || '-'} / ${requestDetail.caid2 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="CAID 列表" :span="2">
+            <LongText :value="requestDetail.caidList" wrap />
+          </el-descriptions-item>
+          <el-descriptions-item label="上次 / 前次 CAID" :span="2">
+            <LongText
+              :value="`${requestDetail.lastCaid || '-'} / ${requestDetail.previousCaid || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="IPv4 / IPv6" :span="2">
+            <LongText
+              :value="`${requestDetail.ip || '-'} / ${requestDetail.ipv6 || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="时间戳">
+            {{ requestDetail.timestamp || '-' }} /
+            {{ requestDetail.timestampMs || '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="User-Agent">
+            <LongText :value="requestDetail.ua" wrap />
+          </el-descriptions-item>
+          <el-descriptions-item label="callback_url" :span="2">
+            <LongText :value="requestDetail.callbackUrl" wrap />
+          </el-descriptions-item>
+          <el-descriptions-item label="外部广告维度" :span="2">
+            <LongText
+              :value="`adv=${requestDetail.externalAdvertiserId || '-'} / group=${requestDetail.groupId || '-'} / plan=${requestDetail.planId || '-'} / creative=${requestDetail.creativeId || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+          <el-descriptions-item label="SCX 路由关系" :span="2">
+            <LongText
+              :value="`mId=${requestDetail.mediaId || '-'} / tId=${requestDetail.monitorTaskId || '-'} / aId=${requestDetail.advertiserId || '-'} / lId=${requestDetail.promotionLinkId || '-'}`"
+              wrap
+            />
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-empty
+          v-else-if="!detailLoading"
+          :description="detailMessage || '暂无下游请求明细'"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="detailOpen = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </Page>
 </template>

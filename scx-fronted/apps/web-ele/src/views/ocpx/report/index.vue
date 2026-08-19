@@ -54,32 +54,26 @@ const columns: SummaryColumn[] = [
   {
     field: 'linkRadio',
     key: 'linkRadio',
-    label: '媒体回传比例',
-    width: 130,
+    label: '下游配置放行率',
+    width: 140,
   },
   {
     field: 'callbackCount',
     key: 'callbackCount',
-    label: '原始Callback',
-    width: 120,
-  },
-  {
-    field: 'deductionPassedCount',
-    key: 'deductionPassedCount',
-    label: '扣量放行',
-    width: 110,
+    label: 'Callback 回传（上游 / 下游）',
+    width: 180,
   },
   {
     field: 'deductionDeductedCount',
     key: 'deductionDeductedCount',
-    label: '扣量拦截',
-    width: 110,
+    label: 'SCX 扣量拦截',
+    width: 130,
   },
   {
     field: 'deductionPendingCount',
     key: 'deductionPendingCount',
-    label: '待判定',
-    width: 100,
+    label: 'SCX 待判定',
+    width: 120,
   },
   { field: 'uniShowSmt', key: 'uniShowSmt', label: '展示', width: 100 },
   { field: 'uniClkSmt', key: 'uniClkSmt', label: '点击', width: 100 },
@@ -90,29 +84,39 @@ const columns: SummaryColumn[] = [
     label: '广告主消费',
     width: 120,
   },
-  { field: 'activate', key: 'activate', label: '激活', width: 90 },
-  { field: 'evoke', key: 'evoke', label: '唤起', width: 90 },
-  { field: 'login', key: 'login', label: '登录', width: 90 },
-  { field: 'register', key: 'register', label: '注册', width: 90 },
-  { field: 'payment', key: 'payment', label: '付费', width: 90 },
+  { field: 'activate', key: 'activate', label: '上游激活', width: 100 },
+  { field: 'evoke', key: 'evoke', label: '上游唤起', width: 100 },
+  { field: 'login', key: 'login', label: '上游登录', width: 100 },
+  { field: 'register', key: 'register', label: '上游注册', width: 100 },
+  { field: 'payment', key: 'payment', label: '上游付费', width: 100 },
   {
     field: 'customerAcquisition',
     key: 'customerAcquisition',
-    label: '获客',
-    width: 90,
+    label: '上游获客',
+    width: 100,
   },
-  { field: 'nextStay', key: 'nextStay', label: '次留', width: 90 },
-  { field: 'visits', key: 'visits', label: '访问', width: 90 },
-  { field: 'authentication', key: 'authentication', label: '认证', width: 90 },
-  { field: 'placeOrder', key: 'placeOrder', label: '下单', width: 90 },
-  { field: 'finishTheOrder', key: 'finishTheOrder', label: '完单', width: 90 },
+  { field: 'nextStay', key: 'nextStay', label: '上游次留', width: 100 },
+  { field: 'visits', key: 'visits', label: '上游访问', width: 100 },
+  {
+    field: 'authentication',
+    key: 'authentication',
+    label: '上游认证',
+    width: 100,
+  },
+  { field: 'placeOrder', key: 'placeOrder', label: '上游下单', width: 100 },
+  {
+    field: 'finishTheOrder',
+    key: 'finishTheOrder',
+    label: '上游完单',
+    width: 100,
+  },
   {
     field: 'firstActivation',
     key: 'firstActivation',
-    label: '首活',
-    width: 90,
+    label: '上游首活',
+    width: 100,
   },
-  { field: 'firstOrder', key: 'firstOrder', label: '首购', width: 90 },
+  { field: 'firstOrder', key: 'firstOrder', label: '上游首购', width: 100 },
   {
     field: 'currencyAmount',
     key: 'currencyAmount',
@@ -308,6 +312,12 @@ function tableSummary({
         ? `${((sumField(data, 'uniClkSmt') / shows) * 100).toFixed(2)}%`
         : '0.00%';
     }
+    if (property === 'callbackCount') {
+      return `上游 ${sumField(data, 'callbackCount')} / 下游 ${sumField(
+        data,
+        'deductionPassedCount',
+      )}`;
+    }
     return additiveFields.has(property) ? sumField(data, property) : '-';
   });
 }
@@ -436,7 +446,19 @@ onMounted(async () => {
         >
       </div>
       <div class="ocpx-actions">
-        <span></span>
+        <div class="report-direction-legend" aria-label="回传数据颜色说明">
+          <span class="report-direction-legend__item">
+            <i class="report-direction-legend__dot is-upstream"></i>
+            上游 Callback
+          </span>
+          <span class="report-direction-legend__item is-downstream">
+            <i class="report-direction-legend__dot is-downstream"></i>
+            下游回传提交
+          </span>
+          <span class="report-direction-legend__note">
+            下游数表示 SCX 已提交投递，不代表媒体签收
+          </span>
+        </div>
         <RightToolbar
           v-model:visible-columns="visibleColumns"
           :columns="columns"
@@ -478,8 +500,34 @@ onMounted(async () => {
           :prop="column.field"
           :sortable="sortableFields.has(column.field) ? 'custom' : false"
         >
+          <template #header>
+            <div
+              v-if="column.field === 'callbackCount'"
+              class="callback-column-header"
+            >
+              <span>Callback 回传</span>
+              <span class="callback-column-header__direction">
+                上游 / 下游
+              </span>
+            </div>
+            <span v-else>{{ column.label }}</span>
+          </template>
           <template #default="{ row }"
-            ><span v-if="column.field === 'clickRate'">{{
+            ><div
+              v-if="column.field === 'callbackCount'"
+              class="callback-direction-metric"
+              :aria-label="`上游 Callback ${row.callbackCount}，下游回传提交 ${row.deductionPassedCount}`"
+            >
+              <span class="callback-direction-metric__line is-upstream">
+                <strong>{{ row.callbackCount }}</strong>
+                <small>上游</small>
+              </span>
+              <span class="callback-direction-metric__line is-downstream">
+                <strong>{{ row.deductionPassedCount }}</strong>
+                <small>下游</small>
+              </span>
+            </div>
+            <span v-else-if="column.field === 'clickRate'">{{
               row.clickRate === null ? '-' : `${row.clickRate}%`
             }}</span
             ><span v-else-if="column.field === 'linkRadio'">{{
@@ -501,3 +549,89 @@ onMounted(async () => {
     </el-card>
   </Page>
 </template>
+
+<style scoped>
+.report-direction-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.report-direction-legend__item {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.report-direction-legend__item.is-downstream {
+  color: var(--el-text-color-placeholder);
+}
+
+.report-direction-legend__dot {
+  width: 8px;
+  height: 8px;
+  background: var(--el-text-color-primary);
+  border-radius: 50%;
+}
+
+.report-direction-legend__dot.is-downstream {
+  background: var(--el-text-color-placeholder);
+}
+
+.report-direction-legend__note {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--el-text-color-secondary);
+}
+
+.callback-column-header {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  line-height: 1.25;
+}
+
+.callback-column-header__direction {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--el-text-color-secondary);
+}
+
+.callback-direction-metric {
+  display: inline-grid;
+  gap: 4px;
+  min-width: 86px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.callback-direction-metric__line {
+  display: grid;
+  grid-template-columns: minmax(36px, auto) 28px;
+  gap: 8px;
+  align-items: baseline;
+  text-align: right;
+}
+
+.callback-direction-metric__line strong {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--el-text-color-primary);
+}
+
+.callback-direction-metric__line small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--el-text-color-regular);
+}
+
+.callback-direction-metric__line.is-downstream strong,
+.callback-direction-metric__line.is-downstream small {
+  color: var(--el-text-color-placeholder);
+}
+</style>
