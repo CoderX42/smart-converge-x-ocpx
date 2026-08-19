@@ -369,6 +369,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   result_status VARCHAR(16) NOT NULL,
   partner_http_status INT NULL,
   message VARCHAR(500) NULL,
+  response_preview VARCHAR(4096) NULL,
   duration_ms BIGINT NOT NULL DEFAULT 0,
   event_time DATETIME(3) NOT NULL,
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

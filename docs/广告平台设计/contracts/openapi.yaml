@@ -565,15 +565,15 @@ paths:
       - url: http://localhost:9999/boot/ocpx
     get:
       operationId: getFlowLogRequestDetail
-      summary: 查询流程日志关联的下游 Feedback 规范化请求参数
-      description: 仅拥有 ocpx:monitor-task:integration 的真实 ROLE_ADMIN 可用；按源 request ID 和 mId/aId/tId/lId 精确关联，不返回原始 URL、签名、凭据、重复参数或参数顺序。响应禁止缓存。
+      summary: 查询流程结果、响应预览与下游 Feedback 规范化请求参数
+      description: 仅拥有 ocpx:monitor-task:integration 的真实 ROLE_ADMIN 可用；流程结果始终来自流程日志，请求数据按源 request ID 和 mId/aId/tId/lId 精确关联。响应预览经过常见凭据脱敏并限制为 4096 字符，不返回原始请求 URL、签名或凭据。响应禁止缓存。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
       responses:
-        '200': { description: 下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
+        '200': { description: 流程结果、响应预览与可选的下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
         '403': { description: 非真实系统管理员或缺少联调权限 }
-        '404': { description: 流程日志不存在、异步明细尚未落库或明细已过期 }
+        '404': { description: 流程日志不存在 }
   /billing-entries:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1299,11 +1299,23 @@ components:
         data: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackResult' }
     FlowLogRequestDetail:
       type: object
-      required: [feedbackLogId, receivedAt, requestId, mediaId, advertiserId, monitorTaskId, promotionLinkId]
+      required: [flowLogId, flowType, eventId, eventCode, resultStatus, durationMs, eventTime, flowCreatedAt]
       properties:
-        feedbackLogId: { type: integer, format: int64, minimum: 1 }
-        receivedAt: { type: string, format: date-time }
-        requestId: { type: string, maxLength: 128 }
+        flowLogId: { type: string, maxLength: 32 }
+        flowType: { type: string, enum: [FEEDBACK, CALLBACK] }
+        eventId: { type: string, maxLength: 128 }
+        sourceEventId: { type: [string, 'null'], maxLength: 128 }
+        eventCode: { type: string, maxLength: 64 }
+        resultStatus: { type: string, enum: [SUCCESS, FAILED] }
+        partnerHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        message: { type: [string, 'null'], maxLength: 500 }
+        responsePreview: { type: [string, 'null'], maxLength: 4096 }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+        eventTime: { type: string, format: date-time }
+        flowCreatedAt: { type: string, format: date-time }
+        feedbackLogId: { type: [integer, 'null'], format: int64, minimum: 1 }
+        receivedAt: { type: [string, 'null'], format: date-time }
+        requestId: { type: [string, 'null'], maxLength: 128 }
         clickId: { type: [string, 'null'], maxLength: 128 }
         impressionId: { type: [string, 'null'], maxLength: 128 }
         userId: { type: [string, 'null'], maxLength: 128 }
@@ -1337,10 +1349,10 @@ components:
         groupId: { type: [string, 'null'], maxLength: 128 }
         planId: { type: [string, 'null'], maxLength: 128 }
         creativeId: { type: [string, 'null'], maxLength: 128 }
-        mediaId: { type: string, maxLength: 32 }
-        advertiserId: { type: string, maxLength: 32 }
-        monitorTaskId: { type: string, maxLength: 32 }
-        promotionLinkId: { type: string, maxLength: 32 }
+        mediaId: { type: [string, 'null'], maxLength: 32 }
+        advertiserId: { type: [string, 'null'], maxLength: 32 }
+        monitorTaskId: { type: [string, 'null'], maxLength: 32 }
+        promotionLinkId: { type: [string, 'null'], maxLength: 32 }
     FlowLogRequestDetailEnvelope:
       type: object
       required: [code, data]

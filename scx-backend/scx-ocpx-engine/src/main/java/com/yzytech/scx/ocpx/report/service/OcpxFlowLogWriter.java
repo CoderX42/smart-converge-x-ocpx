@@ -13,23 +13,43 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
-/** 将 Feedback 与 Callback 处置写入脱敏流程日志，不保存设备标识、URL 或凭据。 */
+/** 将 Feedback 与 Callback 处置写入脱敏流程日志，不保存设备标识、请求 URL 或凭据。 */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OcpxFlowLogWriter {
 
+	private static final int RESPONSE_PREVIEW_LIMIT = 4096;
+
+	private static final String SENSITIVE_KEY = "access_token|api_key|client_secret|password|satoken|secret|signature|sign|token|key";
+
+	private static final Pattern JSON_SECRET = Pattern
+		.compile("(?i)(\\\"(?:" + SENSITIVE_KEY + ")\\\"\\s*:\\s*\\\")[^\\\"]*(\\\")");
+
+	private static final Pattern PARAM_SECRET = Pattern
+		.compile("(?i)((?:^|[?&\\s])(?:" + SENSITIVE_KEY + ")=)[^&\\s]*");
+
+	private static final Pattern BEARER_SECRET = Pattern.compile("(?i)(bearer\\s+)[a-z0-9._~+/-]+=*");
+
+	private static final Pattern UNSAFE_CONTROL = Pattern.compile("[\\p{Cc}&&[^\\r\\n\\t]]");
+
 	private final JdbcTemplate jdbcTemplate;
 
 	public void rejectedAdvertiser(FeedbackReq request) {
-		writeFeedback(request, false, null, "ADVERTISER_PROTOCOL_NOT_REGISTERED", 0L);
+		writeFeedback(request, false, null, "ADVERTISER_PROTOCOL_NOT_REGISTERED", 0L, null);
 	}
 
-	/** 记录 AERIM 出站结果，不保存请求 URL、响应正文或设备标识。 */
+	/** 记录出站结果；仅保留脱敏、限长的响应预览。 */
 	public void upstreamDelivery(FeedbackReq request, boolean success, Integer httpStatus, String message,
 			long durationMs) {
-		writeFeedback(request, success, httpStatus, message, durationMs);
+		upstreamDelivery(request, success, httpStatus, message, durationMs, null);
+	}
+
+	public void upstreamDelivery(FeedbackReq request, boolean success, Integer httpStatus, String message,
+			long durationMs, String responseBody) {
+		writeFeedback(request, success, httpStatus, message, durationMs, responsePreview(responseBody));
 	}
 
 	/**
@@ -44,17 +64,19 @@ public class OcpxFlowLogWriter {
 			return;
 		}
 		String eventCode = request.getActionType() == null ? "UNKNOWN" : request.getActionType().name();
-		write(request.getFeedback(), "CALLBACK", eventCode, callbackFingerprint(request), success, null, message, 0L);
+		write(request.getFeedback(), "CALLBACK", eventCode, callbackFingerprint(request), success, null, message, null,
+				0L);
 	}
 
 	private void writeFeedback(FeedbackReq request, boolean success, Integer httpStatus, String message,
-			long durationMs) {
+			long durationMs, String responsePreview) {
 		String eventCode = request.getEvent() == null ? "UNKNOWN" : request.getEvent().getKey();
-		write(request, "FEEDBACK", eventCode, feedbackFingerprint(request), success, httpStatus, message, durationMs);
+		write(request, "FEEDBACK", eventCode, feedbackFingerprint(request), success, httpStatus, message,
+				responsePreview, durationMs);
 	}
 
 	private void write(FeedbackReq request, String flowType, String eventCode, String payloadHash, boolean success,
-			Integer httpStatus, String message, long durationMs) {
+			Integer httpStatus, String message, String responsePreview, long durationMs) {
 		try {
 			String eventId = StringUtils.hasText(request.getReqId()) ? limit(request.getReqId(), 128)
 					: UUID.randomUUID().toString();
@@ -62,15 +84,26 @@ public class OcpxFlowLogWriter {
 					INSERT INTO scx_ocpx_flow_log
 					(id,flow_type,event_id,source_event_id,event_code,payload_hash,advertiser_id,
 					 promotion_link_id,media_id,monitor_task_id,result_status,partner_http_status,
-					 message,duration_ms,event_time)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					 message,response_preview,duration_ms,event_time)
+					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 					""", uuid(), flowType, eventId, null, eventCode, payloadHash, request.getAId(), request.getLId(),
 					request.getMId(), request.getTId(), success ? "SUCCESS" : "FAILED", httpStatus,
-					limit(safe(message), 500), durationMs, LocalDateTime.now());
+					limit(safe(message), 500), responsePreview, durationMs, LocalDateTime.now());
 		}
 		catch (RuntimeException error) {
 			log.warn("Unable to persist {} flow audit for aId:{}", flowType, request.getAId());
 		}
+	}
+
+	private String responsePreview(String responseBody) {
+		if (!StringUtils.hasText(responseBody)) {
+			return null;
+		}
+		String sanitized = UNSAFE_CONTROL.matcher(responseBody).replaceAll("");
+		sanitized = JSON_SECRET.matcher(sanitized).replaceAll("$1***$2");
+		sanitized = PARAM_SECRET.matcher(sanitized).replaceAll("$1***");
+		sanitized = BEARER_SECRET.matcher(sanitized).replaceAll("$1***");
+		return limit(sanitized, RESPONSE_PREVIEW_LIMIT);
 	}
 
 	private String feedbackFingerprint(FeedbackReq request) {

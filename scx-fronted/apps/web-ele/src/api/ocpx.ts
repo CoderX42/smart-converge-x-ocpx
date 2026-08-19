@@ -110,7 +110,7 @@ export type FlowLogPage = {
 
 export type FlowLogRequestDetail = {
   aaid?: string;
-  advertiserId: string;
+  advertiserId?: string;
   androidId?: string;
   androidIdMd5?: string;
   caid?: string;
@@ -121,8 +121,15 @@ export type FlowLogRequestDetail = {
   clickId?: string;
   creativeId?: string;
   deviceOs?: string;
+  durationMs: number;
+  eventCode: string;
+  eventId: string;
+  eventTime: string;
   externalAdvertiserId?: string;
-  feedbackLogId: number;
+  feedbackLogId?: number;
+  flowCreatedAt: string;
+  flowLogId: string;
+  flowType: string;
   groupId?: string;
   idfa?: string;
   idfaMd5?: string;
@@ -133,17 +140,22 @@ export type FlowLogRequestDetail = {
   ipv6?: string;
   lastCaid?: string;
   mac?: string;
-  mediaId: string;
+  mediaId?: string;
+  message?: string;
   model?: string;
-  monitorTaskId: string;
+  monitorTaskId?: string;
   oaid?: string;
   oaidMd5?: string;
   osVersion?: string;
+  partnerHttpStatus?: number;
   planId?: string;
   previousCaid?: string;
-  promotionLinkId: string;
-  receivedAt: string;
-  requestId: string;
+  promotionLinkId?: string;
+  receivedAt?: string;
+  requestId?: string;
+  responsePreview?: string;
+  resultStatus: 'FAILED' | 'SUCCESS';
+  sourceEventId?: string;
   timestamp?: string;
   timestampMs?: string;
   ua?: string;

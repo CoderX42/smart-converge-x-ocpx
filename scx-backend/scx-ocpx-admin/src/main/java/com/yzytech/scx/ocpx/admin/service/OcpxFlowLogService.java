@@ -9,6 +9,8 @@ import org.springframework.util.StringUtils;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -88,37 +90,86 @@ public class OcpxFlowLogService {
 			throw new BootBusinessException("流程日志 ID 无效");
 		}
 		List<FlowLogViews.RequestDetail> records = jdbcTemplate.query("""
-				SELECT d.id,d.create_time,d.req_id,d.clk_id,d.imp_id,d.userid,d.user_type,d.device_os,
+				SELECT f.id AS flow_log_id,f.flow_type,f.event_id,f.source_event_id,f.event_code,
+				       f.result_status,f.partner_http_status,f.message,f.response_preview,f.duration_ms,
+				       f.event_time,f.create_time AS flow_created_at,
+				       d.id AS feedback_log_id,d.create_time AS feedback_received_at,
+				       d.req_id,d.clk_id,d.imp_id,d.userid,d.user_type,d.device_os,
 				       d.osv,d.model,d.device_did,d.device_imei_md5,d.device_oaid,d.device_oaid_md5,
 				       d.device_dpid,d.device_androidid_md5,d.device_idfa,d.device_idfa_md5,d.aaid,
 				       d.device_caid,d.device_caid1,d.device_caid2,d.device_caid_list,d.last_caid,d.prev_caid,
 				       d.device_mac,d.ip,d.ipv6,d.ua,d.callback_url,d.ts,d.ts_ms,d.adv_id,d.group_id,
 				       d.plan_id,d.creative_id,d.m_id,d.a_id,d.t_id,d.l_id
 				FROM scx_ocpx_flow_log f
-				JOIN scx_ocpx_log_feedback d
+				LEFT JOIN scx_ocpx_log_feedback d
 				  ON d.req_id=CASE WHEN COALESCE(f.source_event_id,'')<>'' THEN f.source_event_id ELSE f.event_id END
 				 AND d.m_id=f.media_id AND d.a_id=f.advertiser_id
 				 AND d.t_id=f.monitor_task_id AND d.l_id=f.promotion_link_id
 				WHERE f.id=?
 				ORDER BY d.create_time DESC,d.id DESC
 				LIMIT 1
-				""", (rs, rowNum) -> new FlowLogViews.RequestDetail(rs.getLong("id"),
-				time(rs.getTimestamp("create_time")), rs.getString("req_id"), rs.getString("clk_id"),
-				rs.getString("imp_id"), rs.getString("userid"), rs.getString("user_type"), rs.getString("device_os"),
-				rs.getString("osv"), rs.getString("model"), rs.getString("device_did"), rs.getString("device_imei_md5"),
-				rs.getString("device_oaid"), rs.getString("device_oaid_md5"), rs.getString("device_dpid"),
-				rs.getString("device_androidid_md5"), rs.getString("device_idfa"), rs.getString("device_idfa_md5"),
-				rs.getString("aaid"), rs.getString("device_caid"), rs.getString("device_caid1"),
-				rs.getString("device_caid2"), rs.getString("device_caid_list"), rs.getString("last_caid"),
-				rs.getString("prev_caid"), rs.getString("device_mac"), rs.getString("ip"), rs.getString("ipv6"),
-				rs.getString("ua"), sanitizedCallbackUrl(rs.getString("callback_url")), rs.getString("ts"),
-				rs.getString("ts_ms"), rs.getString("adv_id"), rs.getString("group_id"), rs.getString("plan_id"),
-				rs.getString("creative_id"), rs.getString("m_id"), rs.getString("a_id"), rs.getString("t_id"),
-				rs.getString("l_id")), flowLogId.trim());
+				""", (rs, rowNum) -> requestDetail(rs), flowLogId.trim());
 		if (records.isEmpty()) {
-			throw new BootBusinessException(404, "下游请求明细尚未落库或已过期");
+			throw new BootBusinessException(404, "流程日志不存在");
 		}
 		return records.get(0);
+	}
+
+	private FlowLogViews.RequestDetail requestDetail(ResultSet rs) throws SQLException {
+		FlowLogViews.RequestDetail detail = new FlowLogViews.RequestDetail();
+		detail.setFlowLogId(rs.getString("flow_log_id"));
+		detail.setFlowType(rs.getString("flow_type"));
+		detail.setEventId(rs.getString("event_id"));
+		detail.setSourceEventId(rs.getString("source_event_id"));
+		detail.setEventCode(rs.getString("event_code"));
+		detail.setResultStatus(rs.getString("result_status"));
+		detail.setPartnerHttpStatus((Integer) rs.getObject("partner_http_status"));
+		detail.setMessage(rs.getString("message"));
+		detail.setResponsePreview(rs.getString("response_preview"));
+		detail.setDurationMs(rs.getLong("duration_ms"));
+		detail.setEventTime(time(rs.getTimestamp("event_time")));
+		detail.setFlowCreatedAt(time(rs.getTimestamp("flow_created_at")));
+		detail.setFeedbackLogId((Long) rs.getObject("feedback_log_id"));
+		detail.setReceivedAt(time(rs.getTimestamp("feedback_received_at")));
+		detail.setRequestId(rs.getString("req_id"));
+		detail.setClickId(rs.getString("clk_id"));
+		detail.setImpressionId(rs.getString("imp_id"));
+		detail.setUserId(rs.getString("userid"));
+		detail.setUserType(rs.getString("user_type"));
+		detail.setDeviceOs(rs.getString("device_os"));
+		detail.setOsVersion(rs.getString("osv"));
+		detail.setModel(rs.getString("model"));
+		detail.setImei(rs.getString("device_did"));
+		detail.setImeiMd5(rs.getString("device_imei_md5"));
+		detail.setOaid(rs.getString("device_oaid"));
+		detail.setOaidMd5(rs.getString("device_oaid_md5"));
+		detail.setAndroidId(rs.getString("device_dpid"));
+		detail.setAndroidIdMd5(rs.getString("device_androidid_md5"));
+		detail.setIdfa(rs.getString("device_idfa"));
+		detail.setIdfaMd5(rs.getString("device_idfa_md5"));
+		detail.setAaid(rs.getString("aaid"));
+		detail.setCaid(rs.getString("device_caid"));
+		detail.setCaid1(rs.getString("device_caid1"));
+		detail.setCaid2(rs.getString("device_caid2"));
+		detail.setCaidList(rs.getString("device_caid_list"));
+		detail.setLastCaid(rs.getString("last_caid"));
+		detail.setPreviousCaid(rs.getString("prev_caid"));
+		detail.setMac(rs.getString("device_mac"));
+		detail.setIp(rs.getString("ip"));
+		detail.setIpv6(rs.getString("ipv6"));
+		detail.setUa(rs.getString("ua"));
+		detail.setCallbackUrl(sanitizedCallbackUrl(rs.getString("callback_url")));
+		detail.setTimestamp(rs.getString("ts"));
+		detail.setTimestampMs(rs.getString("ts_ms"));
+		detail.setExternalAdvertiserId(rs.getString("adv_id"));
+		detail.setGroupId(rs.getString("group_id"));
+		detail.setPlanId(rs.getString("plan_id"));
+		detail.setCreativeId(rs.getString("creative_id"));
+		detail.setMediaId(rs.getString("m_id"));
+		detail.setAdvertiserId(rs.getString("a_id"));
+		detail.setMonitorTaskId(rs.getString("t_id"));
+		detail.setPromotionLinkId(rs.getString("l_id"));
+		return detail;
 	}
 
 	private String sanitizedCallbackUrl(String value) {

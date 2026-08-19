@@ -77,6 +77,30 @@ public final class FlowLogViews {
 	@AllArgsConstructor
 	public static class RequestDetail {
 
+		private String flowLogId;
+
+		private String flowType;
+
+		private String eventId;
+
+		private String sourceEventId;
+
+		private String eventCode;
+
+		private String resultStatus;
+
+		private Integer partnerHttpStatus;
+
+		private String message;
+
+		private String responsePreview;
+
+		private long durationMs;
+
+		private LocalDateTime eventTime;
+
+		private LocalDateTime flowCreatedAt;
+
 		private Long feedbackLogId;
 
 		private LocalDateTime receivedAt;

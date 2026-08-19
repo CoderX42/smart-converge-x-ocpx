@@ -48,7 +48,8 @@ public class TemplateGetUpstreamDeliveryService extends UpstreamDeliveryService 
 			boolean success = result.statusCode() != null && (result.statusCode() == 200 || result.statusCode() == 204);
 			String conclusion = success ? "TEMPLATE_GET_DELIVERED"
 					: result.errorCode() == null ? "TEMPLATE_GET_HTTP_FAILED" : "TEMPLATE_GET_" + result.errorCode();
-			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs());
+			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
+					result.body());
 		}
 		catch (Exception exception) {
 			flowLogWriter.upstreamDelivery(feedback, false, null, "TEMPLATE_GET_INTERNAL_ERROR", 0L);

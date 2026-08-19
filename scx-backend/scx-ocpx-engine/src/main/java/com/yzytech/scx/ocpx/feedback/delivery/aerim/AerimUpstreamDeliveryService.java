@@ -70,7 +70,8 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 			boolean success = result.statusCode() != null && result.statusCode() == 200 && !dailyLimit;
 			String conclusion = dailyLimit ? "AERIM_DAILY_LIMIT" : success ? "AERIM_DELIVERED"
 					: result.errorCode() == null ? "AERIM_HTTP_FAILED" : "AERIM_" + result.errorCode();
-			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs());
+			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
+					result.body());
 		}
 		catch (IllegalArgumentException exception) {
 			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_URL_REJECTED", 0L);

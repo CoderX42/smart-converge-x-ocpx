@@ -45,7 +45,7 @@ const columns = [
   { key: 'id', label: '规则编号' },
   { key: 'link', label: '推广链接' },
   { key: 'media', label: '媒体' },
-  { key: 'ratio', label: '媒体回传比例' },
+  { key: 'ratio', label: '下游配置放行率' },
   { key: 'createTime', label: '创建时间' },
   { key: 'updateTime', label: '修改时间' },
 ];
@@ -64,6 +64,14 @@ const form = reactive<{
   promotionLinkId: '',
   ratio: 100,
 });
+const ratioPreview = computed(() => {
+  const value = Number(form.ratio);
+  const passed = Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+  return {
+    deducted: decimalText(100 - passed),
+    passed: decimalText(passed),
+  };
+});
 
 function validateRatio(
   _rule: unknown,
@@ -71,14 +79,14 @@ function validateRatio(
   callback: (error?: Error) => void,
 ) {
   if (value === '' || value === undefined || value === null) {
-    callback(new Error('请输入媒体回传比例'));
+    callback(new Error('请输入下游回传放行率'));
     return;
   }
   const number = Number(value);
   if (Number.isFinite(number) && number >= 0 && number <= 100) {
     callback();
   } else {
-    callback(new Error('媒体回传比例必须在 0%～100% 之间'));
+    callback(new Error('下游回传放行率必须在 0%～100% 之间'));
   }
 }
 
@@ -88,7 +96,7 @@ const rules: FormRules = {
     { message: '请选择应用链接', required: true, trigger: 'blur' },
   ],
   ratio: [
-    { message: '请输入媒体回传比例', required: true, trigger: 'blur' },
+    { message: '请输入下游回传放行率', required: true, trigger: 'blur' },
     { trigger: 'blur', validator: validateRatio },
   ],
 };
@@ -193,9 +201,20 @@ function handleDialogClose() {
   Object.assign(form, { mediaId: '', promotionLinkId: '', ratio: 100 });
 }
 
-function ratioText(ratio: number) {
-  const passed = deductionRatioToPercentage(ratio ?? 1);
-  return `${passed}%（预计扣除 ${Math.round((100 - passed) * 100) / 100}%）`;
+function percentageText(value: number) {
+  return `${decimalText(value)}%`;
+}
+
+function decimalText(value: number) {
+  return `${Math.round(value * 100) / 100}`;
+}
+
+function passedPercentage(ratio: number) {
+  return percentageText(deductionRatioToPercentage(ratio ?? 1));
+}
+
+function deductedPercentage(ratio: number) {
+  return percentageText(100 - deductionRatioToPercentage(ratio ?? 1));
 }
 
 onMounted(async () => {
@@ -246,6 +265,22 @@ onMounted(async () => {
           @search="showSearch = !showSearch"
         />
       </div>
+      <section
+        class="deduction-explainer"
+        aria-labelledby="deduction-help-title"
+      >
+        <div class="deduction-explainer__mark" aria-hidden="true">%</div>
+        <div>
+          <h3 id="deduction-help-title">比例表示“下游回传放行率”</h3>
+          <p>
+            例如设置 30%：上游回传 10 个 Callback，SCX 将向下游提交约 3
+            个，并扣量拦截约 7 个。这里填写的不是“扣除率”。
+          </p>
+          <p class="deduction-explainer__boundary">
+            扣量只控制下游回传数量，不删除上游真实转化，也不撤销广告主计费；提交下游不等于媒体已经签收。
+          </p>
+        </div>
+      </section>
       <el-table
         v-loading="loading"
         class="ocpx-table"
@@ -271,11 +306,19 @@ onMounted(async () => {
         />
         <el-table-column
           v-if="hasColumn('ratio')"
-          label="媒体回传比例"
+          label="下游配置放行率"
           min-width="210"
           prop="ratio"
         >
-          <template #default="{ row }">{{ ratioText(row.ratio) }}</template>
+          <template #default="{ row }">
+            <div
+              class="deduction-ratio-cell"
+              :aria-label="`下游放行 ${passedPercentage(row.ratio)}，SCX 拦截 ${deductedPercentage(row.ratio)}`"
+            >
+              <strong>下游放行 {{ passedPercentage(row.ratio) }}</strong>
+              <span>SCX 拦截 {{ deductedPercentage(row.ratio) }}</span>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column
           v-if="hasColumn('createTime')"
@@ -363,7 +406,7 @@ onMounted(async () => {
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="媒体回传比例" prop="ratio">
+        <el-form-item label="下游回传放行率" prop="ratio">
           <el-input-number
             v-model="form.ratio"
             :max="100"
@@ -372,8 +415,15 @@ onMounted(async () => {
             :step="1"
           />
           <span class="ml-2">%</span>
-          <div class="w-full text-xs text-gray-500">
-            100% 全部回传，0% 全部拦截；预计扣除比例 = 100% - 回传比例。
+          <div class="deduction-field-help">
+            <strong>这里填写的是“下游放行率”，不是“扣除率”。</strong>
+            <span>100% 全部回传，0% 全部拦截。</span>
+          </div>
+          <div class="deduction-preview" aria-live="polite">
+            <span>上游回传 100 个</span>
+            <i aria-hidden="true">→</i>
+            <strong>下游提交约 {{ ratioPreview.passed }} 个</strong>
+            <span>SCX 拦截约 {{ ratioPreview.deducted }} 个</span>
           </div>
         </el-form-item>
       </el-form>
@@ -388,3 +438,107 @@ onMounted(async () => {
     </el-dialog>
   </Page>
 </template>
+
+<style scoped>
+.deduction-explainer {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  color: var(--el-text-color-regular);
+  background: linear-gradient(
+    135deg,
+    var(--el-color-primary-light-9),
+    var(--el-fill-color-blank) 62%
+  );
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 10px;
+}
+
+.deduction-explainer__mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-8);
+  border-radius: 10px;
+}
+
+.deduction-explainer h3 {
+  margin: 0 0 5px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--el-text-color-primary);
+}
+
+.deduction-explainer p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.deduction-explainer__boundary {
+  color: var(--el-text-color-secondary);
+}
+
+.deduction-ratio-cell {
+  display: inline-grid;
+  gap: 3px;
+  justify-items: start;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.deduction-ratio-cell strong {
+  font-weight: 650;
+  color: var(--el-text-color-primary);
+}
+
+.deduction-ratio-cell span {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
+.deduction-field-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  width: 100%;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+
+.deduction-field-help strong {
+  color: var(--el-color-primary);
+}
+
+.deduction-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+}
+
+.deduction-preview i {
+  font-style: normal;
+  color: var(--el-text-color-placeholder);
+}
+
+.deduction-preview strong {
+  color: var(--el-color-primary);
+}
+</style>

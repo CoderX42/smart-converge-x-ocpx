@@ -51,11 +51,12 @@ class OcpxFlowLogServiceTest {
 		OcpxFlowLogService service = new OcpxFlowLogService(jdbcTemplate, advertiserScope);
 
 		assertThatThrownBy(() -> service.requestDetail("flow-1")).isInstanceOf(BootBusinessException.class)
-			.hasMessageContaining("尚未落库或已过期");
+			.hasMessageContaining("流程日志不存在");
 		verify(advertiserScope).requireSystemAdministrator();
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), eq("flow-1"));
-		assertThat(sql.getValue()).contains("d.req_id=CASE WHEN COALESCE(f.source_event_id,'')<>''")
+		assertThat(sql.getValue()).contains("LEFT JOIN scx_ocpx_log_feedback")
+			.contains("d.req_id=CASE WHEN COALESCE(f.source_event_id,'')<>''")
 			.contains("d.m_id=f.media_id")
 			.contains("d.a_id=f.advertiser_id")
 			.contains("d.t_id=f.monitor_task_id")
@@ -69,6 +70,14 @@ class OcpxFlowLogServiceTest {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
 		ResultSet resultSet = mock(ResultSet.class);
+		when(resultSet.getString("flow_log_id")).thenReturn("flow-1");
+		when(resultSet.getString("flow_type")).thenReturn("FEEDBACK");
+		when(resultSet.getString("event_code")).thenReturn("CLICK");
+		when(resultSet.getString("result_status")).thenReturn("FAILED");
+		when(resultSet.getString("message")).thenReturn("AERIM_DAILY_LIMIT");
+		when(resultSet.getString("response_preview")).thenReturn("{\"code\":402,\"message\":\"limit\"}");
+		when(resultSet.getObject("partner_http_status")).thenReturn(200);
+		when(resultSet.getLong("duration_ms")).thenReturn(9L);
 		when(resultSet.getString("req_id")).thenReturn("request-1");
 		when(resultSet.getString("callback_url"))
 			.thenReturn("https%3A%2F%2Fmedia.example%2Fcallback%3Frequest_id%3Drequest-1%26token%3Dprivate");
@@ -85,6 +94,11 @@ class OcpxFlowLogServiceTest {
 			.requestDetail("flow-1");
 
 		assertThat(detail.getCallbackUrl()).isEqualTo("https://media.example/callback?request_id=request-1&token=***");
+		assertThat(detail.getFlowLogId()).isEqualTo("flow-1");
+		assertThat(detail.getResultStatus()).isEqualTo("FAILED");
+		assertThat(detail.getPartnerHttpStatus()).isEqualTo(200);
+		assertThat(detail.getMessage()).isEqualTo("AERIM_DAILY_LIMIT");
+		assertThat(detail.getResponsePreview()).contains("\"code\":402");
 	}
 
 }

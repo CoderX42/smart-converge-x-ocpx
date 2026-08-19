@@ -69,7 +69,7 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			Integer status = result.statusCode();
 			boolean success = status != null && status == 200;
 			String conclusion = conclusion(status, result.errorCode());
-			flowLogWriter.upstreamDelivery(feedback, success, status, conclusion, result.durationMs());
+			flowLogWriter.upstreamDelivery(feedback, success, status, conclusion, result.durationMs(), result.body());
 		}
 		catch (IllegalArgumentException exception) {
 			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_URL_REJECTED", 0L);
@@ -160,8 +160,8 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 				String expandedValue = configuredValue;
 				if (macros.containsKey(configuredValue)) {
 					expandedValue = macros.get(configuredValue);
-					callbackMacroReplaced |= "callback".equals(normalizedName)
-							&& "__CALLBACK__".equals(configuredValue) && StringUtils.hasText(expandedValue);
+					callbackMacroReplaced |= "callback".equals(normalizedName) && "__CALLBACK__".equals(configuredValue)
+							&& StringUtils.hasText(expandedValue);
 				}
 				else if (containsUnresolvedMacro(configuredValue)) {
 					return RequestBuildResult.rejected("WEIFENG_TEMPLATE_MACRO_UNRESOLVED");
@@ -234,8 +234,7 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			return StringUtils.hasText(parameters.get("caid1")) || StringUtils.hasText(parameters.get("caid2"))
 					|| StringUtils.hasText(parameters.get("idfa")) || ipAndUa;
 		}
-		return StringUtils.hasText(parameters.get("oaid")) || StringUtils.hasText(parameters.get("imei"))
-				|| ipAndUa;
+		return StringUtils.hasText(parameters.get("oaid")) || StringUtils.hasText(parameters.get("imei")) || ipAndUa;
 	}
 
 	private boolean containsUnresolvedMacro(String value) {

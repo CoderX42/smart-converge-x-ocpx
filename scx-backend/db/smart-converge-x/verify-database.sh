@@ -179,6 +179,11 @@ feedback_detail_columns="$(scalar "SELECT COUNT(*) FROM information_schema.colum
  'last_caid','prev_caid','device_imei_md5','device_oaid_md5','ipv6','model','osv')")"
 [[ "$feedback_detail_columns" -eq 24 ]] || fail "normalized Feedback request detail columns are incomplete"
 
+flow_response_preview_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name='scx_ocpx_flow_log' AND column_name='response_preview'
+ AND data_type='varchar' AND character_maximum_length=4096 AND is_nullable='YES'")"
+[[ "$flow_response_preview_columns" -eq 1 ]] || fail "bounded flow-log response preview column is missing or invalid"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

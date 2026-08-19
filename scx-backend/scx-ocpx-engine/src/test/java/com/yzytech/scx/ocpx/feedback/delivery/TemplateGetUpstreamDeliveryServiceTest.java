@@ -43,7 +43,7 @@ class TemplateGetUpstreamDeliveryServiceTest {
 			service.deliver(feedback);
 		}
 
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "TEMPLATE_GET_DELIVERED", 12L);
+		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "TEMPLATE_GET_DELIVERED", 12L, "partner-body");
 	}
 
 }

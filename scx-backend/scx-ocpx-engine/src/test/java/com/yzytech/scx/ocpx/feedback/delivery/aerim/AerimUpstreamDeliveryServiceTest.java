@@ -112,7 +112,7 @@ class AerimUpstreamDeliveryServiceTest {
 		assertThat(callback.getActionType()).isEqualTo(ActionTypeEnum.PAYMENT);
 		assertThat(callback.getCurrencyAmount()).isEqualByComparingTo("123.45");
 		assertThat(callback.getFeedback().getReqId()).isEqualTo("request-id");
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "AERIM_DELIVERED", 7L);
+		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "AERIM_DELIVERED", 7L, "");
 	}
 
 	@Test
@@ -123,7 +123,8 @@ class AerimUpstreamDeliveryServiceTest {
 
 		service.deliver(click);
 
-		verify(flowLogWriter).upstreamDelivery(click, false, 200, "AERIM_DAILY_LIMIT", 3L);
+		verify(flowLogWriter).upstreamDelivery(click, false, 200, "AERIM_DAILY_LIMIT", 3L,
+				"{\"code\":402,\"message\":\"limit\"}");
 		FeedbackReq impression = feedback(OsTypeEnum.ANDROID);
 		impression.setEvent(EventTypeEnum.IMP);
 		service.deliver(impression);
@@ -139,8 +140,8 @@ class AerimUpstreamDeliveryServiceTest {
 		service.deliver(click);
 		service.deliver(click);
 
-		verify(flowLogWriter).upstreamDelivery(click, false, 503, "AERIM_HTTP_FAILED", 9L);
-		verify(flowLogWriter).upstreamDelivery(click, false, null, "AERIM_TIMEOUT", 5000L);
+		verify(flowLogWriter).upstreamDelivery(click, false, 503, "AERIM_HTTP_FAILED", 9L, "unavailable");
+		verify(flowLogWriter).upstreamDelivery(click, false, null, "AERIM_TIMEOUT", 5000L, null);
 	}
 
 	@Test

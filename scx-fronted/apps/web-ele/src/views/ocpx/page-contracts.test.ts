@@ -41,7 +41,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
         '删除',
       ],
     ],
-    ['deduction', ['规则编号', '推广链接', '媒体回传比例', '删除']],
+    ['deduction', ['规则编号', '推广链接', '下游配置放行率', '删除']],
     [
       'report',
       [
@@ -82,6 +82,19 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).not.toMatch(/v-model="form\.(showUrl|clkUrl)"/);
   });
 
+  it('explains the media callback ratio as a downstream pass rate', () => {
+    const deduction = page('deduction');
+    expect(deduction).toContain('比例表示“下游回传放行率”');
+    expect(deduction).toContain('上游回传 10 个 Callback');
+    expect(deduction).toContain('向下游提交约 3');
+    expect(deduction).toContain('扣量拦截约 7');
+    expect(deduction).toContain('不是“扣除率”');
+    expect(deduction).toContain('不撤销广告主计费');
+    expect(deduction).toContain('不等于媒体已经签收');
+    expect(deduction).toContain('ratioPreview.passed');
+    expect(deduction).toContain('ratioPreview.deducted');
+  });
+
   it('protects real monitor click testing and exposes traceable details', () => {
     const source = page('monitor-task');
     expect(source).toContain("'ocpx:monitor-task:test'");
@@ -116,13 +129,19 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('不代表媒体已经完成业务入库');
   });
 
-  it('protects normalized flow-log request detail and explains its boundary', () => {
+  it('shows flow-log results before normalized request data and explains its boundary', () => {
     const source = page('flow-log');
     expect(source).toContain("'ocpx:monitor-task:integration'");
     expect(source).toContain('getFlowLogRequestDetail(row.id)');
-    expect(source).toContain('下游请求参数详情');
-    expect(source).toContain('Engine 解析后的异步落库快照');
-    expect(source).toContain('不会展示签名、凭据、参数顺序或重复参数');
+    expect(source).toContain('流程日志详情');
+    expect(source).toContain('请求结果');
+    expect(source).toContain('响应预览（已脱敏）');
+    expect(source).toContain('最多 4096 字符预览');
+    expect(source).toContain('下游请求数据');
+    expect(source).toContain('请求参数快照尚未异步落库或已过期');
+    expect(source).toContain('不包含原始请求 URL、签名或凭据');
+    expect(source).toContain('requestDetail.partnerHttpStatus');
+    expect(source).toContain('requestDetail.responsePreview');
     expect(source).toContain('requestDetail.model');
     expect(source).toContain('requestDetail.osVersion');
     expect(source).toContain('requestDetail.ipv6');

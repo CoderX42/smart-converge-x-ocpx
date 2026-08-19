@@ -152,10 +152,10 @@ class WeifengUpstreamDeliveryServiceTest {
 		service.deliver(feedback);
 		service.deliver(feedback);
 
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "WEIFENG_DELIVERED", 3L);
-		verify(flowLogWriter).upstreamDelivery(feedback, false, 402, "WEIFENG_CAMPAIGN_PAUSED", 4L);
-		verify(flowLogWriter).upstreamDelivery(feedback, false, 501, "WEIFENG_DUPLICATE_CLICK", 5L);
-		verify(flowLogWriter).upstreamDelivery(feedback, false, null, "WEIFENG_TIMEOUT", 3000L);
+		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "WEIFENG_DELIVERED", 3L, "");
+		verify(flowLogWriter).upstreamDelivery(feedback, false, 402, "WEIFENG_CAMPAIGN_PAUSED", 4L, "");
+		verify(flowLogWriter).upstreamDelivery(feedback, false, 501, "WEIFENG_DUPLICATE_CLICK", 5L, "");
+		verify(flowLogWriter).upstreamDelivery(feedback, false, null, "WEIFENG_TIMEOUT", 3000L, null);
 	}
 
 	@Test
@@ -206,8 +206,7 @@ class WeifengUpstreamDeliveryServiceTest {
 		OcpxPromotionLink promotionLink = new OcpxPromotionLink();
 		promotionLink.setLinkUrl("https://ad.adapi.cn/click?caid1=__CAID1__&caid2=__CAID2__"
 				+ "&idfa=__IDFA__&oaid=__OAID__&imei=__IMEI__&androidid=__ANDROID_ID__&ip=__IP__"
-				+ "&ua=__UA__&ts=__TS__&os=IOS&osv=__OSV__&model=__MODEL__"
-				+ "&aid=4946&did=yz&callback=__CALLBACK__");
+				+ "&ua=__UA__&ts=__TS__&os=IOS&osv=__OSV__&model=__MODEL__" + "&aid=4946&did=yz&callback=__CALLBACK__");
 		return promotionLink;
 	}
 

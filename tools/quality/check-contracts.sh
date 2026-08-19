@@ -29,6 +29,7 @@ required = [
     "management-v114.md",
     "management-v115.md",
     "management-v116.md",
+    "management-v117.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -170,6 +171,8 @@ assert not ({"url", "callbackUrl", "targetUrl"} & set(schemas["MonitorTaskIntegr
 assert "manualCallbackAllowed" in schemas["MonitorTaskIntegrationFeedback"]["required"]
 assert schemas["MonitorTaskIntegrationFeedback"]["properties"]["manualCallbackAllowed"]["type"] == "boolean"
 assert {"model", "osVersion", "ipv6", "caid2"} <= set(schemas["FlowLogRequestDetail"]["properties"])
+assert {"resultStatus", "partnerHttpStatus", "message", "durationMs", "responsePreview"} <= set(schemas["FlowLogRequestDetail"]["properties"])
+assert schemas["FlowLogRequestDetail"]["properties"]["responsePreview"]["maxLength"] == 4096
 assert schemas["MonitorTaskTestPreview"]["properties"]["event"]["const"] == "CLK"
 assert set(schemas["MonitorTaskTestResult"]["properties"]["state"]["enum"]) == {
     "WAITING", "REJECTED", "UPSTREAM_PENDING", "UPSTREAM_RESPONDED", "UPSTREAM_FAILED",

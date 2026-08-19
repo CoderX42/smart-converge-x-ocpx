@@ -44,6 +44,32 @@ class OcpxFlowLogWriterTest {
 	}
 
 	@Test
+	void upstreamResponsePreviewIsRedactedAndBounded() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		FeedbackReq feedback = FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.reqId("request-id")
+			.event(EventTypeEnum.CLICK)
+			.build();
+		String response = "{\"code\":402,\"message\":\"campaign paused\",\"token\":\"private-token\"}"
+				+ "x".repeat(5000);
+
+		writer.upstreamDelivery(feedback, false, 200, "UPSTREAM_REJECTED", 9L, response);
+
+		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).update(anyString(), arguments.capture());
+		Object[] persistedArguments = arguments.getValue();
+		assertThat(persistedArguments[13].toString()).contains("\"code\":402", "campaign paused", "\"token\":\"***\"")
+			.doesNotContain("private-token")
+			.hasSize(4096);
+		assertThat(persistedArguments[14]).isEqualTo(9L);
+	}
+
+	@Test
 	void callbackAuditUsesCallbackTypeAndContainsOnlySanitizedMetadata() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
