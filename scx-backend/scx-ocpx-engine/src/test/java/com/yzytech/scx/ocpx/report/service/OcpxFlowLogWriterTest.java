@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 
 class OcpxFlowLogWriterTest {
 
@@ -61,12 +62,12 @@ class OcpxFlowLogWriterTest {
 		writer.upstreamDelivery(feedback, false, 200, "UPSTREAM_REJECTED", 9L, response);
 
 		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
-		verify(jdbcTemplate).update(anyString(), arguments.capture());
-		Object[] persistedArguments = arguments.getValue();
-		assertThat(persistedArguments[13].toString()).contains("\"code\":402", "campaign paused", "\"token\":\"***\"")
+		verify(jdbcTemplate, times(2)).update(anyString(), arguments.capture());
+		Object[] persistedArguments = arguments.getAllValues().get(0);
+		assertThat(persistedArguments[18].toString()).contains("\"code\":402", "campaign paused", "\"token\":\"***\"")
 			.doesNotContain("private-token")
 			.hasSize(4096);
-		assertThat(persistedArguments[14]).isEqualTo(9L);
+		assertThat(persistedArguments[19]).isEqualTo(9L);
 	}
 
 	@Test
@@ -95,11 +96,12 @@ class OcpxFlowLogWriterTest {
 		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).update(anyString(), arguments.capture());
 		Object[] persistedArguments = arguments.getValue();
-		assertThat(persistedArguments[1]).isEqualTo("CALLBACK");
-		assertThat(persistedArguments[2]).isEqualTo("request-id");
-		assertThat(persistedArguments[4]).isEqualTo("EVOKE");
-		assertThat(persistedArguments[10]).isEqualTo("SUCCESS");
-		assertThat(persistedArguments[12]).isEqualTo("DOWNSTREAM_DELIVERY_SUBMITTED");
+		assertThat(persistedArguments[2]).isEqualTo("CALLBACK");
+		assertThat(persistedArguments[3]).isEqualTo("ADVERTISER_CALLBACK");
+		assertThat(persistedArguments[4]).isEqualTo("request-id");
+		assertThat(persistedArguments[6]).isEqualTo("EVOKE");
+		assertThat(persistedArguments[15]).isEqualTo("SUCCESS");
+		assertThat(persistedArguments[17]).isEqualTo("DOWNSTREAM_DELIVERY_SUBMITTED");
 		assertThat(Arrays.toString(persistedArguments)).contains("advertiser-id", "link-id", "media-id", "task-id")
 			.doesNotContain("sensitive-device-id", "callback.example", "sensitive-extension");
 	}

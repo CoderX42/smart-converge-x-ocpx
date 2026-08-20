@@ -39,9 +39,11 @@ public class TemplateGetUpstreamDeliveryService extends UpstreamDeliveryService 
 				return;
 			}
 			OcpxAdvertiser advertiser = advertiserIndex.get(feedback.getAId());
-			String requestUrl = protocolAdapter.buildUpstreamRequestUrl(advertiser, feedback);
-			if (requestUrl == null) {
-				flowLogWriter.upstreamDelivery(feedback, false, null, "TEMPLATE_GET_REQUEST_REJECTED", 0L);
+			MacroResolutionService.Resolution resolution = protocolAdapter.buildUpstreamRequest(advertiser, feedback);
+			String requestUrl = resolution.url();
+			if (!resolution.success()) {
+				flowLogWriter.upstreamDelivery(feedback, false, null, resolution.rejectionCode(), 0L, null, null,
+						resolution.audit());
 				return;
 			}
 			NetUtil.HttpGetResult result = NetUtil.httpGetResult(requestUrl);
@@ -49,7 +51,7 @@ public class TemplateGetUpstreamDeliveryService extends UpstreamDeliveryService 
 			String conclusion = success ? "TEMPLATE_GET_DELIVERED"
 					: result.errorCode() == null ? "TEMPLATE_GET_HTTP_FAILED" : "TEMPLATE_GET_" + result.errorCode();
 			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
-					result.body());
+					result.body(), requestUrl, resolution.audit());
 		}
 		catch (Exception exception) {
 			flowLogWriter.upstreamDelivery(feedback, false, null, "TEMPLATE_GET_INTERNAL_ERROR", 0L);

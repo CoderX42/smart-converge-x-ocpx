@@ -126,6 +126,7 @@ class OcpxIngressContractTest {
 			.param("tId", routeId)
 			.param("aId", routeId)
 			.param("lId", routeId)
+			.param("request_id", "request-at-column-limit")
 			.param("event", "CLK")).andExpect(status().isOk());
 		verify(feedbackService).handleFeedback(any());
 	}

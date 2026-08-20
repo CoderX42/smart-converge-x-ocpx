@@ -2,9 +2,10 @@ package com.yzytech.scx.ocpx.feedback.web;
 
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
+import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
 
+import org.springframework.util.StringUtils;
+
 /** 下游媒体 Feedback HTTP 入口。 */
 @RestController
-@RequiredArgsConstructor
 public class FeedbackIngressController {
 
 	private static final Set<String> RETIRED_ROUTE_PARAMETERS = Set.of("chid", "mid", "dspid", "linkid");
@@ -28,6 +30,20 @@ public class FeedbackIngressController {
 	private final FeedbackService feedbackService;
 
 	private final FeedbackRequestAdapter requestAdapter;
+
+	private final OcpxFlowLogWriter flowLogWriter;
+
+	@Autowired
+	public FeedbackIngressController(FeedbackService feedbackService, FeedbackRequestAdapter requestAdapter,
+			OcpxFlowLogWriter flowLogWriter) {
+		this.feedbackService = feedbackService;
+		this.requestAdapter = requestAdapter;
+		this.flowLogWriter = flowLogWriter;
+	}
+
+	public FeedbackIngressController(FeedbackService feedbackService, FeedbackRequestAdapter requestAdapter) {
+		this(feedbackService, requestAdapter, null);
+	}
 
 	/**
 	 * 接收媒体曝光或点击，将查询参数标准化后进入 Feedback 处理链路。
@@ -43,11 +59,19 @@ public class FeedbackIngressController {
 		if (RETIRED_ROUTE_PARAMETERS.stream().anyMatch(servletRequest.getParameterMap()::containsKey)) {
 			return ResponseEntity.badRequest().build();
 		}
+		if ("CLK".equals(request.getEvent()) && invalidClickRequestId(request.rawRequestId())) {
+			feedbackLog.warn("feedback ingress rejected code:CLICK_REQUEST_ID_INVALID mId:{} tId:{} aId:{} lId:{}",
+					request.getMId(), request.getTId(), request.getAId(), request.getLId());
+			return ResponseEntity.badRequest().build();
+		}
 		try {
 			feedbackLog.info("feedback ingress event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}", request.getEvent(),
 					request.getMId(), request.getTId(), request.getAId(), request.getLId(), request.getRequest_id());
 			FeedbackReq feedback = requestAdapter.toFeedback(request);
 			feedbackService.handleFeedback(feedback);
+			if (flowLogWriter != null) {
+				flowLogWriter.mediaIngress(feedback, true, "MEDIA_INGRESS_ACCEPTED");
+			}
 			return ResponseEntity.ok(FeedbackIngressResponse.success());
 		}
 		catch (Exception exception) {
@@ -56,6 +80,13 @@ public class FeedbackIngressController {
 					request.getAId(), request.getLId(), request.getRequest_id());
 			return ResponseEntity.internalServerError().build();
 		}
+	}
+
+	private boolean invalidClickRequestId(String value) {
+		if (!StringUtils.hasText(value) || value.length() > 128 || "__REQUEST_ID__".equals(value)) {
+			return true;
+		}
+		return value.chars().anyMatch(character -> Character.isISOControl(character));
 	}
 
 }

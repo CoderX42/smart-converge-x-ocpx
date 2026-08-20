@@ -93,6 +93,8 @@ public class FeedbackServiceImpl implements FeedbackService {
 	private void saveFeedback(FeedbackReq request) {
 		try {
 			LogData logData = JSON.parseObject(JSON.toJSONString(request), LogData.class);
+			// Callback 地址可能携带测试令牌或合作方签名；兼容报表不需要该值，禁止进入队列和旧明细表。
+			logData.setCallbackUrl("");
 			// 兼容日志队列失败不回滚已经提交的事实、账务与汇总。
 			int index = (request.hashCode() & Integer.MAX_VALUE) % reportBucket;
 			redis.opsForList().rightPush(RedisConstants.DATA_REPORT + index, JSON.toJSONString(logData));

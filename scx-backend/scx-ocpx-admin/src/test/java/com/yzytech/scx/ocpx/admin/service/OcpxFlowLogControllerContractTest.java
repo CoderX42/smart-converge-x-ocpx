@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
 class OcpxFlowLogControllerContractTest {
 
 	@Test
-	void requestDetailUsesAdministratorIntegrationPermissionAndNoStoreResponse() {
+	void requestDetailUsesDedicatedAdministratorPermissionAndNoStoreResponse() {
 		Method method = Arrays.stream(OcpxFlowLogController.class.getDeclaredMethods())
 			.filter(candidate -> "requestDetail".equals(candidate.getName()))
 			.findFirst()
@@ -26,7 +26,7 @@ class OcpxFlowLogControllerContractTest {
 
 		assertThat(method.getAnnotation(GetMapping.class).value()).containsExactly("/{id}/request-detail");
 		assertThat(method.getAnnotation(SaCheckPermission.class).value())
-			.containsExactly(SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION);
+			.containsExactly(SystemAccountConstants.FLOW_LOG_DETAIL_PERMISSION);
 		assertThat(method.getReturnType()).isEqualTo(ResponseEntity.class);
 
 		OcpxFlowLogService service = mock(OcpxFlowLogService.class);

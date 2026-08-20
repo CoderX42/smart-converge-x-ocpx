@@ -220,6 +220,18 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 		return mac;
 	}
 
+	public String getMac_md5() {
+		if (StringUtils.hasText(mac_md5) && "__MAC_MD5__".equals(mac_md5)) {
+			return null;
+		}
+		return mac_md5;
+	}
+
+	/** 未清洗的 request_id，仅供正式点击入口执行占位符和长度校验。 */
+	public String rawRequestId() {
+		return request_id;
+	}
+
 	public String getIp() {
 		if (StringUtils.hasText(ip) && "__IP__".equals(ip)) {
 			return null;

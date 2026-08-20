@@ -100,6 +100,8 @@ export type FlowLog = {
   promotionLinkName: string;
   resultStatus: 'FAILED' | 'SUCCESS';
   sourceEventId?: string;
+  stageCode: string;
+  traceId?: string;
 };
 
 export type FlowLogPage = {
@@ -120,6 +122,8 @@ export type FlowLogRequestDetail = {
   caidList?: string;
   callbackUrl?: string;
   clickId?: string;
+  coverageStatus:
+    'DETAIL_EXPIRED' | 'HISTORICAL_INCOMPLETE' | 'TRACE_AVAILABLE';
   creativeId?: string;
   deviceOs?: string;
   durationMs: number;
@@ -157,11 +161,40 @@ export type FlowLogRequestDetail = {
   responsePreview?: string;
   resultStatus: 'FAILED' | 'SUCCESS';
   sourceEventId?: string;
+  stages: FlowLogStage[];
   timestamp?: string;
   timestampMs?: string;
+  traceId?: string;
   ua?: string;
   userId?: string;
   userType?: string;
+};
+
+export type FlowLogStage = {
+  durationMs: number;
+  eventCode: string;
+  eventTime: string;
+  flowType: string;
+  id: string;
+  macroAudit: Record<string, unknown>;
+  message?: string;
+  partnerHttpStatus?: number;
+  requestEndpoint?: string;
+  requestMethod?: string;
+  requestParams: Record<string, unknown>;
+  requestTruncated: boolean;
+  responsePreview?: string;
+  resultStatus: 'FAILED' | 'SUCCESS';
+  stageCode: string;
+};
+
+export type MediaMacro = {
+  attributionIdentity: boolean;
+  group: string;
+  key: string;
+  label: string;
+  macro: string;
+  osSupport: 'ANDROID' | 'BOTH' | 'IOS';
 };
 
 export function getReport(params: UnifiedReportQuery) {
@@ -194,4 +227,8 @@ export function getFlowLogRequestDetail(id: string) {
   return requestClient.get<FlowLogRequestDetail>(
     `/ocpx/flow-logs/${id}/request-detail`,
   );
+}
+
+export function getMediaMacros() {
+  return requestClient.get<MediaMacro[]>('/ocpx/media-macros');
 }

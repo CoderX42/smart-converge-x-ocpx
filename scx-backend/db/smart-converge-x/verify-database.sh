@@ -23,7 +23,7 @@ expected_business_tables='scx_ocpx_advertiser,scx_ocpx_creative,scx_ocpx_deducti
 [[ "$business_tables" == "$expected_business_tables" ]] || fail "the OCPX business main tables are not exact"
 
 ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_flow_log_detail,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {
@@ -218,8 +218,8 @@ retired_permissions="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE del_flag='0' 
   ))")"
 [[ "$retired_permissions" -eq 0 ]] || fail "retired OCPX permissions remain active"
 
-required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:callback-record:view','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all','ocpx:protocol-config:manage')")"
-[[ "$required_permissions" -eq 20 ]] || fail "required OCPX action, creative, billing, ledger, callback-record, protocol-config, monitor-test, integration and data-scope permissions are incomplete"
+required_permissions="$(scalar "SELECT COUNT(DISTINCT permission) FROM sys_menu WHERE del_flag='0' AND permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:advertiser:delete','ocpx:promotion-link:delete','ocpx:creative:view','ocpx:creative:add','ocpx:creative:edit','ocpx:creative:delete','ocpx:creative:bind','ocpx:billing-entry:view','ocpx:media:delete','ocpx:monitor-task:delete','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:report:export','ocpx:callback-record:view','ocpx:flow-log:detail','ocpx:advertiser:role:manage','ocpx:advertiser:scope:all','ocpx:protocol-config:manage')")"
+[[ "$required_permissions" -eq 21 ]] || fail "required OCPX action, creative, billing, ledger, callback-record, flow-detail, protocol-config, monitor-test, integration and data-scope permissions are incomplete"
 
 advertiser_role="$(scalar "SELECT COUNT(*) FROM sys_role
  WHERE BINARY id=BINARY 'role_advertiser'
@@ -234,7 +234,7 @@ invalid_advertiser_role_menus="$(scalar "SELECT COUNT(*)
  AND (m.id IS NULL
       OR NOT (m.permission LIKE 'ocpx:%'
               OR (COALESCE(m.permission,'')='' AND m.path LIKE '/ocpx%'))
-      OR m.permission IN ('ocpx:advertiser:role:manage','ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration'))")"
+      OR m.permission IN ('ocpx:advertiser:role:manage','ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:flow-log:detail'))")"
 [[ "$invalid_advertiser_role_menus" -eq 0 ]] || fail "ROLE_ADVERTISER contains a non-OCPX or protected role-management permission"
 
 admin_protected_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
@@ -242,8 +242,8 @@ admin_protected_permissions="$(scalar "SELECT COUNT(DISTINCT m.permission)
  JOIN sys_role_menu rm ON rm.role_id=r.id
  JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
  WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0'
- AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:protocol-config:manage')")"
-[[ "$admin_protected_permissions" -eq 6 ]] || fail "system administrator finance, protocol-config, monitor-test and integration permissions are incomplete"
+ AND m.permission IN ('ocpx:advertiser:recharge','ocpx:advertiser:deduct','ocpx:monitor-task:billing','ocpx:monitor-task:test','ocpx:monitor-task:integration','ocpx:flow-log:detail','ocpx:protocol-config:manage')")"
+[[ "$admin_protected_permissions" -eq 7 ]] || fail "system administrator finance, flow-detail, protocol-config, monitor-test and integration permissions are incomplete"
 
 admin_callback_record="$(scalar "SELECT COUNT(DISTINCT m.permission)
  FROM sys_role r
@@ -276,6 +276,14 @@ non_admin_monitor_integration_grants="$(scalar "SELECT COUNT(*)
  WHERE m.permission='ocpx:monitor-task:integration'
  AND (r.id IS NULL OR r.role_code<>'ROLE_ADMIN' OR r.del_flag<>'0')")"
 [[ "$non_admin_monitor_integration_grants" -eq 0 ]] || fail "monitor-task integration must be granted only to active ROLE_ADMIN"
+
+non_admin_flow_detail_grants="$(scalar "SELECT COUNT(*)
+ FROM sys_role_menu rm
+ JOIN sys_menu m ON m.id=rm.menu_id AND m.del_flag='0'
+ LEFT JOIN sys_role r ON r.id=rm.role_id
+ WHERE m.permission='ocpx:flow-log:detail'
+ AND (r.id IS NULL OR r.role_code<>'ROLE_ADMIN' OR r.del_flag<>'0')")"
+[[ "$non_admin_flow_detail_grants" -eq 0 ]] || fail "flow-log request details must be granted only to active ROLE_ADMIN"
 
 advertiser_scope_dependency="$(scalar "SELECT COUNT(*)
  FROM sys_role_menu rm

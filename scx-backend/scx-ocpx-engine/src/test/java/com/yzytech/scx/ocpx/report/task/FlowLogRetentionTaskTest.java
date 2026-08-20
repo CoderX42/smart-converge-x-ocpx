@@ -1,0 +1,60 @@
+package com.yzytech.scx.ocpx.report.task;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class FlowLogRetentionTaskTest {
+
+	@Test
+	void cleansSevenDayDetailsAndNinetyDayMetadataInBatches() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		@SuppressWarnings("unchecked")
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.update(anyString())).thenReturn(1000, 2, 0, 0, 0, 0);
+		FlowLogRetentionTask task = new FlowLogRetentionTask(redis, jdbc);
+
+		task.clean();
+
+		var sql = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(jdbc, org.mockito.Mockito.times(6)).update(sql.capture());
+		assertThat(sql.getAllValues()).anySatisfy(
+				value -> assertThat(value).contains("scx_ocpx_flow_log_detail", "expires_at<NOW(3)", "LIMIT 1000"));
+		assertThat(sql.getAllValues())
+			.anySatisfy(value -> assertThat(value).contains("scx_ocpx_log_feedback", "INTERVAL 7 DAY", "LIMIT 1000"));
+		assertThat(sql.getAllValues())
+			.anySatisfy(value -> assertThat(value).contains("scx_ocpx_log_callback", "INTERVAL 7 DAY", "LIMIT 1000"));
+		assertThat(sql.getAllValues())
+			.anySatisfy(value -> assertThat(value).contains("response_preview=NULL", "INTERVAL 7 DAY", "LIMIT 1000"));
+		assertThat(sql.getAllValues()).anySatisfy(
+				value -> assertThat(value).contains("DELETE FROM scx_ocpx_flow_log", "INTERVAL 90 DAY", "LIMIT 1000"));
+	}
+
+	@Test
+	void anotherInstanceDoesNothingWhileTheRedisMutexIsHeld() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		@SuppressWarnings("unchecked")
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(false);
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+
+		new FlowLogRetentionTask(redis, jdbc).clean();
+
+		verify(jdbc, never()).update(anyString());
+	}
+
+}

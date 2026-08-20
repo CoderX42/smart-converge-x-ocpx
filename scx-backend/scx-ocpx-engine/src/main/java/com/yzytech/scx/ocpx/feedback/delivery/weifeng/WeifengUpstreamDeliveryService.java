@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.MacroResolutionService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -11,6 +12,7 @@ import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.AesUtil;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -44,12 +46,22 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
+	private final MacroResolutionService macroResolutionService;
+
+	@Autowired
 	public WeifengUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex,
-			WeifengEndpointPolicy endpointPolicy, WeifengHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
+			WeifengEndpointPolicy endpointPolicy, WeifengHttpClient httpClient, OcpxFlowLogWriter flowLogWriter,
+			MacroResolutionService macroResolutionService) {
 		this.promotionLinkIndex = promotionLinkIndex;
 		this.endpointPolicy = endpointPolicy;
 		this.httpClient = httpClient;
 		this.flowLogWriter = flowLogWriter;
+		this.macroResolutionService = macroResolutionService;
+	}
+
+	public WeifengUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex,
+			WeifengEndpointPolicy endpointPolicy, WeifengHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
+		this(promotionLinkIndex, endpointPolicy, httpClient, flowLogWriter, new MacroResolutionService());
 	}
 
 	@Override
@@ -57,27 +69,36 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (!EventTypeEnum.CLICK.equals(feedback.getEvent())) {
 			return;
 		}
+		String requestUrl = null;
 		try {
 			RequestBuildResult requestBuild = buildRequest(feedback);
 			if (!requestBuild.success()) {
 				flowLogWriter.upstreamDelivery(feedback, false, null, requestBuild.rejectionCode(), 0L);
 				return;
 			}
-			String requestUrl = requestBuild.requestUrl();
+			requestUrl = requestBuild.requestUrl();
 			requestUrl = endpointPolicy.requireAllowedClickUrl(requestUrl);
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			Integer status = result.statusCode();
 			boolean success = status != null && status == 200;
 			String conclusion = conclusion(status, result.errorCode());
-			flowLogWriter.upstreamDelivery(feedback, success, status, conclusion, result.durationMs(), result.body());
+			flowLogWriter.upstreamDelivery(feedback, success, status, conclusion, result.durationMs(), result.body(),
+					requestUrl, macroAudit(feedback, requestUrl));
 		}
 		catch (IllegalArgumentException exception) {
-			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_URL_REJECTED", 0L);
+			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_URL_REJECTED", 0L, null, requestUrl,
+					macroAudit(feedback, null));
 		}
 		catch (RuntimeException exception) {
-			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_INTERNAL_ERROR", 0L);
+			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_INTERNAL_ERROR", 0L, null, requestUrl,
+					macroAudit(feedback, requestUrl));
 			throw exception;
 		}
+	}
+
+	private Map<String, String> macroAudit(FeedbackReq feedback, String requestUrl) {
+		OcpxPromotionLink link = feedback == null ? null : promotionLinkIndex.get(feedback.getLId());
+		return macroResolutionService.auditTemplate(link == null ? null : link.getLinkUrl(), requestUrl);
 	}
 
 	/** 使用上游推广链接中的固定参数替换设备与 Callback 宏，每个值仅编码一次。 */
@@ -107,7 +128,7 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (!StringUtils.hasText(callback)) {
 			return RequestBuildResult.rejected("WEIFENG_REQUEST_CALLBACK_BUILD_FAILED");
 		}
-		if (!hasAttributionIdentity(feedback)) {
+		if (!macroResolutionService.hasInboundIdentity(feedback)) {
 			return RequestBuildResult.rejected("WEIFENG_REQUEST_IDENTITY_MISSING");
 		}
 
@@ -252,16 +273,6 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		String state = feedback.getLId() + "_" + feedback.getTId();
 		return callbackBaseUrl + "/weifeng/callback?ext=" + callbackExt + "&s=" + state
 				+ "&event=__EVENT__&amount=__AMOUNT__&days=__DAYS__";
-	}
-
-	private boolean hasAttributionIdentity(FeedbackReq feedback) {
-		boolean ipAndUa = StringUtils.hasText(feedback.getIp()) && StringUtils.hasText(feedback.getUa());
-		if (feedback.getOs() == OsTypeEnum.IOS) {
-			return StringUtils.hasText(firstText(feedback.getCaid1(), feedback.getCaid(), feedback.getCaid2(),
-					feedback.getLastCaid(), feedback.getPrevCaid())) || StringUtils.hasText(feedback.getIdfa())
-					|| ipAndUa;
-		}
-		return StringUtils.hasText(feedback.getOaid()) || StringUtils.hasText(feedback.getImei()) || ipAndUa;
 	}
 
 	private String timestampMillis(FeedbackReq feedback) {

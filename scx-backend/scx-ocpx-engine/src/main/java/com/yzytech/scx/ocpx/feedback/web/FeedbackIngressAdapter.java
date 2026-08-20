@@ -49,6 +49,7 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.androidid(request.getAndroidid())
 			.androididMd5(request.getAndroidid_md5())
 			.mac(request.getMac())
+			.macMd5(request.getMac_md5())
 			.ip(request.getIp())
 			.ipv6(request.getIpv6())
 			.ts(request.getTs())

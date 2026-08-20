@@ -35,6 +35,9 @@ public final class SystemAccountConstants {
 	/** 查看下游请求并发送媒体联调 Callback，仅允许拥有专用权限的系统管理员执行。 */
 	public static final String MONITOR_TASK_INTEGRATION_PERMISSION = "ocpx:monitor-task:integration";
 
+	/** 查看七日内设备原值和链路请求详情，仅授予真实系统管理员。 */
+	public static final String FLOW_LOG_DETAIL_PERMISSION = "ocpx:flow-log:detail";
+
 	private SystemAccountConstants() {
 	}
 

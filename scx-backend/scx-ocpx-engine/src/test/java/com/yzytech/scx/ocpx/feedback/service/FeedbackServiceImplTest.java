@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.feedback.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.service.TestCallbackCollectorService;
 import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
@@ -18,6 +19,35 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FeedbackServiceImplTest {
+
+	@Test
+	void compatibilityQueueNeverPersistsTheCallbackUrlOrEncryptedExtension() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ListOperations<String, String> lists = mock(ListOperations.class);
+		when(redis.opsForList()).thenReturn(lists);
+		OcpxEventFactService eventFactService = mock(OcpxEventFactService.class);
+		when(eventFactService.recordFeedback(org.mockito.ArgumentMatchers.any()))
+			.thenReturn(new OcpxEventFactService.FeedbackFactResult(true, false, "ACCEPTED", BigDecimal.ZERO));
+		FeedbackServiceImpl service = new FeedbackServiceImpl(redis, 1, eventFactService,
+				mock(TestCallbackCollectorService.class));
+		FeedbackReq request = FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.event(EventTypeEnum.CLICK)
+			.reqId("request-1")
+			.callbackUrl("https%3A%2F%2Fmedia.example%2Fcallback%3Ftoken%3Dprivate")
+			.ext("encrypted-private-extension")
+			.build();
+
+		service.handleFeedback(request);
+
+		var payload = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(lists).rightPush(anyString(), payload.capture());
+		assertThat(JSON.parseObject(payload.getValue()).getString("callbackUrl")).isEmpty();
+		assertThat(payload.getValue()).doesNotContain("private", "encrypted-private-extension");
+	}
 
 	@Test
 	void duplicateDoesNotQueueOrForwardAgain() {

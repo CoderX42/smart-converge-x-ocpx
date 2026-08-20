@@ -10,6 +10,8 @@ import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
+import java.util.Map;
+
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -31,8 +33,9 @@ class TemplateGetUpstreamDeliveryServiceTest {
 			.reqId("SCX-UAT-20260817183000-abcdef123456")
 			.build();
 		when(advertiserIndex.get("advertiser-1")).thenReturn(advertiser);
-		when(protocolAdapter.buildUpstreamRequestUrl(advertiser, feedback))
-			.thenReturn("https://partner.example/click?idfa=DEVICE_SECRET");
+		when(protocolAdapter.buildUpstreamRequest(advertiser, feedback))
+			.thenReturn(new MacroResolutionService.Resolution("https://partner.example/click?idfa=DEVICE_SECRET", null,
+					Map.of("__IDFA__", "EXPANDED")));
 		TemplateGetUpstreamDeliveryService service = new TemplateGetUpstreamDeliveryService(protocolAdapter,
 				advertiserIndex, flowLogWriter);
 
@@ -43,7 +46,8 @@ class TemplateGetUpstreamDeliveryServiceTest {
 			service.deliver(feedback);
 		}
 
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "TEMPLATE_GET_DELIVERED", 12L, "partner-body");
+		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "TEMPLATE_GET_DELIVERED", 12L, "partner-body",
+				"https://partner.example/click?idfa=DEVICE_SECRET", Map.of("__IDFA__", "EXPANDED"));
 	}
 
 }

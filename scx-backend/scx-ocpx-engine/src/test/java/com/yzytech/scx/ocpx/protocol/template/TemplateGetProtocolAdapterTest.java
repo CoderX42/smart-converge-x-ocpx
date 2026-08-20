@@ -66,7 +66,7 @@ class TemplateGetProtocolAdapterTest {
 	}
 
 	@Test
-	void replacesLegacyMacrosAndKeepsTheFixedSignatureVector() {
+	void rejectsLegacyTemplateWithoutRequiredCallbackMacro() {
 		TemplateGetProtocolAdapter adapter = adapter();
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		task.setId("task-id");
@@ -79,10 +79,7 @@ class TemplateGetProtocolAdapterTest {
 
 		String result = adapter.buildUpstreamRequestUrl(advertiser, feedback);
 
-		assertThat(result)
-			.isEqualTo("https://adv.example/click?rid=request-1&oaid=oaid-1&biz=BIZ-1"
-					+ "&signature=c3bd8e8cc706ed27f9cff9a0cc0df0fe")
-			.doesNotContain("local-signing-key", "advertiser-signing");
+		assertThat(result).isNull();
 	}
 
 	@Test

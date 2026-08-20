@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public final class FlowLogViews {
 
@@ -20,6 +21,10 @@ public final class FlowLogViews {
 		private String id;
 
 		private String flowType;
+
+		private String traceId;
+
+		private String stageCode;
 
 		private String eventId;
 
@@ -80,6 +85,12 @@ public final class FlowLogViews {
 		private String flowLogId;
 
 		private String flowType;
+
+		private String traceId;
+
+		private String coverageStatus;
+
+		private List<Stage> stages;
 
 		private String eventId;
 
@@ -180,6 +191,43 @@ public final class FlowLogViews {
 		private String monitorTaskId;
 
 		private String promotionLinkId;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Stage {
+
+		private String id;
+
+		private String stageCode;
+
+		private String flowType;
+
+		private String eventCode;
+
+		private String resultStatus;
+
+		private String requestMethod;
+
+		private String requestEndpoint;
+
+		private Integer partnerHttpStatus;
+
+		private long durationMs;
+
+		private String message;
+
+		private Map<String, Object> requestParams;
+
+		private Map<String, Object> macroAudit;
+
+		private String responsePreview;
+
+		private boolean requestTruncated;
+
+		private LocalDateTime eventTime;
 
 	}
 

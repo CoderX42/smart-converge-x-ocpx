@@ -27,8 +27,18 @@ defineOptions({ name: 'OcpxFlowLog' });
 const route = useRoute();
 const { hasAccessByCodes } = useAccess();
 const canViewRequestDetail = computed(() =>
-  hasAccessByCodes(['ocpx:monitor-task:integration']),
+  hasAccessByCodes(['ocpx:flow-log:detail']),
 );
+
+const stageLabels: Record<string, string> = {
+  ADVERTISER_CALLBACK: '广告主 Callback',
+  ADVERTISER_DELIVERY: '广告主出站 / 响应',
+  CALLBACK_ACCOUNTING: '广告主计费',
+  LEGACY: '历史日志',
+  MEDIA_DEDUCTION: '媒体扣量',
+  MEDIA_DELIVERY: '媒体出站 / 响应',
+  MEDIA_INGRESS: '媒体入站',
+};
 
 const columns = [
   { key: 'time', label: '时间' },
@@ -61,6 +71,7 @@ const filters = reactive({
   eventId: typeof route.query.eventId === 'string' ? route.query.eventId : '',
   flowType: '',
   resultStatus: '',
+  stageCode: '',
   size: 30,
 });
 const loadGuard = createLatestRequestGuard();
@@ -89,6 +100,7 @@ async function load() {
       eventId: filters.eventId || undefined,
       flowType: filters.flowType || undefined,
       resultStatus: filters.resultStatus || undefined,
+      stageCode: filters.stageCode || undefined,
       size: filters.size,
       startDate: dates[0],
     });
@@ -115,6 +127,7 @@ function reset() {
     eventId: '',
     flowType: '',
     resultStatus: '',
+    stageCode: '',
   });
   search();
 }
@@ -136,6 +149,14 @@ async function openRequestDetail(row: FlowLog) {
 function closeRequestDetail() {
   detailMessage.value = '';
   requestDetail.value = undefined;
+}
+
+function stageLabel(value: string) {
+  return stageLabels[value] || value;
+}
+
+function formatted(value: Record<string, unknown>) {
+  return Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : '';
 }
 
 onMounted(load);
@@ -176,6 +197,20 @@ onMounted(load);
             label="失败"
             value="FAILED"
         /></el-select>
+        <el-select
+          v-model="filters.stageCode"
+          aria-label="链路阶段"
+          clearable
+          placeholder="阶段"
+          @change="search"
+        >
+          <el-option
+            v-for="(label, value) in stageLabels"
+            :key="value"
+            :label="label"
+            :value="value"
+          />
+        </el-select>
         <el-input
           v-model="filters.eventId"
           aria-label="事件 ID"
@@ -315,6 +350,109 @@ onMounted(load);
       />
       <div v-loading="detailLoading" class="flow-detail-body">
         <template v-if="requestDetail">
+          <el-alert
+            v-if="requestDetail.coverageStatus !== 'TRACE_AVAILABLE'"
+            :closable="false"
+            class="flow-detail-notice"
+            show-icon
+            :title="
+              requestDetail.coverageStatus === 'HISTORICAL_INCOMPLETE'
+                ? '这是 V119 之前的历史日志，链路阶段不完整。'
+                : '七日请求明细已经清除，仍保留九十日脱敏阶段元数据。'
+            "
+            type="warning"
+          />
+          <section class="flow-detail-section flow-detail-section--result">
+            <div class="flow-detail-heading">
+              <div>
+                <h3>完整链路时间线</h3>
+                <p>
+                  Trace {{ requestDetail.traceId || '历史记录无 Trace ID' }}
+                </p>
+              </div>
+              <el-tag type="info"
+                >{{ requestDetail.stages.length }} 个阶段</el-tag
+              >
+            </div>
+            <el-timeline
+              v-if="requestDetail.stages.length > 0"
+              class="flow-timeline"
+            >
+              <el-timeline-item
+                v-for="stage in requestDetail.stages"
+                :key="stage.id"
+                :color="
+                  stage.resultStatus === 'SUCCESS' ? '#16a34a' : '#dc2626'
+                "
+                :timestamp="stage.eventTime"
+                placement="top"
+              >
+                <article class="flow-stage-card">
+                  <div class="flow-stage-title">
+                    <strong>{{ stageLabel(stage.stageCode) }}</strong>
+                    <el-tag
+                      :type="
+                        stage.resultStatus === 'SUCCESS' ? 'success' : 'danger'
+                      "
+                      size="small"
+                      >{{
+                        stage.resultStatus === 'SUCCESS' ? '成功' : '失败'
+                      }}</el-tag
+                    >
+                  </div>
+                  <el-descriptions :column="3" border size="small">
+                    <el-descriptions-item label="方向 / 事件">
+                      {{ stage.flowType }} / {{ stage.eventCode }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="端点">
+                      {{ stage.requestMethod || '-' }}
+                      {{ stage.requestEndpoint || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="HTTP / 耗时">
+                      {{ stage.partnerHttpStatus ?? '-' }} /
+                      {{ stage.durationMs }} ms
+                    </el-descriptions-item>
+                    <el-descriptions-item label="稳定结论码" :span="3">
+                      {{ stage.message || '-' }}
+                    </el-descriptions-item>
+                    <el-descriptions-item
+                      v-if="formatted(stage.requestParams)"
+                      label="请求参数（受限原值）"
+                      :span="3"
+                    >
+                      <pre class="response-preview">{{
+                        formatted(stage.requestParams)
+                      }}</pre>
+                      <span
+                        v-if="stage.requestTruncated"
+                        class="flow-detail-muted"
+                        >请求快照已达到大小上限</span
+                      >
+                    </el-descriptions-item>
+                    <el-descriptions-item
+                      v-if="formatted(stage.macroAudit)"
+                      label="宏审计"
+                      :span="3"
+                    >
+                      <pre class="response-preview">{{
+                        formatted(stage.macroAudit)
+                      }}</pre>
+                    </el-descriptions-item>
+                    <el-descriptions-item
+                      v-if="stage.responsePreview"
+                      label="响应预览（已脱敏）"
+                      :span="3"
+                    >
+                      <pre class="response-preview">{{
+                        stage.responsePreview
+                      }}</pre>
+                    </el-descriptions-item>
+                  </el-descriptions>
+                </article>
+              </el-timeline-item>
+            </el-timeline>
+            <el-empty v-else description="暂无阶段数据" :image-size="72" />
+          </section>
           <section class="flow-detail-section flow-detail-section--result">
             <div class="flow-detail-heading">
               <div>
@@ -565,5 +703,21 @@ onMounted(load);
 
 .flow-detail-muted {
   color: var(--el-text-color-secondary);
+}
+
+.flow-timeline {
+  padding-top: 8px;
+}
+
+.flow-stage-card {
+  min-width: 0;
+}
+
+.flow-stage-title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 </style>

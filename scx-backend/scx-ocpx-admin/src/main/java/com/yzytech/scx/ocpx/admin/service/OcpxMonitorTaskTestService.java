@@ -63,12 +63,18 @@ public class OcpxMonitorTaskTestService {
 	private static final Pattern IDFA = Pattern.compile("[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}");
 
 	private static final Map<String, String> MD5_ORIGINALS = Map.of("imei_md5", "imei", "oaid_md5", "oaid",
-			"androidid_md5", "androidid", "idfa_md5", "idfa");
+			"androidid_md5", "androidid", "idfa_md5", "idfa", "mac_md5", "mac");
 
 	private static final Pattern MAC = Pattern.compile("[0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5}");
 
 	private static final List<ParameterSpec> PARAMETER_SPECS = List
-		.of(new ParameterSpec("imei", "IMEI", "设备标识", "__IMEI__", OsSupport.ANDROID, true),
+		.of(new ParameterSpec("caid", "CAID", "设备标识", "__CAID__", OsSupport.IOS, true),
+				new ParameterSpec("caid_list", "CAID 列表", "设备标识", "__CAID_LIST__", OsSupport.IOS, true),
+				new ParameterSpec("caid1", "CAID1", "设备标识", "__CAID1__", OsSupport.IOS, true),
+				new ParameterSpec("caid2", "CAID2", "设备标识", "__CAID2__", OsSupport.IOS, true),
+				new ParameterSpec("last_caid", "历史 CAID", "设备标识", "__LAST_CAID__", OsSupport.IOS, true),
+				new ParameterSpec("prev_caid", "上一 CAID", "设备标识", "__PREV_CAID__", OsSupport.IOS, true),
+				new ParameterSpec("imei", "IMEI", "设备标识", "__IMEI__", OsSupport.ANDROID, true),
 				new ParameterSpec("imei_md5", "IMEI MD5", "设备标识", "__IMEI_MD5__", OsSupport.ANDROID, true),
 				new ParameterSpec("oaid", "OAID", "设备标识", "__OAID__", OsSupport.ANDROID, true),
 				new ParameterSpec("oaid_md5", "OAID MD5", "设备标识", "__OAID_MD5__", OsSupport.ANDROID, true),
@@ -79,10 +85,15 @@ public class OcpxMonitorTaskTestService {
 				new ParameterSpec("idfa", "IDFA", "设备标识", "__IDFA__", OsSupport.IOS, true),
 				new ParameterSpec("idfa_md5", "IDFA MD5", "设备标识", "__IDFA_MD5__", OsSupport.IOS, true),
 				new ParameterSpec("mac", "MAC", "设备标识", "__MAC__", OsSupport.ANDROID, false),
+				new ParameterSpec("mac_md5", "MAC MD5", "设备标识", "__MAC_MD5__", OsSupport.BOTH, false),
 				new ParameterSpec("ip", "IP", "网络终端", "__IP__", OsSupport.BOTH, false),
+				new ParameterSpec("ipv6", "IPv6", "网络终端", "__IPV6__", OsSupport.BOTH, false),
 				new ParameterSpec("ua", "User-Agent", "网络终端", "__UA__", OsSupport.BOTH, false),
 				new ParameterSpec("model", "机型", "网络终端", "__MODEL__", OsSupport.BOTH, false),
+				new ParameterSpec("osv", "系统版本", "网络终端", "__OSV__", OsSupport.BOTH, false),
 				new ParameterSpec("ts", "时间戳", "网络终端", "__TS__", OsSupport.BOTH, false),
+				new ParameterSpec("mts", "毫秒时间戳", "网络终端", "__MTS__", OsSupport.BOTH, false),
+				new ParameterSpec("impresss_id", "曝光 ID", "平台路由", "__IMPRESSS_ID__", OsSupport.BOTH, false),
 				new ParameterSpec("plan_id", "广告计划", "广告维度", "__ORDER_PLAN_ID__", OsSupport.BOTH, false),
 				new ParameterSpec("group_id", "广告组", "广告维度", "__ORDER_GROUP_ID__", OsSupport.BOTH, false),
 				new ParameterSpec("creative_id", "创意", "广告维度", "__CREATIVE_ID__", OsSupport.BOTH, false),
@@ -416,14 +427,15 @@ public class OcpxMonitorTaskTestService {
 		}
 		boolean valid = switch (spec.key()) {
 			case "imei" -> value.matches("\\d{15}") && validImei(value);
-			case "imei_md5", "oaid_md5", "androidid_md5", "idfa_md5" -> MD5.matcher(value).matches();
+			case "imei_md5", "oaid_md5", "androidid_md5", "idfa_md5", "mac_md5" -> MD5.matcher(value).matches();
 			case "oaid" -> OAID.matcher(value).matches();
 			case "androidid" -> HEX_16.matcher(value).matches();
 			case "aaid" -> UUID_VALUE.matcher(value).matches();
 			case "idfa" -> IDFA.matcher(value).matches();
 			case "mac" -> MAC.matcher(value).matches();
 			case "ip" -> validIpv4(value);
-			case "ts" -> value.matches("\\d{10,13}");
+			case "ipv6" -> value.contains(":") && value.length() <= 64;
+			case "ts", "mts" -> value.matches("\\d{10,13}");
 			case "ua", "model" -> value.length() <= 512;
 			default -> value.length() <= 128;
 		};
@@ -447,18 +459,30 @@ public class OcpxMonitorTaskTestService {
 		values.put("aaid", UUID.randomUUID().toString());
 		values.put("idfa", idfa);
 		values.put("idfa_md5", md5(idfa));
+		String caid = randomHex(32);
+		values.put("caid", caid);
+		values.put("caid_list", caid);
+		values.put("caid1", caid);
+		values.put("caid2", randomHex(32));
+		values.put("last_caid", randomHex(32));
+		values.put("prev_caid", randomHex(32));
 		values.put("mac", randomMac());
+		values.put("mac_md5", md5(values.get("mac")));
 		values.put("ip", "203.0.113." + (random.nextInt(254) + 1));
+		values.put("ipv6", "2001:db8::" + Integer.toHexString(random.nextInt(65535) + 1));
 		values.put("ua", "IOS".equals(os)
 				? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
 				: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/124.0 Mobile Safari/537.36");
 		values.put("model", "IOS".equals(os) ? "iPhone 15" : "Pixel 8");
-		values.put("ts", Long.toString(System.currentTimeMillis()));
+		values.put("osv", "IOS".equals(os) ? "17.5" : "14");
+		values.put("ts", Long.toString(System.currentTimeMillis() / 1000));
+		values.put("mts", Long.toString(System.currentTimeMillis()));
 		String suffix = randomHex(6);
 		values.put("plan_id", "uat-plan-" + suffix);
 		values.put("group_id", "uat-group-" + suffix);
 		values.put("creative_id", "uat-creative-" + suffix);
 		values.put("adv_id", "uat-advertiser-" + suffix);
+		values.put("impresss_id", "uat-impression-" + suffix);
 		return values;
 	}
 

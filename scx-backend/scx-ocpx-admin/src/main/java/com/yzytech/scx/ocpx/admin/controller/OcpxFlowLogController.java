@@ -28,13 +28,13 @@ public class OcpxFlowLogController {
 	public Result<FlowLogViews.Page> page(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
 			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String flowType, String resultStatus,
 			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId, String eventId,
-			Long current, Long size) {
+			String stageCode, Long current, Long size) {
 		return Result.success(service.query(startDate, endDate, flowType, resultStatus, advertiserId, promotionLinkId,
-				mediaId, monitorTaskId, eventId, current, size));
+				mediaId, monitorTaskId, eventId, stageCode, current, size));
 	}
 
 	@GetMapping("/{id}/request-detail")
-	@SaCheckPermission(SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION)
+	@SaCheckPermission(SystemAccountConstants.FLOW_LOG_DETAIL_PERMISSION)
 	public ResponseEntity<Result<FlowLogViews.RequestDetail>> requestDetail(@PathVariable String id) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Result.success(service.requestDetail(id)));
 	}

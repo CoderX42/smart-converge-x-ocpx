@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.MacroResolutionService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -12,6 +13,7 @@ import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.AesUtil;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.util.DigestUtils;
@@ -44,12 +46,22 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
+	private final MacroResolutionService macroResolutionService;
+
+	@Autowired
 	public AerimUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex, AerimEndpointPolicy endpointPolicy,
-			AerimHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
+			AerimHttpClient httpClient, OcpxFlowLogWriter flowLogWriter,
+			MacroResolutionService macroResolutionService) {
 		this.promotionLinkIndex = promotionLinkIndex;
 		this.endpointPolicy = endpointPolicy;
 		this.httpClient = httpClient;
 		this.flowLogWriter = flowLogWriter;
+		this.macroResolutionService = macroResolutionService;
+	}
+
+	public AerimUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex, AerimEndpointPolicy endpointPolicy,
+			AerimHttpClient httpClient, OcpxFlowLogWriter flowLogWriter) {
+		this(promotionLinkIndex, endpointPolicy, httpClient, flowLogWriter, new MacroResolutionService());
 	}
 
 	@Override
@@ -57,8 +69,9 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (!EventTypeEnum.CLICK.equals(feedback.getEvent())) {
 			return;
 		}
+		String requestUrl = null;
 		try {
-			String requestUrl = buildRequestUrl(feedback);
+			requestUrl = buildRequestUrl(feedback);
 			if (requestUrl == null) {
 				flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_REQUEST_REJECTED", 0L);
 				return;
@@ -71,20 +84,30 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 			String conclusion = dailyLimit ? "AERIM_DAILY_LIMIT" : success ? "AERIM_DELIVERED"
 					: result.errorCode() == null ? "AERIM_HTTP_FAILED" : "AERIM_" + result.errorCode();
 			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
-					result.body());
+					result.body(), requestUrl, macroAudit(feedback, requestUrl));
 		}
 		catch (IllegalArgumentException exception) {
-			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_URL_REJECTED", 0L);
+			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_URL_REJECTED", 0L, null, requestUrl,
+					macroAudit(feedback, null));
 		}
 		catch (RuntimeException exception) {
-			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_INTERNAL_ERROR", 0L);
+			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_INTERNAL_ERROR", 0L, null, requestUrl,
+					macroAudit(feedback, requestUrl));
 			throw exception;
 		}
+	}
+
+	private Map<String, String> macroAudit(FeedbackReq feedback, String requestUrl) {
+		OcpxPromotionLink link = feedback == null ? null : promotionLinkIndex.get(feedback.getLId());
+		return macroResolutionService.auditTemplate(link == null ? null : link.getLinkUrl(), requestUrl);
 	}
 
 	/** 构造不带签名、缺失宏参数已移除的 AERIM 正式请求地址。 */
 	public String buildRequestUrl(FeedbackReq feedback) {
 		if (feedback == null) {
+			return null;
+		}
+		if (!macroResolutionService.hasInboundIdentity(feedback)) {
 			return null;
 		}
 		OcpxPromotionLink promotionLink = promotionLinkIndex.get(feedback.getLId());
@@ -121,6 +144,9 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		}
 		String requestUrl = path + (queryPairs.isEmpty() ? "" : "?" + String.join("&", queryPairs));
 		if (RESIDUAL_MACRO.matcher(requestUrl).find() || !hasCallbackParameter(requestUrl)) {
+			return null;
+		}
+		if (!macroResolutionService.hasForwardedIdentity(requestUrl, feedback.getOs())) {
 			return null;
 		}
 		return requestUrl;

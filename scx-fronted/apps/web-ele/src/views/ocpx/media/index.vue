@@ -13,6 +13,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createMedia,
   deleteMedia,
+  getMediaMacros,
   listMedia,
   mediaOptions,
   updateMedia,
@@ -31,7 +32,7 @@ import '../table.scss';
 
 defineOptions({ name: 'OcpxMediaManagement' });
 
-const MACRO_GROUPS = [
+const MACRO_GROUPS = ref([
   {
     name: '设备标识',
     items: [
@@ -73,10 +74,14 @@ const MACRO_GROUPS = [
       { key: 'adv_id', macro: '__ADVERTISER_ID__', label: '广告主' },
     ],
   },
-];
+]);
 
-const COMMON_MACROS = MACRO_GROUPS.flatMap((group) => group.items);
-const ALL_MACRO_KEYS = COMMON_MACROS.map((item) => item.key);
+const COMMON_MACROS = computed(() =>
+  MACRO_GROUPS.value.flatMap((group) => group.items),
+);
+const ALL_MACRO_KEYS = computed(() =>
+  COMMON_MACROS.value.map((item) => item.key),
+);
 
 const columns = [
   { key: 'id', label: '渠道 ID' },
@@ -118,16 +123,16 @@ const loadGuard = createLatestRequestGuard();
 
 const macroParams = computed(() => {
   const selected = new Set(form.selectedMacros);
-  const pairs = COMMON_MACROS.filter((item) => selected.has(item.key)).map(
-    (item) => `${item.key}=${item.macro}`,
-  );
+  const pairs = COMMON_MACROS.value
+    .filter((item) => selected.has(item.key))
+    .map((item) => `${item.key}=${item.macro}`);
   const custom = form.customMacros.trim();
   if (custom) pairs.push(custom);
   return pairs.join('&');
 });
 
 function parseMacroParams(raw?: null | string) {
-  const commonKeys = new Set(COMMON_MACROS.map((item) => item.key));
+  const commonKeys = new Set(COMMON_MACROS.value.map((item) => item.key));
   const selected: string[] = [];
   const custom: string[] = [];
   if (raw) {
@@ -147,7 +152,7 @@ function parseMacroParams(raw?: null | string) {
   return { custom: custom.join('&'), selected };
 }
 
-const allMacroKeys = () => [...ALL_MACRO_KEYS];
+const allMacroKeys = () => [...ALL_MACRO_KEYS.value];
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
@@ -251,6 +256,14 @@ async function remove(row: Media) {
 }
 
 onMounted(async () => {
+  const macros = await getMediaMacros();
+  const groups = new Map<string, (typeof MACRO_GROUPS.value)[number]>();
+  for (const item of macros) {
+    const group = groups.get(item.group) || { items: [], name: item.group };
+    group.items.push({ key: item.key, label: item.label, macro: item.macro });
+    groups.set(item.group, group);
+  }
+  MACRO_GROUPS.value = [...groups.values()];
   mediaSelects.value = await mediaOptions();
   await load();
 });

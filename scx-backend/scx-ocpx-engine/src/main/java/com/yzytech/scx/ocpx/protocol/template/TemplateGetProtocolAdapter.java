@@ -9,12 +9,12 @@ import com.yzytech.scx.ocpx.contract.AdvertiserMacroContract;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.feedback.delivery.MacroResolutionService;
 import com.yzytech.scx.ocpx.protocol.CallbackRequestAdapter;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
-import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.AesUtil;
-import com.yzytech.scx.ocpx.shared.util.StringUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
@@ -41,10 +41,20 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 
 	private final PartnerCredentialResolver credentialResolver;
 
+	private final MacroResolutionService macroResolutionService;
+
+	@Autowired
 	public TemplateGetProtocolAdapter(OcpxMonitorTaskIndex monitorTaskIndex,
-			PartnerCredentialResolver credentialResolver) {
+			PartnerCredentialResolver credentialResolver, MacroResolutionService macroResolutionService) {
 		this.monitorTaskIndex = monitorTaskIndex;
 		this.credentialResolver = credentialResolver;
+		this.macroResolutionService = macroResolutionService;
+	}
+
+	/** 测试与旧嵌入调用兼容构造器。 */
+	public TemplateGetProtocolAdapter(OcpxMonitorTaskIndex monitorTaskIndex,
+			PartnerCredentialResolver credentialResolver) {
+		this(monitorTaskIndex, credentialResolver, new MacroResolutionService());
 	}
 
 	/**
@@ -88,48 +98,29 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	 * @return 已替换宏并追加 {@code signature} 的请求地址
 	 */
 	public String buildUpstreamRequestUrl(OcpxAdvertiser advertiser, FeedbackReq feedback) {
+		return buildUpstreamRequest(advertiser, feedback).url();
+	}
+
+	public MacroResolutionService.Resolution buildUpstreamRequest(OcpxAdvertiser advertiser, FeedbackReq feedback) {
+		if (advertiser == null || feedback == null) {
+			return MacroResolutionService.Resolution.rejected("TEMPLATE_CONTEXT_MISSING");
+		}
 		String credential = credentialResolver.advertiserSecret(advertiser).orElse(null);
 		if (!StringUtils.hasText(credential)) {
-			return null;
+			return MacroResolutionService.Resolution.rejected("TEMPLATE_CREDENTIAL_MISSING");
 		}
 		String bidUrl = AdvertiserMacroContract.appendToBidUrl(advertiser.getBidUrl(), advertiser.getMacroParams());
 		OcpxMonitorTask monitorTask = monitorTaskIndex.get(feedback.getTId());
-		String bizId = monitorTask == null ? "__BIZ_ID__"
-				: StringUtil.replaceDefault(monitorTask.getBizId(), "__BIZ_ID__");
-		String callbackUrl = StringUtil.replaceDefaultEncode(buildCallbackUrl(feedback), "__CALLBACK_URL__");
-		String clickId = StringUtils.hasText(feedback.getClickId()) ? feedback.getClickId() : feedback.getReqId();
-		String caidList = StringUtils.hasText(feedback.getCaidList()) ? feedback.getCaidList() : feedback.getCaid();
-		String requestUrl = bidUrl
-			.replace("__REQUEST_ID__", StringUtil.replaceDefault(feedback.getReqId(), "__REQUEST_ID__"))
-			.replace("__CLICKID__", StringUtil.replaceDefault(clickId, "__CLICKID__"))
-			.replace("__IMEI__", StringUtil.replaceDefault(feedback.getImei(), "__IMEI__"))
-			.replace("__OAID__", StringUtil.replaceDefault(feedback.getOaid(), "__OAID__"))
-			.replace("__OAID_MD5__", StringUtil.replaceDefault(feedback.getOaidMd5(), "__OAID_MD5__"))
-			.replace("__IDFA__", StringUtil.replaceDefault(feedback.getIdfa(), "__IDFA__"))
-			.replace("__IDFA_MD5__", StringUtil.replaceDefault(feedback.getIdfaMd5(), "__IDFA_MD5__"))
-			.replace("__IMEI_MD5__", StringUtil.replaceDefault(feedback.getImeiMd5(), "__IMEI_MD5__"))
-			.replace("__CAID_LIST__", StringUtil.replaceDefaultEncode(caidList, "__CAID_LIST__"))
-			.replace("__AAID__", StringUtil.replaceDefault(feedback.getAaid(), "__AAID__"))
-			.replace("__IP__", StringUtil.replaceDefault(feedback.getIp(), "__IP__"))
-			.replace("__UA__", StringUtil.replaceDefaultEncode(feedback.getUa(), "__UA__"))
-			.replace("__MODEL__", StringUtil.replaceDefaultEncode(feedback.getModel(), "__MODEL__"))
-			.replace("__OS__", StringUtil.replaceDefault(matchOs(feedback.getOs()), "__OS__"))
-			.replace("__MAC__", StringUtil.replaceDefault(feedback.getMac(), "__MAC__"))
-			.replace("__CAID__", StringUtil.replaceDefault(feedback.getCaid(), "__CAID__"))
-			.replace("__MTS__", StringUtil.replaceDefault(feedback.getTsMs(), "__MTS__"))
-			.replace("__CALLBACK_URL__", callbackUrl)
-			.replace("__CALLBACK__", callbackUrl)
-			.replace("__CAMPAIGNID__", StringUtil.replaceDefault(feedback.getPlanId(), "__CAMPAIGNID__"))
-			.replace("__ADGROUPID__", StringUtil.replaceDefault(feedback.getGroupId(), "__ADGROUPID__"))
-			.replace("__CREATIVEID__", StringUtil.replaceDefault(feedback.getCreativeId(), "__CREATIVEID__"))
-			.replace("__ADVERTISERID__", StringUtil.replaceDefault(feedback.getAdvId(), "__ADVERTISERID__"))
-			.replace("__ORDER_PLAN_ID__", StringUtil.replaceDefault(feedback.getPlanId(), "__ORDER_PLAN_ID__"))
-			.replace("__ORDER_GROUP_ID__", StringUtil.replaceDefault(feedback.getGroupId(), "__ORDER_GROUP_ID__"))
-			.replace("__CREATIVE_ID__", StringUtil.replaceDefault(feedback.getCreativeId(), "__CREATIVE_ID__"))
-			.replace("__ADVERTISER_ID__", StringUtil.replaceDefault(feedback.getAdvId(), "__ADVERTISER_ID__"))
-			.replace("__BIZ_ID__", bizId);
+		String bizId = monitorTask == null ? null : monitorTask.getBizId();
+		MacroResolutionService.Resolution resolution = macroResolutionService.expandQueryTemplate(bidUrl, feedback,
+				buildCallbackUrl(feedback), bizId);
+		if (!resolution.success()) {
+			return resolution;
+		}
+		String requestUrl = resolution.url();
 		String md5 = DigestUtils.md5DigestAsHex((requestUrl + credential).getBytes(StandardCharsets.UTF_8));
-		return requestUrl + "&signature=" + md5;
+		String signed = requestUrl + (requestUrl.contains("?") ? "&" : "?") + "signature=" + md5;
+		return new MacroResolutionService.Resolution(signed, null, resolution.audit());
 	}
 
 	private void requireScxRouteIds(FeedbackReq feedback) {
@@ -149,17 +140,6 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 		if (value.length() > 32) {
 			throw new IllegalArgumentException("callback ext has invalid SCX route id: " + name);
 		}
-	}
-
-	private String matchOs(OsTypeEnum os) {
-		if (os == null) {
-			return "3";
-		}
-		return switch (os) {
-			case IOS -> "1";
-			case ANDROID -> "0";
-			default -> "3";
-		};
 	}
 
 }

@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 10.2.0
-  description: SCX OCPX Feedback/Callback data plane, V111 advertiser billing, V112 monitor click testing, V113 media callback deduction, V115 database-driven upstream protocol configuration, V117 flow-log diagnostics, and V118 authoritative upstream Callback record contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 11.9.0
+  description: SCX OCPX Feedback/Callback data plane and V119 complete flow trace and media macro catalog contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -19,7 +19,7 @@ paths:
         - { name: aId, in: query, required: true, description: OcpxAdvertiser.id；不同于广告主侧广告 ID adv_id, schema: { type: string, maxLength: 32 } }
         - { name: lId, in: query, required: true, description: OcpxPromotionLink.id, schema: { type: string, maxLength: 32 } }
         - { name: event, in: query, required: true, schema: { type: string, enum: [IMP, CLK] } }
-        - { name: request_id, in: query, required: false, description: Missing value falls back to request JSON MD5, schema: { type: string, maxLength: 128 } }
+        - { name: request_id, in: query, required: false, description: CLK requires a concrete non-placeholder value; IMP retains deterministic compatibility fallback, schema: { type: string, maxLength: 128 } }
         - { name: callback_url, in: query, required: false, schema: { type: string, maxLength: 2000 } }
         - { name: caid, in: query, required: false, schema: { type: string } }
         - { name: caid_list, in: query, required: false, schema: { type: string } }
@@ -565,15 +565,28 @@ paths:
       - url: http://localhost:9999/boot/ocpx
     get:
       operationId: getFlowLogRequestDetail
-      summary: 查询流程结果、响应预览与下游 Feedback 规范化请求参数
-      description: 仅拥有 ocpx:monitor-task:integration 的真实 ROLE_ADMIN 可用；流程结果始终来自流程日志，请求数据按源 request ID 和 mId/aId/tId/lId 精确关联。响应预览经过常见凭据脱敏并限制为 4096 字符，不返回原始请求 URL、签名或凭据。响应禁止缓存。
+      summary: 查询完整链路时间线、响应预览与规范化请求参数
+      description: 仅拥有 ocpx:flow-log:detail 的真实 ROLE_ADMIN 可用；按确定性 traceId 聚合阶段。设备原值仅在七日详情中返回；签名、Token、密钥、测试令牌和 ext 永不保存。响应禁止缓存。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
       responses:
         '200': { description: 流程结果、响应预览与可选的下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
-        '403': { description: 非真实系统管理员或缺少联调权限 }
+        '403': { description: 非真实系统管理员或缺少流程详情权限 }
         '404': { description: 流程日志不存在 }
+  /media-macros:
+    servers:
+      - url: https://{domain}/boot/ocpx
+        variables: { domain: { default: sandbox.example.invalid } }
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: listMediaMacros
+      summary: 查询 Feedback v2 媒体快捷宏目录
+      description: 媒体管理与监测任务测试共同使用；只读，不修改存量媒体宏配置。
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 媒体宏目录, content: { application/json: { schema: { $ref: '#/components/schemas/MediaMacroListEnvelope' } } } }
+        '403': { description: 无 ocpx:media:view 权限 }
   /callback-records:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1326,10 +1339,13 @@ components:
         data: { $ref: '#/components/schemas/MonitorTaskIntegrationCallbackResult' }
     FlowLogRequestDetail:
       type: object
-      required: [flowLogId, flowType, eventId, eventCode, resultStatus, durationMs, eventTime, flowCreatedAt]
+      required: [flowLogId, flowType, eventId, eventCode, resultStatus, durationMs, eventTime, flowCreatedAt, coverageStatus, stages]
       properties:
         flowLogId: { type: string, maxLength: 32 }
         flowType: { type: string, enum: [FEEDBACK, CALLBACK] }
+        traceId: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
+        coverageStatus: { type: string, enum: [TRACE_AVAILABLE, DETAIL_EXPIRED, HISTORICAL_INCOMPLETE] }
+        stages: { type: array, items: { $ref: '#/components/schemas/FlowLogStage' } }
         eventId: { type: string, maxLength: 128 }
         sourceEventId: { type: [string, 'null'], maxLength: 128 }
         eventCode: { type: string, maxLength: 64 }
@@ -1380,12 +1396,47 @@ components:
         advertiserId: { type: [string, 'null'], maxLength: 32 }
         monitorTaskId: { type: [string, 'null'], maxLength: 32 }
         promotionLinkId: { type: [string, 'null'], maxLength: 32 }
+    FlowLogStage:
+      type: object
+      required: [id, stageCode, flowType, eventCode, resultStatus, durationMs, requestParams, macroAudit, requestTruncated, eventTime]
+      properties:
+        id: { type: string, maxLength: 32 }
+        stageCode: { type: string, enum: [LEGACY, MEDIA_INGRESS, ADVERTISER_DELIVERY, ADVERTISER_CALLBACK, CALLBACK_ACCOUNTING, MEDIA_DEDUCTION, MEDIA_DELIVERY] }
+        flowType: { type: string, enum: [FEEDBACK, CALLBACK] }
+        eventCode: { type: string, maxLength: 64 }
+        resultStatus: { type: string, enum: [SUCCESS, FAILED] }
+        requestMethod: { type: [string, 'null'], maxLength: 8 }
+        requestEndpoint: { type: [string, 'null'], maxLength: 512 }
+        partnerHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        durationMs: { type: integer, format: int64, minimum: 0 }
+        message: { type: [string, 'null'], maxLength: 500 }
+        requestParams: { type: object, additionalProperties: true }
+        macroAudit: { type: object, additionalProperties: true }
+        responsePreview: { type: [string, 'null'], maxLength: 4096 }
+        requestTruncated: { type: boolean }
+        eventTime: { type: string, format: date-time }
     FlowLogRequestDetailEnvelope:
       type: object
       required: [code, data]
       properties:
         code: { type: integer, const: 0 }
         data: { $ref: '#/components/schemas/FlowLogRequestDetail' }
+    MediaMacro:
+      type: object
+      required: [key, macro, label, group, osSupport, attributionIdentity]
+      properties:
+        key: { type: string }
+        macro: { type: string, pattern: '^__[A-Z0-9_]+__$' }
+        label: { type: string }
+        group: { type: string }
+        osSupport: { type: string, enum: [ANDROID, IOS, BOTH] }
+        attributionIdentity: { type: boolean }
+    MediaMacroListEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: { type: integer, const: 0 }
+        data: { type: array, items: { $ref: '#/components/schemas/MediaMacro' } }
     CallbackEventCode:
       type: string
       enum: [ACTIVATE, EVOKE, LOGIN, REGISTER, PAYMENT, CUSTOMER_ACQUISITION, NEXT_STAY, VISITS, AUTHENTICATION, ORDER, FINISH_THE_ORDER, EVOKE_C, EVOKE_FIRST, EVOKE_C_VALID, LAHUO, LAHUI, HUIFANG, FIRST_ACTIVATION, FIRST_ORDER]

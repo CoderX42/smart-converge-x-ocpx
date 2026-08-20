@@ -57,16 +57,20 @@ public class CallbackServiceImpl implements CallbackService {
 		}
 		catch (RuntimeException exception) {
 			flowLogWriter.callback(request, false, "CALLBACK_PROCESSING_FAILED");
+			flowLogWriter.accounting(request, false, "CALLBACK_ACCOUNTING_FAILED");
 			throw exception;
 		}
 	}
 
 	private CallbackHandleResult handleCallbackInternal(CallbackReq request) {
 		impressionLog.info("callback reqId:{} action:{}", request.getFeedback().getReqId(), request.getActionType());
+		flowLogWriter.callback(request, true, "ADVERTISER_CALLBACK_RECEIVED");
 		if (request.getActionType() == null) {
 			return complete(request, false, CallbackDecision.NOT_APPLICABLE);
 		}
 		OcpxEventFactService.CallbackFactResult factResult = eventFactService.recordCallback(request);
+		flowLogWriter.accounting(request, factResult.firstEvent(),
+				factResult.firstEvent() ? "CALLBACK_ACCOUNTING_COMMITTED" : "CALLBACK_ACCOUNTING_DUPLICATE");
 		if (!factResult.pendingDeduction()) {
 			impressionLog.info("cb-->{}", "repeat " + request.getFeedback().getReqId() + "_" + request.getActionType());
 			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
@@ -92,6 +96,8 @@ public class CallbackServiceImpl implements CallbackService {
 				typeIndex);
 		boolean finalized = eventFactService.finalizeDeduction(factResult.factId(), deduction.ratio(),
 				deduction.decision());
+		flowLogWriter.deduction(request, finalized,
+				finalized ? "MEDIA_DEDUCTION_" + deduction.decision().name() : "MEDIA_DEDUCTION_ALREADY_FINALIZED");
 		if (!finalized) {
 			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
@@ -115,7 +121,6 @@ public class CallbackServiceImpl implements CallbackService {
 					case DEDUCTED -> "CALLBACK_DEDUCTED";
 					case NOT_APPLICABLE -> "CALLBACK_NOT_APPLICABLE";
 				};
-		flowLogWriter.callback(request, duplicate || decision != CallbackDecision.NOT_APPLICABLE, message);
 		return new CallbackHandleResult(duplicate, decision);
 	}
 

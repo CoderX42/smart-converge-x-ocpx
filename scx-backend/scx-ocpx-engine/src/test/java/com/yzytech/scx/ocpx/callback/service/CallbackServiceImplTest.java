@@ -34,7 +34,9 @@ class CallbackServiceImplTest {
 
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.DEDUCTED);
-		verify(fixture.flowLogWriter).callback(fixture.request, true, "CALLBACK_DEDUCTED");
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "ADVERTISER_CALLBACK_RECEIVED");
+		verify(fixture.flowLogWriter).accounting(fixture.request, true, "CALLBACK_ACCOUNTING_COMMITTED");
+		verify(fixture.flowLogWriter).deduction(fixture.request, true, "MEDIA_DEDUCTION_DEDUCTED");
 		verify(fixture.eventFactService).finalizeDeduction("fact-1", new BigDecimal("0.500000"),
 				DeductionDecision.DEDUCTED);
 		verify(fixture.deductionDecisionService).complete("fact-1", "link-id", "media-id");
@@ -49,7 +51,7 @@ class CallbackServiceImplTest {
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.NOT_APPLICABLE);
 		verify(fixture.eventFactService, never()).recordCallback(any());
-		verify(fixture.flowLogWriter).callback(fixture.request, false, "CALLBACK_NOT_APPLICABLE");
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "ADVERTISER_CALLBACK_RECEIVED");
 	}
 
 	@Test
@@ -63,7 +65,8 @@ class CallbackServiceImplTest {
 		assertThat(result.duplicate()).isTrue();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.NOT_APPLICABLE);
 		verify(fixture.lists, never()).rightPush(anyString(), anyString());
-		verify(fixture.flowLogWriter).callback(fixture.request, true, "CALLBACK_DUPLICATE");
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "ADVERTISER_CALLBACK_RECEIVED");
+		verify(fixture.flowLogWriter).accounting(fixture.request, false, "CALLBACK_ACCOUNTING_DUPLICATE");
 	}
 
 	@Test
@@ -75,7 +78,9 @@ class CallbackServiceImplTest {
 		assertThat(result.duplicate()).isFalse();
 		assertThat(result.decision()).isEqualTo(CallbackDecision.FORWARDED);
 		verify(fixture.deductionDecisionService).complete("fact-1", "link-id", "media-id");
-		verify(fixture.flowLogWriter).callback(fixture.request, true, "DOWNSTREAM_DELIVERY_SUBMITTED");
+		verify(fixture.flowLogWriter).callback(fixture.request, true, "ADVERTISER_CALLBACK_RECEIVED");
+		verify(fixture.flowLogWriter).accounting(fixture.request, true, "CALLBACK_ACCOUNTING_COMMITTED");
+		verify(fixture.flowLogWriter).deduction(fixture.request, true, "MEDIA_DEDUCTION_PASSED");
 	}
 
 	@Test

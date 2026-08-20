@@ -202,6 +202,27 @@
       }
     },
     {
+      "name": "查询 V119 媒体快捷宏目录",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/media-macros"
+      }
+    },
+    {
+      "name": "查询 V119 完整链路详情",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Cache-Control", "value": "no-store", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/flow-logs/{{flowLogId}}/request-detail"
+      }
+    },
+    {
       "name": "查询广告主账务流水",
       "request": {
         "method": "GET",
@@ -225,6 +246,7 @@
     { "key": "creativeId", "value": "replace_with_scx_creative_id" },
     { "key": "sourceMaterialId", "value": "replace_with_uploaded_source_material_id" },
     { "key": "creativeAssetPath", "value": "replace_with_local_image_path" },
+    { "key": "flowLogId", "value": "replace_with_flow_log_id" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
     { "key": "callbackExt", "value": "replace_with_runtime_ext" }
   ]

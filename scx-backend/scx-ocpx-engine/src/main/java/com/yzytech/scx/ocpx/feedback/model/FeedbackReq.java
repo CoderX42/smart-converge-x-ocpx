@@ -91,6 +91,8 @@ public class FeedbackReq {
 
 	private String mac;
 
+	private String macMd5;
+
 	private String ip;
 
 	private String ipv6;
@@ -116,7 +118,7 @@ public class FeedbackReq {
 
 	private String clickId;
 
-	/** 本次请求唯一标识；缺失时由完整入站参数计算 MD5。 */
+	/** 本次请求唯一标识；正式点击必须由媒体提供具体值，曝光保留兼容回退。 */
 	private String reqId;
 
 	private String marke;

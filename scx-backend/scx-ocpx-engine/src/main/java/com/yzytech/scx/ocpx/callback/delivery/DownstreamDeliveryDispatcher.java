@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.callback.delivery;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -15,9 +16,11 @@ import java.util.concurrent.TimeUnit;
  * 线程池参数和 {@link ThreadPoolExecutor.CallerRunsPolicy} 属于历史兼容约束。队列满时由调用线程
  * 执行任务，以反压方式避免直接丢弃回传。
  *
- * <p>所有媒体统一使用 Feedback 自带的 Callback URL 回传。
+ * <p>
+ * 所有媒体统一使用 Feedback 自带的 Callback URL 回传。
  */
 @Component
+@Slf4j
 public class DownstreamDeliveryDispatcher {
 
 	/** 固定线程数 500、队列容量 100 的共享回传线程池。 */
@@ -45,7 +48,8 @@ public class DownstreamDeliveryDispatcher {
 					service.deliver(request);
 				}
 			}
-			catch (Exception ignored) {
+			catch (Exception exception) {
+				log.warn("Downstream delivery failed type:{}", exception.getClass().getSimpleName());
 			}
 		});
 	}

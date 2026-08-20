@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -112,7 +114,8 @@ class AerimUpstreamDeliveryServiceTest {
 		assertThat(callback.getActionType()).isEqualTo(ActionTypeEnum.PAYMENT);
 		assertThat(callback.getCurrencyAmount()).isEqualByComparingTo("123.45");
 		assertThat(callback.getFeedback().getReqId()).isEqualTo("request-id");
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "AERIM_DELIVERED", 7L, "");
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(true), eq(200), eq("AERIM_DELIVERED"), eq(7L), eq(""),
+				anyString(), anyMap());
 	}
 
 	@Test
@@ -123,8 +126,8 @@ class AerimUpstreamDeliveryServiceTest {
 
 		service.deliver(click);
 
-		verify(flowLogWriter).upstreamDelivery(click, false, 200, "AERIM_DAILY_LIMIT", 3L,
-				"{\"code\":402,\"message\":\"limit\"}");
+		verify(flowLogWriter).upstreamDelivery(eq(click), eq(false), eq(200), eq("AERIM_DAILY_LIMIT"), eq(3L),
+				eq("{\"code\":402,\"message\":\"limit\"}"), anyString(), anyMap());
 		FeedbackReq impression = feedback(OsTypeEnum.ANDROID);
 		impression.setEvent(EventTypeEnum.IMP);
 		service.deliver(impression);
@@ -140,16 +143,18 @@ class AerimUpstreamDeliveryServiceTest {
 		service.deliver(click);
 		service.deliver(click);
 
-		verify(flowLogWriter).upstreamDelivery(click, false, 503, "AERIM_HTTP_FAILED", 9L, "unavailable");
-		verify(flowLogWriter).upstreamDelivery(click, false, null, "AERIM_TIMEOUT", 5000L, null);
+		verify(flowLogWriter).upstreamDelivery(eq(click), eq(false), eq(503), eq("AERIM_HTTP_FAILED"), eq(9L),
+				eq("unavailable"), anyString(), anyMap());
+		verify(flowLogWriter).upstreamDelivery(eq(click), eq(false), org.mockito.ArgumentMatchers.isNull(),
+				eq("AERIM_TIMEOUT"), eq(5000L), org.mockito.ArgumentMatchers.isNull(), anyString(), anyMap());
 	}
 
 	@Test
 	void selectsTheProductUrlByPromotionLinkIdAndAcceptsCallbackUrlAlias() {
 		OcpxPromotionLink second = promotionLink();
 		second.setId("link-2");
-		second.setLinkUrl(
-				"https://track.example.com/ocpx/product-two?callback_url=__CALLBACK_URL__&click_id=__CLICK_ID__");
+		second.setLinkUrl("https://track.example.com/ocpx/product-two?oaid=__OAID__"
+				+ "&callback_url=__CALLBACK_URL__&click_id=__CLICK_ID__");
 		when(promotionLinkIndex.get("link-2")).thenReturn(second);
 		FeedbackReq feedback = feedback(OsTypeEnum.ANDROID);
 		feedback.setLId("link-2");

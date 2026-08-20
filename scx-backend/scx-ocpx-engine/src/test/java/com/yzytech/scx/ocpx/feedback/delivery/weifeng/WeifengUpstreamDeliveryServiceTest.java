@@ -17,6 +17,8 @@ import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -152,10 +154,14 @@ class WeifengUpstreamDeliveryServiceTest {
 		service.deliver(feedback);
 		service.deliver(feedback);
 
-		verify(flowLogWriter).upstreamDelivery(feedback, true, 200, "WEIFENG_DELIVERED", 3L, "");
-		verify(flowLogWriter).upstreamDelivery(feedback, false, 402, "WEIFENG_CAMPAIGN_PAUSED", 4L, "");
-		verify(flowLogWriter).upstreamDelivery(feedback, false, 501, "WEIFENG_DUPLICATE_CLICK", 5L, "");
-		verify(flowLogWriter).upstreamDelivery(feedback, false, null, "WEIFENG_TIMEOUT", 3000L, null);
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(true), eq(200), eq("WEIFENG_DELIVERED"), eq(3L), eq(""),
+				anyString(), anyMap());
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), eq(402), eq("WEIFENG_CAMPAIGN_PAUSED"), eq(4L),
+				eq(""), anyString(), anyMap());
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), eq(501), eq("WEIFENG_DUPLICATE_CLICK"), eq(5L),
+				eq(""), anyString(), anyMap());
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), org.mockito.ArgumentMatchers.isNull(),
+				eq("WEIFENG_TIMEOUT"), eq(3000L), org.mockito.ArgumentMatchers.isNull(), anyString(), anyMap());
 	}
 
 	@Test
