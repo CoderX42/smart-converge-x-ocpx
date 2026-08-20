@@ -194,11 +194,16 @@ describe('ocpx four-entity write contracts', () => {
   it('loads and replaces administrator-managed protocol host allowlists', async () => {
     await getProtocolConfigs();
     await updateProtocolAllowedHosts('AERIM', ['d.aerim.cn', 'c.aerim.cn']);
+    await updateProtocolAllowedHosts('GRAVITY', ['backend.gravity-engine.com']);
 
     expect(requestClient.get).toHaveBeenCalledWith('/ocpx/protocol-configs');
     expect(requestClient.put).toHaveBeenCalledWith(
       '/ocpx/protocol-configs/AERIM/allowed-hosts',
       { allowedHosts: ['d.aerim.cn', 'c.aerim.cn'] },
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/ocpx/protocol-configs/GRAVITY/allowed-hosts',
+      { allowedHosts: ['backend.gravity-engine.com'] },
     );
   });
 });

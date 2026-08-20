@@ -144,7 +144,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
 
   it('shows flow-log results before normalized request data and explains its boundary', () => {
     const source = page('flow-log');
-    expect(source).toContain("'ocpx:monitor-task:integration'");
+    expect(source).toContain("'ocpx:flow-log:detail'");
     expect(source).toContain('getFlowLogRequestDetail(row.id)');
     expect(source).toContain('流程日志详情');
     expect(source).toContain('请求结果');
@@ -169,7 +169,10 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('username: form.username.trim()');
     expect(advertiser).not.toMatch(/updateAdvertiserV2\([^)]*password/);
     expect(advertiser).toContain('appendAdvertiserMacroParams(');
-    expect(advertiser).toContain('<el-form-item label="宏参数"');
+    expect(advertiser).toContain('label="宏参数"');
+    expect(advertiser).toContain(
+      'v-if="form.upstreamProtocol !== \'GRAVITY\'"',
+    );
     expect(advertiser).not.toContain('DEFAULT_ADVERTISER_MACRO_PARAMS');
     for (const name of [
       'advertiser',
@@ -190,6 +193,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('上游协议与允许域名');
     expect(advertiser).toContain('不含协议、端口、路径、通配符或 IP');
     expect(advertiser).toContain('一个广告主可以配置多个产品链接');
+    expect(advertiser).toContain('引力使用一条 Android+IOS 链接');
   });
 
   it('creates financial idempotency keys in browsers without randomUUID', () => {

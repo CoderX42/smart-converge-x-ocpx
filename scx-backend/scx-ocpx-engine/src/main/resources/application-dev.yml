@@ -18,7 +18,3 @@ domain:
 
 app:
   callback-aes-key: local-dev-key-01
-
-ocpx:
-  partner-credentials:
-    advertisers: {}

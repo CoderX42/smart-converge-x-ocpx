@@ -19,6 +19,7 @@ required = [
     "callback-req-v2.schema.json",
     "aerim-callback-req-v1.schema.json",
     "weifeng-callback-req-v1.schema.json",
+    "gravity-callback-req-v1.schema.json",
     "scx-ocpx-v2.postman_collection.json",
     "management-v107.md",
     "management-v108.md",
@@ -32,6 +33,7 @@ required = [
     "management-v117.md",
     "management-v118.md",
     "management-v119.md",
+    "management-v120.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -46,7 +48,7 @@ server_urls = {server.get("url") for server in openapi.get("servers", [])}
 assert "https://{domain}/ocpx" in server_urls
 assert "http://localhost:10000/ocpx" in server_urls
 assert all("/rtb" not in (url or "") for url in server_urls), "retired /rtb base path must not return"
-data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback", "/test-callback"}
+data_plane_paths = {"/feedback", "/callback", "/aerim/callback", "/weifeng/callback", "/gravity/callback", "/test-callback"}
 management_path = "/advertisers/account-role/permissions"
 recharge_path = "/advertisers/{id}/recharge"
 deduction_path = "/advertisers/{id}/deduct"
@@ -166,10 +168,13 @@ assert {
     , "FlowLogRequestDetail", "FlowLogRequestDetailEnvelope"
     , "FlowLogStage", "MediaMacro", "MediaMacroListEnvelope"
     , "CallbackEventCode", "CallbackRecord", "CallbackRecordPageEnvelope"
+    , "GravityCallbackSuccess", "GravityCallbackFailure"
 } <= set(schemas)
 assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
 assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
-assert set(schemas["ProtocolConfig"]["properties"]["protocol"]["enum"]) == {"AERIM", "WEIFENG"}
+assert set(schemas["ProtocolConfig"]["properties"]["protocol"]["enum"]) == {"AERIM", "WEIFENG", "GRAVITY"}
+assert schemas["GravityCallbackSuccess"]["properties"]["code"]["const"] == 200
+assert schemas["GravityCallbackFailure"]["properties"]["code"]["const"] == 400
 assert set(schemas["AdvertiserRolePermissionsUpdate"]["required"]) == {"menuIds", "allDataScope"}
 assert set(schemas["AdvertiserRechargeRequest"]["required"]) == {"requestId", "amount"}
 assert set(schemas["AdvertiserDeductionRequest"]["required"]) == {"requestId", "amount", "remark"}
@@ -209,7 +214,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "gravity-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -224,7 +229,7 @@ postman_variables = {item.get("key"): item.get("value") for item in postman.get(
 assert postman_variables.get("baseUrl") == "http://localhost:10000"
 assert "/rtb" not in json.dumps(postman, ensure_ascii=False), "retired /rtb path must not return"
 item_names = {item.get("name") for item in postman.get("item", [])}
-assert {"媒体 Feedback GET", "广告主 Callback GET", "AERIM Callback GET", "微风互动 Callback GET"} <= item_names
+assert {"媒体 Feedback GET", "广告主 Callback GET", "AERIM Callback GET", "微风互动 Callback GET", "引力 Callback GET"} <= item_names
 methods = {item.get("name"): item.get("request", {}).get("method") for item in postman.get("item", [])}
 assert methods.get("读取共享广告主角色权限") == "GET"
 assert methods.get("全量替换共享广告主角色权限") == "PUT"
@@ -239,6 +244,7 @@ assert methods.get("修改监测任务计费配置") == "PUT"
 assert methods.get("查询广告主账务流水") == "GET"
 assert methods.get("查询上游协议允许域名") == "GET"
 assert methods.get("替换 AERIM 允许域名") == "PUT"
+assert methods.get("替换 GRAVITY 允许域名") == "PUT"
 role_update = next(item for item in postman["item"] if item.get("name") == "全量替换共享广告主角色权限")
 role_update_body = json.loads(role_update["request"]["body"]["raw"])
 assert set(role_update_body) == {"menuIds", "allDataScope"}
@@ -262,11 +268,15 @@ assert {"billingEnabled", "billingType", "unitPrice", "conversionEvent"} <= set(
 protocol_item = next(item for item in postman["item"] if item.get("name") == "替换 AERIM 允许域名")
 protocol_body = json.loads(protocol_item["request"]["body"]["raw"])
 assert protocol_body == {"allowedHosts": ["d.aerim.cn", "c.aerim.cn"]}
+gravity_protocol_item = next(item for item in postman["item"] if item.get("name") == "替换 GRAVITY 允许域名")
+gravity_protocol_body = json.loads(gravity_protocol_item["request"]["body"]["raw"])
+assert gravity_protocol_body == {"allowedHosts": ["backend.gravity-engine.com"]}
 serialized = json.dumps(postman, ensure_ascii=False)
 assert "/ocpx/feedback" in serialized
 assert "/ocpx/callback" in serialized
 assert "/ocpx/aerim/callback" in serialized
 assert "/ocpx/weifeng/callback" in serialized
+assert "/ocpx/gravity/callback" in serialized
 assert "/boot/ocpx/advertisers/account-role/permissions" in serialized
 assert "/boot/ocpx/protocol-configs" in serialized
 assert "/boot/ocpx/advertisers/{{advertiserId}}/recharge" in serialized

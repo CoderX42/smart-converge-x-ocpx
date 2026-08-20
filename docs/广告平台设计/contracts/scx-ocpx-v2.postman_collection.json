@@ -33,6 +33,13 @@
       }
     },
     {
+      "name": "引力 Callback GET",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/ocpx/gravity/callback?ctx={{gravityCallbackCtx}}"
+      }
+    },
+    {
       "name": "读取共享广告主角色权限",
       "request": {
         "method": "GET",
@@ -202,6 +209,22 @@
       }
     },
     {
+      "name": "替换 GRAVITY 允许域名",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allowedHosts\": [\"backend.gravity-engine.com\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/GRAVITY/allowed-hosts"
+      }
+    },
+    {
       "name": "查询 V119 媒体快捷宏目录",
       "request": {
         "method": "GET",
@@ -248,6 +271,7 @@
     { "key": "creativeAssetPath", "value": "replace_with_local_image_path" },
     { "key": "flowLogId", "value": "replace_with_flow_log_id" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
-    { "key": "callbackExt", "value": "replace_with_runtime_ext" }
+    { "key": "callbackExt", "value": "replace_with_runtime_ext" },
+    { "key": "gravityCallbackCtx", "value": "replace_with_runtime_authenticated_context" }
   ]
 }

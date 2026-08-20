@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 11.9.0
-  description: SCX OCPX Feedback/Callback data plane and V119 complete flow trace and media macro catalog contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 12.0.0
+  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, and V120 GRAVITY upstream contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -129,6 +129,23 @@ paths:
         '200': { description: Empty response for success, duplicate, or deducted conversion }
         '400': { description: Missing or unknown event, invalid amount/days, or invalid encrypted route context }
         '500': { description: Internal handling exception }
+  /gravity/callback:
+    get:
+      operationId: handleGravityCallback
+      description: 引力归因成功回调。ctx 为 SCX 生成的 URL-safe 认证加密上下文；v1 按 V120 已确认契约固定映射为 ACTIVATE。
+      parameters:
+        - { name: ctx, in: query, required: true, description: URL-safe authenticated encrypted SCX route context, schema: { type: string, minLength: 1, maxLength: 12000 } }
+      responses:
+        '200':
+          description: 首次、重复或媒体扣量的合法 Callback
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GravityCallbackSuccess' }
+        '400':
+          description: ctx 非法、上下文不完整或内部处理失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GravityCallbackFailure' }
   /test-callback:
     get:
       operationId: collectMonitorTaskTestCallback
@@ -159,7 +176,7 @@ paths:
     get:
       operationId: listUpstreamProtocolConfigs
       summary: 查询上游协议允许域名
-      description: 仅管理员可读；返回 AERIM 与 WEIFENG 的当前精确域名白名单。空列表表示该协议全部拒绝。
+      description: 仅管理员可读；返回 AERIM、WEIFENG 与 GRAVITY 的当前精确域名白名单。空列表表示该协议全部拒绝。
       security:
         - saToken: []
       responses:
@@ -179,14 +196,14 @@ paths:
     put:
       operationId: replaceUpstreamProtocolAllowedHosts
       summary: 全量替换上游协议允许域名
-      description: 仅支持 AERIM 与 WEIFENG。服务端规范化、去重并校验精确域名；禁止 URL、端口、通配符、IP 和单标签主机。保存成功后通知 Engine 刷新索引。
+      description: 仅支持 AERIM、WEIFENG 与 GRAVITY。服务端规范化、去重并校验精确域名；禁止 URL、端口、通配符、IP 和单标签主机。保存成功后通知 Engine 刷新索引。
       security:
         - saToken: []
       parameters:
         - name: protocol
           in: path
           required: true
-          schema: { type: string, enum: [AERIM, WEIFENG] }
+          schema: { type: string, enum: [AERIM, WEIFENG, GRAVITY] }
       requestBody:
         required: true
         content:
@@ -799,7 +816,7 @@ components:
       type: object
       required: [protocol, allowedHosts]
       properties:
-        protocol: { type: string, enum: [AERIM, WEIFENG] }
+        protocol: { type: string, enum: [AERIM, WEIFENG, GRAVITY] }
         allowedHosts:
           type: array
           uniqueItems: true
@@ -820,6 +837,20 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/ProtocolConfig' }
+    GravityCallbackSuccess:
+      type: object
+      additionalProperties: false
+      required: [code, result]
+      properties:
+        code: { type: integer, const: 200 }
+        result: { type: string, const: success }
+    GravityCallbackFailure:
+      type: object
+      additionalProperties: false
+      required: [code, result]
+      properties:
+        code: { type: integer, const: 400 }
+        result: { type: string, const: failed }
     MediaCallbackRatioRuleSaveRequest:
       type: object
       additionalProperties: false

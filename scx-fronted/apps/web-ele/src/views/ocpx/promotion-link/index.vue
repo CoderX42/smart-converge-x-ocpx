@@ -430,6 +430,13 @@ onMounted(async () => {
             placeholder="请输入投放链接"
             type="textarea"
         /></el-form-item>
+        <el-alert
+          :closable="false"
+          class="field-alert"
+          show-icon
+          title="引力广告主请选择 Android+IOS，投放链接只保存引力 HTTPS 基础地址和固定参数，不填写 {idfa}、{callback} 等动态宏。"
+          type="info"
+        />
         <el-form-item label="唤起链接" prop="deeplink"
           ><el-input
             v-model="form.deeplink"

@@ -23,7 +23,3 @@ domain:
 
 app:
   callback-aes-key: rcDe7gFGzssGFEe_PuR2BRdl_kh87iFU
-
-ocpx:
-  partner-credentials:
-    advertisers: {}

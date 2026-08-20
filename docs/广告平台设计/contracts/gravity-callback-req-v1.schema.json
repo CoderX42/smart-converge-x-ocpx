@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.example.invalid/contracts/gravity-callback-req-v1.schema.json",
+  "title": "GRAVITY callback GET query parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ctx"],
+  "properties": {
+    "ctx": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    }
+  }
+}

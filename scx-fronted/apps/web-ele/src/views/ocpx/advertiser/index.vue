@@ -88,11 +88,13 @@ const form = reactive({
 });
 const protocolOptions: Array<{ label: string; value: OcpxUpstreamProtocol }> = [
   { label: 'AERIM', value: 'AERIM' },
+  { label: '引力', value: 'GRAVITY' },
   { label: '微风互动', value: 'WEIFENG' },
   { label: '通用 GET 模板', value: 'TEMPLATE_GET' },
 ];
 const protocolLabels: Record<OcpxUpstreamProtocol, string> = {
   AERIM: 'AERIM',
+  GRAVITY: '引力',
   TEMPLATE_GET: '通用 GET 模板',
   WEIFENG: '微风互动',
 };
@@ -180,6 +182,7 @@ const protocolConfigLoading = ref(false);
 const protocolConfigSaving = ref<ProtocolConfig['protocol']>();
 const protocolConfigs = reactive<Record<ProtocolConfig['protocol'], string[]>>({
   AERIM: [],
+  GRAVITY: [],
   WEIFENG: [],
 });
 
@@ -190,6 +193,10 @@ async function openProtocolConfig() {
     const result = await getProtocolConfigs();
     protocolConfigs.AERIM = [
       ...(result.find((item) => item.protocol === 'AERIM')?.allowedHosts || []),
+    ];
+    protocolConfigs.GRAVITY = [
+      ...(result.find((item) => item.protocol === 'GRAVITY')?.allowedHosts ||
+        []),
     ];
     protocolConfigs.WEIFENG = [
       ...(result.find((item) => item.protocol === 'WEIFENG')?.allowedHosts ||
@@ -918,7 +925,7 @@ onMounted(async () => {
           :closable="false"
           class="field-alert"
           show-icon
-          title="AERIM 与微风互动按推广链接中的投放链接转发；一个广告主可以配置多个产品链接。"
+          title="AERIM、微风互动按推广链接中的投放链接转发，一个广告主可以配置多个产品链接；引力使用一条 Android+IOS 链接并按请求系统生成参数。"
           type="info"
         />
         <el-form-item
@@ -931,12 +938,19 @@ onMounted(async () => {
             placeholder="请输入请求地址"
             type="textarea"
         /></el-form-item>
-        <el-form-item label="凭据引用" prop="credentialConfigKey"
+        <el-form-item
+          v-if="form.upstreamProtocol !== 'GRAVITY'"
+          label="凭据引用"
+          prop="credentialConfigKey"
           ><el-input
             v-model="form.credentialConfigKey"
             placeholder="请输入凭据引用"
         /></el-form-item>
-        <el-form-item label="宏参数" prop="macroParams">
+        <el-form-item
+          v-if="form.upstreamProtocol !== 'GRAVITY'"
+          label="宏参数"
+          prop="macroParams"
+        >
           <el-input
             v-model="form.macroParams"
             autosize
@@ -990,7 +1004,7 @@ onMounted(async () => {
           type="warning"
         />
         <section
-          v-for="protocol in ['AERIM', 'WEIFENG'] as const"
+          v-for="protocol in ['AERIM', 'WEIFENG', 'GRAVITY'] as const"
           :key="protocol"
           class="protocol-host-section"
         >

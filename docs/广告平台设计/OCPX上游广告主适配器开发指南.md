@@ -9,14 +9,16 @@ SCX 不再从广告主表读取旧 Adapter 字段。上游协议由广告主 `up
 | `TEMPLATE_GET` | 通用 GET 模板转发 |
 | `AERIM` | AERIM CLICK 投递与专用 GET Callback |
 | `WEIFENG` | 微风互动 v1.3 CLICK 投递与专用 GET Callback |
+| `GRAVITY` | 引力 Android/iOS CLICK 投递与认证上下文 GET Callback |
 
 未选择协议的存量广告主必须拒绝转发，并写一条不含请求载荷、凭据或密钥的失败流程日志。不能自动降级为通用协议。
 
 ## 接入步骤
 
-1. 在管理端创建广告主，选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`，并设置一次性的登录用户名与密码；系统原子创建广告主账号，编辑时不再提交账号密码。
+1. 在管理端创建广告主，选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG` 或 `GRAVITY`，并设置一次性的登录用户名与密码；系统原子创建广告主账号，编辑时不再提交账号密码。
 2. `TEMPLATE_GET` 填广告主请求地址、凭据引用和宏，并在 `ocpx.partner-credentials.advertisers.<credentialConfigKey>` 填写服务端字面量凭据。
 3. AERIM 或微风互动在“协议与域名”中维护合作方精确域名，并为每个产品创建一条推广链接，保存该产品完整点击模板；微风模板须保留固定 `aid/did`。
+   GRAVITY 只创建一条 Android+IOS 基础链接，不保存动态参数或宏；无需账号、Token、凭据引用和广告主级请求地址。
 4. 运行协议索引、四主键归属、域名/DNS、签名、宏残留、脱敏和未选择协议拒绝测试。
 5. 在隔离环境完成真实协议联调；目标库迁移、生产凭据和发布需单独复核。
 
@@ -36,6 +38,10 @@ SCX 不再从广告主表读取旧 Adapter 字段。上游协议由广告主 `up
 
 只有配置为 `WEIFENG` 的广告主才进入微风互动投递，当前只处理 CLICK。关联推广链接的 `linkUrl` 保存商务提供的完整 `/click` 模板，其中 `aid/did` 是上游固定参数；Engine 只替换设备、时间戳和 `__CALLBACK__`，缺失固定 `aid/did` 或出现重复/未知宏时拒绝投递。上游地址必须通过后台维护的 WEIFENG 精确域名白名单和 DNS 公网校验，回调入口为 `GET /ocpx/weifeng/callback`。字段和事件映射详见《微风互动上游接入说明v1.3》。
 
+## 引力协议
+
+只有配置为 `GRAVITY` 的广告主才进入引力投递，且仅处理 CLICK。推广链接平台必须是 Android+IOS，基础地址不得预置 `idfa/oaid/android_id/imei/ip/ua/callback` 或 `{...}`；Engine 根据 Feedback `os` 生成参数，其中正确字段为 `{idfa}`。Callback 通过认证加密 `ctx` 恢复点击路由，并返回引力规定的 JSON。GRAVITY 不使用静态启用开关；空白名单拒绝投递，清空白名单可热停止。
+
 ## 发布门槛
 
-发布前必须从目标库只读盘点全部广告主，并逐个分类为 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`。存在任何未分类广告主、通用模板凭据无法解析、合作方域名未进入白名单、AERIM 链接残留未知宏、微风推广链接缺少固定 `aid/did` 或把敏感值带入代码/日志时均为 No-Go。目标库操作、配置填充、部署和重启需要独立授权。
+发布前必须从目标库只读盘点全部广告主并逐个分类。存在任何未分类广告主、凭据无法解析、域名未进入白名单、链接宏或固定参数不合规时均为 No-Go。GRAVITY 的事件语义以 V120 契约为准；目标库操作、配置填充、部署、重启和 iOS/Android UAT 仍需要独立授权与证据。

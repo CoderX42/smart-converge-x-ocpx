@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.delivery;
 
 import com.yzytech.scx.ocpx.feedback.delivery.aerim.AerimUpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.gravity.GravityUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.weifeng.WeifengUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
@@ -20,7 +21,7 @@ import java.util.concurrent.TimeUnit;
  * 线程池参数属于历史协议链路的兼容约束。队列满时使用调用方线程执行，避免默默丢弃请求，但会增加 入站请求延迟。
  *
  * <p>
- * 广告主主键必须显式登记为通用模板、AERIM 或 WEIFENG；未登记主键拒绝上游转发并写脱敏流程日志。
+ * 广告主主键必须显式登记为通用模板、AERIM、WEIFENG 或 GRAVITY；未登记主键拒绝上游转发并写脱敏流程日志。
  */
 @Slf4j
 @Component
@@ -36,16 +37,20 @@ public class UpstreamDeliveryDispatcher {
 
 	private static WeifengUpstreamDeliveryService weifengDeliveryService;
 
+	private static GravityUpstreamDeliveryService gravityDeliveryService;
+
 	private static AdvertiserProtocolRegistry protocolRegistry;
 
 	private static OcpxFlowLogWriter flowLogWriter;
 
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
 			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
-			AdvertiserProtocolRegistry protocolRegistry, OcpxFlowLogWriter flowLogWriter) {
+			GravityUpstreamDeliveryService gravityDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			OcpxFlowLogWriter flowLogWriter) {
 		UpstreamDeliveryDispatcher.deliveryService = deliveryService;
 		UpstreamDeliveryDispatcher.aerimDeliveryService = aerimDeliveryService;
 		UpstreamDeliveryDispatcher.weifengDeliveryService = weifengDeliveryService;
+		UpstreamDeliveryDispatcher.gravityDeliveryService = gravityDeliveryService;
 		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
 	}
@@ -83,6 +88,7 @@ public class UpstreamDeliveryDispatcher {
 		return protocolRegistry.resolve(request.getAId()).map(protocol -> switch (protocol) {
 			case AERIM -> aerimDeliveryService;
 			case WEIFENG -> weifengDeliveryService;
+			case GRAVITY -> gravityDeliveryService;
 			case TEMPLATE_GET -> deliveryService;
 		}).orElse(null);
 	}

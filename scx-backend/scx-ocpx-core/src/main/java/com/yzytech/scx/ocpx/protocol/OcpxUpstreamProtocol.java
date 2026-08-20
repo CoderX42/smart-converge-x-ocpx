@@ -7,6 +7,8 @@ public enum OcpxUpstreamProtocol {
 
 	AERIM,
 
-	WEIFENG
+	WEIFENG,
+
+	GRAVITY
 
 }

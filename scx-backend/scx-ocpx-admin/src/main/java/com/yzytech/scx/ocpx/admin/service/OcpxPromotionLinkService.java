@@ -20,14 +20,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class OcpxPromotionLinkService {
+
+	private static final int ANDROID_IOS_PLATFORM = 3;
+
+	private static final Set<String> GRAVITY_DYNAMIC_PARAMETERS = Set.of("idfa", "oaid", "android_id", "imei", "ip",
+			"ua", "callback");
 
 	private final OcpxPromotionLinkMapper linkMapper;
 
@@ -88,7 +98,8 @@ public class OcpxPromotionLinkService {
 	@Transactional
 	public PromotionLinkViews.Item create(PromotionLinkRequests.Create request) {
 		advertiserScope.requireOwner(request.getAdvertiserId());
-		requireAdvertiser(request.getAdvertiserId());
+		OcpxAdvertiser advertiser = requireAdvertiser(request.getAdvertiserId());
+		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkUrl());
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		apply(link, request.getAdvertiserId(), request.getLinkName(), request.getPlatform(), request.getLinkChannel(),
 				request.getLinkUrl(), request.getDeeplink(), request.getLinkExt(), request.getRemark());
@@ -103,11 +114,11 @@ public class OcpxPromotionLinkService {
 		OcpxPromotionLink current = require(id);
 		advertiserScope.requireOwner(current.getAdvertiserId());
 		advertiserScope.requireOwner(request.getAdvertiserId());
-		requireAdvertiser(request.getAdvertiserId());
-		if (!current.getAdvertiserId().equals(request.getAdvertiserId())
-				&& (taskMapper
-					.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0
-						|| linkMapper.countCreativeBindings(id) > 0)) {
+		OcpxAdvertiser advertiser = requireAdvertiser(request.getAdvertiserId());
+		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkUrl());
+		if (!current.getAdvertiserId().equals(request.getAdvertiserId()) && (taskMapper
+			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0
+				|| linkMapper.countCreativeBindings(id) > 0)) {
 			throw new BootBusinessException("已被监测任务或创意引用的推广链接不能更换广告主");
 		}
 		OcpxPromotionLink update = new OcpxPromotionLink();
@@ -149,9 +160,51 @@ public class OcpxPromotionLinkService {
 		link.setRemark(trim(remark));
 	}
 
-	private void requireAdvertiser(String id) {
-		if (advertiserMapper.selectById(id) == null)
+	private OcpxAdvertiser requireAdvertiser(String id) {
+		OcpxAdvertiser advertiser = advertiserMapper.selectById(id);
+		if (advertiser == null)
 			throw new BootBusinessException("广告主不存在");
+		return advertiser;
+	}
+
+	private void validateProtocolLink(OcpxAdvertiser advertiser, Integer platform, String url) {
+		if (advertiser.getUpstreamProtocol() != com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY) {
+			return;
+		}
+		if (!Integer.valueOf(ANDROID_IOS_PLATFORM).equals(platform)) {
+			throw new BootBusinessException("引力推广链接的平台必须选择 Android+IOS");
+		}
+		if (containsBrace(url)) {
+			throw new BootBusinessException("引力投放链接必须是无动态宏的标准 HTTPS 地址");
+		}
+		try {
+			URI uri = URI.create(url.trim());
+			if (!"https".equalsIgnoreCase(uri.getScheme()) || !StringUtils.hasText(uri.getHost())
+					|| uri.getUserInfo() != null || uri.getFragment() != null || uri.getPort() != -1
+					|| url.contains("\\")) {
+				throw new BootBusinessException("引力投放链接必须是无动态宏的标准 HTTPS 地址");
+			}
+			if (StringUtils.hasText(uri.getRawQuery())) {
+				for (String pair : uri.getRawQuery().split("&")) {
+					String rawName = pair.contains("=") ? pair.substring(0, pair.indexOf('=')) : pair;
+					String name = URLDecoder.decode(rawName, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
+					if (GRAVITY_DYNAMIC_PARAMETERS.contains(name)) {
+						throw new BootBusinessException("引力投放链接不能预置设备、IP、UA 或 Callback 动态参数");
+					}
+				}
+			}
+		}
+		catch (BootBusinessException exception) {
+			throw exception;
+		}
+		catch (RuntimeException exception) {
+			throw new BootBusinessException("引力投放链接格式无效");
+		}
+	}
+
+	private boolean containsBrace(String value) {
+		String decoded = URLDecoder.decode(value, StandardCharsets.UTF_8);
+		return decoded.contains("{") || decoded.contains("}");
 	}
 
 	private OcpxPromotionLink require(String id) {

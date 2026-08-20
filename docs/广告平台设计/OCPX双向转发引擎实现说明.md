@@ -15,9 +15,9 @@
 
 ## 协议注册与凭据
 
-`AdvertiserProtocolRegistry` 从广告主 MySQL 索引的 `upstreamProtocol` 选择 `TEMPLATE_GET`、`AERIM` 或 `WEIFENG`；未选择协议的广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。下游媒体不再使用专用协议注册表，统一走通用回调。
+`AdvertiserProtocolRegistry` 从广告主 MySQL 索引的 `upstreamProtocol` 选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG` 或 `GRAVITY`；未选择协议的广告主不向上游发请求，并通过 `OcpxFlowLogWriter` 写脱敏失败日志。下游媒体不再使用专用协议注册表，统一走通用回调。
 
-协议由管理端创建或编辑广告主时显式选择。AERIM 与 WEIFENG 的精确域名白名单也由管理后台写入 MySQL，并随 `r:da:refresh` 热刷新；空白名单默认拒绝。通用模板签名材料仍由广告主实体的 `credentialConfigKey` 通过 `PartnerCredentialResolver` 从 Engine profile 的 `ocpx.partner-credentials.advertisers` 解析，不进入业务表、响应或请求日志。
+协议由管理端创建或编辑广告主时显式选择。AERIM、WEIFENG 与 GRAVITY 的精确域名白名单由管理后台写入 MySQL，并随 `r:da:refresh` 热刷新；空白名单默认拒绝。GRAVITY 不使用凭据或静态启用开关，由广告主协议选择和精确域名白名单共同控制投递。
 
 ## 正向 Feedback
 
@@ -25,9 +25,11 @@
 
 `TEMPLATE_GET` 使用广告主 `bidUrl` 替换设备、请求、回调宏，以任务 `bizId` 替换 `__BIZ_ID__`，把 Feedback JSON 用 Engine AES Key 加密为 `ext`，再使用服务端解析的凭据生成签名。AERIM 与微风互动都仅处理 CLICK，并按 Feedback 的 `lId` 读取所属推广链接的完整上游模板；因此同一广告主可用多条推广链接承载多个产品。AERIM 支持多媒体宏别名并拒绝残留未知宏；微风保留模板固定 `aid/did`。两者均执行数据库精确域名白名单和 DNS 公网地址校验。
 
+GRAVITY 也仅处理 CLICK，但使用单条 Android+IOS 基础链接：iOS 发送 `idfa/ip/ua/callback`，Android 发送非空的 `oaid/android_id/imei` 及 `ip/ua/callback`；所有值只编码一次。出站仅允许精确白名单 HTTPS 公网地址，不自动重试。
+
 ## 反向 Callback
 
-通用入口为 `GET /ocpx/callback`，AERIM 专用入口为 `GET /ocpx/aerim/callback`，微风互动专用入口为 `GET /ocpx/weifeng/callback`。入口解密 `ext`，按请求 ID 和 Action 写入唯一事实，并以 `lId + mId` 执行扣量。允许回传时统一读取原 Feedback 的 `callback_url`、追加事件参数并执行通用 GET。
+通用入口为 `GET /ocpx/callback`，AERIM、微风互动和引力专用入口分别为 `/ocpx/aerim/callback`、`/ocpx/weifeng/callback` 和 `/ocpx/gravity/callback`。引力使用 AES-GCM 认证加密 `ctx`，不依赖合作方追加参数，并在书面确认语义后固定映射为 ACTIVATE。所有入口继续复用唯一事实、计费、媒体扣量和下游回传链路。
 
 Feedback 携带的通用回调地址属于服务端外发目标，必须限制为安全的 HTTP/HTTPS 公网地址，拒绝本机、内网、链路本地地址、用户信息和危险协议。
 

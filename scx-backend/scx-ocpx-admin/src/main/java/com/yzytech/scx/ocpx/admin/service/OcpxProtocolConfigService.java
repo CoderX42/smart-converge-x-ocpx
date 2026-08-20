@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class OcpxProtocolConfigService {
 
 	private static final Set<OcpxUpstreamProtocol> HOST_CONFIGURABLE = Set.of(OcpxUpstreamProtocol.AERIM,
-			OcpxUpstreamProtocol.WEIFENG);
+			OcpxUpstreamProtocol.WEIFENG, OcpxUpstreamProtocol.GRAVITY);
 
 	private final OcpxProtocolAllowedHostMapper allowedHostMapper;
 

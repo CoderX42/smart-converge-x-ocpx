@@ -9,6 +9,7 @@ import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper;
 import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -78,6 +79,28 @@ class OcpxPromotionLinkServiceTest {
 		assertThat(result.getLinkExt()).isEqualTo("k=v");
 		assertThat(result.getRemark()).isEqualTo("备注");
 		verify(refreshPublisher).mark();
+	}
+
+	@Test
+	void gravityRequiresOneAndroidIosBaseLinkWithoutDynamicParameters() {
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setId("adv-1");
+		advertiser.setUpstreamProtocol(OcpxUpstreamProtocol.GRAVITY);
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
+
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "引力链接", 1, null,
+				"https://backend.gravity-engine.com/event_center/api/v1/event/click/", null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("Android+IOS");
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "引力链接", 3, null,
+				"https://backend.gravity-engine.com/event_center/api/v1/event/click/?idfa={idfa}", null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("无动态宏");
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "引力链接", 3, null,
+				"https://backend.gravity-engine.com/event_center/api/v1/event/click/?callback=x", null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不能预置");
+		verify(linkMapper, never()).insert(any(OcpxPromotionLink.class));
 	}
 
 	@Test

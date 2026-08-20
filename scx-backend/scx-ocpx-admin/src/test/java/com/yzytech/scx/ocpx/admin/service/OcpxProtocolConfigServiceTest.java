@@ -63,6 +63,18 @@ class OcpxProtocolConfigServiceTest {
 	}
 
 	@Test
+	void gravityHostConfigurationUsesTheSameDatabaseBackedRefreshPath() {
+		when(mapper.insert(any(OcpxProtocolAllowedHost.class))).thenReturn(1);
+
+		var result = service.updateAllowedHosts(OcpxUpstreamProtocol.GRAVITY,
+				new ProtocolConfigRequests.UpdateAllowedHosts(List.of("backend.gravity-engine.com")));
+
+		assertThat(result.getProtocol()).isEqualTo(OcpxUpstreamProtocol.GRAVITY);
+		assertThat(result.getAllowedHosts()).containsExactly("backend.gravity-engine.com");
+		verify(refreshPublisher).mark();
+	}
+
+	@Test
 	void rejectsUrlAndNonHostConfigurableProtocolBeforeWriting() {
 		assertThatThrownBy(() -> service.updateAllowedHosts(OcpxUpstreamProtocol.AERIM,
 				new ProtocolConfigRequests.UpdateAllowedHosts(List.of("https://d.aerim.cn/path"))))

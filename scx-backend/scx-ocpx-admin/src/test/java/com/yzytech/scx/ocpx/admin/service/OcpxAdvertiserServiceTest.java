@@ -102,6 +102,34 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
+	void gravityAdvertiserClearsCredentialsAndAdvertiserLevelUrls() {
+		when(advertiserMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxAdvertiser> stored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxAdvertiser advertiser = invocation.getArgument(0);
+			advertiser.setId("adv-gravity");
+			stored.set(advertiser);
+			return 1;
+		}).when(advertiserMapper).insert(any(OcpxAdvertiser.class));
+		when(accountProvisioner.provision("adv-gravity", "引力广告主", "gravity-user", "Pass@123"))
+			.thenReturn(new AdvertiserAccountProvisioner.ProvisionedAccount("user-gravity", "gravity-user"));
+		when(advertiserMapper.updateById(any(OcpxAdvertiser.class))).thenReturn(1);
+		when(advertiserMapper.selectById("adv-gravity")).thenAnswer(invocation -> stored.get());
+		when(advertiserMapper.selectUsernamesByAdvertiserIds(any()))
+			.thenReturn(List.of(username("adv-gravity", "gravity-user")));
+		when(advertiserAccountService.balance("adv-gravity")).thenReturn(BigDecimal.ZERO);
+
+		AdvertiserViews.Item result = service
+			.create(new AdvertiserRequests.Create("引力广告主", "must-be-cleared", OcpxUpstreamProtocol.GRAVITY,
+					"https://must-be-cleared.example", "idfa={idfa}", "gravity-user", "Pass@123"));
+
+		assertThat(result.getUpstreamProtocol()).isEqualTo(OcpxUpstreamProtocol.GRAVITY);
+		assertThat(result.getCredentialConfigKey()).isNull();
+		assertThat(result.getBidUrl()).isNull();
+		assertThat(result.getMacroParams()).isNull();
+	}
+
+	@Test
 	void provisioningFailureDoesNotPublishRefreshOrBindAccount() {
 		when(advertiserMapper.selectCount(any())).thenReturn(0L);
 		AtomicReference<OcpxAdvertiser> inserted = new AtomicReference<>();

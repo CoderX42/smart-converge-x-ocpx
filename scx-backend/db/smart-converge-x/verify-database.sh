@@ -52,11 +52,11 @@ advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.col
 
 invalid_upstream_protocols="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser
  WHERE upstream_protocol IS NOT NULL
- AND upstream_protocol NOT IN ('TEMPLATE_GET','AERIM','WEIFENG')")"
+ AND upstream_protocol NOT IN ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY')")"
 [[ "$invalid_upstream_protocols" -eq 0 ]] || fail "advertiser upstream protocol is invalid"
 
 invalid_protocol_hosts="$(scalar "SELECT COUNT(*) FROM scx_ocpx_protocol_allowed_host
- WHERE protocol_type NOT IN ('AERIM','WEIFENG') OR host<>LOWER(host)
+ WHERE protocol_type NOT IN ('AERIM','WEIFENG','GRAVITY') OR host<>LOWER(host)
  OR host LIKE '%://%' OR host LIKE '%/%' OR host LIKE '%:%' OR host LIKE '%*%'")"
 [[ "$invalid_protocol_hosts" -eq 0 ]] || fail "protocol allowed hosts contain an invalid value"
 

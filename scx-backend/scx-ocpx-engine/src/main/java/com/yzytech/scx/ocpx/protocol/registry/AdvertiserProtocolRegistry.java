@@ -39,7 +39,9 @@ public class AdvertiserProtocolRegistry {
 
 		AERIM,
 
-		WEIFENG
+		WEIFENG,
+
+		GRAVITY
 
 	}
 

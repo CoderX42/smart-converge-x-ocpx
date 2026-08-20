@@ -507,6 +507,30 @@ for required_fragment in (
 if "scx_schema_migration" in v115:
     raise SystemExit("V115 migration gate failed: retired migration ledger is referenced")
 
+v120 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V120__add_gravity_upstream_protocol.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY'",
+    "'AERIM','WEIFENG','GRAVITY'",
+    "'GRAVITY','backend.gravity-engine.com'",
+):
+    if required_fragment not in v120:
+        raise SystemExit(f"V120 GRAVITY migration gate failed: missing {required_fragment}")
+if "scx_schema_migration" in v120:
+    raise SystemExit("V120 GRAVITY migration gate failed: retired migration ledger is referenced")
+
+current_schema = (
+    root / "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY'",
+    "'AERIM','WEIFENG','GRAVITY'",
+    "'GRAVITY','backend.gravity-engine.com'",
+):
+    if required_fragment not in current_schema:
+        raise SystemExit(f"current schema GRAVITY gate failed: missing {required_fragment}")
+
 aerim_delivery = (
     engine / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/aerim/AerimUpstreamDeliveryService.java"
 ).read_text(encoding="utf-8")
@@ -527,6 +551,28 @@ for fragment in ("OcpxPromotionLinkIndex", "promotionLink.getLinkUrl()", 'expand
 for retired_fragment in ("getMediaIds()", "getBizId()", "OcpxMonitorTaskIndex"):
     if retired_fragment in weifeng_delivery:
         raise SystemExit(f"WEIFENG source gate failed: retired aid/did mapping found: {retired_fragment}")
+
+gravity_delivery = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/gravity/GravityUpstreamDeliveryService.java"
+).read_text(encoding="utf-8")
+for fragment in (
+    'dynamic.put("idfa", feedback.getIdfa())',
+    'put(dynamic, "android_id", feedback.getAndroidid())',
+    'dynamic.put("callback", buildCallbackUrl(feedback))',
+    'ActionTypeEnum.ACTIVATE.name()',
+):
+    if fragment not in gravity_delivery:
+        raise SystemExit(f"GRAVITY source gate failed: missing {fragment}")
+if "iafa" in gravity_delivery:
+    raise SystemExit("GRAVITY source gate failed: misspelled iafa macro found")
+if "ocpx.gravity.enabled" in gravity_delivery or "GRAVITY_DISABLED" in gravity_delivery:
+    raise SystemExit("GRAVITY source gate failed: retired static enablement switch found")
+for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
+    if re.search(r"(?m)^\s+gravity:\s*$", source):
+        raise SystemExit(f"GRAVITY configuration gate failed: retired static switch found in {path}")
+    if "advertisers: {}" in source:
+        raise SystemExit(f"credential configuration gate failed: redundant empty advertiser map found in {path}")
 for path, source in (
     ("application.yml", application_yml),
     ("application-dev.yml", application_dev_yml),
@@ -551,6 +597,15 @@ weifeng_prefix = (
 if weifeng_prefix not in nginx_template:
     raise SystemExit("Nginx gate failed: WEIFENG callback must be GET-only and proxy to Engine")
 
+gravity_location = "location = /ocpx/gravity/callback {"
+gravity_prefix = (
+    gravity_location
+    + "\n    limit_except GET { deny all; }"
+    + "\n    proxy_pass http://127.0.0.1:10000;"
+)
+if nginx_template.count(gravity_location) != 1 or gravity_prefix not in nginx_template:
+    raise SystemExit("Nginx gate failed: GRAVITY callback must be GET-only and proxy to Engine")
+
 test_callback_location = "location = /ocpx/test-callback {"
 for template_path in (
     "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf",
@@ -566,6 +621,8 @@ for template_path in (
     )
     if expected_proxy not in template:
         raise SystemExit(f"Nginx gate failed: {template_path} test callback must be GET-only and proxy to Engine")
+    if template.count(gravity_location) != 1 or gravity_prefix not in template:
+        raise SystemExit(f"Nginx gate failed: {template_path} GRAVITY callback must be GET-only and proxy to Engine")
 
 frontend_nginx = (root / "scx-fronted/scripts/deploy/scx-fronted.conf").read_text(encoding="utf-8")
 frontend_test_proxy = (
@@ -575,6 +632,13 @@ frontend_test_proxy = (
 )
 if frontend_nginx.count(test_callback_location) != 1 or frontend_test_proxy not in frontend_nginx:
     raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only test callback route")
+frontend_gravity_proxy = (
+    gravity_location
+    + "\n        limit_except GET { deny all; }"
+    + "\n        proxy_pass http://scx-ocpx-engine:10000;"
+)
+if frontend_nginx.count(gravity_location) != 1 or frontend_gravity_proxy not in frontend_nginx:
+    raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only GRAVITY callback route")
 
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):
