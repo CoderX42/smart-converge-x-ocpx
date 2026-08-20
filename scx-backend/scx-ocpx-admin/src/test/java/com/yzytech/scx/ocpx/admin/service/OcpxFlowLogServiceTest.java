@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +100,35 @@ class OcpxFlowLogServiceTest {
 		assertThat(detail.getPartnerHttpStatus()).isEqualTo(200);
 		assertThat(detail.getMessage()).isEqualTo("AERIM_DAILY_LIMIT");
 		assertThat(detail.getResponsePreview()).contains("\"code\":402");
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		verify(jdbcTemplate, times(2)).query(sql.capture(), any(RowMapper.class), eq("flow-1"));
+		assertThat(sql.getAllValues().get(1)).contains("WHERE f.id=?").doesNotContain("WHEREf.id");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void requestDetailUsesTraceIdWithValidStageSql() throws Exception {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		ResultSet resultSet = mock(ResultSet.class);
+		when(resultSet.getString("flow_log_id")).thenReturn("flow-1");
+		when(resultSet.getString("trace_id")).thenReturn("trace-1");
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), anyString())).thenAnswer(invocation -> {
+			String sql = invocation.getArgument(0);
+			if (!sql.contains("AS flow_log_id")) {
+				return List.of();
+			}
+			RowMapper<Object> mapper = invocation.getArgument(1);
+			return List.of(mapper.mapRow(resultSet, 0));
+		});
+
+		FlowLogViews.RequestDetail detail = new OcpxFlowLogService(jdbcTemplate, advertiserScope)
+			.requestDetail("flow-1");
+
+		assertThat(detail.getTraceId()).isEqualTo("trace-1");
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), eq("trace-1"));
+		assertThat(sql.getValue()).contains("WHERE f.trace_id=?").doesNotContain("WHEREf.trace_id");
 	}
 
 }

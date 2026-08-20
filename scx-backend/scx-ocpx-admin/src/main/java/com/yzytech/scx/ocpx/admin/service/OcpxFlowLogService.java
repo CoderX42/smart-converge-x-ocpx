@@ -197,14 +197,17 @@ public class OcpxFlowLogService {
 
 	private List<FlowLogViews.Stage> stages(String traceId, String flowLogId) {
 		String where = StringUtils.hasText(traceId) ? "f.trace_id=?" : "f.id=?";
-		return jdbcTemplate.query("""
+		String sql = """
 				SELECT f.id,f.stage_code,f.flow_type,f.event_code,f.result_status,f.request_method,
 				       f.request_endpoint,f.partner_http_status,f.duration_ms,f.message,
 				       d.request_params,f.macro_audit,COALESCE(d.response_preview,f.response_preview),
 				       COALESCE(d.request_truncated,0),f.event_time
 				FROM scx_ocpx_flow_log f
 				LEFT JOIN scx_ocpx_flow_log_detail d ON d.flow_log_id=f.id
-				WHERE """ + where + " ORDER BY f.event_time,f.create_time,f.id",
+				WHERE %s
+				ORDER BY f.event_time,f.create_time,f.id
+				""".formatted(where);
+		return jdbcTemplate.query(sql,
 				(rs, rowNum) -> new FlowLogViews.Stage(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), (Integer) rs.getObject(8),
 						rs.getLong(9), rs.getString(10), jsonMap(rs.getString(11)), jsonMap(rs.getString(12)),
