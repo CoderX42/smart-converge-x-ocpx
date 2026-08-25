@@ -1,4 +1,5 @@
 import { requestClient } from '#/api/request';
+import { downloadBlobFile } from '#/utils/util';
 
 export * from './ocpx/advertiser-macros';
 export * from './ocpx/billing';
@@ -224,6 +225,70 @@ export type MediaMacro = {
   osSupport: 'ANDROID' | 'BOTH' | 'IOS';
 };
 
+export type WireAuditItem = {
+  advertiserId?: string;
+  capturedAt: string;
+  captureSource: 'DIRECT' | 'WAL_REPLAY';
+  cryptoVersion: number;
+  direction: 'INBOUND' | 'INTERNAL' | 'OUTBOUND';
+  errorCode?: string;
+  finishedAt?: string;
+  flowLogId?: string;
+  id: string;
+  keyId: string;
+  mediaId?: string;
+  metadataExpiresAt: string;
+  monitorTaskId?: string;
+  partnerHttpStatus?: number;
+  promotionLinkId?: string;
+  protocol: string;
+  rawExpiresAt: string;
+  rawState: 'COMPLETE' | 'EXPIRED' | 'INTERRUPTED' | 'PENDING';
+  requestBytes: number;
+  requestId?: string;
+  requestMethod?: string;
+  requestPath?: string;
+  requestSha256?: string;
+  responseBytes: number;
+  responseSha256?: string;
+  resultStatus: 'FAILED' | 'INTERRUPTED' | 'PENDING' | 'SUCCESS';
+  stageCode: string;
+  traceId?: string;
+  trafficClass: 'FORMAL' | 'INTEGRATION' | 'TEST';
+  wireSent: boolean;
+};
+
+export type WireAuditDetail = {
+  metadata: WireAuditItem;
+  request?: Record<string, unknown>;
+  response?: Record<string, unknown>;
+};
+
+export type WireAuditPage = {
+  current: number;
+  records: WireAuditItem[];
+  size: number;
+  total: number;
+};
+
+export type WireAuditQuery = {
+  advertiserId?: string;
+  current: number;
+  direction?: string;
+  endDate: string;
+  httpStatus?: number;
+  protocol?: string;
+  rawState?: string;
+  requestId?: string;
+  resultStatus?: string;
+  size: number;
+  stageCode?: string;
+  startDate: string;
+  traceId?: string;
+  trafficClass?: string;
+  wireSent?: boolean;
+};
+
 export function getReport(params: UnifiedReportQuery) {
   return requestClient.get<UnifiedReportPage>('/ocpx/reports/hourly', {
     params,
@@ -267,4 +332,27 @@ export function getFlowLogRequestDetail(id: string) {
 
 export function getMediaMacros() {
   return requestClient.get<MediaMacro[]>('/ocpx/media-macros');
+}
+
+export function getWireAudits(params: WireAuditQuery) {
+  return requestClient.get<WireAuditPage>('/ocpx/flow-logs/wire-audits', {
+    params,
+  });
+}
+
+export function getWireAuditDetail(id: string) {
+  return requestClient.get<WireAuditDetail>(
+    `/ocpx/flow-logs/wire-audits/${id}`,
+  );
+}
+
+export function exportWireAudits(
+  date: string,
+  params: Omit<WireAuditQuery, 'current' | 'endDate' | 'size' | 'startDate'>,
+) {
+  return downloadBlobFile(
+    '/ocpx/flow-logs/wire-audits:export',
+    { ...params, date },
+    `ocpx-wire-audit-${date}.zip`,
+  );
 }

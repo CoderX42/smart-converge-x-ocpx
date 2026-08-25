@@ -2,6 +2,7 @@ package com.yzytech.scx.ocpx.protocol.template;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.audit.OcpxKeyRingCrypto;
 import com.yzytech.scx.ocpx.callback.web.UpstreamCallbackRequest;
 import com.yzytech.scx.ocpx.configuration.credential.PartnerCredentialResolver;
 import com.yzytech.scx.ocpx.configuration.index.OcpxMonitorTaskIndex;
@@ -34,8 +35,11 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	@Value("${domain.name}")
 	private String domainName;
 
-	@Value("${app.callback-aes-key}")
+	@Value("${app.callback-crypto.keys.v1}")
 	private String callbackAesKey;
+
+	@Autowired(required = false)
+	private OcpxKeyRingCrypto callbackCrypto;
 
 	private final OcpxMonitorTaskIndex monitorTaskIndex;
 
@@ -65,8 +69,10 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	public String buildCallbackUrl(FeedbackReq feedback) {
 		// s 保留旧协议状态格式；实际业务上下文以加密后的 ext 为准。
 		String state = feedback.getLId() + "_" + feedback.getTId();
-		String callbackExt = AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey);
-		return domainName + "/callback?ext=" + callbackExt + "&s=" + state;
+		String callbackExt = callbackCrypto == null ? AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey)
+				: callbackCrypto.encryptCallback(JSON.toJSONString(feedback));
+		String kid = callbackCrypto == null ? "" : "&kid=" + callbackCrypto.activeKeyId();
+		return domainName + "/callback?ext=" + callbackExt + kid + "&s=" + state;
 	}
 
 	/**
@@ -77,7 +83,9 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	 */
 	@Override
 	public CallbackReq toCallback(UpstreamCallbackRequest request) {
-		String ext = Objects.requireNonNull(AesUtil.decryptBase64(request.getExt(), callbackAesKey));
+		String ext = Objects.requireNonNull(callbackCrypto == null
+				? AesUtil.decryptBase64(request.getExt(), callbackAesKey)
+				: callbackCrypto.decryptCallback(request.getKid(), request.getExt()));
 		FeedbackReq feedback = JSON.parseObject(ext, FeedbackReq.class);
 		requireScxRouteIds(feedback);
 		return CallbackReq.builder()

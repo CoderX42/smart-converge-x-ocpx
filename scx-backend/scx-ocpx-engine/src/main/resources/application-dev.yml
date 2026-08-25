@@ -17,4 +17,9 @@ domain:
   name: http://127.0.0.1:10000/ocpx
 
 app:
-  callback-aes-key: local-dev-key-01
+  callback-crypto:
+    active-key-id: v1
+    keys:
+      v1: local-dev-key-01
+    legacy-order:
+      - v1

@@ -2,10 +2,12 @@ package com.yzytech.scx.ocpx.callback.web.aerim;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.audit.OcpxKeyRingCrypto;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.AesUtil;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -24,8 +26,11 @@ public class AerimCallbackAdapter {
 			Map.entry("firstreactivation", ActionTypeEnum.FIRST_ACTIVATION),
 			Map.entry("firstorder", ActionTypeEnum.FIRST_ORDER));
 
-	@Value("${app.callback-aes-key}")
+	@Value("${app.callback-crypto.keys.v1}")
 	private String callbackAesKey;
+
+	@Autowired(required = false)
+	private OcpxKeyRingCrypto callbackCrypto;
 
 	public CallbackReq toCallback(AerimCallbackRequest request) {
 		if (request == null || !StringUtils.hasText(request.getExt()) || !StringUtils.hasText(request.getS())
@@ -37,7 +42,8 @@ public class AerimCallbackAdapter {
 			throw new IllegalArgumentException("unknown AERIM action_type");
 		}
 		validateAmount(request.getCurrency_amount(), actionType);
-		String clearText = AesUtil.decryptBase64(request.getExt(), callbackAesKey);
+		String clearText = callbackCrypto == null ? AesUtil.decryptBase64(request.getExt(), callbackAesKey)
+				: callbackCrypto.decryptCallback(request.getKid(), request.getExt());
 		if (!StringUtils.hasText(clearText)) {
 			throw new IllegalArgumentException("invalid AERIM callback ext");
 		}

@@ -22,4 +22,9 @@ domain:
   name: https://ocpx.zhongsenyuedong.cn/ocpx
 
 app:
-  callback-aes-key: rcDe7gFGzssGFEe_PuR2BRdl_kh87iFU
+  callback-crypto:
+    active-key-id: v1
+    keys:
+      v1: rcDe7gFGzssGFEe_PuR2BRdl_kh87iFU
+    legacy-order:
+      - v1

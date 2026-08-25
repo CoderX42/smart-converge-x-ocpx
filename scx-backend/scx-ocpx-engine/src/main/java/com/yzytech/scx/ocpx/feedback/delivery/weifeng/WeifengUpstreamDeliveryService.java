@@ -2,6 +2,8 @@ package com.yzytech.scx.ocpx.feedback.delivery.weifeng;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.audit.OcpxKeyRingCrypto;
+import com.yzytech.scx.ocpx.audit.service.WireAuditService;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.MacroResolutionService;
@@ -35,8 +37,14 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 	@Value("${ocpx.weifeng.callback-base-url:${domain.name}}")
 	private String callbackBaseUrl;
 
-	@Value("${app.callback-aes-key}")
+	@Value("${app.callback-crypto.keys.v1}")
 	private String callbackAesKey;
+
+	@Autowired(required = false)
+	private OcpxKeyRingCrypto callbackCrypto;
+
+	@Autowired(required = false)
+	private WireAuditService wireAuditService;
 
 	private final OcpxPromotionLinkIndex promotionLinkIndex;
 
@@ -70,30 +78,55 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			return;
 		}
 		String requestUrl = null;
+		WireAuditService.Handle audit = null;
 		try {
 			RequestBuildResult requestBuild = buildRequest(feedback);
 			if (!requestBuild.success()) {
+				audit = beginAudit(feedback, null, false);
+				completeAudit(audit, null, requestBuild.rejectionCode());
 				flowLogWriter.upstreamDelivery(feedback, false, null, requestBuild.rejectionCode(), 0L);
 				return;
 			}
 			requestUrl = requestBuild.requestUrl();
 			requestUrl = endpointPolicy.requireAllowedClickUrl(requestUrl);
+			audit = beginAudit(feedback, requestUrl, true);
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			Integer status = result.statusCode();
 			boolean success = status != null && status == 200;
 			String conclusion = conclusion(status, result.errorCode());
+			completeAudit(audit, result, conclusion);
 			flowLogWriter.upstreamDelivery(feedback, success, status, conclusion, result.durationMs(), result.body(),
 					requestUrl, macroAudit(feedback, requestUrl));
 		}
 		catch (IllegalArgumentException exception) {
+			if (audit == null)
+				audit = beginAudit(feedback, requestUrl, false);
+			if (wireAuditService != null)
+				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], "WEIFENG_URL_REJECTED", exception,
+						null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_URL_REJECTED", 0L, null, requestUrl,
 					macroAudit(feedback, null));
 		}
 		catch (RuntimeException exception) {
+			if (audit == null)
+				audit = beginAudit(feedback, requestUrl, false);
+			if (wireAuditService != null)
+				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], "WEIFENG_INTERNAL_ERROR", exception,
+						null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, "WEIFENG_INTERNAL_ERROR", 0L, null, requestUrl,
 					macroAudit(feedback, requestUrl));
 			throw exception;
 		}
+	}
+
+	private WireAuditService.Handle beginAudit(FeedbackReq feedback, String url, boolean sent) {
+		return wireAuditService == null ? null
+				: wireAuditService.beginOutbound("ADVERTISER_DELIVERY", "WEIFENG", "FORMAL", url, sent, feedback);
+	}
+
+	private void completeAudit(WireAuditService.Handle audit, NetUtil.HttpGetResult result, String conclusion) {
+		if (wireAuditService != null)
+			wireAuditService.completeOutbound(audit, result, conclusion);
 	}
 
 	private Map<String, String> macroAudit(FeedbackReq feedback, String requestUrl) {
@@ -266,12 +299,14 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (feedback == null || !StringUtils.hasText(callbackBaseUrl)) {
 			return null;
 		}
-		String callbackExt = AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey);
+		String callbackExt = callbackCrypto == null ? AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey)
+				: callbackCrypto.encryptCallback(JSON.toJSONString(feedback));
 		if (!StringUtils.hasText(callbackExt)) {
 			return null;
 		}
 		String state = feedback.getLId() + "_" + feedback.getTId();
-		return callbackBaseUrl + "/weifeng/callback?ext=" + callbackExt + "&s=" + state
+		String kid = callbackCrypto == null ? "" : "&kid=" + callbackCrypto.activeKeyId();
+		return callbackBaseUrl + "/weifeng/callback?ext=" + callbackExt + kid + "&s=" + state
 				+ "&event=__EVENT__&amount=__AMOUNT__&days=__DAYS__";
 	}
 

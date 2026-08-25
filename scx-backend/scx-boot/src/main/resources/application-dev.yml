@@ -7,6 +7,14 @@ scx:
       advertisers: {}
       media: {}
 
+app:
+  callback-crypto:
+    active-key-id: v1
+    keys:
+      v1: local-dev-key-01
+    legacy-order:
+      - v1
+
 spring:
   config:
     fail-on-unresolved-placeholders: false

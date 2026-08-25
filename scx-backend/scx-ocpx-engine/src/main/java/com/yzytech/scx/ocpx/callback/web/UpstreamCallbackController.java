@@ -1,10 +1,11 @@
 package com.yzytech.scx.ocpx.callback.web;
 
-import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import com.yzytech.scx.ocpx.protocol.CallbackRequestAdapter;
 import lombok.RequiredArgsConstructor;
+import com.yzytech.scx.ocpx.audit.web.WireAuditRequestContext;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -31,16 +32,19 @@ public class UpstreamCallbackController {
 	 * @return 无响应体的 HTTP 处理结果
 	 */
 	@GetMapping("/callback")
-	public ResponseEntity<Void> handleCallback(@ModelAttribute UpstreamCallbackRequest request) {
+	public ResponseEntity<Void> handleCallback(@ModelAttribute UpstreamCallbackRequest request,
+			HttpServletRequest servletRequest) {
 		try {
-			callbackLog.info("upstream callback req:{}", JSON.toJSONString(request));
+			callbackLog.info("upstream callback received eventType:{} keyVersionPresent:{}", request.getEvent_type(),
+					request.getKid() != null);
 			CallbackReq callback = requestAdapter.toCallback(request);
+			WireAuditRequestContext.enrich(servletRequest, callback);
 			callbackService.handleCallback(callback);
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception exception) {
-			errorLog.error("upstream callback error:{},param:{}", exception.getMessage(),
-					JSON.toJSONString(request), exception);
+			errorLog.error("upstream callback error type:{} eventType:{}", exception.getClass().getSimpleName(),
+					request.getEvent_type(), exception);
 			return ResponseEntity.internalServerError().build();
 		}
 	}

@@ -3,6 +3,8 @@ package com.yzytech.scx.ocpx.feedback.delivery.aerim;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
+import com.yzytech.scx.ocpx.audit.OcpxKeyRingCrypto;
+import com.yzytech.scx.ocpx.audit.service.WireAuditService;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.MacroResolutionService;
@@ -35,8 +37,14 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 	@Value("${ocpx.aerim.callback-base-url:${domain.name}}")
 	private String callbackBaseUrl;
 
-	@Value("${app.callback-aes-key}")
+	@Value("${app.callback-crypto.keys.v1}")
 	private String callbackAesKey;
+
+	@Autowired(required = false)
+	private OcpxKeyRingCrypto callbackCrypto;
+
+	@Autowired(required = false)
+	private WireAuditService wireAuditService;
 
 	private final OcpxPromotionLinkIndex promotionLinkIndex;
 
@@ -70,31 +78,56 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 			return;
 		}
 		String requestUrl = null;
+		WireAuditService.Handle audit = null;
 		try {
 			requestUrl = buildRequestUrl(feedback);
 			if (requestUrl == null) {
+				audit = beginAudit(feedback, null, false);
+				completeAudit(audit, null, "AERIM_REQUEST_REJECTED");
 				flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_REQUEST_REJECTED", 0L);
 				return;
 			}
 			requestUrl = endpointPolicy.requireAllowedHttpUrl(requestUrl);
+			audit = beginAudit(feedback, requestUrl, true);
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			boolean dailyLimit = result.statusCode() != null && result.statusCode() == 200
 					&& isDailyLimit(result.body());
 			boolean success = result.statusCode() != null && result.statusCode() == 200 && !dailyLimit;
 			String conclusion = dailyLimit ? "AERIM_DAILY_LIMIT" : success ? "AERIM_DELIVERED"
 					: result.errorCode() == null ? "AERIM_HTTP_FAILED" : "AERIM_" + result.errorCode();
+			completeAudit(audit, result, conclusion);
 			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
 					result.body(), requestUrl, macroAudit(feedback, requestUrl));
 		}
 		catch (IllegalArgumentException exception) {
+			if (audit == null)
+				audit = beginAudit(feedback, requestUrl, false);
+			if (wireAuditService != null)
+				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], "AERIM_URL_REJECTED", exception,
+						null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_URL_REJECTED", 0L, null, requestUrl,
 					macroAudit(feedback, null));
 		}
 		catch (RuntimeException exception) {
+			if (audit == null)
+				audit = beginAudit(feedback, requestUrl, false);
+			if (wireAuditService != null)
+				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], "AERIM_INTERNAL_ERROR", exception,
+						null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_INTERNAL_ERROR", 0L, null, requestUrl,
 					macroAudit(feedback, requestUrl));
 			throw exception;
 		}
+	}
+
+	private WireAuditService.Handle beginAudit(FeedbackReq feedback, String url, boolean sent) {
+		return wireAuditService == null ? null
+				: wireAuditService.beginOutbound("ADVERTISER_DELIVERY", "AERIM", "FORMAL", url, sent, feedback);
+	}
+
+	private void completeAudit(WireAuditService.Handle audit, NetUtil.HttpGetResult result, String conclusion) {
+		if (wireAuditService != null)
+			wireAuditService.completeOutbound(audit, result, conclusion);
 	}
 
 	private Map<String, String> macroAudit(FeedbackReq feedback, String requestUrl) {
@@ -154,8 +187,10 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	public String buildCallbackUrl(FeedbackReq feedback) {
 		String state = feedback.getLId() + "_" + feedback.getTId();
-		String callbackExt = AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey);
-		return callbackExt == null ? null : callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + "&s=" + state;
+		String callbackExt = callbackCrypto == null ? AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey)
+				: callbackCrypto.encryptCallback(JSON.toJSONString(feedback));
+		String kid = callbackCrypto == null ? "" : "&kid=" + callbackCrypto.activeKeyId();
+		return callbackExt == null ? null : callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + kid + "&s=" + state;
 	}
 
 	private Map<String, String> macros(FeedbackReq feedback, String callback) {

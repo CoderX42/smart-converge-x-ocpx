@@ -42,6 +42,9 @@ expected_data = {
     "scx_ocpx_billing_entry",
     "scx_ocpx_hourly_metric",
     "scx_ocpx_flow_log",
+    "scx_ocpx_flow_log_detail",
+    "scx_ocpx_wire_audit",
+    "scx_ocpx_wire_audit_payload",
     "scx_ocpx_log_feedback",
     "scx_ocpx_log_feedback_day",
     "scx_ocpx_log_callback",
@@ -49,7 +52,7 @@ expected_data = {
     "scx_ocpx_report_mat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 19:
+if set(actual) != expected_business | expected_data or len(actual) != 22:
     raise SystemExit(f"OCPX management gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
@@ -172,6 +175,11 @@ required = {
     "protocol/security/ProtocolDnsResolver.java",
     "report/service/OcpxFlowLogWriter.java",
     "shared/redis/RedisHelper.java",
+    "audit/service/WireAuditService.java",
+    "audit/store/EncryptedWireAuditWal.java",
+    "audit/store/WireAuditRepository.java",
+    "audit/store/WireAuditStore.java",
+    "audit/web/WireAuditCaptureFilter.java",
 }
 actual_sources = {p.relative_to(java_root).as_posix() for p in java_root.rglob("*.java")}
 missing = required - actual_sources

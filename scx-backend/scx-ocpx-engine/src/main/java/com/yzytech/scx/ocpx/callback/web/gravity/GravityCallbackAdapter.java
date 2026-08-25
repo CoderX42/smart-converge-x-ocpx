@@ -17,8 +17,15 @@ public class GravityCallbackAdapter {
 
 	private final GravityCallbackContextCodec contextCodec;
 
+	public CallbackReq toCallback(String token, String keyId) {
+		return toCallback(contextCodec.decode(token, keyId));
+	}
+
 	public CallbackReq toCallback(String token) {
-		GravityCallbackContext context = contextCodec.decode(token);
+		return toCallback(contextCodec.decodeCompatible(token));
+	}
+
+	private CallbackReq toCallback(GravityCallbackContext context) {
 		validate(context);
 		FeedbackReq feedback = FeedbackReq.builder()
 			.mId(context.mId())

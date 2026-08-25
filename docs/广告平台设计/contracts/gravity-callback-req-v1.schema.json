@@ -11,6 +11,7 @@
       "minLength": 1,
       "maxLength": 12000,
       "pattern": "^[A-Za-z0-9_-]+$"
-    }
+    },
+    "kid": { "type": "string", "minLength": 1, "maxLength": 32 }
   }
 }

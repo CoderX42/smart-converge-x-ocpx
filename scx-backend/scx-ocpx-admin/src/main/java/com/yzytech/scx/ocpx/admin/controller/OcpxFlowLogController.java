@@ -3,7 +3,10 @@ package com.yzytech.scx.ocpx.admin.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.ocpx.admin.dto.FlowLogViews;
+import com.yzytech.scx.ocpx.admin.dto.WireAuditViews;
 import com.yzytech.scx.ocpx.admin.service.OcpxFlowLogService;
+import com.yzytech.scx.ocpx.admin.service.OcpxWireAuditService;
+import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.system.api.constant.SystemAccountConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -13,6 +16,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
 
 import java.time.LocalDate;
 
@@ -22,6 +28,8 @@ import java.time.LocalDate;
 public class OcpxFlowLogController {
 
 	private final OcpxFlowLogService service;
+
+	private final OcpxWireAuditService wireAuditService;
 
 	@GetMapping("/options")
 	@SaCheckPermission("ocpx:flow-log:view")
@@ -43,6 +51,39 @@ public class OcpxFlowLogController {
 	@SaCheckPermission(SystemAccountConstants.FLOW_LOG_DETAIL_PERMISSION)
 	public ResponseEntity<Result<FlowLogViews.RequestDetail>> requestDetail(@PathVariable String id) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Result.success(service.requestDetail(id)));
+	}
+
+	@GetMapping("/wire-audits")
+	@SaCheckPermission("ocpx:flow-log:view")
+	public Result<WireAuditViews.Page> wireAudits(
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate, String stageCode, String direction,
+			String protocol, String resultStatus, Integer httpStatus, String requestId, String traceId,
+			String trafficClass, Boolean wireSent, String rawState, String advertiserId, Long current, Long size) {
+		return Result.success(wireAuditService.query(startDate, endDate, stageCode, direction, protocol, resultStatus,
+				httpStatus, requestId, traceId, trafficClass, wireSent, rawState, advertiserId, current, size));
+	}
+
+	@GetMapping("/wire-audits/{id}")
+	@SaCheckPermission(SystemAccountConstants.FLOW_LOG_RAW_PERMISSION)
+	@SysLog("查看 OCPX 原始请求审计")
+	public ResponseEntity<Result<WireAuditViews.Detail>> wireAuditDetail(@PathVariable String id) {
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.header("Pragma", "no-cache")
+			.header("X-Content-Type-Options", "nosniff")
+			.body(Result.success(wireAuditService.detail(id)));
+	}
+
+	@GetMapping("/wire-audits:export")
+	@SaCheckPermission(SystemAccountConstants.FLOW_LOG_RAW_EXPORT_PERMISSION)
+	@SysLog("导出 OCPX 原始请求审计")
+	public void exportWireAudits(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, String stageCode,
+			String direction, String protocol, String resultStatus, Integer httpStatus, String requestId, String traceId,
+			String trafficClass, Boolean wireSent, String rawState, String advertiserId, HttpServletResponse response)
+			throws IOException {
+		wireAuditService.export(date, stageCode, direction, protocol, resultStatus, httpStatus, requestId, traceId,
+				trafficClass, wireSent, rawState, advertiserId, response);
 	}
 
 }

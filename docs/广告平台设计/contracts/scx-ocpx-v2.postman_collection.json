@@ -15,28 +15,28 @@
       "name": "广告主 Callback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event_type=1&event_time=1700000000"
+        "url": "{{baseUrl}}/ocpx/callback?kid={{callbackKid}}&ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event_type=1&event_time=1700000000"
       }
     },
     {
       "name": "AERIM Callback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/aerim/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&action_type=purchase&currency_amount=123.45"
+        "url": "{{baseUrl}}/ocpx/aerim/callback?kid={{callbackKid}}&ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&action_type=purchase&currency_amount=123.45"
       }
     },
     {
       "name": "微风互动 Callback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/weifeng/callback?ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event=PAID&amount=123.45&days=__DAYS__"
+        "url": "{{baseUrl}}/ocpx/weifeng/callback?kid={{callbackKid}}&ext={{callbackExt}}&s={{promotionLinkId}}_{{monitorTaskId}}&event=PAID&amount=123.45&days=__DAYS__"
       }
     },
     {
       "name": "引力 Callback GET",
       "request": {
         "method": "GET",
-        "url": "{{baseUrl}}/ocpx/gravity/callback?ctx={{gravityCallbackCtx}}"
+        "url": "{{baseUrl}}/ocpx/gravity/callback?kid={{callbackKid}}&ctx={{gravityCallbackCtx}}"
       }
     },
     {
@@ -246,6 +246,38 @@
       }
     },
     {
+      "name": "查询 V121 原始请求审计元数据",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/flow-logs/wire-audits?startDate=__TODAY__&endDate=__TODAY__&current=1&size=30"
+      }
+    },
+    {
+      "name": "解密查看 V121 原始请求",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Cache-Control", "value": "no-store", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/flow-logs/wire-audits/{{wireAuditId}}"
+      }
+    },
+    {
+      "name": "导出 V121 单日原始请求 ZIP",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Cache-Control", "value": "no-store", "type": "text" }
+        ],
+        "url": "{{adminBaseUrl}}/boot/ocpx/flow-logs/wire-audits:export?date=__TODAY__"
+      }
+    },
+    {
       "name": "查询广告主账务流水",
       "request": {
         "method": "GET",
@@ -270,7 +302,9 @@
     { "key": "sourceMaterialId", "value": "replace_with_uploaded_source_material_id" },
     { "key": "creativeAssetPath", "value": "replace_with_local_image_path" },
     { "key": "flowLogId", "value": "replace_with_flow_log_id" },
+    { "key": "wireAuditId", "value": "replace_with_wire_audit_id" },
     { "key": "downstreamCallbackUrl", "value": "https%3A%2F%2Fsandbox.example.invalid%2Fcallback%3Fa%3D1" },
+    { "key": "callbackKid", "value": "v1" },
     { "key": "callbackExt", "value": "replace_with_runtime_ext" },
     { "key": "gravityCallbackCtx", "value": "replace_with_runtime_authenticated_context" }
   ]

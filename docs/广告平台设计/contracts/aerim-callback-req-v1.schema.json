@@ -6,6 +6,7 @@
   "required": ["ext", "s", "action_type"],
   "properties": {
     "ext": { "type": "string", "minLength": 1 },
+    "kid": { "type": "string", "minLength": 1, "maxLength": 32 },
     "s": { "type": "string", "minLength": 1 },
     "action_type": {
       "type": "string",

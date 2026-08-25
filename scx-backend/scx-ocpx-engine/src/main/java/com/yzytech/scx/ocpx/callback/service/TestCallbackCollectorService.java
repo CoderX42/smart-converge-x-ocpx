@@ -1,8 +1,10 @@
 package com.yzytech.scx.ocpx.callback.service;
 
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.audit.OcpxKeyRingCrypto;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -40,8 +42,11 @@ public class TestCallbackCollectorService {
 
 	private final String callbackSigningKey;
 
+	@Autowired(required = false)
+	private OcpxKeyRingCrypto callbackCrypto;
+
 	public TestCallbackCollectorService(JdbcTemplate jdbcTemplate, @Value("${domain.name}") String callbackBaseUrl,
-			@Value("${app.callback-aes-key}") String callbackSigningKey) {
+			@Value("${app.callback-crypto.keys.v1}") String callbackSigningKey) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.callbackBaseUrl = callbackBaseUrl;
 		this.callbackSigningKey = callbackSigningKey;
@@ -234,8 +239,10 @@ public class TestCallbackCollectorService {
 				currencyAmount == null ? "" : currencyAmount.toPlainString());
 		try {
 			Mac mac = Mac.getInstance("HmacSHA256");
-			byte[] separatedKey = MessageDigest.getInstance("SHA-256")
-				.digest(("SCX-TEST-CALLBACK|" + callbackSigningKey).getBytes(StandardCharsets.UTF_8));
+			byte[] separatedKey = callbackCrypto == null
+					? MessageDigest.getInstance("SHA-256")
+						.digest(("SCX-TEST-CALLBACK|" + callbackSigningKey).getBytes(StandardCharsets.UTF_8))
+					: callbackCrypto.signingKey(callbackCrypto.activeKeyId());
 			mac.init(new SecretKeySpec(separatedKey, "HmacSHA256"));
 			return HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
 		}

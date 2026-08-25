@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.web;
 
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.audit.web.WireAuditRequestContext;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -68,6 +69,7 @@ public class FeedbackIngressController {
 			feedbackLog.info("feedback ingress event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}", request.getEvent(),
 					request.getMId(), request.getTId(), request.getAId(), request.getLId(), request.getRequest_id());
 			FeedbackReq feedback = requestAdapter.toFeedback(request);
+			WireAuditRequestContext.enrich(servletRequest, feedback);
 			feedbackService.handleFeedback(feedback);
 			if (flowLogWriter != null) {
 				flowLogWriter.mediaIngress(feedback, true, "MEDIA_INGRESS_ACCEPTED");

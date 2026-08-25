@@ -39,8 +39,25 @@ class OcpxFlowLogControllerContractTest {
 
 		OcpxFlowLogService service = mock(OcpxFlowLogService.class);
 		when(service.requestDetail("flow-1")).thenReturn(new FlowLogViews.RequestDetail());
-		ResponseEntity<?> response = new OcpxFlowLogController(service).requestDetail("flow-1");
+		ResponseEntity<?> response = new OcpxFlowLogController(service, mock(OcpxWireAuditService.class))
+			.requestDetail("flow-1");
 		assertThat(response.getHeaders().getCacheControl()).isEqualTo("no-store");
+	}
+
+	@Test
+	void rawDetailAndExportUseSeparateAdministratorPermissions() {
+		Method detail = Arrays.stream(OcpxFlowLogController.class.getDeclaredMethods())
+			.filter(candidate -> "wireAuditDetail".equals(candidate.getName()))
+			.findFirst()
+			.orElseThrow();
+		Method export = Arrays.stream(OcpxFlowLogController.class.getDeclaredMethods())
+			.filter(candidate -> "exportWireAudits".equals(candidate.getName()))
+			.findFirst()
+			.orElseThrow();
+		assertThat(detail.getAnnotation(SaCheckPermission.class).value())
+			.containsExactly(SystemAccountConstants.FLOW_LOG_RAW_PERMISSION);
+		assertThat(export.getAnnotation(SaCheckPermission.class).value())
+			.containsExactly(SystemAccountConstants.FLOW_LOG_RAW_EXPORT_PERMISSION);
 	}
 
 }

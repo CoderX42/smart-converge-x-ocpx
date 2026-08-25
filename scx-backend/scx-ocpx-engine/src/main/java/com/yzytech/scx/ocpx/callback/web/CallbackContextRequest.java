@@ -9,6 +9,9 @@ public class CallbackContextRequest {
 	/** AES URL-safe Base64 加密的原始 Feedback 上下文。 */
 	private String ext;
 
+	/** V121 密钥环版本；缺失时按历史格式兼容读取。 */
+	private String kid;
+
 	/** 兼容旧协议的状态参数，当前由链接 ID 和任务 ID 组成。 */
 	private String s;
 

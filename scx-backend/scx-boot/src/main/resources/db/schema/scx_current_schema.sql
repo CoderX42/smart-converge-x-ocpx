@@ -358,10 +358,15 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   id VARCHAR(32) NOT NULL,
+  trace_id CHAR(64) NULL,
   flow_type VARCHAR(16) NOT NULL,
+  stage_code VARCHAR(32) NOT NULL DEFAULT 'LEGACY',
   event_id VARCHAR(128) NOT NULL,
   source_event_id VARCHAR(128) NULL,
   event_code VARCHAR(64) NOT NULL,
+  request_method VARCHAR(8) NULL,
+  request_endpoint VARCHAR(512) NULL,
+  macro_audit JSON NULL,
   payload_hash CHAR(64) NOT NULL,
   advertiser_id VARCHAR(32) NOT NULL,
   promotion_link_id VARCHAR(32) NOT NULL,
@@ -378,6 +383,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   KEY idx_ocpx_flow_log_time (event_time,flow_type,result_status),
   KEY idx_ocpx_flow_log_dimensions (advertiser_id,promotion_link_id,media_id,monitor_task_id,event_time),
   KEY idx_ocpx_flow_log_event (event_id,create_time),
+  KEY idx_ocpx_flow_log_trace (trace_id,event_time,stage_code),
+  KEY idx_ocpx_flow_log_stage_result (stage_code,result_status,event_time),
   CONSTRAINT fk_ocpx_flow_log_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
   CONSTRAINT fk_ocpx_flow_log_promotion_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
   CONSTRAINT fk_ocpx_flow_log_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
@@ -386,6 +393,85 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   CONSTRAINT ck_ocpx_flow_log_status CHECK (result_status IN ('SUCCESS','FAILED')),
   CONSTRAINT ck_ocpx_flow_log_duration CHECK (duration_ms>=0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='LOG: sanitized Feedback and Callback flow';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log_detail (
+  id VARCHAR(32) NOT NULL,
+  flow_log_id VARCHAR(32) NOT NULL,
+  request_params JSON NULL,
+  response_preview VARCHAR(4096) NULL,
+  request_truncated TINYINT(1) NOT NULL DEFAULT 0,
+  expires_at DATETIME(3) NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_flow_log_detail_flow (flow_log_id),
+  KEY idx_ocpx_flow_log_detail_expiry (expires_at,id),
+  CONSTRAINT fk_ocpx_flow_log_detail_flow FOREIGN KEY (flow_log_id)
+    REFERENCES scx_ocpx_flow_log(id) ON DELETE CASCADE,
+  CONSTRAINT ck_ocpx_flow_log_detail_truncated CHECK (request_truncated IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='RESTRICTED LOG: normalized request parameters and bounded response preview';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_wire_audit (
+  id VARCHAR(32) NOT NULL,
+  trace_id CHAR(64) NULL,
+  flow_log_id VARCHAR(32) NULL,
+  stage_code VARCHAR(32) NOT NULL,
+  direction VARCHAR(16) NOT NULL,
+  traffic_class VARCHAR(16) NOT NULL DEFAULT 'FORMAL',
+  protocol VARCHAR(32) NOT NULL,
+  request_method VARCHAR(16) NULL,
+  request_path VARCHAR(512) NULL,
+  wire_sent TINYINT(1) NOT NULL DEFAULT 0,
+  result_status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  partner_http_status INT NULL,
+  error_code VARCHAR(128) NULL,
+  request_id VARCHAR(128) NULL,
+  advertiser_id VARCHAR(32) NULL,
+  promotion_link_id VARCHAR(32) NULL,
+  media_id VARCHAR(32) NULL,
+  monitor_task_id VARCHAR(32) NULL,
+  request_bytes BIGINT NOT NULL DEFAULT 0,
+  response_bytes BIGINT NOT NULL DEFAULT 0,
+  request_sha256 CHAR(64) NULL,
+  response_sha256 CHAR(64) NULL,
+  raw_state VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+  key_id VARCHAR(32) NOT NULL,
+  crypto_version SMALLINT NOT NULL,
+  capture_source VARCHAR(16) NOT NULL DEFAULT 'DIRECT',
+  captured_at DATETIME(3) NOT NULL,
+  finished_at DATETIME(3) NULL,
+  raw_expires_at DATETIME(3) NOT NULL,
+  metadata_expires_at DATETIME(3) NOT NULL,
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_ocpx_wire_audit_time (captured_at,id),
+  KEY idx_ocpx_wire_audit_trace (trace_id,captured_at,stage_code),
+  KEY idx_ocpx_wire_audit_request (request_id,captured_at),
+  KEY idx_ocpx_wire_audit_filter (stage_code,direction,result_status,captured_at),
+  KEY idx_ocpx_wire_audit_raw_expiry (raw_expires_at,raw_state,id),
+  KEY idx_ocpx_wire_audit_metadata_expiry (metadata_expires_at,id),
+  CONSTRAINT ck_ocpx_wire_audit_direction CHECK (direction IN ('INBOUND','OUTBOUND','INTERNAL')),
+  CONSTRAINT ck_ocpx_wire_audit_traffic CHECK (traffic_class IN ('FORMAL','TEST','INTEGRATION')),
+  CONSTRAINT ck_ocpx_wire_audit_sent CHECK (wire_sent IN (0,1)),
+  CONSTRAINT ck_ocpx_wire_audit_result CHECK (result_status IN ('PENDING','SUCCESS','FAILED','INTERRUPTED')),
+  CONSTRAINT ck_ocpx_wire_audit_raw CHECK (raw_state IN ('PENDING','COMPLETE','INTERRUPTED','EXPIRED')),
+  CONSTRAINT ck_ocpx_wire_audit_lengths CHECK (request_bytes>=0 AND response_bytes>=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='SECURITY AUDIT: encrypted OCPX wire metadata retained 180 days';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_wire_audit_payload (
+  audit_id VARCHAR(32) NOT NULL,
+  key_id VARCHAR(32) NOT NULL,
+  crypto_version SMALLINT NOT NULL,
+  payload_aad VARCHAR(256) NOT NULL,
+  payload_nonce VARBINARY(12) NOT NULL,
+  payload_ciphertext LONGBLOB NOT NULL,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (audit_id),
+  KEY idx_ocpx_wire_payload_key (key_id,update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='RESTRICTED SECURITY AUDIT: AES-GCM raw payload retained 30 days';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -684,7 +770,10 @@ VALUES
   ('perm_ocpx_deduction_rule_update','编辑扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:update',30,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_delete','删除扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:delete',40,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_adv_role_manage','管理广告主账号角色权限','','menu_ocpx_advertiser','ocpx:advertiser:role:manage',80,'1','app_base',NOW(),NOW(),'0'),
-  ('perm_ocpx_adv_scope_all','全量 OCPX 数据范围','','menu_ocpx_advertiser','ocpx:advertiser:scope:all',90,'1','app_base',NOW(),NOW(),'0')
+  ('perm_ocpx_adv_scope_all','全量 OCPX 数据范围','','menu_ocpx_advertiser','ocpx:advertiser:scope:all',90,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_flow_log_detail','查看链路请求原值','','menu_ocpx_flow_log','ocpx:flow-log:detail',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_flow_log_raw','查看原始请求审计','','menu_ocpx_flow_log','ocpx:flow-log:raw',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_flow_log_raw_export','导出原始请求审计','','menu_ocpx_flow_log','ocpx:flow-log:raw:export',30,'1','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),parent_id=VALUES(parent_id),permission=VALUES(permission),
   sort=VALUES(sort),type=VALUES(type),application_key=VALUES(application_key),update_time=NOW(),del_flag='0';
 
