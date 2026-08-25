@@ -18,6 +18,14 @@ import static org.mockito.Mockito.when;
 class OcpxFlowLogControllerContractTest {
 
 	@Test
+	void optionsUseFlowLogViewPermission() throws Exception {
+		Method method = OcpxFlowLogController.class.getDeclaredMethod("options", String.class, String.class);
+
+		assertThat(method.getAnnotation(GetMapping.class).value()).containsExactly("/options");
+		assertThat(method.getAnnotation(SaCheckPermission.class).value()).containsExactly("ocpx:flow-log:view");
+	}
+
+	@Test
 	void requestDetailUsesDedicatedAdministratorPermissionAndNoStoreResponse() {
 		Method method = Arrays.stream(OcpxFlowLogController.class.getDeclaredMethods())
 			.filter(candidate -> "requestDetail".equals(candidate.getName()))

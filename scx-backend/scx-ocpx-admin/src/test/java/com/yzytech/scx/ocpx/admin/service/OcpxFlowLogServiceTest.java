@@ -25,6 +25,48 @@ class OcpxFlowLogServiceTest {
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void optionsUseFlowLogScopeAndParentDimensions() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		when(advertiserScope.currentAdvertiserId()).thenReturn("advertiser-own");
+		when(advertiserScope.constrain("advertiser-forged")).thenReturn("advertiser-own");
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+
+		new OcpxFlowLogService(jdbcTemplate, advertiserScope).options("advertiser-forged", "media-1");
+
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, times(4)).query(sql.capture(), any(RowMapper.class), args.capture());
+		assertThat(sql.getAllValues()).anyMatch(value -> value.contains("scx_ocpx_advertiser WHERE id=?"))
+			.anyMatch(value -> value.contains("scx_ocpx_promotion_link") && value.contains("advertiser_id=?"))
+			.anyMatch(value -> value.contains("scx_ocpx_media") && value.contains("t.advertiser_id=?"))
+			.anyMatch(value -> value.contains("scx_ocpx_monitor_task") && value.contains("media_id=?"));
+		assertThat(args.getAllValues()).allSatisfy(values -> assertThat(values).doesNotContain("advertiser-forged"));
+		assertThat(args.getAllValues()).anySatisfy(values -> assertThat(values).contains("advertiser-own", "media-1"));
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void queryAppliesAllFourBusinessDimensionFilters() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		when(advertiserScope.constrain("advertiser-1")).thenReturn("advertiser-1");
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+
+		new OcpxFlowLogService(jdbcTemplate, advertiserScope).query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
+				null, null, "advertiser-1", "link-1", "media-1", "task-1", null, 1L, 20L);
+
+		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate).queryForObject(sql.capture(), eq(Long.class), args.capture());
+		assertThat(sql.getValue()).contains("f.advertiser_id=?", "f.promotion_link_id=?", "f.media_id=?",
+				"f.monitor_task_id=?");
+		assertThat(args.getValue()).contains("advertiser-1", "link-1", "media-1", "task-1");
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void advertiserScopeOverridesForgedFlowLogFilter() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);

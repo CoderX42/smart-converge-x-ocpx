@@ -111,6 +111,33 @@ export type FlowLogPage = {
   total: number;
 };
 
+export type FlowLogOption = {
+  id: string;
+  label: string;
+};
+
+export type FlowLogOptions = {
+  advertisers: FlowLogOption[];
+  media: FlowLogOption[];
+  monitorTasks: FlowLogOption[];
+  promotionLinks: FlowLogOption[];
+};
+
+export type FlowLogQuery = {
+  advertiserId?: string;
+  current: number;
+  endDate: string;
+  eventId?: string;
+  flowType?: string;
+  mediaId?: string;
+  monitorTaskId?: string;
+  promotionLinkId?: string;
+  resultStatus?: string;
+  size: number;
+  stageCode?: string;
+  startDate: string;
+};
+
 export type FlowLogRequestDetail = {
   aaid?: string;
   advertiserId?: string;
@@ -219,8 +246,17 @@ export function getDashboardOptions() {
   return requestClient.get<UnifiedReportOptions>('/ocpx/dashboard/options');
 }
 
-export function getFlowLogs(params: Record<string, unknown>) {
+export function getFlowLogs(params: FlowLogQuery) {
   return requestClient.get<FlowLogPage>('/ocpx/flow-logs', { params });
+}
+
+export function getFlowLogOptions(params?: {
+  advertiserId?: string;
+  mediaId?: string;
+}) {
+  return requestClient.get<FlowLogOptions>('/ocpx/flow-logs/options', {
+    params,
+  });
 }
 
 export function getFlowLogRequestDetail(id: string) {

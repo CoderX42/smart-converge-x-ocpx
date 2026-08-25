@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import type { FlowLog, FlowLogRequestDetail } from '#/api/ocpx';
+import type { FlowLog, FlowLogOption, FlowLogRequestDetail } from '#/api/ocpx';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -9,7 +9,11 @@ import { Page } from '@boot/common-ui';
 
 import dayjs from 'dayjs';
 
-import { getFlowLogRequestDetail, getFlowLogs } from '#/api/ocpx';
+import {
+  getFlowLogOptions,
+  getFlowLogRequestDetail,
+  getFlowLogs,
+} from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
@@ -62,7 +66,12 @@ const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailMessage = ref('');
 const requestDetail = ref<FlowLogRequestDetail>();
+const advertiserOptions = ref<FlowLogOption[]>([]);
+const linkOptions = ref<FlowLogOption[]>([]);
+const mediaOptions = ref<FlowLogOption[]>([]);
+const monitorOptions = ref<FlowLogOption[]>([]);
 const filters = reactive({
+  advertiserId: '',
   current: 1,
   dates: [
     dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
@@ -70,11 +79,15 @@ const filters = reactive({
   ] as [string, string] | null,
   eventId: typeof route.query.eventId === 'string' ? route.query.eventId : '',
   flowType: '',
+  mediaId: '',
+  monitorTaskId: '',
+  promotionLinkId: '',
   resultStatus: '',
   stageCode: '',
   size: 30,
 });
 const loadGuard = createLatestRequestGuard();
+const optionGuard = createLatestRequestGuard();
 
 function currentDates(): [string, string] {
   if (filters.dates?.[0] && filters.dates[1]) return filters.dates;
@@ -95,10 +108,14 @@ async function load() {
   loading.value = true;
   try {
     const result = await getFlowLogs({
+      advertiserId: filters.advertiserId || undefined,
       current: filters.current,
       endDate: dates[1],
       eventId: filters.eventId || undefined,
       flowType: filters.flowType || undefined,
+      mediaId: filters.mediaId || undefined,
+      monitorTaskId: filters.monitorTaskId || undefined,
+      promotionLinkId: filters.promotionLinkId || undefined,
       resultStatus: filters.resultStatus || undefined,
       stageCode: filters.stageCode || undefined,
       size: filters.size,
@@ -118,17 +135,47 @@ function search() {
   void load();
 }
 
-function reset() {
+async function loadOptions() {
+  const requestSequence = optionGuard.begin();
+  const result = await getFlowLogOptions({
+    advertiserId: filters.advertiserId || undefined,
+    mediaId: filters.mediaId || undefined,
+  });
+  if (!optionGuard.isLatest(requestSequence)) return;
+  advertiserOptions.value = result.advertisers;
+  linkOptions.value = result.promotionLinks;
+  mediaOptions.value = result.media;
+  monitorOptions.value = result.monitorTasks;
+}
+
+async function changeAdvertiser() {
+  filters.promotionLinkId = '';
+  await loadOptions();
+  search();
+}
+
+async function changeMedia() {
+  filters.monitorTaskId = '';
+  await loadOptions();
+  search();
+}
+
+async function reset() {
   Object.assign(filters, {
+    advertiserId: '',
     dates: [
       dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
       dayjs().format('YYYY-MM-DD'),
     ],
     eventId: '',
     flowType: '',
+    mediaId: '',
+    monitorTaskId: '',
+    promotionLinkId: '',
     resultStatus: '',
     stageCode: '',
   });
+  await loadOptions();
   search();
 }
 
@@ -159,7 +206,9 @@ function formatted(value: Record<string, unknown>) {
   return Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : '';
 }
 
-onMounted(load);
+onMounted(async () => {
+  await Promise.all([loadOptions(), load()]);
+});
 </script>
 
 <template>
@@ -177,6 +226,66 @@ onMounted(load);
           value-format="YYYY-MM-DD"
           @change="search"
         />
+        <el-select
+          v-model="filters.advertiserId"
+          aria-label="流程日志广告主"
+          clearable
+          filterable
+          placeholder="广告主"
+          @change="changeAdvertiser"
+        >
+          <el-option
+            v-for="item in advertiserOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          />
+        </el-select>
+        <el-select
+          v-model="filters.promotionLinkId"
+          aria-label="流程日志推广链接"
+          clearable
+          filterable
+          placeholder="推广链接"
+          @change="search"
+        >
+          <el-option
+            v-for="item in linkOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          />
+        </el-select>
+        <el-select
+          v-model="filters.mediaId"
+          aria-label="流程日志媒体"
+          clearable
+          filterable
+          placeholder="媒体"
+          @change="changeMedia"
+        >
+          <el-option
+            v-for="item in mediaOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          />
+        </el-select>
+        <el-select
+          v-model="filters.monitorTaskId"
+          aria-label="流程日志监测任务"
+          clearable
+          filterable
+          placeholder="监测任务"
+          @change="search"
+        >
+          <el-option
+            v-for="item in monitorOptions"
+            :key="item.id"
+            :label="item.label"
+            :value="item.id"
+          />
+        </el-select>
         <el-select
           v-model="filters.flowType"
           aria-label="流程类型"

@@ -41,6 +41,30 @@ public class OcpxFlowLogService {
 
 	private final AdvertiserScope advertiserScope;
 
+	public FlowLogViews.Options options(String advertiserId, String mediaId) {
+		String currentAdvertiserId = advertiserScope.currentAdvertiserId();
+		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
+		List<FlowLogViews.Option> advertisers = StringUtils.hasText(currentAdvertiserId)
+				? queryOptions("SELECT id,advertiser_name FROM scx_ocpx_advertiser WHERE id=? ORDER BY advertiser_name",
+						currentAdvertiserId)
+				: queryOptions("SELECT id,advertiser_name FROM scx_ocpx_advertiser ORDER BY advertiser_name");
+		List<FlowLogViews.Option> promotionLinks = StringUtils.hasText(scopedAdvertiserId) ? queryOptions(
+				"SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 AND advertiser_id=? ORDER BY link_name",
+				scopedAdvertiserId)
+				: queryOptions("SELECT id,link_name FROM scx_ocpx_promotion_link WHERE is_delete=0 ORDER BY link_name");
+		List<FlowLogViews.Option> media = StringUtils.hasText(currentAdvertiserId) ? queryOptions(
+				"SELECT DISTINCT m.id,m.media_name FROM scx_ocpx_media m JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0 WHERE t.advertiser_id=? ORDER BY m.media_name",
+				currentAdvertiserId) : queryOptions("SELECT id,media_name FROM scx_ocpx_media ORDER BY media_name");
+		StringBuilder monitorSql = new StringBuilder(
+				"SELECT id,monitor_name FROM scx_ocpx_monitor_task WHERE is_delete=0");
+		List<Object> monitorArgs = new ArrayList<>();
+		filter(monitorSql, monitorArgs, "advertiser_id", currentAdvertiserId);
+		filter(monitorSql, monitorArgs, "media_id", mediaId);
+		monitorSql.append(" ORDER BY monitor_name");
+		List<FlowLogViews.Option> monitorTasks = queryOptions(monitorSql.toString(), monitorArgs.toArray());
+		return new FlowLogViews.Options(advertisers, promotionLinks, media, monitorTasks);
+	}
+
 	public FlowLogViews.Page query(LocalDate startDate, LocalDate endDate, String flowType, String resultStatus,
 			String advertiserId, String promotionLinkId, String mediaId, String monitorTaskId, String eventId,
 			Long currentValue, Long sizeValue) {
@@ -257,6 +281,11 @@ public class OcpxFlowLogService {
 			sql.append(" AND ").append(column).append("=?");
 			args.add(value);
 		}
+	}
+
+	private List<FlowLogViews.Option> queryOptions(String sql, Object... args) {
+		return jdbcTemplate.query(sql,
+				(resultSet, rowNum) -> new FlowLogViews.Option(resultSet.getString(1), resultSet.getString(2)), args);
 	}
 
 	private LocalDateTime time(Timestamp value) {

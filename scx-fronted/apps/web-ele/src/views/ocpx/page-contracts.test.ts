@@ -216,6 +216,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
     const dashboard = page('dashboard');
     const report = page('report');
     const promotion = page('promotion-link');
+    const flowLog = page('flow-log');
     expect(monitor).toContain("query.monitorTaskId = ''");
     expect(monitor).toContain("form.promotionLinkId = ''");
     expect(promotion).toContain("query.promotionLinkId = ''");
@@ -224,6 +225,25 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(dashboard).toContain("filters.promotionLinkId = ''");
     expect(dashboard).toContain("filters.mediaId = ''");
     expect(dashboard).toContain("filters.monitorTaskId = ''");
+    expect(flowLog).toContain("filters.promotionLinkId = ''");
+    expect(flowLog).toContain("filters.monitorTaskId = ''");
+  });
+
+  it('filters flow logs by all four business dimensions', () => {
+    const flowLog = page('flow-log');
+    expect(flowLog).toContain('getFlowLogOptions({');
+    expect(flowLog).toContain('advertiserId: filters.advertiserId');
+    expect(flowLog).toContain('promotionLinkId: filters.promotionLinkId');
+    expect(flowLog).toContain('mediaId: filters.mediaId');
+    expect(flowLog).toContain('monitorTaskId: filters.monitorTaskId');
+    for (const label of [
+      '流程日志广告主',
+      '流程日志推广链接',
+      '流程日志媒体',
+      '流程日志监测任务',
+    ]) {
+      expect(flowLog).toContain(label);
+    }
   });
 
   it('distinguishes upstream callbacks from downstream delivery submissions', () => {

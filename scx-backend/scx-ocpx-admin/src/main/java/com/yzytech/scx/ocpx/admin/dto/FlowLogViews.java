@@ -80,6 +80,32 @@ public final class FlowLogViews {
 	@Data
 	@NoArgsConstructor
 	@AllArgsConstructor
+	public static class Option {
+
+		private String id;
+
+		private String label;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class Options {
+
+		private List<Option> advertisers;
+
+		private List<Option> promotionLinks;
+
+		private List<Option> media;
+
+		private List<Option> monitorTasks;
+
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
 	public static class RequestDetail {
 
 		private String flowLogId;

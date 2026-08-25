@@ -23,6 +23,12 @@ public class OcpxFlowLogController {
 
 	private final OcpxFlowLogService service;
 
+	@GetMapping("/options")
+	@SaCheckPermission("ocpx:flow-log:view")
+	public Result<FlowLogViews.Options> options(String advertiserId, String mediaId) {
+		return Result.success(service.options(advertiserId, mediaId));
+	}
+
 	@GetMapping
 	@SaCheckPermission("ocpx:flow-log:view")
 	public Result<FlowLogViews.Page> page(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
