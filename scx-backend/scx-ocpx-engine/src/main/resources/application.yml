@@ -39,7 +39,7 @@ app:
 
 ocpx:
   audit:
-    enabled: false
+    enabled: true
     wal-path: ./data/ocpx-audit-wal
     wal-max-bytes: 21474836480
     segment-max-bytes: 268435456
