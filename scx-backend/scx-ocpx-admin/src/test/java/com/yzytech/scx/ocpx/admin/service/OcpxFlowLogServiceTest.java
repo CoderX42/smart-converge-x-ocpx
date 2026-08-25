@@ -46,7 +46,7 @@ class OcpxFlowLogServiceTest {
 		ArgumentCaptor<String> pageSql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate, times(2)).query(pageSql.capture(), any(RowMapper.class), pageArgs.capture());
 		assertThat(pageSql.getAllValues())
-			.allSatisfy(sql -> assertThat(sql).contains("FORCE INDEX (idx_ocpx_flow_log_time)"));
+			.allSatisfy(sql -> assertThat(sql).contains("FORCE INDEX (idx_ocpx_flow_log_page)"));
 		assertThat(pageArgs.getAllValues().get(0)).endsWith(31L, 0L);
 		assertThat(pageArgs.getAllValues().get(1)).endsWith(11L, 9_990L);
 		verify(jdbcTemplate, never()).queryForObject(anyString(), eq(Long.class), any(Object[].class));

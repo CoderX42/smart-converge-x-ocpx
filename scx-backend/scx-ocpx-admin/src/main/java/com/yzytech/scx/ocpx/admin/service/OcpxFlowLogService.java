@@ -111,7 +111,7 @@ public class OcpxFlowLogService {
 		boolean defaultTimelineQuery = !StringUtils.hasText(scopedAdvertiserId) && !StringUtils.hasText(promotionLinkId)
 				&& !StringUtils.hasText(mediaId) && !StringUtils.hasText(monitorTaskId) && !StringUtils.hasText(eventId)
 				&& !StringUtils.hasText(normalizedStage);
-		String indexHint = defaultTimelineQuery ? " FORCE INDEX (idx_ocpx_flow_log_time)" : "";
+		String indexHint = defaultTimelineQuery ? " FORCE INDEX (idx_ocpx_flow_log_page)" : "";
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(pageLimit + 1);
 		pageArgs.add(offset);
