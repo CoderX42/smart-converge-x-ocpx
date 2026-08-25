@@ -23,7 +23,7 @@ expected_business_tables='scx_ocpx_advertiser,scx_ocpx_creative,scx_ocpx_deducti
 [[ "$business_tables" == "$expected_business_tables" ]] || fail "the OCPX business main tables are not exact"
 
 ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_flow_log_detail,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp,scx_ocpx_wire_audit,scx_ocpx_wire_audit_payload'
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_flow_log_detail,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {

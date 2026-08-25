@@ -1,5 +1,7 @@
 # OCPX 全量原始请求审计契约 V121
 
+> 状态：已由 V122 退役。本文仅作为已执行 V121 的历史证据，不再代表当前系统能力。
+
 ## 采集与保留
 
 - 六阶段为 `MEDIA_INGRESS`、`ADVERTISER_DELIVERY`、`ADVERTISER_CALLBACK`、`CALLBACK_ACCOUNTING`、`MEDIA_DEDUCTION`、`MEDIA_DELIVERY`。

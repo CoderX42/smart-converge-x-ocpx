@@ -1,7 +1,9 @@
 # ADR-016：OCPX 原始请求审计边界
 
-- 状态：Accepted
+- 状态：Superseded by V122（2026-08-25）
 - 日期：2026-08-25
+
+> 本决策因生产磁盘与 MySQL IOPS 放大风险退役；V122 删除全量审计、WAL和管理入口，仅保留 Callback `kid` 密钥环兼容。
 
 ## 决策
 

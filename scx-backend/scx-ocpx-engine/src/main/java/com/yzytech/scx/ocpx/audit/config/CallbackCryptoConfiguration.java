@@ -6,8 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties({ CallbackCryptoProperties.class, WireAuditProperties.class })
-public class WireAuditConfiguration {
+@EnableConfigurationProperties(CallbackCryptoProperties.class)
+public class CallbackCryptoConfiguration {
 
 	@Bean
 	public OcpxKeyRingCrypto ocpxKeyRingCrypto(CallbackCryptoProperties properties) {

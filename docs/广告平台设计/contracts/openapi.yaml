@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 12.1.0
-  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, V120 GRAVITY, and V121 encrypted wire-audit contracts. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 12.2.0
+  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, V120 GRAVITY, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -72,7 +72,7 @@ paths:
       operationId: handleUpstreamCallback
       parameters:
         - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
-        - { name: kid, in: query, required: false, description: V121 key-ring id; omitted only by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
+        - { name: kid, in: query, required: false, description: Callback key-ring id; omitted by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
         - { name: s, in: query, required: false, description: lId_tId state, schema: { type: string } }
         - { name: event_type, in: query, required: true, schema: { type: integer, minimum: 1, maximum: 19 } }
         - { name: event_time, in: query, required: true, schema: { type: integer, format: int64 } }
@@ -85,7 +85,7 @@ paths:
       description: AERIM string actions are normalized to SCX action numbers. The receive time is used as action_time.
       parameters:
         - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
-        - { name: kid, in: query, required: false, description: V121 key-ring id; omitted only by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
+        - { name: kid, in: query, required: false, description: Callback key-ring id; omitted by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
         - { name: s, in: query, required: true, description: lId_tId state, schema: { type: string } }
         - name: action_type
           in: query
@@ -104,7 +104,7 @@ paths:
       description: 微风互动 v1.3 字符串事件映射到 SCX 动作编号，action_time 使用接收时间。
       parameters:
         - { name: ext, in: query, required: true, description: URL-safe Base64 AES encrypted Feedback, schema: { type: string } }
-        - { name: kid, in: query, required: false, description: V121 key-ring id; omitted only by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
+        - { name: kid, in: query, required: false, description: Callback key-ring id; omitted by legacy in-flight callbacks, schema: { type: string, maxLength: 32 } }
         - { name: s, in: query, required: true, description: lId_tId state, schema: { type: string } }
         - name: event
           in: query
@@ -138,7 +138,7 @@ paths:
       description: 引力归因成功回调。ctx 为 SCX 生成的 URL-safe 认证加密上下文；v1 按 V120 已确认契约固定映射为 ACTIVATE。
       parameters:
         - { name: ctx, in: query, required: true, description: URL-safe authenticated encrypted SCX route context, schema: { type: string, minLength: 1, maxLength: 12000 } }
-        - { name: kid, in: query, required: false, description: V121 key-ring id; omitted only by V120 in-flight callbacks, schema: { type: string, maxLength: 32 } }
+        - { name: kid, in: query, required: false, description: Callback key-ring id; omitted by V120 in-flight callbacks, schema: { type: string, maxLength: 32 } }
       responses:
         '200':
           description: 首次、重复或媒体扣量的合法 Callback
@@ -595,77 +595,6 @@ paths:
         '200': { description: 流程结果、响应预览与可选的下游规范化请求参数详情, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/FlowLogRequestDetailEnvelope' } } } }
         '403': { description: 非真实系统管理员或缺少流程详情权限 }
         '404': { description: 流程日志不存在 }
-  /flow-logs/wire-audits:
-    servers:
-      - url: https://{domain}/boot/ocpx
-        variables: { domain: { default: sandbox.example.invalid } }
-      - url: http://localhost:9999/boot/ocpx
-    get:
-      operationId: listOcpxWireAudits
-      summary: 分页查询 180 天原始请求审计元数据
-      description: 元数据不包含 Query、Header、Body、Token、签名、ext 或 ctx 原文。
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: stageCode, in: query, required: false, schema: { $ref: '#/components/schemas/WireAuditStage' } }
-        - { name: direction, in: query, required: false, schema: { type: string, enum: [INBOUND, OUTBOUND, INTERNAL] } }
-        - { name: protocol, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: resultStatus, in: query, required: false, schema: { type: string, enum: [PENDING, SUCCESS, FAILED, INTERRUPTED] } }
-        - { name: httpStatus, in: query, required: false, schema: { type: integer, minimum: 100, maximum: 599 } }
-        - { name: requestId, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: traceId, in: query, required: false, schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
-        - { name: trafficClass, in: query, required: false, schema: { type: string, enum: [FORMAL, TEST, INTEGRATION] } }
-        - { name: wireSent, in: query, required: false, schema: { type: boolean } }
-        - { name: rawState, in: query, required: false, schema: { type: string, enum: [PENDING, COMPLETE, INTERRUPTED, EXPIRED] } }
-        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: current, in: query, required: false, schema: { type: integer, format: int64, minimum: 1, default: 1 } }
-        - { name: size, in: query, required: false, schema: { type: integer, format: int64, minimum: 1, maximum: 100, default: 20 } }
-      responses:
-        '200': { description: 审计元数据分页, content: { application/json: { schema: { $ref: '#/components/schemas/WireAuditPageEnvelope' } } } }
-        '400': { description: 查询范围或过滤条件无效 }
-        '403': { description: 无流程日志查看权限 }
-  /flow-logs/wire-audits/{id}:
-    servers:
-      - url: https://{domain}/boot/ocpx
-        variables: { domain: { default: sandbox.example.invalid } }
-      - url: http://localhost:9999/boot/ocpx
-    get:
-      operationId: getOcpxWireAuditRawDetail
-      summary: 解密查看 30 天内应用层请求和响应原文
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9a-f]{32}$' } }
-      responses:
-        '200': { description: 解密后的原文, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/json: { schema: { $ref: '#/components/schemas/WireAuditDetailEnvelope' } } } }
-        '403': { description: 非真实系统管理员或缺少原文查看权限 }
-        '404': { description: 审计不存在 }
-  /flow-logs/wire-audits:export:
-    servers:
-      - url: https://{domain}/boot/ocpx
-        variables: { domain: { default: sandbox.example.invalid } }
-      - url: http://localhost:9999/boot/ocpx
-    get:
-      operationId: exportOcpxWireAudits
-      summary: 流式导出单日原始请求 ZIP+NDJSON
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: date, in: query, required: true, schema: { type: string, format: date } }
-        - { name: stageCode, in: query, required: false, schema: { $ref: '#/components/schemas/WireAuditStage' } }
-        - { name: direction, in: query, required: false, schema: { type: string, enum: [INBOUND, OUTBOUND, INTERNAL] } }
-        - { name: protocol, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: resultStatus, in: query, required: false, schema: { type: string, enum: [PENDING, SUCCESS, FAILED, INTERRUPTED] } }
-        - { name: httpStatus, in: query, required: false, schema: { type: integer, minimum: 100, maximum: 599 } }
-        - { name: requestId, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: traceId, in: query, required: false, schema: { type: string, pattern: '^[0-9a-f]{64}$' } }
-        - { name: trafficClass, in: query, required: false, schema: { type: string, enum: [FORMAL, TEST, INTEGRATION] } }
-        - { name: wireSent, in: query, required: false, schema: { type: boolean } }
-        - { name: rawState, in: query, required: false, schema: { type: string, enum: [PENDING, COMPLETE, INTERRUPTED, EXPIRED] } }
-        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-      responses:
-        '200': { description: 最多十万条的流式 ZIP, headers: { Cache-Control: { schema: { type: string, const: no-store } } }, content: { application/zip: { schema: { type: string, format: binary } } } }
-        '400': { description: 未指定单日或结果超过十万条 }
-        '403': { description: 非真实系统管理员或缺少原文导出权限 }
   /media-macros:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1527,68 +1456,6 @@ components:
       properties:
         code: { type: integer, const: 0 }
         data: { $ref: '#/components/schemas/FlowLogRequestDetail' }
-    WireAuditStage:
-      type: string
-      enum: [MEDIA_INGRESS, ADVERTISER_DELIVERY, ADVERTISER_CALLBACK, CALLBACK_ACCOUNTING, MEDIA_DEDUCTION, MEDIA_DELIVERY]
-    WireAuditItem:
-      type: object
-      required: [id, stageCode, direction, trafficClass, protocol, wireSent, resultStatus, requestBytes, responseBytes, rawState, keyId, cryptoVersion, captureSource, capturedAt, rawExpiresAt, metadataExpiresAt]
-      properties:
-        id: { type: string, pattern: '^[0-9a-f]{32}$' }
-        traceId: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
-        flowLogId: { type: [string, 'null'], maxLength: 32 }
-        stageCode: { $ref: '#/components/schemas/WireAuditStage' }
-        direction: { type: string, enum: [INBOUND, OUTBOUND, INTERNAL] }
-        trafficClass: { type: string, enum: [FORMAL, TEST, INTEGRATION] }
-        protocol: { type: string, maxLength: 32 }
-        requestMethod: { type: [string, 'null'], maxLength: 16 }
-        requestPath: { type: [string, 'null'], maxLength: 512 }
-        wireSent: { type: boolean }
-        resultStatus: { type: string, enum: [PENDING, SUCCESS, FAILED, INTERRUPTED] }
-        partnerHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
-        errorCode: { type: [string, 'null'], maxLength: 128 }
-        requestId: { type: [string, 'null'], maxLength: 128 }
-        advertiserId: { type: [string, 'null'], maxLength: 32 }
-        promotionLinkId: { type: [string, 'null'], maxLength: 32 }
-        mediaId: { type: [string, 'null'], maxLength: 32 }
-        monitorTaskId: { type: [string, 'null'], maxLength: 32 }
-        requestBytes: { type: integer, format: int64, minimum: 0 }
-        responseBytes: { type: integer, format: int64, minimum: 0 }
-        requestSha256: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
-        responseSha256: { type: [string, 'null'], pattern: '^[0-9a-f]{64}$' }
-        rawState: { type: string, enum: [PENDING, COMPLETE, INTERRUPTED, EXPIRED] }
-        keyId: { type: string, maxLength: 32 }
-        cryptoVersion: { type: integer, minimum: 1 }
-        captureSource: { type: string, enum: [DIRECT, WAL_REPLAY] }
-        capturedAt: { type: string, format: date-time }
-        finishedAt: { type: [string, 'null'], format: date-time }
-        rawExpiresAt: { type: string, format: date-time }
-        metadataExpiresAt: { type: string, format: date-time }
-    WireAuditPageEnvelope:
-      type: object
-      required: [code, data]
-      properties:
-        code: { type: integer, const: 0 }
-        data:
-          type: object
-          required: [records, total, current, size]
-          properties:
-            records: { type: array, items: { $ref: '#/components/schemas/WireAuditItem' } }
-            total: { type: integer, format: int64, minimum: 0 }
-            current: { type: integer, format: int64, minimum: 1 }
-            size: { type: integer, format: int64, minimum: 1, maximum: 100 }
-    WireAuditDetailEnvelope:
-      type: object
-      required: [code, data]
-      properties:
-        code: { type: integer, const: 0 }
-        data:
-          type: object
-          required: [metadata]
-          properties:
-            metadata: { $ref: '#/components/schemas/WireAuditItem' }
-            request: { type: [object, 'null'], additionalProperties: true }
-            response: { type: [object, 'null'], additionalProperties: true }
     MediaMacro:
       type: object
       required: [key, macro, label, group, osSupport, attributionIdentity]

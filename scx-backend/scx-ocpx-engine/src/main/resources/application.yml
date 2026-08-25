@@ -36,13 +36,3 @@ app:
   jobs:
     storage-cron: '0 0/1 * * * ?'
     reset-enabled: true
-
-ocpx:
-  audit:
-    enabled: true
-    wal-path: ./data/ocpx-audit-wal
-    wal-max-bytes: 21474836480
-    segment-max-bytes: 268435456
-    flush-interval-millis: 5
-    raw-retention-days: 30
-    metadata-retention-days: 180

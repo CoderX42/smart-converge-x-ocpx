@@ -1,11 +1,5 @@
 <script lang="ts" setup>
-import type {
-  FlowLog,
-  FlowLogOption,
-  FlowLogRequestDetail,
-  WireAuditDetail,
-  WireAuditItem,
-} from '#/api/ocpx';
+import type { FlowLog, FlowLogOption, FlowLogRequestDetail } from '#/api/ocpx';
 
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
@@ -14,15 +8,11 @@ import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
 
 import dayjs from 'dayjs';
-import { ElMessage } from 'element-plus';
 
 import {
-  exportWireAudits,
   getFlowLogOptions,
   getFlowLogRequestDetail,
   getFlowLogs,
-  getWireAuditDetail,
-  getWireAudits,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
@@ -43,11 +33,6 @@ const { hasAccessByCodes } = useAccess();
 const canViewRequestDetail = computed(() =>
   hasAccessByCodes(['ocpx:flow-log:detail']),
 );
-const canViewRaw = computed(() => hasAccessByCodes(['ocpx:flow-log:raw']));
-const canExportRaw = computed(() =>
-  hasAccessByCodes(['ocpx:flow-log:raw:export']),
-);
-const activeTab = ref<'raw' | 'stages'>('stages');
 
 const stageLabels: Record<string, string> = {
   ADVERTISER_CALLBACK: '广告主 Callback',
@@ -103,31 +88,6 @@ const filters = reactive({
 });
 const loadGuard = createLatestRequestGuard();
 const optionGuard = createLatestRequestGuard();
-const rawRows = ref<WireAuditItem[]>([]);
-const rawLoading = ref(false);
-const rawTotal = ref(0);
-const rawDetailOpen = ref(false);
-const rawDetailLoading = ref(false);
-const rawDetail = ref<WireAuditDetail>();
-const rawFilters = reactive({
-  current: 1,
-  dates: [
-    dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
-    dayjs().format('YYYY-MM-DD'),
-  ] as [string, string],
-  direction: '',
-  httpStatus: '',
-  protocol: '',
-  rawState: '',
-  requestId: '',
-  resultStatus: '',
-  size: 30,
-  stageCode: '',
-  traceId: '',
-  trafficClass: '',
-  wireSent: undefined as boolean | undefined,
-});
-const rawLoadGuard = createLatestRequestGuard();
 
 function currentDates(): [string, string] {
   if (filters.dates?.[0] && filters.dates[1]) return filters.dates;
@@ -238,20 +198,6 @@ function closeRequestDetail() {
   requestDetail.value = undefined;
 }
 
-function jumpToRaw(row: FlowLog) {
-  if (!row.traceId) {
-    ElMessage.warning('该阶段记录没有 Trace ID，无法自动关联原文');
-    return;
-  }
-  const businessDate = dayjs(row.eventTime || row.createTime).format(
-    'YYYY-MM-DD',
-  );
-  activeTab.value = 'raw';
-  rawFilters.dates = [businessDate, businessDate];
-  rawFilters.traceId = row.traceId;
-  searchRaw();
-}
-
 function stageLabel(value: string) {
   return stageLabels[value] || value;
 }
@@ -260,111 +206,14 @@ function formatted(value: Record<string, unknown>) {
   return Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : '';
 }
 
-async function loadRaw() {
-  const requestSequence = rawLoadGuard.begin();
-  rawLoading.value = true;
-  try {
-    const result = await getWireAudits({
-      current: rawFilters.current,
-      direction: rawFilters.direction || undefined,
-      endDate: rawFilters.dates[1],
-      httpStatus: rawFilters.httpStatus
-        ? Number(rawFilters.httpStatus)
-        : undefined,
-      protocol: rawFilters.protocol || undefined,
-      rawState: rawFilters.rawState || undefined,
-      requestId: rawFilters.requestId || undefined,
-      resultStatus: rawFilters.resultStatus || undefined,
-      size: rawFilters.size,
-      stageCode: rawFilters.stageCode || undefined,
-      startDate: rawFilters.dates[0],
-      traceId: rawFilters.traceId || undefined,
-      trafficClass: rawFilters.trafficClass || undefined,
-      wireSent: rawFilters.wireSent,
-    });
-    if (rawLoadGuard.isLatest(requestSequence)) {
-      rawRows.value = result.records;
-      rawTotal.value = result.total;
-    }
-  } finally {
-    if (rawLoadGuard.isLatest(requestSequence)) rawLoading.value = false;
-  }
-}
-
-function searchRaw() {
-  resetPage(rawFilters);
-  void loadRaw();
-}
-
-function resetRaw() {
-  Object.assign(rawFilters, {
-    current: 1,
-    dates: [
-      dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
-      dayjs().format('YYYY-MM-DD'),
-    ],
-    direction: '',
-    httpStatus: '',
-    protocol: '',
-    rawState: '',
-    requestId: '',
-    resultStatus: '',
-    stageCode: '',
-    traceId: '',
-    trafficClass: '',
-    wireSent: undefined,
-  });
-  void loadRaw();
-}
-
-async function openRawDetail(row: WireAuditItem) {
-  rawDetailOpen.value = true;
-  rawDetailLoading.value = true;
-  rawDetail.value = undefined;
-  try {
-    rawDetail.value = await getWireAuditDetail(row.id);
-  } finally {
-    rawDetailLoading.value = false;
-  }
-}
-
-function closeRawDetail() {
-  rawDetail.value = undefined;
-}
-
-async function downloadRaw() {
-  if (rawFilters.dates[0] !== rawFilters.dates[1]) {
-    ElMessage.warning('原始请求导出必须选择同一个自然日');
-    return;
-  }
-  await exportWireAudits(rawFilters.dates[0], {
-    direction: rawFilters.direction || undefined,
-    httpStatus: rawFilters.httpStatus
-      ? Number(rawFilters.httpStatus)
-      : undefined,
-    protocol: rawFilters.protocol || undefined,
-    rawState: rawFilters.rawState || undefined,
-    requestId: rawFilters.requestId || undefined,
-    resultStatus: rawFilters.resultStatus || undefined,
-    stageCode: rawFilters.stageCode || undefined,
-    traceId: rawFilters.traceId || undefined,
-    trafficClass: rawFilters.trafficClass || undefined,
-    wireSent: rawFilters.wireSent,
-  });
-}
-
 onMounted(async () => {
-  await Promise.all([loadOptions(), load(), loadRaw()]);
+  await Promise.all([loadOptions(), load()]);
 });
 </script>
 
 <template>
   <Page auto-content-height title="流程日志">
-    <el-tabs v-model="activeTab" class="flow-log-tabs">
-      <el-tab-pane label="阶段日志" name="stages" />
-      <el-tab-pane label="原始请求审计" name="raw" />
-    </el-tabs>
-    <el-card v-show="activeTab === 'stages'" shadow="never">
+    <el-card shadow="never">
       <div v-show="showSearch" class="ocpx-query">
         <el-date-picker
           v-model="filters.dates"
@@ -570,28 +419,14 @@ onMounted(async () => {
             ><LongText :value="row.message" /></template
         ></el-table-column>
         <el-table-column
-          v-if="canViewRequestDetail || canViewRaw"
+          v-if="canViewRequestDetail"
           fixed="right"
           label="操作"
-          min-width="130"
+          min-width="90"
         >
           <template #default="{ row }">
-            <el-button
-              v-if="canViewRequestDetail"
-              link
-              type="primary"
-              @click="openRequestDetail(row)"
-            >
+            <el-button link type="primary" @click="openRequestDetail(row)">
               详情
-            </el-button>
-            <el-button
-              v-if="canViewRaw"
-              :disabled="!row.traceId"
-              link
-              type="primary"
-              @click="jumpToRaw(row)"
-            >
-              关联原文
             </el-button>
           </template>
         </el-table-column>
@@ -606,219 +441,6 @@ onMounted(async () => {
         @change="load"
       />
     </el-card>
-    <el-card v-show="activeTab === 'raw'" shadow="never">
-      <el-alert
-        :closable="false"
-        class="flow-detail-notice"
-        show-icon
-        title="原文采用 AES-GCM 加密保存 30 天，元数据保存 180 天；只有系统管理员可以解密查看或导出。"
-        type="warning"
-      />
-      <div class="ocpx-query">
-        <el-date-picker
-          v-model="rawFilters.dates"
-          :clearable="false"
-          end-placeholder="结束日期"
-          start-placeholder="开始日期"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-          @change="searchRaw"
-        />
-        <el-select
-          v-model="rawFilters.stageCode"
-          clearable
-          placeholder="阶段"
-          @change="searchRaw"
-        >
-          <el-option
-            v-for="(label, value) in stageLabels"
-            :key="value"
-            :label="label"
-            :value="value"
-          />
-        </el-select>
-        <el-select
-          v-model="rawFilters.direction"
-          clearable
-          placeholder="方向"
-          @change="searchRaw"
-        >
-          <el-option label="入站" value="INBOUND" />
-          <el-option label="出站" value="OUTBOUND" />
-          <el-option label="内部" value="INTERNAL" />
-        </el-select>
-        <el-input
-          v-model="rawFilters.protocol"
-          clearable
-          placeholder="协议"
-          @keyup.enter="searchRaw"
-        />
-        <el-select
-          v-model="rawFilters.resultStatus"
-          clearable
-          placeholder="结果"
-          @change="searchRaw"
-        >
-          <el-option label="处理中" value="PENDING" />
-          <el-option label="成功" value="SUCCESS" />
-          <el-option label="失败" value="FAILED" />
-          <el-option label="中断" value="INTERRUPTED" />
-        </el-select>
-        <el-input
-          v-model="rawFilters.httpStatus"
-          clearable
-          maxlength="3"
-          placeholder="HTTP 状态"
-          @keyup.enter="searchRaw"
-        />
-        <el-select
-          v-model="rawFilters.rawState"
-          clearable
-          placeholder="原文状态"
-          @change="searchRaw"
-        >
-          <el-option label="完整" value="COMPLETE" />
-          <el-option label="处理中" value="PENDING" />
-          <el-option label="中断" value="INTERRUPTED" />
-          <el-option label="已过期" value="EXPIRED" />
-        </el-select>
-        <el-select
-          v-model="rawFilters.trafficClass"
-          clearable
-          placeholder="流量类型"
-          @change="searchRaw"
-        >
-          <el-option label="正式" value="FORMAL" />
-          <el-option label="测试" value="TEST" />
-          <el-option label="集成" value="INTEGRATION" />
-        </el-select>
-        <el-select
-          v-model="rawFilters.wireSent"
-          clearable
-          placeholder="是否发网"
-          @change="searchRaw"
-        >
-          <el-option label="已发网" :value="true" />
-          <el-option label="未发网" :value="false" />
-        </el-select>
-        <el-input
-          v-model="rawFilters.requestId"
-          clearable
-          placeholder="request_id"
-          @keyup.enter="searchRaw"
-        />
-        <el-input
-          v-model="rawFilters.traceId"
-          clearable
-          placeholder="Trace ID"
-          @keyup.enter="searchRaw"
-        />
-        <el-button type="primary" @click="searchRaw">查询</el-button>
-        <el-button @click="resetRaw">重置</el-button>
-        <el-button
-          v-if="canExportRaw"
-          :loading="rawLoading"
-          @click="downloadRaw"
-          >导出单日 ZIP</el-button
-        >
-      </div>
-      <el-table
-        v-loading="rawLoading"
-        :data="rawRows"
-        max-height="560"
-        size="small"
-      >
-        <el-table-column label="采集时间" min-width="180" prop="capturedAt" />
-        <el-table-column label="阶段" min-width="150">
-          <template #default="{ row }">{{
-            stageLabel(row.stageCode)
-          }}</template>
-        </el-table-column>
-        <el-table-column label="方向" min-width="90" prop="direction" />
-        <el-table-column label="协议" min-width="120" prop="protocol" />
-        <el-table-column label="端点" min-width="230">
-          <template #default="{ row }"
-            ><LongText
-              :value="`${row.requestMethod || '-'} ${row.requestPath || '-'}`"
-          /></template>
-        </el-table-column>
-        <el-table-column label="状态" min-width="100" prop="resultStatus" />
-        <el-table-column label="HTTP" min-width="80" prop="partnerHttpStatus" />
-        <el-table-column label="原文" min-width="100" prop="rawState" />
-        <el-table-column label="是否发网" min-width="90">
-          <template #default="{ row }">{{
-            row.wireSent ? '是' : '否'
-          }}</template>
-        </el-table-column>
-        <el-table-column
-          v-if="canViewRaw"
-          fixed="right"
-          label="操作"
-          min-width="90"
-        >
-          <template #default="{ row }">
-            <el-button
-              :disabled="row.rawState === 'EXPIRED'"
-              link
-              type="primary"
-              @click="openRawDetail(row)"
-              >原文</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
-        v-model:current-page="rawFilters.current"
-        v-model:page-size="rawFilters.size"
-        class="ocpx-pagination"
-        layout="total, sizes, prev, pager, next"
-        :page-sizes="PAGE_SIZES"
-        :total="rawTotal"
-        @change="loadRaw"
-      />
-    </el-card>
-    <el-dialog
-      v-model="rawDetailOpen"
-      destroy-on-close
-      title="原始请求审计"
-      width="min(1040px, 94vw)"
-      @closed="closeRawDetail"
-    >
-      <div v-loading="rawDetailLoading" class="flow-detail-body">
-        <template v-if="rawDetail">
-          <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="审计 ID">{{
-              rawDetail.metadata.id
-            }}</el-descriptions-item>
-            <el-descriptions-item label="Key / 版本"
-              >{{ rawDetail.metadata.keyId }} /
-              {{ rawDetail.metadata.cryptoVersion }}</el-descriptions-item
-            >
-            <el-descriptions-item label="请求 SHA-256" :span="2"
-              ><LongText :value="rawDetail.metadata.requestSha256" wrap
-            /></el-descriptions-item>
-            <el-descriptions-item label="响应 SHA-256" :span="2"
-              ><LongText :value="rawDetail.metadata.responseSha256" wrap
-            /></el-descriptions-item>
-          </el-descriptions>
-          <h3>应用层请求原文</h3>
-          <pre class="response-preview">{{
-            JSON.stringify(rawDetail.request, null, 2)
-          }}</pre>
-          <h3>应用层响应原文</h3>
-          <pre class="response-preview">{{
-            JSON.stringify(rawDetail.response, null, 2)
-          }}</pre>
-        </template>
-        <el-empty
-          v-else-if="!rawDetailLoading"
-          description="原文已过期或无法读取"
-        />
-      </div>
-      <template #footer
-        ><el-button @click="rawDetailOpen = false">关闭</el-button></template
-      >
-    </el-dialog>
     <el-dialog
       v-model="detailOpen"
       :close-on-click-modal="false"

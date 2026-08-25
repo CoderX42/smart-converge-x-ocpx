@@ -34,7 +34,7 @@ required = [
     "management-v118.md",
     "management-v119.md",
     "management-v120.md",
-    "management-v121.md",
+    "management-v122.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]
@@ -76,8 +76,7 @@ v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
 v116_paths = {"/flow-logs/{id}/request-detail"}
 v118_paths = {"/callback-records"}
 v119_paths = {"/media-macros"}
-v121_paths = {"/flow-logs/wire-audits", "/flow-logs/wire-audits/{id}", "/flow-logs/wire-audits:export"}
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | v121_paths
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
@@ -136,9 +135,6 @@ integration_feedback = paths["/monitor-tasks/{id}/integration/feedback-requests"
 integration_callback = paths["/monitor-tasks/{id}/integration/callbacks:send"]["post"]
 flow_log_request_detail = paths["/flow-logs/{id}/request-detail"]["get"]
 callback_records = paths["/callback-records"]["get"]
-wire_audits = paths["/flow-logs/wire-audits"]["get"]
-wire_audit_detail = paths["/flow-logs/wire-audits/{id}"]["get"]
-wire_audit_export = paths["/flow-logs/wire-audits:export"]["get"]
 assert test_generate["security"] == [{"saToken": []}]
 assert test_execute["security"] == [{"saToken": []}]
 assert test_result["security"] == [{"saToken": []}]
@@ -146,11 +142,6 @@ assert integration_feedback["security"] == [{"saToken": []}]
 assert integration_callback["security"] == [{"saToken": []}]
 assert flow_log_request_detail["security"] == [{"saToken": []}]
 assert callback_records["security"] == [{"saToken": []}]
-assert wire_audits["security"] == [{"saToken": []}]
-assert wire_audit_detail["security"] == [{"saToken": []}]
-assert wire_audit_export["security"] == [{"saToken": []}]
-wire_audit_parameters = {item["name"] for item in wire_audits["parameters"]}
-assert {"startDate", "endDate", "stageCode", "direction", "protocol", "resultStatus", "httpStatus", "requestId", "traceId", "trafficClass", "wireSent", "rawState", "current", "size"} <= wire_audit_parameters
 callback_record_parameters = {item["name"]: item for item in callback_records["parameters"]}
 assert {"startDate", "endDate", "advertiserId", "promotionLinkId", "mediaId", "monitorTaskId", "eventCode", "targetConversion", "deductionDecision", "requestId", "current", "size"} == set(callback_record_parameters)
 assert callback_record_parameters["requestId"]["schema"]["maxLength"] == 128
@@ -179,7 +170,6 @@ assert {
     , "FlowLogStage", "MediaMacro", "MediaMacroListEnvelope"
     , "CallbackEventCode", "CallbackRecord", "CallbackRecordPageEnvelope"
     , "GravityCallbackSuccess", "GravityCallbackFailure"
-    , "WireAuditStage", "WireAuditItem", "WireAuditPageEnvelope", "WireAuditDetailEnvelope"
 } <= set(schemas)
 assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
 assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
@@ -256,9 +246,6 @@ assert methods.get("查询广告主账务流水") == "GET"
 assert methods.get("查询上游协议允许域名") == "GET"
 assert methods.get("替换 AERIM 允许域名") == "PUT"
 assert methods.get("替换 GRAVITY 允许域名") == "PUT"
-assert methods.get("查询 V121 原始请求审计元数据") == "GET"
-assert methods.get("解密查看 V121 原始请求") == "GET"
-assert methods.get("导出 V121 单日原始请求 ZIP") == "GET"
 role_update = next(item for item in postman["item"] if item.get("name") == "全量替换共享广告主角色权限")
 role_update_body = json.loads(role_update["request"]["body"]["raw"])
 assert set(role_update_body) == {"menuIds", "allDataScope"}
@@ -299,7 +286,6 @@ assert "/boot/ocpx/dashboard/summary" in serialized
 assert "/boot/ocpx/creatives" in serialized
 assert "/boot/ocpx/monitor-tasks/{{monitorTaskId}}" in serialized
 assert "/boot/ocpx/billing-entries" in serialized
-assert "/boot/ocpx/flow-logs/wire-audits" in serialized
 assert postman_variables.get("callbackKid") == "v1"
 assert serialized.count("kid={{callbackKid}}") >= 4
 assert "currency_amount=123.45" in serialized

@@ -4,8 +4,6 @@ import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import com.yzytech.scx.ocpx.protocol.CallbackRequestAdapter;
 import lombok.RequiredArgsConstructor;
-import com.yzytech.scx.ocpx.audit.web.WireAuditRequestContext;
-import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -32,13 +30,11 @@ public class UpstreamCallbackController {
 	 * @return 无响应体的 HTTP 处理结果
 	 */
 	@GetMapping("/callback")
-	public ResponseEntity<Void> handleCallback(@ModelAttribute UpstreamCallbackRequest request,
-			HttpServletRequest servletRequest) {
+	public ResponseEntity<Void> handleCallback(@ModelAttribute UpstreamCallbackRequest request) {
 		try {
 			callbackLog.info("upstream callback received eventType:{} keyVersionPresent:{}", request.getEvent_type(),
 					request.getKid() != null);
 			CallbackReq callback = requestAdapter.toCallback(request);
-			WireAuditRequestContext.enrich(servletRequest, callback);
 			callbackService.handleCallback(callback);
 			return ResponseEntity.ok().build();
 		}

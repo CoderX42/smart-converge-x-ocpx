@@ -6,9 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 
 /** OCPX 上下游 GET 请求与 URL 编码工具。 */
@@ -50,54 +48,15 @@ public final class NetUtil {
 		long startedAt = System.nanoTime();
 		try {
 			HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5)).GET().build();
-			HttpResponse<byte[]> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
-			byte[] rawBody = response.body() == null ? new byte[0] : response.body();
-			String body = new String(rawBody, responseCharset(response));
-			return new HttpGetResult(response.statusCode(), body, null, elapsedMillis(startedAt),
-					response.headers().map(), null, null, rawBody);
-		}
-		catch (java.net.http.HttpConnectTimeoutException exception) {
-			return failed("CONNECTION_TIMEOUT", startedAt, exception);
+			HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+			return new HttpGetResult(response.statusCode(), response.body(), null, elapsedMillis(startedAt));
 		}
 		catch (java.net.http.HttpTimeoutException exception) {
-			return failed("TIMEOUT", startedAt, exception);
+			return new HttpGetResult(null, null, "TIMEOUT", elapsedMillis(startedAt));
 		}
 		catch (Exception exception) {
-			String errorCode = causedBy(exception, java.net.UnknownHostException.class) ? "DNS_FAILURE"
-					: causedBy(exception, java.net.ConnectException.class) ? "CONNECTION_FAILED" : "REQUEST_FAILED";
-			return failed(errorCode, startedAt, exception);
+			return new HttpGetResult(null, null, "REQUEST_FAILED", elapsedMillis(startedAt));
 		}
-	}
-
-	private static HttpGetResult failed(String errorCode, long startedAt, Exception exception) {
-		return new HttpGetResult(null, null, errorCode, elapsedMillis(startedAt), Map.of(),
-				exception.getClass().getName(), exception.getMessage(), new byte[0]);
-	}
-
-	private static Charset responseCharset(HttpResponse<?> response) {
-		String contentType = response.headers().firstValue("Content-Type").orElse("");
-		for (String part : contentType.split(";")) {
-			String value = part.trim();
-			if (value.regionMatches(true, 0, "charset=", 0, "charset=".length())) {
-				try {
-					return Charset.forName(value.substring("charset=".length()).trim().replace("\"", ""));
-				}
-				catch (RuntimeException ignored) {
-					return StandardCharsets.UTF_8;
-				}
-			}
-		}
-		return StandardCharsets.UTF_8;
-	}
-
-	private static boolean causedBy(Throwable throwable, Class<? extends Throwable> type) {
-		Throwable current = throwable;
-		while (current != null) {
-			if (type.isInstance(current))
-				return true;
-			current = current.getCause();
-		}
-		return false;
 	}
 
 	private static long elapsedMillis(long startedAt) {
@@ -105,19 +64,7 @@ public final class NetUtil {
 	}
 
 	/** 不包含请求地址或敏感参数的 HTTP GET 结果。 */
-	public record HttpGetResult(Integer statusCode, String body, String errorCode, long durationMs,
-			Map<String, List<String>> headers, String exceptionType, String exceptionMessage, byte[] rawBody) {
-
-		public HttpGetResult(Integer statusCode, String body, String errorCode, long durationMs) {
-			this(statusCode, body, errorCode, durationMs, Map.of(), null, null,
-					body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8));
-		}
-
-		public HttpGetResult(Integer statusCode, String body, String errorCode, long durationMs,
-				Map<String, List<String>> headers) {
-			this(statusCode, body, errorCode, durationMs, headers, null, null,
-					body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8));
-		}
+	public record HttpGetResult(Integer statusCode, String body, String errorCode, long durationMs) {
 	}
 
 	/**

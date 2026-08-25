@@ -1,8 +1,6 @@
 package com.yzytech.scx.ocpx.callback.web.aerim;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
-import com.yzytech.scx.ocpx.audit.web.WireAuditRequestContext;
-import jakarta.servlet.http.HttpServletRequest;
 import com.yzytech.scx.ocpx.callback.service.CallbackHandleResult;
 import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import lombok.RequiredArgsConstructor;
@@ -29,11 +27,9 @@ public class AerimCallbackController {
 	private final AerimCallbackAdapter callbackAdapter;
 
 	@GetMapping("/callback")
-	public ResponseEntity<Void> handleCallback(@ModelAttribute AerimCallbackRequest request,
-			HttpServletRequest servletRequest) {
+	public ResponseEntity<Void> handleCallback(@ModelAttribute AerimCallbackRequest request) {
 		try {
 			CallbackReq callback = callbackAdapter.toCallback(request);
-			WireAuditRequestContext.enrich(servletRequest, callback);
 			CallbackHandleResult result = callbackService.handleCallback(callback);
 			callbackLog.info("aerim callback action:{} duplicate:{} decision:{}", request.getAction_type(),
 					result.duplicate(), result.decision());

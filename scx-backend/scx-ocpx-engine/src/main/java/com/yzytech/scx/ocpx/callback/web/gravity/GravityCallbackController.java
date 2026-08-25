@@ -1,8 +1,6 @@
 package com.yzytech.scx.ocpx.callback.web.gravity;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
-import com.yzytech.scx.ocpx.audit.web.WireAuditRequestContext;
-import jakarta.servlet.http.HttpServletRequest;
 import com.yzytech.scx.ocpx.callback.service.CallbackHandleResult;
 import com.yzytech.scx.ocpx.callback.service.CallbackService;
 import lombok.RequiredArgsConstructor;
@@ -32,12 +30,11 @@ public class GravityCallbackController {
 	@GetMapping(value = "/callback", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<GravityCallbackResponse> handleCallback(
 			@RequestParam(value = "ctx", required = false) String token,
-			@RequestParam(value = "kid", required = false) String keyId, HttpServletRequest servletRequest) {
+			@RequestParam(value = "kid", required = false) String keyId) {
 		long startedAt = System.nanoTime();
 		try {
 			CallbackReq callback = keyId == null ? callbackAdapter.toCallback(token)
 					: callbackAdapter.toCallback(token, keyId);
-			WireAuditRequestContext.enrich(servletRequest, callback);
 			CallbackHandleResult result = callbackService.handleCallback(callback);
 			callbackLog.info(
 					"gravity callback requestId:{} mediaId:{} taskId:{} advertiserId:{} linkId:{} httpStatus:200 durationMs:{} conclusion:{}",

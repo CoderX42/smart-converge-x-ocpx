@@ -161,29 +161,6 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('requestDetail.caid2');
   });
 
-  it('gates V121 raw wire audits and exposes every agreed filter without retaining closed plaintext', () => {
-    const source = page('flow-log');
-    for (const marker of [
-      "'ocpx:flow-log:raw'",
-      "'ocpx:flow-log:raw:export'",
-      '原始请求审计',
-      'rawFilters.stageCode',
-      'rawFilters.direction',
-      'rawFilters.protocol',
-      'rawFilters.resultStatus',
-      'rawFilters.httpStatus',
-      'rawFilters.requestId',
-      'rawFilters.traceId',
-      'rawFilters.trafficClass',
-      'rawFilters.wireSent',
-      'rawFilters.rawState',
-      'rawDetail.value = undefined',
-      '关联原文',
-    ]) {
-      expect(source).toContain(marker);
-    }
-  });
-
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
     const advertiser = page('advertiser');
     expect(advertiser).toContain('请输入登录用户名');

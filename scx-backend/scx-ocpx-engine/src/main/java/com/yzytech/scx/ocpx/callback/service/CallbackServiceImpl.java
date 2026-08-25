@@ -2,7 +2,6 @@ package com.yzytech.scx.ocpx.callback.service;
 
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.delivery.DownstreamDeliveryDispatcher;
-import com.yzytech.scx.ocpx.audit.service.WireAuditService;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.fact.service.OcpxEventFactService;
 import com.yzytech.scx.ocpx.report.model.LogData;
@@ -12,7 +11,6 @@ import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -42,9 +40,6 @@ public class CallbackServiceImpl implements CallbackService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
-	@Autowired(required = false)
-	private WireAuditService wireAuditService;
-
 	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
 			DeductionDecisionService deductionDecisionService, OcpxEventFactService eventFactService,
 			OcpxFlowLogWriter flowLogWriter) {
@@ -71,27 +66,9 @@ public class CallbackServiceImpl implements CallbackService {
 		impressionLog.info("callback reqId:{} action:{}", request.getFeedback().getReqId(), request.getActionType());
 		flowLogWriter.callback(request, true, "ADVERTISER_CALLBACK_RECEIVED");
 		if (request.getActionType() == null) {
-			if (wireAuditService != null)
-				wireAuditService.internal(request, "CALLBACK_ACCOUNTING", request,
-						java.util.Map.of("decision", "NOT_APPLICABLE"), true, "CALLBACK_NOT_APPLICABLE", null);
 			return complete(request, false, CallbackDecision.NOT_APPLICABLE);
 		}
-		OcpxEventFactService.CallbackFactResult factResult;
-		try {
-			factResult = eventFactService.recordCallback(request);
-		}
-		catch (RuntimeException exception) {
-			if (wireAuditService != null)
-				wireAuditService.internal(request, "CALLBACK_ACCOUNTING", request, null, false,
-						"CALLBACK_ACCOUNTING_FAILED", exception);
-			throw exception;
-		}
-		if (wireAuditService != null)
-			wireAuditService.internal(request, "CALLBACK_ACCOUNTING", request,
-					java.util.Map.of("factId", factResult.factId(), "firstEvent", factResult.firstEvent(),
-							"pendingDeduction", factResult.pendingDeduction()),
-					true, factResult.firstEvent() ? "CALLBACK_ACCOUNTING_COMMITTED" : "CALLBACK_ACCOUNTING_DUPLICATE",
-					null);
+		OcpxEventFactService.CallbackFactResult factResult = eventFactService.recordCallback(request);
 		flowLogWriter.accounting(request, factResult.firstEvent(),
 				factResult.firstEvent() ? "CALLBACK_ACCOUNTING_COMMITTED" : "CALLBACK_ACCOUNTING_DUPLICATE");
 		if (!factResult.pendingDeduction()) {
@@ -99,58 +76,42 @@ public class CallbackServiceImpl implements CallbackService {
 			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
 
-		try {
-			if (factResult.firstEvent()) {
+		if (factResult.firstEvent()) {
 			// 兼容报表日志只记录首次事实；扣量审计和新报表不依赖该 Redis 队列。
-				LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
-				logData.setActionTime(request.getActionTime());
-				logData.setPartnerActionType(request.getPartnerActionType());
-				logData.setStandardActionType(request.getActionType().getIndex());
-				logData.setCurrencyAmount(request.getCurrencyAmount());
-				logData.setCallbackUrl("");
-				logData.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
-				setActionType(logData, request.getActionType());
-				saveCallback(logData);
-			}
+			LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
+			logData.setActionTime(request.getActionTime());
+			logData.setPartnerActionType(request.getPartnerActionType());
+			logData.setStandardActionType(request.getActionType().getIndex());
+			logData.setCurrencyAmount(request.getCurrencyAmount());
+			logData.setCallbackUrl("");
+			logData.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
+			setActionType(logData, request.getActionType());
+			saveCallback(logData);
+		}
 
-			String lId = request.getFeedback().getLId();
-			String mId = request.getFeedback().getMId();
-			int typeIndex = request.getActionType().getIndex() - 1;
-			DeductionDecisionService.Result deduction = deductionDecisionService.decide(factResult.factId(), lId, mId,
-					typeIndex);
-			boolean finalized = eventFactService.finalizeDeduction(factResult.factId(), deduction.ratio(),
-					deduction.decision());
-			if (wireAuditService != null)
-				wireAuditService.internal(request, "MEDIA_DEDUCTION", request,
-						java.util.Map.of("factId", factResult.factId(), "decision", deduction.decision().name(), "ratio",
-								deduction.ratio(), "finalized", finalized, "replay", deduction.replay()),
-						finalized, finalized ? "MEDIA_DEDUCTION_" + deduction.decision().name()
-								: "MEDIA_DEDUCTION_ALREADY_FINALIZED",
-						null);
-			flowLogWriter.deduction(request, finalized,
-					finalized ? "MEDIA_DEDUCTION_" + deduction.decision().name()
-							: "MEDIA_DEDUCTION_ALREADY_FINALIZED");
-			if (!finalized) {
-				return complete(request, true, CallbackDecision.NOT_APPLICABLE);
-			}
-			deductionDecisionService.complete(factResult.factId(), lId, mId);
-			CallbackDecision decision = deduction.decision() == DeductionDecision.PASSED ? CallbackDecision.FORWARDED
-					: CallbackDecision.DEDUCTED;
-			if (decision == CallbackDecision.FORWARDED) {
+		String lId = request.getFeedback().getLId();
+		String mId = request.getFeedback().getMId();
+		int typeIndex = request.getActionType().getIndex() - 1;
+		DeductionDecisionService.Result deduction = deductionDecisionService.decide(factResult.factId(), lId, mId,
+				typeIndex);
+		boolean finalized = eventFactService.finalizeDeduction(factResult.factId(), deduction.ratio(),
+				deduction.decision());
+		flowLogWriter.deduction(request, finalized,
+				finalized ? "MEDIA_DEDUCTION_" + deduction.decision().name() : "MEDIA_DEDUCTION_ALREADY_FINALIZED");
+		if (!finalized) {
+			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
+		}
+		deductionDecisionService.complete(factResult.factId(), lId, mId);
+		CallbackDecision decision = deduction.decision() == DeductionDecision.PASSED ? CallbackDecision.FORWARDED
+				: CallbackDecision.DEDUCTED;
+		if (decision == CallbackDecision.FORWARDED) {
 			// FORWARDED 只表示已经提交异步投递，不表示媒体已经成功接收。
-				DownstreamDeliveryDispatcher.dispatch(request);
-			}
-			impressionLog.info("media deduction reqId:{} action:{} decision:{} ratio:{} replay:{}",
-					request.getFeedback().getReqId(), request.getActionType(), deduction.decision(), deduction.ratio(),
-					deduction.replay());
-			return complete(request, !factResult.firstEvent(), decision);
+			DownstreamDeliveryDispatcher.dispatch(request);
 		}
-		catch (RuntimeException exception) {
-			if (wireAuditService != null)
-				wireAuditService.internal(request, "MEDIA_DEDUCTION", request, null, false,
-						"MEDIA_DEDUCTION_FAILED", exception);
-			throw exception;
-		}
+		impressionLog.info("media deduction reqId:{} action:{} decision:{} ratio:{} replay:{}",
+				request.getFeedback().getReqId(), request.getActionType(), deduction.decision(), deduction.ratio(),
+				deduction.replay());
+		return complete(request, !factResult.firstEvent(), decision);
 	}
 
 	private CallbackHandleResult complete(CallbackReq request, boolean duplicate, CallbackDecision decision) {

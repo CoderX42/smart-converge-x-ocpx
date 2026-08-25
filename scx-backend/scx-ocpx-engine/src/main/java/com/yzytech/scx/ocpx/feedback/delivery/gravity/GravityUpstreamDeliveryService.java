@@ -3,7 +3,6 @@ package com.yzytech.scx.ocpx.feedback.delivery.gravity;
 import com.yzytech.scx.ocpx.callback.web.gravity.GravityCallbackContext;
 import com.yzytech.scx.ocpx.callback.web.gravity.GravityCallbackContextCodec;
 import com.yzytech.scx.ocpx.configuration.index.OcpxPromotionLinkIndex;
-import com.yzytech.scx.ocpx.audit.service.WireAuditService;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
@@ -13,7 +12,6 @@ import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -48,9 +46,6 @@ public class GravityUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private final String callbackBaseUrl;
 
-	@Autowired(required = false)
-	private WireAuditService wireAuditService;
-
 	public GravityUpstreamDeliveryService(OcpxPromotionLinkIndex promotionLinkIndex,
 			GravityEndpointPolicy endpointPolicy, GravityHttpClient httpClient,
 			GravityCallbackContextCodec contextCodec, OcpxFlowLogWriter flowLogWriter,
@@ -68,47 +63,24 @@ public class GravityUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (!EventTypeEnum.CLICK.equals(feedback.getEvent())) {
 			return;
 		}
-		WireAuditService.Handle audit = null;
-		String requestUrl = null;
 		try {
-			requestUrl = endpointPolicy.requireAllowedHttpsUrl(buildRequestUrl(feedback));
-			audit = beginAudit(feedback, requestUrl, true);
+			String requestUrl = endpointPolicy.requireAllowedHttpsUrl(buildRequestUrl(feedback));
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			boolean success = result.statusCode() != null && result.statusCode() >= 200 && result.statusCode() < 300;
 			String conclusion = success ? "GRAVITY_HTTP_ACCEPTED"
 					: result.errorCode() == null ? "GRAVITY_HTTP_FAILED" : "GRAVITY_" + result.errorCode();
-			completeAudit(audit, result, conclusion);
 			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
 					result.body(), requestUrl, macroAudit(feedback));
 		}
 		catch (IllegalArgumentException exception) {
 			String conclusion = exception.getMessage() != null && exception.getMessage().startsWith("GRAVITY_")
 					? exception.getMessage() : "GRAVITY_REQUEST_REJECTED";
-			if (audit == null)
-				audit = beginAudit(feedback, requestUrl, false);
-			if (wireAuditService != null)
-				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], conclusion, exception, null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, conclusion, 0L);
 		}
 		catch (RuntimeException exception) {
-			if (audit == null)
-				audit = beginAudit(feedback, requestUrl, false);
-			if (wireAuditService != null)
-				wireAuditService.completeHttp(audit, null, Map.of(), new byte[0], "GRAVITY_INTERNAL_ERROR", exception,
-						null);
 			flowLogWriter.upstreamDelivery(feedback, false, null, "GRAVITY_INTERNAL_ERROR", 0L);
 			throw exception;
 		}
-	}
-
-	private WireAuditService.Handle beginAudit(FeedbackReq feedback, String url, boolean sent) {
-		return wireAuditService == null ? null
-				: wireAuditService.beginOutbound("ADVERTISER_DELIVERY", "GRAVITY", "FORMAL", url, sent, feedback);
-	}
-
-	private void completeAudit(WireAuditService.Handle audit, NetUtil.HttpGetResult result, String conclusion) {
-		if (wireAuditService != null)
-			wireAuditService.completeOutbound(audit, result, conclusion);
 	}
 
 	public String buildRequestUrl(FeedbackReq feedback) {
