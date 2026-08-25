@@ -36,8 +36,6 @@ public class OcpxFlowLogService {
 
 	private static final long MAX_PAGEABLE_TOTAL = 10_000L;
 
-	private static final long COUNT_SCAN_LIMIT = MAX_PAGEABLE_TOTAL + 1L;
-
 	private static final Pattern SENSITIVE_CALLBACK_QUERY_VALUE = Pattern.compile(
 			"(?i)([?&](?:access_token|api_key|client_secret|password|satoken|secret|signature|sign|token|key)=)[^&#]*");
 
@@ -110,35 +108,35 @@ public class OcpxFlowLogService {
 		filter(where, args, "f.monitor_task_id", monitorTaskId);
 		filter(where, args, "f.event_id", eventId);
 		filter(where, args, "f.stage_code", normalizedStage);
-		List<Object> countArgs = new ArrayList<>(args);
-		countArgs.add(COUNT_SCAN_LIMIT);
-		long matched = jdbcTemplate.queryForObject(
-				"SELECT COUNT(*) FROM (SELECT f.id FROM scx_ocpx_flow_log f" + where + " LIMIT ?) limited", Long.class,
-				countArgs.toArray());
-		boolean totalCapped = matched > MAX_PAGEABLE_TOTAL;
-		long total = Math.min(matched, MAX_PAGEABLE_TOTAL);
+		boolean defaultTimelineQuery = !StringUtils.hasText(scopedAdvertiserId) && !StringUtils.hasText(promotionLinkId)
+				&& !StringUtils.hasText(mediaId) && !StringUtils.hasText(monitorTaskId) && !StringUtils.hasText(eventId)
+				&& !StringUtils.hasText(normalizedStage);
+		String indexHint = defaultTimelineQuery ? " FORCE INDEX (idx_ocpx_flow_log_time)" : "";
 		List<Object> pageArgs = new ArrayList<>(args);
-		pageArgs.add(pageLimit);
+		pageArgs.add(pageLimit + 1);
 		pageArgs.add(offset);
 		String sql = """
 				SELECT f.id,f.flow_type,f.trace_id,f.stage_code,f.event_id,f.source_event_id,f.event_code,
 				       f.advertiser_id,a.advertiser_name,f.promotion_link_id,p.link_name,
 				     f.media_id,m.media_name,f.monitor_task_id,t.monitor_name,f.result_status,
 				       f.partner_http_status,f.message,f.duration_ms,f.event_time,f.create_time
-				FROM scx_ocpx_flow_log f
+				FROM scx_ocpx_flow_log f%s
 				JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id
 				JOIN scx_ocpx_promotion_link p ON p.id=f.promotion_link_id
 				JOIN scx_ocpx_media m ON m.id=f.media_id
 				JOIN scx_ocpx_monitor_task t ON t.id=f.monitor_task_id
-				""" + where + " ORDER BY f.event_time DESC,f.id DESC LIMIT ? OFFSET ?";
-		List<FlowLogViews.Item> records = jdbcTemplate.query(sql,
+				""".formatted(indexHint) + where + " ORDER BY f.event_time DESC,f.id DESC LIMIT ? OFFSET ?";
+		List<FlowLogViews.Item> fetched = jdbcTemplate.query(sql,
 				(rs, rowNum) -> new FlowLogViews.Item(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
 						rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12), rs.getString(13),
 						rs.getString(14), rs.getString(15), rs.getString(16), (Integer) rs.getObject(17),
 						rs.getString(18), rs.getLong(19), time(rs.getTimestamp(20)), time(rs.getTimestamp(21))),
 				pageArgs.toArray());
-		return new FlowLogViews.Page(records, current, size, total, totalCapped);
+		boolean hasNext = fetched.size() > pageLimit;
+		List<FlowLogViews.Item> records = hasNext ? List.copyOf(fetched.subList(0, (int) pageLimit)) : fetched;
+		long totalLowerBound = offset + records.size() + (hasNext ? 1 : 0);
+		return new FlowLogViews.Page(records, current, size, totalLowerBound, hasNext);
 	}
 
 	public FlowLogViews.RequestDetail requestDetail(String flowLogId) {

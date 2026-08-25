@@ -61,7 +61,7 @@ const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<FlowLog[]>([]);
 const loading = ref(false);
 const total = ref(0);
-const totalCapped = ref(false);
+const hasNext = ref(false);
 const showSearch = ref(true);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
@@ -125,7 +125,7 @@ async function load() {
     if (loadGuard.isLatest(requestSequence)) {
       rows.value = result.records;
       total.value = result.total;
-      totalCapped.value = result.totalCapped;
+      hasNext.value = result.hasNext;
     }
   } finally {
     if (loadGuard.isLatest(requestSequence)) loading.value = false;
@@ -348,12 +348,12 @@ onMounted(async () => {
         />
       </div>
       <el-alert
-        v-if="totalCapped"
+        v-if="hasNext"
         :closable="false"
         class="mb-3"
         show-icon
-        title="结果超过 10,000 条，仅支持查看前 10,000 条；请缩小日期范围或增加筛选条件。"
-        type="warning"
+        title="为避免日志总数统计拖慢数据库，当前仅判断是否还有下一页；最多查看前 10,000 条，建议缩小日期范围或增加筛选条件。"
+        type="info"
       />
       <el-table
         v-loading="loading"
@@ -445,7 +445,7 @@ onMounted(async () => {
         v-model:current-page="filters.current"
         v-model:page-size="filters.size"
         class="ocpx-pagination"
-        layout="total, sizes, prev, pager, next"
+        layout="sizes, prev, next"
         :page-sizes="PAGE_SIZES"
         :total="total"
         @change="load"
