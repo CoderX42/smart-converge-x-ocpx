@@ -109,6 +109,7 @@ export type FlowLogPage = {
   records: FlowLog[];
   size: number;
   total: number;
+  totalCapped: boolean;
 };
 
 export type FlowLogOption = {

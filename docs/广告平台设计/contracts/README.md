@@ -26,6 +26,7 @@
 | `management-v117.md` | 流程日志结果摘要、脱敏限长响应预览与历史数据边界 |
 | `management-v118.md` | 上游 Callback 唯一转化事实查询、扣量状态与数据范围契约 |
 | `management-v120.md` | 引力上游点击、Callback、白名单、安全开关及 UAT 边界 |
+| `management-v123.md` | 流程日志有界总数、深翻页限制和事件时间索引契约 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

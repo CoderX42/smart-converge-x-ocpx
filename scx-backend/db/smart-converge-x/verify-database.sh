@@ -184,6 +184,12 @@ flow_response_preview_columns="$(scalar "SELECT COUNT(*) FROM information_schema
  AND data_type='varchar' AND character_maximum_length=4096 AND is_nullable='YES'")"
 [[ "$flow_response_preview_columns" -eq 1 ]] || fail "bounded flow-log response preview column is missing or invalid"
 
+flow_log_page_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_flow_log'
+ AND index_name='idx_ocpx_flow_log_page'
+ AND ((seq_in_index=1 AND column_name='event_time') OR (seq_in_index=2 AND column_name='id'))")"
+[[ "$flow_log_page_index" -eq 2 ]] || fail "flow-log event-time pagination index is missing or invalid"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

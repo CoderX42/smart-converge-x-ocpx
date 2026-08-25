@@ -34,6 +34,10 @@ public class OcpxFlowLogService {
 	private static final Set<String> STAGES = Set.of("LEGACY", "MEDIA_INGRESS", "ADVERTISER_DELIVERY",
 			"ADVERTISER_CALLBACK", "CALLBACK_ACCOUNTING", "MEDIA_DEDUCTION", "MEDIA_DELIVERY");
 
+	private static final long MAX_PAGEABLE_TOTAL = 10_000L;
+
+	private static final long COUNT_SCAN_LIMIT = MAX_PAGEABLE_TOTAL + 1L;
+
 	private static final Pattern SENSITIVE_CALLBACK_QUERY_VALUE = Pattern.compile(
 			"(?i)([?&](?:access_token|api_key|client_secret|password|satoken|secret|signature|sign|token|key)=)[^&#]*");
 
@@ -86,6 +90,14 @@ public class OcpxFlowLogService {
 		String scopedAdvertiserId = advertiserScope.constrain(advertiserId);
 		long current = currentValue == null ? 1 : Math.max(1, currentValue);
 		long size = sizeValue == null ? 30 : Math.min(100, Math.max(1, sizeValue));
+		if (current > MAX_PAGEABLE_TOTAL + 1) {
+			throw new BootBusinessException("日志翻页超过 10000 条，请缩小日期范围或增加筛选条件");
+		}
+		long offset = (current - 1) * size;
+		if (offset >= MAX_PAGEABLE_TOTAL) {
+			throw new BootBusinessException("日志翻页超过 10000 条，请缩小日期范围或增加筛选条件");
+		}
+		long pageLimit = Math.min(size, MAX_PAGEABLE_TOTAL - offset);
 		StringBuilder where = new StringBuilder(" WHERE f.event_time>=? AND f.event_time<?");
 		List<Object> args = new ArrayList<>();
 		args.add(start.atStartOfDay());
@@ -98,11 +110,16 @@ public class OcpxFlowLogService {
 		filter(where, args, "f.monitor_task_id", monitorTaskId);
 		filter(where, args, "f.event_id", eventId);
 		filter(where, args, "f.stage_code", normalizedStage);
-		long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_flow_log f" + where, Long.class,
-				args.toArray());
+		List<Object> countArgs = new ArrayList<>(args);
+		countArgs.add(COUNT_SCAN_LIMIT);
+		long matched = jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM (SELECT f.id FROM scx_ocpx_flow_log f" + where + " LIMIT ?) limited", Long.class,
+				countArgs.toArray());
+		boolean totalCapped = matched > MAX_PAGEABLE_TOTAL;
+		long total = Math.min(matched, MAX_PAGEABLE_TOTAL);
 		List<Object> pageArgs = new ArrayList<>(args);
-		pageArgs.add(size);
-		pageArgs.add((current - 1) * size);
+		pageArgs.add(pageLimit);
+		pageArgs.add(offset);
 		String sql = """
 				SELECT f.id,f.flow_type,f.trace_id,f.stage_code,f.event_id,f.source_event_id,f.event_code,
 				       f.advertiser_id,a.advertiser_name,f.promotion_link_id,p.link_name,
@@ -113,7 +130,7 @@ public class OcpxFlowLogService {
 				JOIN scx_ocpx_promotion_link p ON p.id=f.promotion_link_id
 				JOIN scx_ocpx_media m ON m.id=f.media_id
 				JOIN scx_ocpx_monitor_task t ON t.id=f.monitor_task_id
-				""" + where + " ORDER BY f.create_time DESC,f.id DESC LIMIT ? OFFSET ?";
+				""" + where + " ORDER BY f.event_time DESC,f.id DESC LIMIT ? OFFSET ?";
 		List<FlowLogViews.Item> records = jdbcTemplate.query(sql,
 				(rs, rowNum) -> new FlowLogViews.Item(rs.getString(1), rs.getString(2), rs.getString(3),
 						rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8),
@@ -121,7 +138,7 @@ public class OcpxFlowLogService {
 						rs.getString(14), rs.getString(15), rs.getString(16), (Integer) rs.getObject(17),
 						rs.getString(18), rs.getLong(19), time(rs.getTimestamp(20)), time(rs.getTimestamp(21))),
 				pageArgs.toArray());
-		return new FlowLogViews.Page(records, current, size, total);
+		return new FlowLogViews.Page(records, current, size, total, totalCapped);
 	}
 
 	public FlowLogViews.RequestDetail requestDetail(String flowLogId) {

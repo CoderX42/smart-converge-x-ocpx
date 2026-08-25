@@ -244,6 +244,8 @@ describe('vientiane-aligned OCPX page contracts', () => {
     ]) {
       expect(flowLog).toContain(label);
     }
+    expect(flowLog).toContain('result.totalCapped');
+    expect(flowLog).toContain('结果超过 10,000 条');
   });
 
   it('distinguishes upstream callbacks from downstream delivery submissions', () => {

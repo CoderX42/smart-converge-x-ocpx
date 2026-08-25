@@ -61,6 +61,7 @@ const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<FlowLog[]>([]);
 const loading = ref(false);
 const total = ref(0);
+const totalCapped = ref(false);
 const showSearch = ref(true);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
@@ -124,6 +125,7 @@ async function load() {
     if (loadGuard.isLatest(requestSequence)) {
       rows.value = result.records;
       total.value = result.total;
+      totalCapped.value = result.totalCapped;
     }
   } finally {
     if (loadGuard.isLatest(requestSequence)) loading.value = false;
@@ -345,6 +347,14 @@ onMounted(async () => {
           @search="showSearch = !showSearch"
         />
       </div>
+      <el-alert
+        v-if="totalCapped"
+        :closable="false"
+        class="mb-3"
+        show-icon
+        title="结果超过 10,000 条，仅支持查看前 10,000 条；请缩小日期范围或增加筛选条件。"
+        type="warning"
+      />
       <el-table
         v-loading="loading"
         class="ocpx-table"

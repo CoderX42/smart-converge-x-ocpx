@@ -75,6 +75,8 @@ public final class FlowLogViews {
 
 		private long total;
 
+		private boolean totalCapped;
+
 	}
 
 	@Data

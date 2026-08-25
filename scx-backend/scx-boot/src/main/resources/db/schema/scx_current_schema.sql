@@ -381,6 +381,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_flow_log (
   create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   KEY idx_ocpx_flow_log_time (event_time,flow_type,result_status),
+  KEY idx_ocpx_flow_log_page (event_time,id),
   KEY idx_ocpx_flow_log_dimensions (advertiser_id,promotion_link_id,media_id,monitor_task_id,event_time),
   KEY idx_ocpx_flow_log_event (event_id,create_time),
   KEY idx_ocpx_flow_log_trace (trace_id,event_time,stage_code),

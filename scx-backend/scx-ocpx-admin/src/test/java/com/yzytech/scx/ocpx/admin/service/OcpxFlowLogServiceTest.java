@@ -25,6 +25,31 @@ class OcpxFlowLogServiceTest {
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
+	void capsLargeTotalsAndRejectsPagesBeyondTheSearchWindow() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
+		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(10_001L);
+		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+		OcpxFlowLogService service = new OcpxFlowLogService(jdbcTemplate, advertiserScope);
+
+		FlowLogViews.Page page = service.query(LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 25), null, null, null,
+				null, null, null, null, 1L, 30L);
+
+		assertThat(page.getTotal()).isEqualTo(10_000L);
+		assertThat(page.isTotalCapped()).isTrue();
+		service.query(LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 25), null, null, null, null, null, null, null,
+				334L, 30L);
+		ArgumentCaptor<Object[]> pageArgs = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, times(2)).query(anyString(), any(RowMapper.class), pageArgs.capture());
+		assertThat(pageArgs.getAllValues().get(1)).endsWith(10L, 9_990L);
+		assertThatThrownBy(() -> service.query(LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 25), null, null, null,
+				null, null, null, null, 335L, 30L))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("翻页超过 10000 条");
+	}
+
+	@Test
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	void optionsUseFlowLogScopeAndParentDimensions() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
@@ -60,9 +85,13 @@ class OcpxFlowLogServiceTest {
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).queryForObject(sql.capture(), eq(Long.class), args.capture());
-		assertThat(sql.getValue()).contains("f.advertiser_id=?", "f.promotion_link_id=?", "f.media_id=?",
-				"f.monitor_task_id=?");
-		assertThat(args.getValue()).contains("advertiser-1", "link-1", "media-1", "task-1");
+		assertThat(sql.getValue()).contains("SELECT COUNT(*) FROM (SELECT f.id", "f.advertiser_id=?",
+				"f.promotion_link_id=?", "f.media_id=?", "f.monitor_task_id=?", "LIMIT ?");
+		assertThat(args.getValue()).contains("advertiser-1", "link-1", "media-1", "task-1", 10_001L);
+		ArgumentCaptor<String> pageSql = ArgumentCaptor.forClass(String.class);
+		verify(jdbcTemplate).query(pageSql.capture(), any(RowMapper.class), any(Object[].class));
+		assertThat(pageSql.getValue()).contains("ORDER BY f.event_time DESC,f.id DESC LIMIT ? OFFSET ?")
+			.doesNotContain("ORDER BY f.create_time");
 	}
 
 	@Test
