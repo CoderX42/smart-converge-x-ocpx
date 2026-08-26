@@ -17,6 +17,9 @@
   `coverageStatus` 和 `stages`。接口要求 `ocpx:flow-log:detail`，只授予活动
   `ROLE_ADMIN`，响应为 `Cache-Control: no-store`，每次查看记录写入不含设备值的安全审计。
 - 管理员可在七日详情中查看 IDFA、CAID、OAID 等设备原值；不提供原值导出。
+- 流程日志详情提供“一键复制完整安全日志”：仅复制 Trace、事件 ID、链路阶段、安全端点、HTTP、
+  耗时、稳定结论、宏审计、脱敏响应和 SCX 路由关系。设备标识只保留掩码，Callback、签名、
+  Token、凭据和加密上下文必须隐藏；该能力不构成设备原值导出。
 - `GET /ocpx/media-macros` 是 Feedback v2 快捷宏目录的唯一管理接口。媒体管理只在新建时默认选中，
   编辑存量媒体时保持其原配置和自定义宏。
 

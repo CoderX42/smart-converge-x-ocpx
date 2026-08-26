@@ -159,6 +159,8 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('requestDetail.osVersion');
     expect(source).toContain('requestDetail.ipv6');
     expect(source).toContain('requestDetail.caid2');
+    expect(source).toContain('复制完整安全日志');
+    expect(source).toContain('buildSafeFlowLogText(requestDetail.value)');
   });
 
   it('keeps advertiser credentials create-only and resets every core dialog', () => {

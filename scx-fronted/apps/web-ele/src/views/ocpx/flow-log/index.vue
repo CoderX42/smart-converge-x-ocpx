@@ -19,10 +19,16 @@ import RightToolbar from '#/components/right-toolbar/index.vue';
 import LongText from '../long-text.vue';
 import {
   allColumnKeys,
+  copyLongText,
   createLatestRequestGuard,
   PAGE_SIZES,
   resetPage,
 } from '../table';
+import {
+  buildSafeFlowLogText,
+  flowLogStageLabel,
+  flowLogStageLabels,
+} from './safe-log';
 
 import '../table.scss';
 
@@ -33,16 +39,6 @@ const { hasAccessByCodes } = useAccess();
 const canViewRequestDetail = computed(() =>
   hasAccessByCodes(['ocpx:flow-log:detail']),
 );
-
-const stageLabels: Record<string, string> = {
-  ADVERTISER_CALLBACK: '广告主 Callback',
-  ADVERTISER_DELIVERY: '广告主出站 / 响应',
-  CALLBACK_ACCOUNTING: '广告主计费',
-  LEGACY: '历史日志',
-  MEDIA_DEDUCTION: '媒体扣量',
-  MEDIA_DELIVERY: '媒体出站 / 响应',
-  MEDIA_INGRESS: '媒体入站',
-};
 
 const columns = [
   { key: 'time', label: '时间' },
@@ -201,11 +197,16 @@ function closeRequestDetail() {
 }
 
 function stageLabel(value: string) {
-  return stageLabels[value] || value;
+  return flowLogStageLabel(value);
 }
 
 function formatted(value: Record<string, unknown>) {
   return Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : '';
+}
+
+async function copySafeFlowLog() {
+  if (!requestDetail.value) return;
+  await copyLongText(buildSafeFlowLogText(requestDetail.value));
 }
 
 onMounted(async () => {
@@ -316,7 +317,7 @@ onMounted(async () => {
           @change="search"
         >
           <el-option
-            v-for="(label, value) in stageLabels"
+            v-for="(label, value) in flowLogStageLabels"
             :key="value"
             :label="label"
             :value="value"
@@ -489,9 +490,14 @@ onMounted(async () => {
                   Trace {{ requestDetail.traceId || '历史记录无 Trace ID' }}
                 </p>
               </div>
-              <el-tag type="info"
-                >{{ requestDetail.stages.length }} 个阶段</el-tag
-              >
+              <div class="flow-detail-actions">
+                <el-tag type="info"
+                  >{{ requestDetail.stages.length }} 个阶段</el-tag
+                >
+                <el-button type="primary" @click="copySafeFlowLog">
+                  复制完整安全日志
+                </el-button>
+              </div>
             </div>
             <el-timeline
               v-if="requestDetail.stages.length > 0"
@@ -790,6 +796,14 @@ onMounted(async () => {
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.flow-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .flow-detail-heading h3 {
