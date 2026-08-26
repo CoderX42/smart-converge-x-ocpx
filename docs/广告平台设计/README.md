@@ -1,6 +1,6 @@
 # Smart Converge X 广告平台文档中心
 
-> 当前源码基线：2026-08-25 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力上游协议、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计及 V123 流程日志检索优化（迁移号至 V123）。源码变更不代表目标数据库、UAT 或生产发布已验收。
+> 当前源码基线：2026-08-26 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力与 V124 人人视频上游协议、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计及 V123 流程日志检索优化（迁移号至 V124）。源码变更不代表目标数据库、UAT 或生产发布已验收。
 
 ## 当前广告业务
 
@@ -16,7 +16,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 管理端页面字段和交互以 `/Users/karl/code/sgyz-ocpx/vientiane-frontend/src/views` 为参考；`/manage/channel/channel` 映射为 SCX“媒体管理”。管理 API 始终使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`，不提供参考系统旧字段别名。
 
-`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG` 或 `GRAVITY`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。引力按单条 Android+IOS 推广链接和 Feedback 的 `os` 动态选择设备参数，由广告主协议选择和 GRAVITY 精确域名白名单共同控制投递；下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
+`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY` 或 `RENREN_VIDEO`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频按产品和 Android/IOS 分别保存完整点击模板，不保存 Bearer Token；下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
 
 六个共享实体位于 `scx-ocpx-core`。V108 由 MySQL 唯一事件事实、不可变账务流水、广告主账户和小时汇总统一驱动 Dashboard 与报表；V110 增加仅真实系统管理员可用的幂等人工余额扣减；V111 增加广告主自有图片创意、多链接绑定、关闭/点击/目标转化三种计费模式和全量账务流水查询。V111 不引入 `cId`、创意级监测地址、创意事实或创意报表维度，外部 `creative_id` 语义不变。Redis 余额和旧报表队列不再是数据真相。Dashboard 默认展示今天，支持今天、昨天、过去 7 天、过去 30 天和自定义日期；过去 7/30 天采用不含今天的完整历史日口径。广告主只能查看自己的可用余额和今日消费；业务指标可按授权数据范围查询。浏览器只传输服务端凭据引用；广告主开户时一次性提交登录用户名和原始密码，密码只用于服务端 BCrypt，不进入业务表、响应或日志。Secret、AES Key 和解析后的合作方凭据始终不进入浏览器。
 
@@ -39,6 +39,8 @@ V119 用确定性 trace 聚合媒体入站、广告主出站/响应、广告主 
 V120 新增独立 `GRAVITY` 上游：仅投递 CLK，按 iOS/Android 使用引力规定字段并生成认证加密 `ctx` Callback；`{idfa}` 为正确字段。引力 HTTP 2xx 只表示点击接口接受，Callback 固定映射为 V120 契约确认的 ACTIVATE。GRAVITY 不使用静态启用开关；广告主未选择该协议或白名单为空时拒绝投递。
 
 V123 取消流程日志同步总数统计：单次只按 `event_time,id` 倒序读取“本页 + 1 条”，由额外一条判断 `hasNext`，不再为页码展示扫描数百万条日志。前端改为上一页/下一页渐进浏览，最多查看前 10,000 条；目标库索引迁移、部署和线上复测仍需独立授权。
+
+V124 新增独立 `RENREN_VIDEO` 上游：仅投递 CLICK，推广链接保存固定 `userId` 的 `/ad-action/click` 完整模板，Android/IOS 分开创建并执行严格宏、白名单、DNS 公网和 SSRF 校验。`/renren-video/callback` 使用 AES-GCM 密钥环恢复现有事实、计费、扣量和媒体回传路由。V124 不预置域名、不保存 Bearer Token、不接入任务状态或 T+1 汇总查询；目标库迁移、模板录入、部署和第三方 UAT 均未执行。
 
 ## 推荐阅读顺序
 
@@ -74,10 +76,11 @@ V123 取消流程日志同步总数统计：单次只按 `event_time,id` 倒序�
 - [V121 全量原始请求审计契约（已退役）](contracts/management-v121.md)：仅保留历史发布证据，不再代表当前能力。
 - [V122 原始请求审计退役契约](contracts/management-v122.md)：删除 V121 表、权限、接口、页面和 WAL，保留 Callback `kid` 兼容。
 - [V123 流程日志检索性能契约](contracts/management-v123.md)：取消同步总数统计、阻止深翻页，并使用事件时间有序索引读取最新记录。
+- [V124 人人视频 CPA 上游协议契约](contracts/management-v124.md)：分平台完整点击模板、精确空白名单、认证 Callback 和第三方验收边界。
 
 ## 数据库与发布边界
 
-- 空库结构以 `scx_current_schema.sql` 为准；已执行 V121 的数据库必须在部署不含审计/WAL的新版本后前向执行 V122，禁止修改或重放 V121。V122 删除 V121 两张审计表及专用权限，不影响 V119 流程日志和业务事实表。V123 只增加流程日志分页索引；在数百万行目标表执行前必须备份、审核在线 DDL 并取得明确授权。此前各迁移的数据预检和不回填边界保持不变；发布前还必须人工盘点 Redis 非零余额，任一存在都不得直接迁移。
+- 空库结构以 `scx_current_schema.sql` 为准；已执行 V121 的数据库必须在部署不含审计/WAL的新版本后前向执行 V122，禁止修改或重放 V121。V122 删除 V121 两张审计表及专用权限，不影响 V119 流程日志和业务事实表。V123 只增加流程日志分页索引；V124 只扩展协议约束且不预置人人视频域名、广告主或 `userId`。目标环境执行前必须备份、审核 DDL 并取得明确授权。此前各迁移的数据预检和不回填边界保持不变；发布前还必须人工盘点 Redis 非零余额，任一存在都不得直接迁移。
 - V102 预检会拒绝无法映射的平台值和已软删的广告主/媒体，不静默删除或复活数据。
 - V96–V102 保持不变；所有当前和未来 SQL 都不读写已退役的 `scx_schema_migration`。
 - Engine profile 中只保存服务端凭据映射；生产值不得出现在浏览器、日志、文档或对外差异中。

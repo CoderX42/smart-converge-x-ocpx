@@ -40,6 +40,13 @@
       }
     },
     {
+      "name": "人人视频 Callback GET",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/ocpx/renren-video/callback?kid={{callbackKid}}&ext={{callbackExt}}&event=activate"
+      }
+    },
+    {
       "name": "读取共享广告主角色权限",
       "request": {
         "method": "GET",
@@ -222,6 +229,22 @@
           "options": { "raw": { "language": "json" } }
         },
         "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/GRAVITY/allowed-hosts"
+      }
+    },
+    {
+      "name": "替换 RENREN_VIDEO 允许域名",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allowedHosts\": []\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/RENREN_VIDEO/allowed-hosts"
       }
     },
     {

@@ -5,7 +5,7 @@ import { requestClient } from '#/api/request';
 export type PlatformCode = 1 | 2 | 3 | 4;
 
 export type OcpxUpstreamProtocol =
-  'AERIM' | 'GRAVITY' | 'TEMPLATE_GET' | 'WEIFENG';
+  'AERIM' | 'GRAVITY' | 'RENREN_VIDEO' | 'TEMPLATE_GET' | 'WEIFENG';
 
 export type AdvertiserV2 = {
   advertiserName: string;
@@ -46,7 +46,10 @@ export type AdvertiserUpdatePayload = {
 
 export type ProtocolConfig = {
   allowedHosts: string[];
-  protocol: Extract<OcpxUpstreamProtocol, 'AERIM' | 'GRAVITY' | 'WEIFENG'>;
+  protocol: Extract<
+    OcpxUpstreamProtocol,
+    'AERIM' | 'GRAVITY' | 'RENREN_VIDEO' | 'WEIFENG'
+  >;
 };
 
 export type AdvertiserRechargeResult = {

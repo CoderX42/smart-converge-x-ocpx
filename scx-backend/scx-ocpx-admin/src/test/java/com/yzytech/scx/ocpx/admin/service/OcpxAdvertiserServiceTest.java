@@ -130,6 +130,34 @@ class OcpxAdvertiserServiceTest {
 	}
 
 	@Test
+	void renrenVideoAdvertiserClearsCredentialsAndAdvertiserLevelUrls() {
+		when(advertiserMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxAdvertiser> stored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxAdvertiser advertiser = invocation.getArgument(0);
+			advertiser.setId("adv-renren");
+			stored.set(advertiser);
+			return 1;
+		}).when(advertiserMapper).insert(any(OcpxAdvertiser.class));
+		when(accountProvisioner.provision("adv-renren", "人人视频广告主", "renren-user", "Pass@123"))
+			.thenReturn(new AdvertiserAccountProvisioner.ProvisionedAccount("user-renren", "renren-user"));
+		when(advertiserMapper.updateById(any(OcpxAdvertiser.class))).thenReturn(1);
+		when(advertiserMapper.selectById("adv-renren")).thenAnswer(invocation -> stored.get());
+		when(advertiserMapper.selectUsernamesByAdvertiserIds(any()))
+			.thenReturn(List.of(username("adv-renren", "renren-user")));
+		when(advertiserAccountService.balance("adv-renren")).thenReturn(BigDecimal.ZERO);
+
+		AdvertiserViews.Item result = service
+			.create(new AdvertiserRequests.Create("人人视频广告主", "must-be-cleared", OcpxUpstreamProtocol.RENREN_VIDEO,
+					"https://must-be-cleared.example", "idfa=__IDFA__", "renren-user", "Pass@123"));
+
+		assertThat(result.getUpstreamProtocol()).isEqualTo(OcpxUpstreamProtocol.RENREN_VIDEO);
+		assertThat(result.getCredentialConfigKey()).isNull();
+		assertThat(result.getBidUrl()).isNull();
+		assertThat(result.getMacroParams()).isNull();
+	}
+
+	@Test
 	void provisioningFailureDoesNotPublishRefreshOrBindAccount() {
 		when(advertiserMapper.selectCount(any())).thenReturn(0L);
 		AtomicReference<OcpxAdvertiser> inserted = new AtomicReference<>();

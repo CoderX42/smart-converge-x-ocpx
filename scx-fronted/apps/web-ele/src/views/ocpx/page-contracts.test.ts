@@ -171,7 +171,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('appendAdvertiserMacroParams(');
     expect(advertiser).toContain('label="宏参数"');
     expect(advertiser).toContain(
-      'v-if="form.upstreamProtocol !== \'GRAVITY\'"',
+      "!['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol)",
     );
     expect(advertiser).not.toContain('DEFAULT_ADVERTISER_MACRO_PARAMS');
     for (const name of [
@@ -194,6 +194,9 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('不含协议、端口、路径、通配符或 IP');
     expect(advertiser).toContain('一个广告主可以配置多个产品链接');
     expect(advertiser).toContain('引力使用一条 Android+IOS 链接');
+    expect(advertiser).toContain('人人视频');
+    expect(advertiser).toContain('RENREN_VIDEO');
+    expect(page('promotion-link')).toContain('/ad-action/click 完整模板');
   });
 
   it('creates financial idempotency keys in browsers without randomUUID', () => {

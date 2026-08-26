@@ -195,6 +195,9 @@ describe('ocpx four-entity write contracts', () => {
     await getProtocolConfigs();
     await updateProtocolAllowedHosts('AERIM', ['d.aerim.cn', 'c.aerim.cn']);
     await updateProtocolAllowedHosts('GRAVITY', ['backend.gravity-engine.com']);
+    await updateProtocolAllowedHosts('RENREN_VIDEO', [
+      'monitor.partner.example',
+    ]);
 
     expect(requestClient.get).toHaveBeenCalledWith('/ocpx/protocol-configs');
     expect(requestClient.put).toHaveBeenCalledWith(
@@ -204,6 +207,10 @@ describe('ocpx four-entity write contracts', () => {
     expect(requestClient.put).toHaveBeenCalledWith(
       '/ocpx/protocol-configs/GRAVITY/allowed-hosts',
       { allowedHosts: ['backend.gravity-engine.com'] },
+    );
+    expect(requestClient.put).toHaveBeenCalledWith(
+      '/ocpx/protocol-configs/RENREN_VIDEO/allowed-hosts',
+      { allowedHosts: ['monitor.partner.example'] },
     );
   });
 });

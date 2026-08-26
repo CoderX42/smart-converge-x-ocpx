@@ -12,6 +12,8 @@ import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
+import com.yzytech.scx.ocpx.protocol.RenrenVideoTemplateContract;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -99,7 +101,7 @@ public class OcpxMonitorTaskTestService {
 				new ParameterSpec("creative_id", "创意", "广告维度", "__CREATIVE_ID__", OsSupport.BOTH, false),
 				new ParameterSpec("adv_id", "外部广告主", "广告维度", "__ADVERTISER_ID__", OsSupport.BOTH, false));
 
-	private static final Set<String> DEFAULT_NON_DEVICE = Set.of("ip", "ua", "model", "ts");
+	private static final Set<String> DEFAULT_NON_DEVICE = Set.of("ip", "ua", "model", "ts", "mts");
 
 	private final OcpxMonitorTaskMapper taskMapper;
 
@@ -295,8 +297,8 @@ public class OcpxMonitorTaskTestService {
 		List<String> warnings = new ArrayList<>();
 		validatePlatform(context.link().getPlatform(), os, blockers);
 		Set<String> mediaMacros = macros(context.media().getMacroParams());
-		Set<String> upstreamMacros = macros(
-				safe(context.advertiser().getBidUrl()) + "&" + safe(context.advertiser().getMacroParams()));
+		Set<String> upstreamMacros = upstreamMacros(context);
+		validateRenrenVideoSelection(context, os, selected, blockers);
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (selected.contains(spec.key()) && !spec.os().supports(os)) {
 				blockers.add(spec.label() + " 与 " + os + " 不兼容");
@@ -371,8 +373,7 @@ public class OcpxMonitorTaskTestService {
 			return selected;
 		}
 		Set<String> mediaMacros = macros(context.media().getMacroParams());
-		Set<String> upstreamMacros = macros(
-				safe(context.advertiser().getBidUrl()) + "&" + safe(context.advertiser().getMacroParams()));
+		Set<String> upstreamMacros = upstreamMacros(context);
 		Set<String> defaults = new LinkedHashSet<>();
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (spec.os().supports(os) && mediaMacros.contains(spec.macro()) && upstreamMacros.contains(spec.macro())
@@ -633,6 +634,66 @@ public class OcpxMonitorTaskTestService {
 			}
 		}
 		return result;
+	}
+
+	private Set<String> upstreamMacros(Context context) {
+		if (context.advertiser().getUpstreamProtocol() != OcpxUpstreamProtocol.RENREN_VIDEO) {
+			return macros(safe(context.advertiser().getBidUrl()) + "&" + safe(context.advertiser().getMacroParams()));
+		}
+		String template = safe(context.link().getLinkUrl());
+		Set<String> result = macros(template);
+		normalizeRenrenVideoMacro(result, template, "__IMEI__", "__IMEI_MD5__");
+		normalizeRenrenVideoMacro(result, template, "__ANDROID_ID__", "__ANDROIDID__");
+		normalizeRenrenVideoMacro(result, template, "__ANDROID_ID_MD5__", "__ANDROIDID_MD5__");
+		normalizeRenrenVideoMacro(result, template, "__TS__", "__MTS__");
+		normalizeRenrenVideoMacro(result, template, "__TS_S__", "__TS__");
+		normalizeRenrenVideoMacro(result, template, "__REQID__", "__REQUEST_ID__");
+		normalizeRenrenVideoMacro(result, template, "__CLICK_ID__", "__CLICKID__");
+		if (template.contains("__CALLBACK__")) {
+			result.add("__CALLBACK_URL__");
+		}
+		return result;
+	}
+
+	private void validateRenrenVideoSelection(Context context, String os, Set<String> selected, List<String> blockers) {
+		if (context.advertiser().getUpstreamProtocol() != OcpxUpstreamProtocol.RENREN_VIDEO) {
+			return;
+		}
+		try {
+			RenrenVideoTemplateContract.requireValid(context.link().getLinkUrl(), context.link().getPlatform());
+		}
+		catch (IllegalArgumentException exception) {
+			blockers.add("人人视频推广链接模板不符合实时点击协议");
+			return;
+		}
+		for (String required : List.of("ip", "ua")) {
+			if (!selected.contains(required)) {
+				blockers.add("人人视频测试缺少必填参数 " + required);
+			}
+		}
+		String template = context.link().getLinkUrl();
+		String timestamp = template.contains("__TS_S__") ? "ts" : "mts";
+		if (!selected.contains(timestamp)) {
+			blockers.add("人人视频测试缺少必填时间戳 " + timestamp);
+		}
+		if ("ANDROID".equals(os)) {
+			for (String required : List.of("imei_md5", "oaid", "oaid_md5")) {
+				if (!selected.contains(required)) {
+					blockers.add("人人视频 Android 测试缺少必填设备参数 " + required);
+				}
+			}
+		}
+		else if (Set.of("caid", "idfa", "idfa_md5").stream().noneMatch(selected::contains)) {
+			blockers.add("人人视频 IOS 测试至少选择 CAID、IDFA 或 IDFA MD5 之一");
+		}
+	}
+
+	private void normalizeRenrenVideoMacro(Set<String> result, String template, String partnerMacro,
+			String canonicalMacro) {
+		if (template.contains(partnerMacro)) {
+			result.remove(partnerMacro);
+			result.add(canonicalMacro);
+		}
 	}
 
 	private void validateRequestId(String requestId) {

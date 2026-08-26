@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.example.invalid/contracts/renren-video-callback-req-v1.schema.json",
+  "title": "RENREN_VIDEO callback GET query parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kid", "ext", "event"],
+  "properties": {
+    "kid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "ext": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "event": {
+      "type": "string",
+      "enum": ["activate", "register", "leave", "pay", "first_activate"]
+    }
+  }
+}

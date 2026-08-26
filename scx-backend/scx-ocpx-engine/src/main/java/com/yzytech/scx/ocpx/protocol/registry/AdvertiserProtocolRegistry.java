@@ -41,7 +41,9 @@ public class AdvertiserProtocolRegistry {
 
 		WEIFENG,
 
-		GRAVITY
+		GRAVITY,
+
+		RENREN_VIDEO
 
 	}
 

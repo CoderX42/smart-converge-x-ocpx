@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser (
   UNIQUE KEY uk_ocpx_advertiser_account_user (account_user_id),
   CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id),
   CONSTRAINT ck_ocpx_advertiser_upstream_protocol CHECK (
-    upstream_protocol IS NULL OR upstream_protocol IN ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY')
+    upstream_protocol IS NULL OR upstream_protocol IN
+      ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO')
   )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: upstream advertiser';
 
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_protocol_allowed_host (
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   PRIMARY KEY (id),
   UNIQUE KEY uk_ocpx_protocol_allowed_host (protocol_type,host),
-  CONSTRAINT ck_ocpx_protocol_allowed_host_type CHECK (protocol_type IN ('AERIM','WEIFENG','GRAVITY')),
+  CONSTRAINT ck_ocpx_protocol_allowed_host_type
+    CHECK (protocol_type IN ('AERIM','WEIFENG','GRAVITY','RENREN_VIDEO')),
   CONSTRAINT ck_ocpx_protocol_allowed_host_value CHECK (
     host=LOWER(host) AND host NOT LIKE '%://%' AND host NOT LIKE '%/%'
     AND host NOT LIKE '%:%' AND host NOT LIKE '%*%'

@@ -89,12 +89,14 @@ const form = reactive({
 const protocolOptions: Array<{ label: string; value: OcpxUpstreamProtocol }> = [
   { label: 'AERIM', value: 'AERIM' },
   { label: '引力', value: 'GRAVITY' },
+  { label: '人人视频', value: 'RENREN_VIDEO' },
   { label: '微风互动', value: 'WEIFENG' },
   { label: '通用 GET 模板', value: 'TEMPLATE_GET' },
 ];
 const protocolLabels: Record<OcpxUpstreamProtocol, string> = {
   AERIM: 'AERIM',
   GRAVITY: '引力',
+  RENREN_VIDEO: '人人视频',
   TEMPLATE_GET: '通用 GET 模板',
   WEIFENG: '微风互动',
 };
@@ -183,6 +185,7 @@ const protocolConfigSaving = ref<ProtocolConfig['protocol']>();
 const protocolConfigs = reactive<Record<ProtocolConfig['protocol'], string[]>>({
   AERIM: [],
   GRAVITY: [],
+  RENREN_VIDEO: [],
   WEIFENG: [],
 });
 
@@ -197,6 +200,10 @@ async function openProtocolConfig() {
     protocolConfigs.GRAVITY = [
       ...(result.find((item) => item.protocol === 'GRAVITY')?.allowedHosts ||
         []),
+    ];
+    protocolConfigs.RENREN_VIDEO = [
+      ...(result.find((item) => item.protocol === 'RENREN_VIDEO')
+        ?.allowedHosts || []),
     ];
     protocolConfigs.WEIFENG = [
       ...(result.find((item) => item.protocol === 'WEIFENG')?.allowedHosts ||
@@ -925,7 +932,7 @@ onMounted(async () => {
           :closable="false"
           class="field-alert"
           show-icon
-          title="AERIM、微风互动按推广链接中的投放链接转发，一个广告主可以配置多个产品链接；引力使用一条 Android+IOS 链接并按请求系统生成参数。"
+          title="AERIM、微风互动按推广链接转发，一个广告主可以配置多个产品链接；引力使用一条 Android+IOS 链接；人人视频必须为每个产品分别创建 Android、IOS 完整点击模板，固定 userId 写入模板，系统不保存其 Bearer Token。"
           type="info"
         />
         <el-form-item
@@ -939,7 +946,7 @@ onMounted(async () => {
             type="textarea"
         /></el-form-item>
         <el-form-item
-          v-if="form.upstreamProtocol !== 'GRAVITY'"
+          v-if="!['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol)"
           label="凭据引用"
           prop="credentialConfigKey"
           ><el-input
@@ -947,7 +954,7 @@ onMounted(async () => {
             placeholder="请输入凭据引用"
         /></el-form-item>
         <el-form-item
-          v-if="form.upstreamProtocol !== 'GRAVITY'"
+          v-if="!['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol)"
           label="宏参数"
           prop="macroParams"
         >
@@ -1004,7 +1011,12 @@ onMounted(async () => {
           type="warning"
         />
         <section
-          v-for="protocol in ['AERIM', 'WEIFENG', 'GRAVITY'] as const"
+          v-for="protocol in [
+            'AERIM',
+            'WEIFENG',
+            'GRAVITY',
+            'RENREN_VIDEO',
+          ] as const"
           :key="protocol"
           class="protocol-host-section"
         >

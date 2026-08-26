@@ -10,6 +10,7 @@ import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxDeductionRule;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.protocol.RenrenVideoTemplateContract;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxDeductionRuleMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskMapper;
@@ -168,6 +169,15 @@ public class OcpxPromotionLinkService {
 	}
 
 	private void validateProtocolLink(OcpxAdvertiser advertiser, Integer platform, String url) {
+		if (advertiser.getUpstreamProtocol() == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.RENREN_VIDEO) {
+			try {
+				RenrenVideoTemplateContract.requireValid(url, platform);
+			}
+			catch (IllegalArgumentException exception) {
+				throw new BootBusinessException(renrenVideoTemplateMessage(exception.getMessage()));
+			}
+			return;
+		}
 		if (advertiser.getUpstreamProtocol() != com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY) {
 			return;
 		}
@@ -200,6 +210,20 @@ public class OcpxPromotionLinkService {
 		catch (RuntimeException exception) {
 			throw new BootBusinessException("引力投放链接格式无效");
 		}
+	}
+
+	private String renrenVideoTemplateMessage(String code) {
+		return switch (code == null ? "" : code) {
+			case "RENREN_VIDEO_TEMPLATE_PLATFORM_INVALID" -> "人人视频推广链接必须分别选择 Android 或 IOS";
+			case "RENREN_VIDEO_TEMPLATE_QUERY_MISSING" -> "人人视频点击模板缺少查询参数";
+			case "RENREN_VIDEO_TEMPLATE_PARAMETER_DUPLICATE" -> "人人视频点击模板存在重复参数";
+			case "RENREN_VIDEO_TEMPLATE_USER_ID_MISSING" -> "人人视频点击模板必须包含固定 userId";
+			case "RENREN_VIDEO_TEMPLATE_TIMESTAMP_MISSING" -> "人人视频点击模板必须包含 __TS__ 或 __TS_S__";
+			case "RENREN_VIDEO_TEMPLATE_IOS_IDENTITY_MISSING" -> "人人视频 iOS 模板至少需要 CAID、IDFA 或 IDFA MD5";
+			case "RENREN_VIDEO_TEMPLATE_REQUIRED_MACRO_MISSING" -> "人人视频点击模板缺少必填宏";
+			case "RENREN_VIDEO_TEMPLATE_MACRO_INVALID" -> "人人视频点击模板包含未知或位置错误的宏";
+			default -> "人人视频投放链接必须是合法的 HTTP/HTTPS /ad-action/click 完整模板";
+		};
 	}
 
 	private boolean containsBrace(String value) {

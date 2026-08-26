@@ -216,7 +216,8 @@ public class OcpxAdvertiserService {
 			String macros) {
 		target.setAdvertiserName(name.trim());
 		target.setUpstreamProtocol(upstreamProtocol);
-		if (upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY) {
+		if (upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY
+				|| upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.RENREN_VIDEO) {
 			target.setCredentialConfigKey(null);
 			target.setBidUrl(null);
 			target.setMacroParams(null);

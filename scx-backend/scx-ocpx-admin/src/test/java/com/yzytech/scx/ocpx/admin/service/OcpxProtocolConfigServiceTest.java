@@ -75,6 +75,18 @@ class OcpxProtocolConfigServiceTest {
 	}
 
 	@Test
+	void renrenVideoHostConfigurationStartsEmptyAndUsesDatabaseBackedRefresh() {
+		when(mapper.insert(any(OcpxProtocolAllowedHost.class))).thenReturn(1);
+
+		var result = service.updateAllowedHosts(OcpxUpstreamProtocol.RENREN_VIDEO,
+				new ProtocolConfigRequests.UpdateAllowedHosts(List.of("monitor.partner.example")));
+
+		assertThat(result.getProtocol()).isEqualTo(OcpxUpstreamProtocol.RENREN_VIDEO);
+		assertThat(result.getAllowedHosts()).containsExactly("monitor.partner.example");
+		verify(refreshPublisher).mark();
+	}
+
+	@Test
 	void rejectsUrlAndNonHostConfigurableProtocolBeforeWriting() {
 		assertThatThrownBy(() -> service.updateAllowedHosts(OcpxUpstreamProtocol.AERIM,
 				new ProtocolConfigRequests.UpdateAllowedHosts(List.of("https://d.aerim.cn/path"))))

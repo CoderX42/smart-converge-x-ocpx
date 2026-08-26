@@ -20,11 +20,17 @@ class AdvertiserProtocolRegistryTest {
 		weifeng.setId("weifeng-advertiser");
 		weifeng.setUpstreamProtocol(OcpxUpstreamProtocol.WEIFENG);
 		index.add(weifeng.getId(), weifeng);
+		OcpxAdvertiser renrenVideo = new OcpxAdvertiser();
+		renrenVideo.setId("renren-video-advertiser");
+		renrenVideo.setUpstreamProtocol(OcpxUpstreamProtocol.RENREN_VIDEO);
+		index.add(renrenVideo.getId(), renrenVideo);
 
 		AdvertiserProtocolRegistry registry = new AdvertiserProtocolRegistry(index);
 
 		assertThat(registry.resolve("aerim-advertiser")).contains(AdvertiserProtocolRegistry.Protocol.AERIM);
 		assertThat(registry.resolve("weifeng-advertiser")).contains(AdvertiserProtocolRegistry.Protocol.WEIFENG);
+		assertThat(registry.resolve("renren-video-advertiser"))
+			.contains(AdvertiserProtocolRegistry.Protocol.RENREN_VIDEO);
 		assertThat(registry.resolve("missing")).isEmpty();
 	}
 

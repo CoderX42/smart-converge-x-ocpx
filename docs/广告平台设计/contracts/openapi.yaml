@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 12.2.0
-  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, V120 GRAVITY, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 12.4.0
+  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, V120 GRAVITY, V124 RENREN_VIDEO, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -150,6 +150,23 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GravityCallbackFailure' }
+  /renren-video/callback:
+    get:
+      operationId: handleRenrenVideoCallback
+      description: 人人视频 CPA 转化回调；kid/ext 恢复 SCX Feedback 路由，event 映射到现有转化事实、计费、扣量和下游媒体回传。
+      parameters:
+        - { name: kid, in: query, required: true, description: Callback AES-GCM key-ring id, schema: { type: string, minLength: 1, maxLength: 32 } }
+        - { name: ext, in: query, required: true, description: URL-safe authenticated encrypted Feedback route context, schema: { type: string, minLength: 1, maxLength: 12000 } }
+        - name: event
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [activate, register, leave, pay, first_activate]
+      responses:
+        '200': { description: Empty response for success, duplicate, or deducted conversion }
+        '400': { description: Missing parameter, unknown event, unknown key version, or invalid encrypted route context }
+        '500': { description: Internal handling exception }
   /test-callback:
     get:
       operationId: collectMonitorTaskTestCallback
@@ -180,7 +197,7 @@ paths:
     get:
       operationId: listUpstreamProtocolConfigs
       summary: 查询上游协议允许域名
-      description: 仅管理员可读；返回 AERIM、WEIFENG 与 GRAVITY 的当前精确域名白名单。空列表表示该协议全部拒绝。
+      description: 仅管理员可读；返回 AERIM、WEIFENG、GRAVITY 与 RENREN_VIDEO 的当前精确域名白名单。空列表表示该协议全部拒绝。
       security:
         - saToken: []
       responses:
@@ -200,14 +217,14 @@ paths:
     put:
       operationId: replaceUpstreamProtocolAllowedHosts
       summary: 全量替换上游协议允许域名
-      description: 仅支持 AERIM、WEIFENG 与 GRAVITY。服务端规范化、去重并校验精确域名；禁止 URL、端口、通配符、IP 和单标签主机。保存成功后通知 Engine 刷新索引。
+      description: 仅支持 AERIM、WEIFENG、GRAVITY 与 RENREN_VIDEO。服务端规范化、去重并校验精确域名；禁止 URL、端口、通配符、IP 和单标签主机。保存成功后通知 Engine 刷新索引。
       security:
         - saToken: []
       parameters:
         - name: protocol
           in: path
           required: true
-          schema: { type: string, enum: [AERIM, WEIFENG, GRAVITY] }
+          schema: { type: string, enum: [AERIM, WEIFENG, GRAVITY, RENREN_VIDEO] }
       requestBody:
         required: true
         content:
@@ -820,7 +837,7 @@ components:
       type: object
       required: [protocol, allowedHosts]
       properties:
-        protocol: { type: string, enum: [AERIM, WEIFENG, GRAVITY] }
+        protocol: { type: string, enum: [AERIM, WEIFENG, GRAVITY, RENREN_VIDEO] }
         allowedHosts:
           type: array
           uniqueItems: true

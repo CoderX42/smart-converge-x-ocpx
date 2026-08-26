@@ -149,10 +149,15 @@ required = {
     "feedback/delivery/TemplateGetUpstreamDeliveryService.java",
 	"feedback/delivery/aerim/AerimUpstreamDeliveryService.java",
     "feedback/delivery/weifeng/WeifengUpstreamDeliveryService.java",
+	"feedback/delivery/renrenvideo/RenrenVideoUpstreamDeliveryService.java",
+	"feedback/delivery/renrenvideo/RenrenVideoEndpointPolicy.java",
+	"feedback/delivery/renrenvideo/RenrenVideoHttpClient.java",
     "callback/model/CallbackReq.java",
     "callback/web/UpstreamCallbackController.java",
 	"callback/web/aerim/AerimCallbackController.java",
     "callback/web/weifeng/WeifengCallbackController.java",
+	"callback/web/renrenvideo/RenrenVideoCallbackAdapter.java",
+	"callback/web/renrenvideo/RenrenVideoCallbackController.java",
     "callback/service/CallbackServiceImpl.java",
     "callback/delivery/DownstreamDeliveryDispatcher.java",
     "callback/delivery/CallbackUrlDownstreamDeliveryService.java",
@@ -521,6 +526,18 @@ for required_fragment in (
 if "scx_schema_migration" in v120:
     raise SystemExit("V120 GRAVITY migration gate failed: retired migration ledger is referenced")
 
+v124 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V124__add_renren_video_upstream_protocol.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO'",
+    "'AERIM','WEIFENG','GRAVITY','RENREN_VIDEO'",
+):
+    if required_fragment not in v124:
+        raise SystemExit(f"V124 RENREN_VIDEO migration gate failed: missing {required_fragment}")
+if "INSERT INTO" in v124 or "userId" in v124 or "scx_schema_migration" in v124:
+    raise SystemExit("V124 RENREN_VIDEO migration gate failed: migration must not seed configuration or use ledger")
+
 current_schema = (
     root / "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql"
 ).read_text(encoding="utf-8")
@@ -531,6 +548,14 @@ for required_fragment in (
 ):
     if required_fragment not in current_schema:
         raise SystemExit(f"current schema GRAVITY gate failed: missing {required_fragment}")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO'",
+    "'AERIM','WEIFENG','GRAVITY','RENREN_VIDEO'",
+):
+    if required_fragment not in current_schema:
+        raise SystemExit(f"current schema RENREN_VIDEO gate failed: missing {required_fragment}")
+if re.search(r"VALUES.*RENREN_VIDEO", current_schema, re.IGNORECASE | re.DOTALL):
+    raise SystemExit("current schema RENREN_VIDEO gate failed: allowed host must remain empty by default")
 
 aerim_delivery = (
     engine / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/aerim/AerimUpstreamDeliveryService.java"
@@ -569,6 +594,32 @@ if "iafa" in gravity_delivery:
     raise SystemExit("GRAVITY source gate failed: misspelled iafa macro found")
 if "ocpx.gravity.enabled" in gravity_delivery or "GRAVITY_DISABLED" in gravity_delivery:
     raise SystemExit("GRAVITY source gate failed: retired static enablement switch found")
+
+renren_delivery = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/renrenvideo/RenrenVideoUpstreamDeliveryService.java"
+).read_text(encoding="utf-8")
+for fragment in (
+    "RenrenVideoTemplateContract.requireValid",
+    "OcpxPromotionLinkIndex",
+    'macros.put("__PASS_THROUGH__", link.getLinkExt())',
+    'macros.put("__CALLBACK__", buildCallbackUrl(feedback))',
+    'case 201 -> "RENREN_VIDEO_INVALID_USER_ID"',
+    'case 300 -> "RENREN_VIDEO_SYSTEM_ERROR"',
+):
+    if fragment not in renren_delivery:
+        raise SystemExit(f"RENREN_VIDEO source gate failed: missing {fragment}")
+for forbidden_fragment in ("Bearer ", "bearer-token", "renren.video.enabled", "RENREN_VIDEO_ENABLED"):
+    if forbidden_fragment in renren_delivery:
+        raise SystemExit(f"RENREN_VIDEO source gate failed: forbidden static secret or switch {forbidden_fragment}")
+renren_callback = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/callback/web/renrenvideo/RenrenVideoCallbackAdapter.java"
+).read_text(encoding="utf-8")
+for fragment in ("ActionTypeEnum.ACTIVATE", "ActionTypeEnum.REGISTER", "ActionTypeEnum.NEXT_STAY",
+                 "ActionTypeEnum.PAYMENT", "ActionTypeEnum.FIRST_ACTIVATION", "decryptCallback"):
+    if fragment not in renren_callback:
+        raise SystemExit(f"RENREN_VIDEO callback gate failed: missing {fragment}")
 for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
     if re.search(r"(?m)^\s+gravity:\s*$", source):
         raise SystemExit(f"GRAVITY configuration gate failed: retired static switch found in {path}")
@@ -607,6 +658,15 @@ gravity_prefix = (
 if nginx_template.count(gravity_location) != 1 or gravity_prefix not in nginx_template:
     raise SystemExit("Nginx gate failed: GRAVITY callback must be GET-only and proxy to Engine")
 
+renren_location = "location = /ocpx/renren-video/callback {"
+renren_prefix = (
+    renren_location
+    + "\n    limit_except GET { deny all; }"
+    + "\n    proxy_pass http://127.0.0.1:10000;"
+)
+if nginx_template.count(renren_location) != 1 or renren_prefix not in nginx_template:
+    raise SystemExit("Nginx gate failed: RENREN_VIDEO callback must be GET-only and proxy to Engine")
+
 test_callback_location = "location = /ocpx/test-callback {"
 for template_path in (
     "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf",
@@ -624,6 +684,8 @@ for template_path in (
         raise SystemExit(f"Nginx gate failed: {template_path} test callback must be GET-only and proxy to Engine")
     if template.count(gravity_location) != 1 or gravity_prefix not in template:
         raise SystemExit(f"Nginx gate failed: {template_path} GRAVITY callback must be GET-only and proxy to Engine")
+    if template.count(renren_location) != 1 or renren_prefix not in template:
+        raise SystemExit(f"Nginx gate failed: {template_path} RENREN_VIDEO callback must be GET-only and proxy to Engine")
 
 frontend_nginx = (root / "scx-fronted/scripts/deploy/scx-fronted.conf").read_text(encoding="utf-8")
 frontend_test_proxy = (
@@ -640,6 +702,13 @@ frontend_gravity_proxy = (
 )
 if frontend_nginx.count(gravity_location) != 1 or frontend_gravity_proxy not in frontend_nginx:
     raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only GRAVITY callback route")
+frontend_renren_proxy = (
+    renren_location
+    + "\n        limit_except GET { deny all; }"
+    + "\n        proxy_pass http://scx-ocpx-engine:10000;"
+)
+if frontend_nginx.count(renren_location) != 1 or frontend_renren_proxy not in frontend_nginx:
+    raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only RENREN_VIDEO callback route")
 
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):

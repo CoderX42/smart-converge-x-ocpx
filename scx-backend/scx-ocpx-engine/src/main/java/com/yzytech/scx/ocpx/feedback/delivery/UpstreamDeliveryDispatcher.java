@@ -2,6 +2,7 @@ package com.yzytech.scx.ocpx.feedback.delivery;
 
 import com.yzytech.scx.ocpx.feedback.delivery.aerim.AerimUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.gravity.GravityUpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.renrenvideo.RenrenVideoUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.weifeng.WeifengUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
@@ -39,18 +40,22 @@ public class UpstreamDeliveryDispatcher {
 
 	private static GravityUpstreamDeliveryService gravityDeliveryService;
 
+	private static RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService;
+
 	private static AdvertiserProtocolRegistry protocolRegistry;
 
 	private static OcpxFlowLogWriter flowLogWriter;
 
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
 			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
-			GravityUpstreamDeliveryService gravityDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			GravityUpstreamDeliveryService gravityDeliveryService,
+			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
 			OcpxFlowLogWriter flowLogWriter) {
 		UpstreamDeliveryDispatcher.deliveryService = deliveryService;
 		UpstreamDeliveryDispatcher.aerimDeliveryService = aerimDeliveryService;
 		UpstreamDeliveryDispatcher.weifengDeliveryService = weifengDeliveryService;
 		UpstreamDeliveryDispatcher.gravityDeliveryService = gravityDeliveryService;
+		UpstreamDeliveryDispatcher.renrenVideoDeliveryService = renrenVideoDeliveryService;
 		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
 	}
@@ -89,6 +94,7 @@ public class UpstreamDeliveryDispatcher {
 			case AERIM -> aerimDeliveryService;
 			case WEIFENG -> weifengDeliveryService;
 			case GRAVITY -> gravityDeliveryService;
+			case RENREN_VIDEO -> renrenVideoDeliveryService;
 			case TEMPLATE_GET -> deliveryService;
 		}).orElse(null);
 	}

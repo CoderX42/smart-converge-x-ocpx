@@ -9,6 +9,8 @@ public enum OcpxUpstreamProtocol {
 
 	WEIFENG,
 
-	GRAVITY
+	GRAVITY,
+
+	RENREN_VIDEO
 
 }

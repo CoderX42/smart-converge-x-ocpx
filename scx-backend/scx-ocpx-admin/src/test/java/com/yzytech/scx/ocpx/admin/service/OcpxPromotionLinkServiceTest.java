@@ -104,6 +104,34 @@ class OcpxPromotionLinkServiceTest {
 	}
 
 	@Test
+	void renrenVideoRequiresAPlatformSpecificStrictClickTemplate() {
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setId("adv-1");
+		advertiser.setUpstreamProtocol(OcpxUpstreamProtocol.RENREN_VIDEO);
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
+
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "混合链接", 3, null,
+				androidRenrenVideoTemplate(), null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("Android 或 IOS");
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "重复参数", 1, null,
+				androidRenrenVideoTemplate() + "&userId=duplicate", null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("重复参数");
+		assertThatThrownBy(() -> service.create(new PromotionLinkRequests.Create("adv-1", "缺少固定用户", 1, null,
+				androidRenrenVideoTemplate().replace("userId=business-user", "userId=__REQID__"), null, null, null)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("固定 userId");
+		verify(linkMapper, never()).insert(any(OcpxPromotionLink.class));
+	}
+
+	private String androidRenrenVideoTemplate() {
+		return "https://monitor.partner.example/ad-action/click?userId=business-user&imeiMd5=__IMEI__"
+				+ "&oaid=__OAID__&oaidMd5=__OAID_MD5__&ip=__IP__&os=__OS__&ua=__UA__"
+				+ "&ts=__TS__&callback=__CALLBACK__&requestId=__REQID__&clickId=__CLICK_ID__";
+	}
+
+	@Test
 	void optionsReturnLinksForAdvertiserCascade() {
 		OcpxPromotionLink first = new OcpxPromotionLink();
 		first.setId("link-1");

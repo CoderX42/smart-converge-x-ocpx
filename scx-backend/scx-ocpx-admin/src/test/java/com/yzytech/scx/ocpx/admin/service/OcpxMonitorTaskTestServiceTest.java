@@ -12,6 +12,7 @@ import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -136,11 +137,29 @@ class OcpxMonitorTaskTestServiceTest {
 	}
 
 	@Test
+	void recognizesRenrenVideoAliasesAndPrechecksStrictAndroidRequirements() {
+		stubRenrenVideoContext();
+
+		MonitorTaskTestViews.Preview defaultPreview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+		assertThat(defaultPreview.isExecutable()).isTrue();
+		assertThat(defaultPreview.getParameters()).filteredOn(MonitorTaskTestViews.Parameter::isSelected)
+			.extracting(MonitorTaskTestViews.Parameter::getKey)
+			.contains("imei_md5", "oaid", "oaid_md5", "ip", "ua", "mts");
+
+		MonitorTaskTestViews.Preview incomplete = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid")));
+		assertThat(incomplete.isExecutable()).isFalse();
+		assertThat(incomplete.getBlockers()).anyMatch(message -> message.contains("imei_md5"))
+			.anyMatch(message -> message.contains("oaid_md5"))
+			.anyMatch(message -> message.contains("时间戳"));
+	}
+
+	@Test
 	void rejectsInvalidEditedValuesBeforeCallingEngine() {
 		assertThatThrownBy(() -> service.execute("task-1",
 				new MonitorTaskTestRequests.Execute("SCX-UAT-20260817183000-abcdef123456", "ANDROID",
-						"0123456789abcdef0123456789abcdef",
-						Map.of("oaid", "not-an-oaid"))))
+						"0123456789abcdef0123456789abcdef", Map.of("oaid", "not-an-oaid"))))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("OAID 格式无效");
 		verify(httpClient, never()).get(any());
@@ -245,8 +264,8 @@ class OcpxMonitorTaskTestServiceTest {
 				null, new BigDecimal("5.000000"), BigDecimal.ZERO, "PASSED", BigDecimal.ONE, now, now);
 		MonitorTaskTestViews.Flow callback = new MonitorTaskTestViews.Flow("SUCCESS", null,
 				"DOWNSTREAM_DELIVERY_SUBMITTED", 0L, now);
-		MonitorTaskTestViews.Flow downstream = new MonitorTaskTestViews.Flow("SUCCESS", null,
-				"TEST_CALLBACK_RECEIVED", 0L, now);
+		MonitorTaskTestViews.Flow downstream = new MonitorTaskTestViews.Flow("SUCCESS", null, "TEST_CALLBACK_RECEIVED",
+				0L, now);
 		when(jdbcTemplate.query(contains("flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
 				eq(requestId)))
 			.thenReturn(List.of(fact));
@@ -256,8 +275,8 @@ class OcpxMonitorTaskTestServiceTest {
 		when(jdbcTemplate.query(contains("flow_type='CALLBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
 				eq(requestId)))
 			.thenReturn(List.of(callbackFact));
-		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"), any(RowMapper.class), eq("task-1"),
-				eq("adv-1"), eq(requestId)))
+		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
+				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of(callback));
 		when(jdbcTemplate.query(contains("message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class), eq("task-1"),
 				eq("adv-1"), eq(requestId)))
@@ -307,6 +326,28 @@ class OcpxMonitorTaskTestServiceTest {
 		media.setUri("/feedback");
 		media.setMacroParams(mediaMacros);
 		when(mediaMapper.selectById("media-1")).thenReturn(media);
+	}
+
+	private void stubRenrenVideoContext() {
+		String mediaMacros = "request_id=__REQUEST_ID__&imei_md5=__IMEI_MD5__&oaid=__OAID__"
+				+ "&oaid_md5=__OAID_MD5__&ip=__IP__&ua=__UA__&os=__OS__&mts=__MTS__&clickid=__CLICKID__";
+		stubContext(1, mediaMacros, null);
+
+		OcpxAdvertiser advertiser = new OcpxAdvertiser();
+		advertiser.setId("adv-1");
+		advertiser.setAdvertiserName("人人视频广告主");
+		advertiser.setUpstreamProtocol(OcpxUpstreamProtocol.RENREN_VIDEO);
+		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
+
+		OcpxPromotionLink link = new OcpxPromotionLink();
+		link.setId("link-1");
+		link.setAdvertiserId("adv-1");
+		link.setLinkName("人人视频 Android");
+		link.setPlatform(1);
+		link.setLinkUrl("https://monitor.partner.example/ad-action/click?userId=business-user"
+				+ "&imeiMd5=__IMEI__&oaid=__OAID__&oaidMd5=__OAID_MD5__&ip=__IP__&os=__OS__"
+				+ "&ua=__UA__&ts=__TS__&callback=__CALLBACK__&requestId=__REQID__&clickId=__CLICK_ID__");
+		when(linkMapper.selectById("link-1")).thenReturn(link);
 	}
 
 	private String md5(String value) {
