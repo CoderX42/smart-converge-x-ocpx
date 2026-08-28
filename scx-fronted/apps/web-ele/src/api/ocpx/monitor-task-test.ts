@@ -19,6 +19,8 @@ export type MonitorTaskTestPreview = {
   advertiserName: string;
   availableBalance?: number;
   blockers: string[];
+  callbackDisplayUrl: string;
+  callbackMode: 'FORMAL_UPSTREAM' | 'TEST_COLLECTOR';
   callbackToken: string;
   event: 'CLK';
   executable: boolean;

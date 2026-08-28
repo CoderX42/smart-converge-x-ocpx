@@ -217,10 +217,10 @@ public class OcpxEventFactService {
 		int projected = jdbcTemplate.update("""
 				INSERT INTO scx_ocpx_hourly_metric (
 				  time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,
-				  deduction_passed_count,deduction_deducted_count
+				  callback_count,deduction_passed_count,deduction_deducted_count
 				)
 				SELECT CAST(DATE_FORMAT(received_at,'%Y%m%d%H') AS UNSIGNED),advertiser_id,
-				       promotion_link_id,media_id,monitor_task_id,?,?
+				       promotion_link_id,media_id,monitor_task_id,1,?,?
 				FROM scx_ocpx_event_fact WHERE id=?
 				ON DUPLICATE KEY UPDATE
 				  deduction_passed_count=deduction_passed_count+VALUES(deduction_passed_count),

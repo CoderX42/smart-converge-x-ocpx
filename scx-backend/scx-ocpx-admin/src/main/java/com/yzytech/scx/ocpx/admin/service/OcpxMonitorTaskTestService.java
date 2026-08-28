@@ -194,6 +194,7 @@ public class OcpxMonitorTaskTestService {
 		MonitorTaskTestViews.CallbackFact callbackFact = callbackFacts.isEmpty() ? null : callbackFacts.get(0);
 		MonitorTaskTestViews.Flow callbackFlow = callbackFlow(context, requestId, false);
 		MonitorTaskTestViews.Flow downstreamFlow = callbackFlow(context, requestId, true);
+		boolean formalUpstreamCallback = isFormalUpstreamCallback(context);
 		String state;
 		String conclusion;
 		if (fact == null) {
@@ -212,7 +213,8 @@ public class OcpxMonitorTaskTestService {
 			state = "UPSTREAM_FAILED";
 			conclusion = "Feedback 已入站，但上游投递失败";
 		}
-		else if (downstreamFlow != null && "SUCCESS".equals(downstreamFlow.getResultStatus())) {
+		else if (!formalUpstreamCallback && downstreamFlow != null
+				&& "SUCCESS".equals(downstreamFlow.getResultStatus())) {
 			state = "COMPLETED";
 			conclusion = "完整测试闭环已完成：SCX 测试回调接收器已收到最后一跳；不代表真实媒体已经入库";
 		}
@@ -232,17 +234,22 @@ public class OcpxMonitorTaskTestService {
 			state = "CALLBACK_PROCESSING";
 			conclusion = "广告主 Callback 已到达，正在等待计费和媒体扣量判定";
 		}
+		else if (formalUpstreamCallback) {
+			state = "COMPLETED";
+			conclusion = "人人视频正式 Callback 已成功处理并通过媒体扣量；本次未注入测试 callback_url，不验证下游媒体最后一跳";
+		}
 		else {
 			state = "DOWNSTREAM_PENDING";
 			conclusion = "广告主 Callback 已处理并通过媒体扣量，等待测试回调接收器确认最后一跳";
 		}
 		return new MonitorTaskTestViews.Result(requestId, state, fact, flow, callbackFact, callbackFlow, downstreamFlow,
-				conclusion, timeline(fact, flow, callbackFact, callbackFlow, downstreamFlow));
+				conclusion, timeline(fact, flow, callbackFact, callbackFlow, downstreamFlow, formalUpstreamCallback));
 	}
 
 	private List<MonitorTaskTestViews.TimelineItem> timeline(MonitorTaskTestViews.Fact fact,
 			MonitorTaskTestViews.Flow flow, MonitorTaskTestViews.CallbackFact callbackFact,
-			MonitorTaskTestViews.Flow callbackFlow, MonitorTaskTestViews.Flow downstreamFlow) {
+			MonitorTaskTestViews.Flow callbackFlow, MonitorTaskTestViews.Flow downstreamFlow,
+			boolean formalUpstreamCallback) {
 		List<MonitorTaskTestViews.TimelineItem> timeline = new ArrayList<>();
 		if (fact == null) {
 			timeline.add(new MonitorTaskTestViews.TimelineItem("ENGINE_INGRESS", "WAITING", null, null,
@@ -280,6 +287,10 @@ public class OcpxMonitorTaskTestService {
 			timeline
 				.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", "SKIPPED", null, null, "媒体扣量规则已拦截"));
 		}
+		else if (formalUpstreamCallback) {
+			timeline.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", "SKIPPED", null, null,
+					"正式上游 Callback 测试未配置下游媒体 callback_url"));
+		}
 		else if (downstreamFlow == null) {
 			timeline.add(new MonitorTaskTestViews.TimelineItem("DOWNSTREAM_CALLBACK", "WAITING", null, null,
 					"等待 SCX 测试回调接收器确认"));
@@ -298,6 +309,7 @@ public class OcpxMonitorTaskTestService {
 		validatePlatform(context.link().getPlatform(), os, blockers);
 		Set<String> mediaMacros = macros(context.media().getMacroParams());
 		Set<String> upstreamMacros = upstreamMacros(context);
+		boolean formalUpstreamCallback = isFormalUpstreamCallback(context);
 		validateRenrenVideoSelection(context, os, selected, blockers);
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (selected.contains(spec.key()) && !spec.os().supports(os)) {
@@ -320,8 +332,11 @@ public class OcpxMonitorTaskTestService {
 		if (!upstreamMacros.contains("__OS__")) {
 			warnings.add("广告主模板未配置 OS，合作方将无法直接识别测试平台");
 		}
-		if (!mediaMacros.contains("__CALLBACK_URL__")) {
+		if (!formalUpstreamCallback && !mediaMacros.contains("__CALLBACK_URL__")) {
 			warnings.add("媒体宏未配置 CALLBACK_URL，本次完整测试将临时加入 SCX 测试回调接收器");
+		}
+		if (formalUpstreamCallback) {
+			warnings.add("人人视频使用正式上游 Callback；测试请求不会注入 /test-callback，也不会验证下游媒体最后一跳");
 		}
 		BigDecimal expectedCharge = expectedCharge(context.task());
 		BigDecimal availableBalance = availableBalance(context.task().getAdvertiserId());
@@ -331,19 +346,21 @@ public class OcpxMonitorTaskTestService {
 		else if (expectedCharge.signum() > 0 && availableBalance.compareTo(expectedCharge) < 0) {
 			blockers.add("广告主余额不足，无法保证完整测试中的点击或目标转化计费完成");
 		}
-		String callbackUrl = buildCallbackUrl(context, requestId, callbackToken);
+		String callbackUrl = formalUpstreamCallback ? null : buildCallbackUrl(context, requestId, callbackToken);
 		List<MonitorTaskTestViews.Parameter> parameters = parameterViews(requestId, callbackUrl, os, selected, values,
-				mediaMacros, upstreamMacros);
+				mediaMacros, upstreamMacros, formalUpstreamCallback);
 		String testUrl = buildUri(context, requestId, callbackToken, os, selected, values).toASCIIString();
 		return new MonitorTaskTestViews.Preview(requestId, "CLK", os, context.task().getId(),
 				context.task().getMonitorName(), context.advertiser().getAdvertiserName(),
 				context.media().getMediaName(), context.link().getLinkName(), context.link().getPlatform(), testUrl,
-				callbackToken, expectedCharge, availableBalance, blockers.isEmpty(), List.copyOf(blockers),
-				List.copyOf(warnings), parameters);
+				callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "TEST_COLLECTOR",
+				formalUpstreamCallback ? formalCallbackDisplayUrl() : callbackUrl, expectedCharge, availableBalance,
+				blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings), parameters);
 	}
 
 	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String callbackUrl, String os,
-			Set<String> selected, Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros) {
+			Set<String> selected, Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros,
+			boolean formalUpstreamCallback) {
 		List<MonitorTaskTestViews.Parameter> result = new ArrayList<>();
 		result.add(new MonitorTaskTestViews.Parameter("request_id", "请求/测试 ID", "固定参数", "__REQUEST_ID__", true, false,
 				true, true, false, requestId));
@@ -352,8 +369,14 @@ public class OcpxMonitorTaskTestService {
 				requestId));
 		result.add(new MonitorTaskTestViews.Parameter("os", "操作系统", "固定参数", "__OS__", mediaMacros.contains("__OS__"),
 				upstreamMacros.contains("__OS__"), true, true, false, "IOS".equals(os) ? "1" : "0"));
-		result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环", "__CALLBACK_URL__",
-				mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
+		if (formalUpstreamCallback) {
+			result.add(new MonitorTaskTestViews.Parameter("callback", "人人视频正式 Callback（Engine 自动生成）", "上游回调",
+					"__CALLBACK__", true, true, true, true, false, formalCallbackDisplayUrl()));
+		}
+		else {
+			result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环",
+					"__CALLBACK_URL__", mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
+		}
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (!spec.os().supports(os)) {
 				continue;
@@ -491,7 +514,9 @@ public class OcpxMonitorTaskTestService {
 			Map<String, String> values) {
 		Map<String, String> parameters = new LinkedHashMap<>();
 		parameters.put("request_id", requestId);
-		parameters.put("callback_url", buildCallbackUrl(context, requestId, callbackToken));
+		if (!isFormalUpstreamCallback(context)) {
+			parameters.put("callback_url", buildCallbackUrl(context, requestId, callbackToken));
+		}
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (selected.contains(spec.key())) {
 				parameters.put(spec.key(), values.get(spec.key()));
@@ -552,6 +577,15 @@ public class OcpxMonitorTaskTestService {
 		catch (RuntimeException exception) {
 			throw new BootBusinessException("Engine 测试回调地址配置无效");
 		}
+	}
+
+	private String formalCallbackDisplayUrl() {
+		URI base = engineBase();
+		return base + "/renren-video/callback?kid=<运行时密钥版本>&ext=<加密路由>";
+	}
+
+	private boolean isFormalUpstreamCallback(Context context) {
+		return context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.RENREN_VIDEO;
 	}
 
 	private URI engineBase() {

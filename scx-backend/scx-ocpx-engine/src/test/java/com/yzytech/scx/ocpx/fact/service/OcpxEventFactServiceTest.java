@@ -195,7 +195,9 @@ class OcpxEventFactServiceTest {
 		int factUpdate = indexContaining(sql.getAllValues(), "deduction_decision=?");
 		assertThat(args.getAllValues().get(factUpdate)[0]).isEqualTo("DEDUCTED");
 		assertThat((BigDecimal) args.getAllValues().get(factUpdate)[1]).isEqualByComparingTo("0.800000");
-		int hourlyUpdate = indexContaining(sql.getAllValues(), "deduction_passed_count,deduction_deducted_count");
+		int hourlyUpdate = indexContaining(sql.getAllValues(),
+				"callback_count,deduction_passed_count,deduction_deducted_count");
+		assertThat(sql.getAllValues().get(hourlyUpdate)).contains("monitor_task_id,1,?,?");
 		assertThat(args.getAllValues().get(hourlyUpdate)).startsWith(0L, 1L, "fact-1");
 	}
 
@@ -208,7 +210,7 @@ class OcpxEventFactServiceTest {
 
 		assertThat(fixture.service.finalizeDeduction("fact-1", BigDecimal.ONE, DeductionDecision.PASSED)).isFalse();
 		verify(fixture.jdbcTemplate, never()).update(
-				org.mockito.ArgumentMatchers.contains("deduction_passed_count,deduction_deducted_count"),
+				org.mockito.ArgumentMatchers.contains("callback_count,deduction_passed_count,deduction_deducted_count"),
 				any(Object[].class));
 	}
 

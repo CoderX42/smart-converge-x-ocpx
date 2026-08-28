@@ -67,6 +67,10 @@ public final class MonitorTaskTestViews {
 
 		private String callbackToken;
 
+		private String callbackMode;
+
+		private String callbackDisplayUrl;
+
 		private BigDecimal expectedCharge;
 
 		private BigDecimal availableBalance;

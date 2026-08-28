@@ -115,6 +115,9 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('确认开始完整测试');
     expect(source).toContain('会产生真实点击、上游流量和后续转化处理');
     expect(source).toContain('不可编辑的 SCX 测试 callback_url');
+    expect(source).toContain('人人视频投递时由 Engine 生成正式');
+    expect(source).toContain("callbackMode === 'FORMAL_UPSTREAM'");
+    expect(source).toContain('测试请求不会携带 /test-callback');
     expect(source).toContain('测试接收器已收到');
     expect(source).toContain('不代表合作方已经入库');
     expect(source).toContain('refreshTestResult(true)');

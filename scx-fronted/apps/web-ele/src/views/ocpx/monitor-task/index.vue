@@ -241,6 +241,9 @@ const currentTestUrl = computed(() => {
     return preview.testUrl;
   }
 });
+const formalUpstreamTest = computed(
+  () => testPreview.value?.callbackMode === 'FORMAL_UPSTREAM',
+);
 const loadGuard = createLatestRequestGuard();
 const monitorOptionGuard = createLatestRequestGuard();
 const promotionOptionGuard = createLatestRequestGuard();
@@ -513,8 +516,11 @@ async function refreshTestResult(schedule = false) {
 async function executeTest() {
   if (!(testTarget.value && testPreview.value)) return;
   const charge = Number(testPreview.value.expectedCharge || 0);
+  const callbackDescription = formalUpstreamTest.value
+    ? '人人视频回传时将进入正式 Callback，测试请求不会携带 /test-callback，也不验证下游媒体最后一跳'
+    : '广告主回传后会执行真实媒体扣量，并向 SCX 测试接收器发送最后一跳';
   await ElMessageBox.confirm(
-    `该操作会产生真实点击、上游流量和后续转化处理${charge > 0 ? `，全链路预计最多真实扣费 ${charge}` : ''}。广告主回传后会执行真实媒体扣量，并向 SCX 测试接收器发送最后一跳，确认开始？`,
+    `该操作会产生真实点击、上游流量和后续转化处理${charge > 0 ? `，全链路预计最多真实扣费 ${charge}` : ''}。${callbackDescription}，确认开始？`,
     '确认执行完整测试',
     {
       confirmButtonText: '确认发送',
@@ -928,7 +934,11 @@ onBeforeUnmount(clearTestPolling);
         <el-alert
           :closable="false"
           show-icon
-          title="本功能会发送真实 CLK 点击，并携带不可编辑的 SCX 测试 callback_url。广告主回传后将执行真实转化计费、媒体扣量和最后一跳；测试接收成功不代表真实媒体已经入库。"
+          :title="
+            formalUpstreamTest
+              ? '本功能会发送真实 CLK 点击；人人视频投递时由 Engine 生成正式 /ocpx/renren-video/callback，不注入 /test-callback，也不验证下游媒体最后一跳。'
+              : '本功能会发送真实 CLK 点击，并携带不可编辑的 SCX 测试 callback_url。广告主回传后将执行真实转化计费、媒体扣量和最后一跳；测试接收成功不代表真实媒体已经入库。'
+          "
           type="warning"
         />
 
@@ -973,6 +983,12 @@ onBeforeUnmount(clearTestPolling);
               <el-radio-button value="ANDROID">Android</el-radio-button>
               <el-radio-button value="IOS">iOS</el-radio-button>
             </el-radio-group>
+          </el-descriptions-item>
+          <el-descriptions-item label="Callback 模式">
+            {{ formalUpstreamTest ? '人人视频正式回调' : 'SCX 测试接收器' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="Callback 地址" :span="2">
+            <LongText :value="testPreview.callbackDisplayUrl" wrap />
           </el-descriptions-item>
         </el-descriptions>
 
@@ -1145,7 +1161,13 @@ onBeforeUnmount(clearTestPolling);
               {{ testResult?.callbackFact?.deductionDecision || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="最后一跳">
-              {{ testResult?.downstreamFlow ? '测试接收器已收到' : '等待中' }}
+              {{
+                formalUpstreamTest
+                  ? '本次不验证'
+                  : testResult?.downstreamFlow
+                    ? '测试接收器已收到'
+                    : '等待中'
+              }}
             </el-descriptions-item>
             <el-descriptions-item label="稳定结论码" :span="2">
               {{
@@ -1204,8 +1226,13 @@ onBeforeUnmount(clearTestPolling);
             </el-timeline-item>
           </el-timeline>
           <div class="ocpx-test-result-tip">
-            上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；SCX
-            测试接收器成功只证明系统最后一跳可达，不代表真实媒体已经业务入库。
+            <template v-if="formalUpstreamTest">
+              上游 HTTP 200 只表示点击接口已响应；只有正式 Callback HTTP 200、唯一转化事实和扣量结果均正常，才能确认本次人人视频回调闭环。
+            </template>
+            <template v-else>
+              上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；SCX
+              测试接收器成功只证明系统最后一跳可达，不代表真实媒体已经业务入库。
+            </template>
           </div>
           <el-input
             v-if="testExecution?.engineResponse"

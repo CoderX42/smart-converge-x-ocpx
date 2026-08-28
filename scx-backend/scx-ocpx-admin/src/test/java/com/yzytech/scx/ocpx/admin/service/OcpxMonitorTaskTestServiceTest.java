@@ -143,6 +143,14 @@ class OcpxMonitorTaskTestServiceTest {
 		MonitorTaskTestViews.Preview defaultPreview = service.generate("task-1",
 				new MonitorTaskTestRequests.Generate("ANDROID", null));
 		assertThat(defaultPreview.isExecutable()).isTrue();
+		assertThat(defaultPreview.getCallbackMode()).isEqualTo("FORMAL_UPSTREAM");
+		assertThat(defaultPreview.getCallbackDisplayUrl()).contains("/ocpx/renren-video/callback?kid=");
+		assertThat(defaultPreview.getTestUrl()).doesNotContain("callback_url=", "/test-callback");
+		assertThat(defaultPreview.getParameters()).anySatisfy(parameter -> {
+			assertThat(parameter.getKey()).isEqualTo("callback");
+			assertThat(parameter.getMacro()).isEqualTo("__CALLBACK__");
+			assertThat(parameter.getValue()).contains("/ocpx/renren-video/callback");
+		});
 		assertThat(defaultPreview.getParameters()).filteredOn(MonitorTaskTestViews.Parameter::isSelected)
 			.extracting(MonitorTaskTestViews.Parameter::getKey)
 			.contains("imei_md5", "oaid", "oaid_md5", "ip", "ua", "mts");
@@ -293,6 +301,48 @@ class OcpxMonitorTaskTestServiceTest {
 				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId));
 		verify(jdbcTemplate).query(contains("AND message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class),
 				eq("task-1"), eq("adv-1"), eq(requestId));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void reportsRenrenFormalCallbackCompleteWithoutInjectingTheTestCollector() {
+		stubRenrenVideoContext();
+		String requestId = "SCX-UAT-20260817183000-abcdef123456";
+		LocalDateTime now = LocalDateTime.now();
+		MonitorTaskTestViews.Fact fact = new MonitorTaskTestViews.Fact("CLK", "NOT_APPLICABLE", "BILLING_DISABLED",
+				BigDecimal.ZERO, now);
+		MonitorTaskTestViews.Flow upstream = new MonitorTaskTestViews.Flow("SUCCESS", 200, "RENREN_VIDEO_DELIVERED", 22L,
+				now);
+		MonitorTaskTestViews.CallbackFact callbackFact = new MonitorTaskTestViews.CallbackFact("ACTIVATE",
+				"NOT_APPLICABLE", "BILLING_DISABLED", BigDecimal.ZERO, BigDecimal.ZERO, "PASSED", BigDecimal.ONE, now,
+				now);
+		MonitorTaskTestViews.Flow callback = new MonitorTaskTestViews.Flow("SUCCESS", 200,
+				"DOWNSTREAM_CALLBACK_MISSING", 0L, now);
+		when(jdbcTemplate.query(contains("flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
+				eq(requestId)))
+			.thenReturn(List.of(fact));
+		when(jdbcTemplate.query(contains("event_id=? AND flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of(upstream));
+		when(jdbcTemplate.query(contains("flow_type='CALLBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
+				eq(requestId)))
+			.thenReturn(List.of(callbackFact));
+		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
+				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of(callback));
+		when(jdbcTemplate.query(contains("message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class), eq("task-1"),
+				eq("adv-1"), eq(requestId)))
+			.thenReturn(List.of());
+
+		MonitorTaskTestViews.Result result = service.result("task-1", requestId);
+
+		assertThat(result.getState()).isEqualTo("COMPLETED");
+		assertThat(result.getConclusion()).contains("人人视频正式 Callback 已成功处理").contains("未注入测试 callback_url");
+		assertThat(result.getTimeline()).last().satisfies(item -> {
+			assertThat(item.getStage()).isEqualTo("DOWNSTREAM_CALLBACK");
+			assertThat(item.getStatus()).isEqualTo("SKIPPED");
+			assertThat(item.getDetail()).contains("未配置下游媒体 callback_url");
+		});
 	}
 
 	private void stubContext(int platform, String mediaMacros, String advertiserMacros) {
