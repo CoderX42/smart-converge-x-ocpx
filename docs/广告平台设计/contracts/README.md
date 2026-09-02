@@ -29,6 +29,7 @@
 | `management-v120.md` | 引力上游点击、Callback、白名单、安全开关及 UAT 边界 |
 | `management-v123.md` | 流程日志有界总数、深翻页限制和事件时间索引契约 |
 | `management-v124.md` | 人人视频点击模板、精确白名单、认证 Callback 与发布边界 |
+| `management-v126.md` | 上游 Callback 转化记录检索索引与生产发布边界 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

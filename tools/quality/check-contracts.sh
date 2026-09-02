@@ -38,6 +38,7 @@ required = [
     "management-v122.md",
     "management-v123.md",
     "management-v124.md",
+    "management-v126.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
 ]

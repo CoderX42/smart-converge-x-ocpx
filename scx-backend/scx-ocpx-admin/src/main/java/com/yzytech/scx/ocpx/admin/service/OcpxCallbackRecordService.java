@@ -68,7 +68,9 @@ public class OcpxCallbackRecordService {
 			args.add(targetConversion ? 1 : 0);
 		}
 
-		Long totalValue = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_event_fact f" + where, Long.class,
+		String indexHint = " FORCE INDEX (idx_ocpx_event_fact_callback_page)";
+		Long totalValue = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_event_fact f" + indexHint + where,
+				Long.class,
 				args.toArray());
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(size);
@@ -79,7 +81,7 @@ public class OcpxCallbackRecordService {
 				       f.media_id,m.media_name,f.monitor_task_id,t.monitor_name,
 				       f.billing_status,f.billing_reason_code,f.spend_amount,f.currency_amount,
 				       f.deduction_decision,f.deduction_ratio_snapshot,f.deduction_decided_at,f.received_at
-				FROM scx_ocpx_event_fact f
+				FROM scx_ocpx_event_fact f FORCE INDEX (idx_ocpx_event_fact_callback_page)
 				LEFT JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id
 				LEFT JOIN scx_ocpx_promotion_link p ON p.id=f.promotion_link_id
 				LEFT JOIN scx_ocpx_media m ON m.id=f.media_id

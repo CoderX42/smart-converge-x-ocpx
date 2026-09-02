@@ -52,7 +52,11 @@ class OcpxCallbackRecordServiceTest {
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), args.capture());
 		assertThat(sql.getValue()).contains("f.flow_type='CALLBACK'", "f.target_conversion=?",
-				"LEFT JOIN scx_ocpx_advertiser", "ORDER BY f.received_at DESC,f.id DESC", "LIMIT ? OFFSET ?");
+				"LEFT JOIN scx_ocpx_advertiser", "FORCE INDEX (idx_ocpx_event_fact_callback_page)",
+				"ORDER BY f.received_at DESC,f.id DESC", "LIMIT ? OFFSET ?");
+		ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+		verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
+		assertThat(countSql.getValue()).contains("FORCE INDEX (idx_ocpx_event_fact_callback_page)");
 		assertThat(args.getValue())
 			.contains("advertiser-own", "link-1", "media-1", "task-1", "ACTIVATE", "PASSED", "request-1", 1, 10L, 10L)
 			.doesNotContain("advertiser-other");

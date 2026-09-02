@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_event_fact (
   UNIQUE KEY uk_ocpx_event_fact_identity
     (advertiser_id,monitor_task_id,request_id,event_code),
   KEY idx_ocpx_event_fact_time_scope (received_at,advertiser_id,media_id,monitor_task_id,promotion_link_id),
+  KEY idx_ocpx_event_fact_callback_page (flow_type,received_at,id),
   KEY idx_ocpx_event_fact_deduction_time
     (deduction_decided_at,advertiser_id,media_id,monitor_task_id,promotion_link_id),
   CONSTRAINT fk_ocpx_event_fact_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),

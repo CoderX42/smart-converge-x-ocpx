@@ -142,6 +142,14 @@ deduction_fact_index="$(scalar "SELECT COUNT(*) FROM information_schema.statisti
  AND index_name='idx_ocpx_event_fact_deduction_time'")"
 [[ "$deduction_fact_index" -eq 5 ]] || fail "media deduction coverage index is missing"
 
+callback_record_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_event_fact'
+ AND index_name='idx_ocpx_event_fact_callback_page'
+ AND ((seq_in_index=1 AND column_name='flow_type')
+   OR (seq_in_index=2 AND column_name='received_at')
+   OR (seq_in_index=3 AND column_name='id'))")"
+[[ "$callback_record_index" -eq 3 ]] || fail "Callback-record ordered index is missing or invalid"
+
 invalid_platforms="$(scalar "SELECT COUNT(*) FROM scx_ocpx_promotion_link WHERE platform NOT IN (1,2,3,4)")"
 [[ "$invalid_platforms" -eq 0 ]] || fail "promotion-link platform must be one of 1 Android, 2 iOS, 3 Android+iOS, 4 quick app"
 
