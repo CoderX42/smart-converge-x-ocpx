@@ -2,6 +2,8 @@ package com.yzytech.scx.ocpx.callback.delivery;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -23,14 +25,34 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class DownstreamDeliveryDispatcher {
 
-	/** 固定线程数 500、队列容量 100 的共享回传线程池。 */
-	public static final ExecutorService EXECUTORS = new ThreadPoolExecutor(500, 500, 30L, TimeUnit.SECONDS,
-			new LinkedBlockingQueue<>(100), new ThreadPoolExecutor.CallerRunsPolicy());
+	/** 有界共享回传线程池；启动时由配置覆盖默认值。 */
+	public static volatile ExecutorService EXECUTORS = createExecutor(32, 64, 200);
 
 	private static CallbackUrlDownstreamDeliveryService deliveryService;
 
 	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService) {
+		this(deliveryService, 32, 64, 200);
+	}
+
+	@Autowired
+	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService,
+			@Value("${ocpx.delivery.downstream.core-threads:32}") int coreThreads,
+			@Value("${ocpx.delivery.downstream.max-threads:64}") int maxThreads,
+			@Value("${ocpx.delivery.downstream.queue-capacity:200}") int queueCapacity) {
 		DownstreamDeliveryDispatcher.deliveryService = deliveryService;
+		ExecutorService previous = EXECUTORS;
+		EXECUTORS = createExecutor(coreThreads, maxThreads, queueCapacity);
+		if (previous != EXECUTORS) {
+			previous.shutdown();
+		}
+	}
+
+	private static ExecutorService createExecutor(int coreThreads, int maxThreads, int queueCapacity) {
+		int safeCoreThreads = Math.max(1, coreThreads);
+		int safeMaxThreads = Math.max(safeCoreThreads, maxThreads);
+		int safeQueueCapacity = Math.max(1, queueCapacity);
+		return new ThreadPoolExecutor(safeCoreThreads, safeMaxThreads, 30L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<>(safeQueueCapacity), new ThreadPoolExecutor.CallerRunsPolicy());
 	}
 
 	/**

@@ -6,6 +6,7 @@ import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -40,6 +41,10 @@ public class OcpxFlowLogWriter {
 	private static final Pattern BEARER_SECRET = Pattern.compile("(?i)(bearer\\s+)[a-z0-9._~+/-]+=*");
 
 	private static final Pattern UNSAFE_CONTROL = Pattern.compile("[\\p{Cc}&&[^\\r\\n\\t]]");
+
+	/** 成功日志采样率；失败日志始终保留。 */
+	@Value("${ocpx.flow-log.success-sample-rate:1.0}")
+	private double successSampleRate = 1.0;
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -104,6 +109,9 @@ public class OcpxFlowLogWriter {
 	private void write(FeedbackReq request, String type, String stage, String eventCode, String payloadHash,
 			boolean success, Integer status, String message, String response, long duration, String method,
 			String endpoint, Map<String, ?> macroAudit, Map<String, Object> requestParams) {
+		if (sampleableSuccess(success, message) && !sampleSuccess(payloadHash)) {
+			return;
+		}
 		try {
 			String id = uuid();
 			String eventId = StringUtils.hasText(request.getReqId()) ? limit(request.getReqId(), 128)
@@ -123,6 +131,30 @@ public class OcpxFlowLogWriter {
 		catch (RuntimeException error) {
 			log.warn("Unable to persist {} flow audit for aId:{}", stage, request.getAId());
 		}
+	}
+
+	private double normalizedSampleRate() {
+		if (Double.isNaN(successSampleRate) || successSampleRate <= 0) {
+			return 0;
+		}
+		return Math.min(successSampleRate, 1.0);
+	}
+
+	private boolean sampleableSuccess(boolean success, String message) {
+		return success || "CALLBACK_ACCOUNTING_DUPLICATE".equals(message)
+				|| "MEDIA_DEDUCTION_ALREADY_FINALIZED".equals(message);
+	}
+
+	private boolean sampleSuccess(String samplingKey) {
+		double rate = normalizedSampleRate();
+		if (rate <= 0) {
+			return false;
+		}
+		if (rate >= 1) {
+			return true;
+		}
+		int bucket = Math.floorMod(samplingKey == null ? 0 : samplingKey.hashCode(), 10_000);
+		return bucket < Math.round(rate * 10_000);
 	}
 
 	private void writeDetail(String flowId, Map<String, Object> params, String response) {

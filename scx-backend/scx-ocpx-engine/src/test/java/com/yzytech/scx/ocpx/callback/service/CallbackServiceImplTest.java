@@ -125,8 +125,26 @@ class CallbackServiceImplTest {
 		assertThat(logData.getCurrencyAmount()).isEqualByComparingTo("123.450000");
 	}
 
+	@Test
+	void disablesCompatibilityQueueWithoutChangingCallbackFactOrDeduction() {
+		Fixture fixture = fixture(ActionTypeEnum.ACTIVATE, false);
+
+		var result = fixture.service.handleCallback(fixture.request);
+
+		assertThat(result.decision()).isEqualTo(CallbackDecision.FORWARDED);
+		verify(fixture.eventFactService).recordCallback(fixture.request);
+		verify(fixture.eventFactService).finalizeDeduction("fact-1", new BigDecimal("1.000000"),
+				DeductionDecision.PASSED);
+		verify(fixture.lists, never()).rightPush(anyString(), anyString());
+	}
+
 	@SuppressWarnings("unchecked")
 	private Fixture fixture(ActionTypeEnum actionType) {
+		return fixture(actionType, true);
+	}
+
+	@SuppressWarnings("unchecked")
+	private Fixture fixture(ActionTypeEnum actionType, boolean compatibilityReportEnabled) {
 		StringRedisTemplate redis = mock(StringRedisTemplate.class);
 		ListOperations<String, String> lists = mock(ListOperations.class);
 		when(redis.opsForList()).thenReturn(lists);
@@ -147,7 +165,9 @@ class CallbackServiceImplTest {
 			.reqId("request-1")
 			.build();
 		CallbackReq request = CallbackReq.builder().feedback(feedback).actionType(actionType).actionTime(1L).build();
-		return new Fixture(new CallbackServiceImpl(redis, 1, deductionDecisionService, eventFactService, flowLogWriter),
+		return new Fixture(
+				new CallbackServiceImpl(redis, 1, deductionDecisionService, eventFactService, flowLogWriter,
+						compatibilityReportEnabled),
 				deductionDecisionService, eventFactService, flowLogWriter, lists, request);
 	}
 

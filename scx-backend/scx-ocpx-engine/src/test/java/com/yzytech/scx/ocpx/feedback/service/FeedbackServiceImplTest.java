@@ -76,4 +76,29 @@ class FeedbackServiceImplTest {
 		verify(lists, never()).rightPush(anyString(), anyString());
 	}
 
+	@Test
+	void disablesCompatibilityQueueWithoutChangingFactHandling() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ListOperations<String, String> lists = mock(ListOperations.class);
+		when(redis.opsForList()).thenReturn(lists);
+		OcpxEventFactService eventFactService = mock(OcpxEventFactService.class);
+		when(eventFactService.recordFeedback(org.mockito.ArgumentMatchers.any()))
+			.thenReturn(new OcpxEventFactService.FeedbackFactResult(true, false, "ACCEPTED", BigDecimal.ZERO));
+		FeedbackServiceImpl service = new FeedbackServiceImpl(redis, 1, eventFactService,
+				mock(TestCallbackCollectorService.class), false);
+
+		FeedbackReq request = FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.event(EventTypeEnum.CLICK)
+			.reqId("request-1")
+			.build();
+
+		assertThat(service.handleFeedback(request).firstReport()).isTrue();
+		verify(eventFactService).recordFeedback(request);
+		verify(lists, never()).rightPush(anyString(), anyString());
+	}
+
 }

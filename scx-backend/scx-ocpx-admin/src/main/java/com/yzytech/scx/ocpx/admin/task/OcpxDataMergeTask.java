@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 @Async
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "ocpx.compatibility-report.enabled", havingValue = "true")
 public class OcpxDataMergeTask {
 
 	private final Logger errorLog = LoggerFactory.getLogger("error");

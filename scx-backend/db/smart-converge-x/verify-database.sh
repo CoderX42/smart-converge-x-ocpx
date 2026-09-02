@@ -190,6 +190,21 @@ flow_log_page_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistic
  AND ((seq_in_index=1 AND column_name='event_time') OR (seq_in_index=2 AND column_name='id'))")"
 [[ "$flow_log_page_index" -eq 2 ]] || fail "flow-log event-time pagination index is missing or invalid"
 
+feedback_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_log_feedback'
+ AND index_name='idx_ocpx_feedback_create_time' AND seq_in_index=1 AND column_name='create_time'")"
+[[ "$feedback_retention_index" -eq 1 ]] || fail "feedback retention index is missing or invalid"
+
+callback_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_log_callback'
+ AND index_name='idx_ocpx_callback_create_time' AND seq_in_index=1 AND column_name='create_time'")"
+[[ "$callback_retention_index" -eq 1 ]] || fail "callback retention index is missing or invalid"
+
+feedback_day_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_log_feedback_day'
+ AND index_name='idx_ocpx_feedback_day_time_hour_res' AND seq_in_index=1 AND column_name='time_hour_res'")"
+[[ "$feedback_day_retention_index" -eq 1 ]] || fail "feedback-day retention index is missing or invalid"
+
 debug_tables="$(scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_api_debug\\_%'")"
 [[ "$debug_tables" -eq 0 ]] || fail "retired API debugger tables remain"
 

@@ -7,6 +7,7 @@ import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 
@@ -104,6 +105,27 @@ class OcpxFlowLogWriterTest {
 		assertThat(persistedArguments[17]).isEqualTo("DOWNSTREAM_DELIVERY_SUBMITTED");
 		assertThat(Arrays.toString(persistedArguments)).contains("advertiser-id", "link-id", "media-id", "task-id")
 			.doesNotContain("sensitive-device-id", "callback.example", "sensitive-extension");
+	}
+
+	@Test
+	void samplesSuccessfulAuditButAlwaysPersistsFailures() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		ReflectionTestUtils.setField(writer, "successSampleRate", 0.0d);
+		FeedbackReq feedback = FeedbackReq.builder().reqId("request-id").event(EventTypeEnum.CLICK).build();
+
+		writer.mediaIngress(feedback, true, "OK");
+		verify(jdbcTemplate, times(0)).update(anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
+
+		writer.mediaIngress(feedback, false, "FAILED");
+		verify(jdbcTemplate, times(2)).update(anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
+
+		CallbackReq callback = CallbackReq.builder().feedback(feedback).actionType(ActionTypeEnum.EVOKE).build();
+		writer.accounting(callback, false, "CALLBACK_ACCOUNTING_DUPLICATE");
+		verify(jdbcTemplate, times(2)).update(anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
+
+		writer.accounting(callback, false, "CALLBACK_ACCOUNTING_FAILED");
+		verify(jdbcTemplate, times(3)).update(anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
 	}
 
 }

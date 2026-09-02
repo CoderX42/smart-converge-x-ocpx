@@ -110,6 +110,10 @@ scx:
       tracking:
         engine-base-url: https://tracking.invalid
 
+ocpx:
+  compatibility-report:
+    enabled: false
+
 boot:
   swagger:
     enabled: true

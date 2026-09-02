@@ -441,10 +441,15 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_feedback_req (req_id),
-  KEY idx_ocpx_feedback_route (m_id,a_id,t_id,l_id)
+  KEY idx_ocpx_feedback_route (m_id,a_id,t_id,l_id),
+  KEY idx_ocpx_feedback_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='LOG: legacy-compatible OCPX feedback detail';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_log_feedback_day LIKE scx_ocpx_log_feedback;
+-- LIKE copies the source indexes; retain only the day-cleanup index to avoid extra write amplification.
+ALTER TABLE scx_ocpx_log_feedback_day
+  DROP KEY idx_ocpx_feedback_create_time,
+  ADD KEY idx_ocpx_feedback_day_time_hour_res (time_hour_res);
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_log_callback (
   id BIGINT NOT NULL AUTO_INCREMENT,
@@ -470,7 +475,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_log_callback (
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ocpx_callback_req (req_id),
-  KEY idx_ocpx_callback_route (m_id,a_id,t_id,l_id)
+  KEY idx_ocpx_callback_route (m_id,a_id,t_id,l_id),
+  KEY idx_ocpx_callback_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='LOG: legacy-compatible OCPX callback detail';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat_temp (

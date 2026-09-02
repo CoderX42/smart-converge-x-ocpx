@@ -18,6 +18,14 @@ class ScxOcpxEngineApplicationTest {
 		assertThat(source.getProperty("spring.profiles.active")).isEqualTo("dev");
 		assertThat(source.getProperty("spring.main.web-application-type")).isEqualTo("servlet");
 		assertThat(source.getProperty("bid.job.thread")).isEqualTo(1);
+		assertThat(source.getProperty("ocpx.compatibility-report.enabled")).isEqualTo(false);
+		assertThat(source.getProperty("ocpx.flow-log.success-sample-rate")).isEqualTo(0.1);
+		assertThat(source.getProperty("ocpx.delivery.upstream.core-threads")).isEqualTo(32);
+		assertThat(source.getProperty("ocpx.delivery.upstream.max-threads")).isEqualTo(64);
+		assertThat(source.getProperty("ocpx.delivery.upstream.queue-capacity")).isEqualTo(200);
+		assertThat(source.getProperty("ocpx.delivery.downstream.core-threads")).isEqualTo(32);
+		assertThat(source.getProperty("ocpx.delivery.downstream.max-threads")).isEqualTo(64);
+		assertThat(source.getProperty("ocpx.delivery.downstream.queue-capacity")).isEqualTo(200);
 		assertThat(source.getProperty("spring.datasource.url")).isNull();
 	}
 

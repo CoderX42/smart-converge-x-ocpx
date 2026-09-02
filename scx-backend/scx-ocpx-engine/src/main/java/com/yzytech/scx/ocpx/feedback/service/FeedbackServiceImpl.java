@@ -9,6 +9,7 @@ import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -38,12 +39,22 @@ public class FeedbackServiceImpl implements FeedbackService {
 
 	private final TestCallbackCollectorService testCallbackCollectorService;
 
+	private final boolean compatibilityReportEnabled;
+
 	public FeedbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
 			OcpxEventFactService eventFactService, TestCallbackCollectorService testCallbackCollectorService) {
+		this(redis, reportBucket, eventFactService, testCallbackCollectorService, true);
+	}
+
+	@Autowired
+	public FeedbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
+			OcpxEventFactService eventFactService, TestCallbackCollectorService testCallbackCollectorService,
+			@Value("${ocpx.compatibility-report.enabled:false}") boolean compatibilityReportEnabled) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
 		this.eventFactService = eventFactService;
 		this.testCallbackCollectorService = testCallbackCollectorService;
+		this.compatibilityReportEnabled = compatibilityReportEnabled;
 	}
 
 	@Override
@@ -77,7 +88,7 @@ public class FeedbackServiceImpl implements FeedbackService {
 		}
 		impressionLog.info("fb-->{}", "spe0:" + request.getEvent().getKey() + ":" + request.getMId() + ":"
 				+ request.getClkSmt() + ":" + request.getUniClkSmt());
-		if (firstReport) {
+		if (firstReport && compatibilityReportEnabled) {
 			saveFeedback(request);
 		}
 		impressionLog.info("fb-->{}", "spe1:" + request.getEvent().getKey() + ":" + request.getMId() + ":"

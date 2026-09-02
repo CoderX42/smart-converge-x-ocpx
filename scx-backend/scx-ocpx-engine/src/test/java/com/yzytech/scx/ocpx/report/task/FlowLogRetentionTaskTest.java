@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +27,7 @@ class FlowLogRetentionTaskTest {
 		JdbcTemplate jdbc = mock(JdbcTemplate.class);
 		when(jdbc.update(anyString())).thenReturn(1000, 2, 0, 0, 0, 0);
 		FlowLogRetentionTask task = new FlowLogRetentionTask(redis, jdbc);
+		ReflectionTestUtils.setField(task, "batchPauseMs", 0L);
 
 		task.clean();
 
@@ -41,6 +43,7 @@ class FlowLogRetentionTaskTest {
 			.anySatisfy(value -> assertThat(value).contains("response_preview=NULL", "INTERVAL 7 DAY", "LIMIT 1000"));
 		assertThat(sql.getAllValues()).anySatisfy(
 				value -> assertThat(value).contains("DELETE FROM scx_ocpx_flow_log", "INTERVAL 90 DAY", "LIMIT 1000"));
+		verify(redis).unlink("rtb{flowLogRetention}");
 	}
 
 	@Test
@@ -55,6 +58,39 @@ class FlowLogRetentionTaskTest {
 		new FlowLogRetentionTask(redis, jdbc).clean();
 
 		verify(jdbc, never()).update(anyString());
+		verify(redis, never()).unlink("rtb{flowLogRetention}");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void capsEachRunAtTenBatchesAcrossFiveRetentionTargets() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.update(anyString())).thenReturn(1000);
+		FlowLogRetentionTask task = new FlowLogRetentionTask(redis, jdbc);
+		ReflectionTestUtils.setField(task, "batchPauseMs", 0L);
+
+		task.clean();
+
+		verify(jdbc, org.mockito.Mockito.times(10)).update(anyString());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void releasesTheMutexWhenADeletionFails() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		JdbcTemplate jdbc = mock(JdbcTemplate.class);
+		when(jdbc.update(anyString())).thenThrow(new IllegalStateException("db down"));
+
+		new FlowLogRetentionTask(redis, jdbc).clean();
+
+		verify(redis).unlink("rtb{flowLogRetention}");
 	}
 
 }

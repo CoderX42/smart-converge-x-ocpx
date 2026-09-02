@@ -17,7 +17,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: never
@@ -30,9 +30,31 @@ bid:
   job:
     thread: 1
 
+ocpx:
+  compatibility-report:
+    enabled: false
+  flow-log:
+    success-sample-rate: 0.1
+  delivery:
+    upstream:
+      core-threads: 32
+      max-threads: 64
+      queue-capacity: 200
+    downstream:
+      core-threads: 32
+      max-threads: 64
+      queue-capacity: 200
+
 app:
   http:
     timeout-millis: 3000
   jobs:
     storage-cron: '0 0/1 * * * ?'
+    storage-batch-size: 500
+    storage-max-retries: 3
+    storage-retry-backoff-ms: 1000
+    retention-cron: '0 0/10 * * * ?'
+    retention-batch-size: 1000
+    retention-max-batches-per-target: 2
+    retention-batch-pause-ms: 100
     reset-enabled: true

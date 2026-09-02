@@ -10,6 +10,7 @@ import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -48,6 +49,17 @@ class UpstreamDeliveryDispatcherTest {
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("gravity-id"))).isSameAs(gravityDelivery);
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("renren-video-id"))).isSameAs(renrenVideoDelivery);
 		assertThat(UpstreamDeliveryDispatcher.resolve(feedback("missing-id"))).isNull();
+	}
+
+	@Test
+	void appliesBoundedExecutorSettings() {
+		new UpstreamDeliveryDispatcher(templateDelivery, aerimDelivery, weifengDelivery, gravityDelivery,
+				renrenVideoDelivery, registry, mock(OcpxFlowLogWriter.class), 2, 4, 7);
+
+		ThreadPoolExecutor executor = (ThreadPoolExecutor) UpstreamDeliveryDispatcher.EXECUTORS;
+		assertThat(executor.getCorePoolSize()).isEqualTo(2);
+		assertThat(executor.getMaximumPoolSize()).isEqualTo(4);
+		assertThat(executor.getQueue().remainingCapacity()).isEqualTo(7);
 	}
 
 	private FeedbackReq feedback(String advertiserId) {

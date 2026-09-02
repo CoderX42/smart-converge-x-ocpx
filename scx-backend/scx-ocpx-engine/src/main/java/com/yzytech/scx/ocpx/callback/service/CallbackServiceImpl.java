@@ -10,6 +10,7 @@ import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -40,14 +41,25 @@ public class CallbackServiceImpl implements CallbackService {
 
 	private final OcpxFlowLogWriter flowLogWriter;
 
+	private final boolean compatibilityReportEnabled;
+
 	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
 			DeductionDecisionService deductionDecisionService, OcpxEventFactService eventFactService,
 			OcpxFlowLogWriter flowLogWriter) {
+		this(redis, reportBucket, deductionDecisionService, eventFactService, flowLogWriter, true);
+	}
+
+	@Autowired
+	public CallbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
+			DeductionDecisionService deductionDecisionService, OcpxEventFactService eventFactService,
+			OcpxFlowLogWriter flowLogWriter,
+			@Value("${ocpx.compatibility-report.enabled:false}") boolean compatibilityReportEnabled) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
 		this.deductionDecisionService = deductionDecisionService;
 		this.eventFactService = eventFactService;
 		this.flowLogWriter = flowLogWriter;
+		this.compatibilityReportEnabled = compatibilityReportEnabled;
 	}
 
 	@Override
@@ -76,7 +88,7 @@ public class CallbackServiceImpl implements CallbackService {
 			return complete(request, true, CallbackDecision.NOT_APPLICABLE);
 		}
 
-		if (factResult.firstEvent()) {
+		if (factResult.firstEvent() && compatibilityReportEnabled) {
 			// 兼容报表日志只记录首次事实；扣量审计和新报表不依赖该 Redis 队列。
 			LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
 			logData.setActionTime(request.getActionTime());

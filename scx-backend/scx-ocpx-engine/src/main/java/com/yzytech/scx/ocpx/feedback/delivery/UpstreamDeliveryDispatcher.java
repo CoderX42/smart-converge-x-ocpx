@@ -8,6 +8,8 @@ import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ExecutorService;
@@ -28,9 +30,8 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class UpstreamDeliveryDispatcher {
 
-	/** 固定线程数 500、队列容量 100 的共享上游请求线程池。 */
-	public static final ExecutorService EXECUTORS = new ThreadPoolExecutor(500, 500, 30L, TimeUnit.SECONDS,
-			new LinkedBlockingQueue<>(100), new ThreadPoolExecutor.CallerRunsPolicy());
+	/** 有界共享上游请求线程池；启动时由配置覆盖默认值。 */
+	public static volatile ExecutorService EXECUTORS = createExecutor(32, 64, 200);
 
 	private static TemplateGetUpstreamDeliveryService deliveryService;
 
@@ -51,6 +52,18 @@ public class UpstreamDeliveryDispatcher {
 			GravityUpstreamDeliveryService gravityDeliveryService,
 			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
 			OcpxFlowLogWriter flowLogWriter) {
+		this(deliveryService, aerimDeliveryService, weifengDeliveryService, gravityDeliveryService,
+				renrenVideoDeliveryService, protocolRegistry, flowLogWriter, 32, 64, 200);
+	}
+
+	@Autowired
+	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
+			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
+			GravityUpstreamDeliveryService gravityDeliveryService,
+			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			OcpxFlowLogWriter flowLogWriter, @Value("${ocpx.delivery.upstream.core-threads:32}") int coreThreads,
+			@Value("${ocpx.delivery.upstream.max-threads:64}") int maxThreads,
+			@Value("${ocpx.delivery.upstream.queue-capacity:200}") int queueCapacity) {
 		UpstreamDeliveryDispatcher.deliveryService = deliveryService;
 		UpstreamDeliveryDispatcher.aerimDeliveryService = aerimDeliveryService;
 		UpstreamDeliveryDispatcher.weifengDeliveryService = weifengDeliveryService;
@@ -58,6 +71,19 @@ public class UpstreamDeliveryDispatcher {
 		UpstreamDeliveryDispatcher.renrenVideoDeliveryService = renrenVideoDeliveryService;
 		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
+		ExecutorService previous = EXECUTORS;
+		EXECUTORS = createExecutor(coreThreads, maxThreads, queueCapacity);
+		if (previous != EXECUTORS) {
+			previous.shutdown();
+		}
+	}
+
+	private static ExecutorService createExecutor(int coreThreads, int maxThreads, int queueCapacity) {
+		int safeCoreThreads = Math.max(1, coreThreads);
+		int safeMaxThreads = Math.max(safeCoreThreads, maxThreads);
+		int safeQueueCapacity = Math.max(1, queueCapacity);
+		return new ThreadPoolExecutor(safeCoreThreads, safeMaxThreads, 30L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<>(safeQueueCapacity), new ThreadPoolExecutor.CallerRunsPolicy());
 	}
 
 	/**
