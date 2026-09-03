@@ -121,6 +121,9 @@ public class FeedbackReq {
 	/** 本次请求唯一标识；正式点击必须由媒体提供具体值，曝光保留兼容回退。 */
 	private String reqId;
 
+	/** Phoenix 可选投放版位标识（TAGID）。 */
+	private String tagId;
+
 	private String marke;
 
 	private String model;

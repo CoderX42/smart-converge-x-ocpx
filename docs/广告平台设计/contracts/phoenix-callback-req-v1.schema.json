@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "phoenix-callback-req-v1.schema.json",
+  "title": "PHOENIX callback GET query parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kid", "ext"],
+  "properties": {
+    "kid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "ext": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "active",
+        "recall",
+        "register",
+        "pay",
+        "pay_amount",
+        "next_day",
+        "first_order",
+        "download",
+        "activity",
+        "addiction"
+      ],
+      "default": "active"
+    }
+  }
+}

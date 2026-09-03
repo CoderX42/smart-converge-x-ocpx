@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_advertiser (
   CONSTRAINT fk_ocpx_advertiser_account_user FOREIGN KEY (account_user_id) REFERENCES sys_user(id),
   CONSTRAINT ck_ocpx_advertiser_upstream_protocol CHECK (
     upstream_protocol IS NULL OR upstream_protocol IN
-      ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO')
+      ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX')
   )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: upstream advertiser';
 
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_protocol_allowed_host (
   PRIMARY KEY (id),
   UNIQUE KEY uk_ocpx_protocol_allowed_host (protocol_type,host),
   CONSTRAINT ck_ocpx_protocol_allowed_host_type
-    CHECK (protocol_type IN ('AERIM','WEIFENG','GRAVITY','RENREN_VIDEO')),
+    CHECK (protocol_type IN ('AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX')),
   CONSTRAINT ck_ocpx_protocol_allowed_host_value CHECK (
     host=LOWER(host) AND host NOT LIKE '%://%' AND host NOT LIKE '%/%'
     AND host NOT LIKE '%:%' AND host NOT LIKE '%*%'
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   CONSTRAINT ck_ocpx_monitor_task_conversion_event CHECK (conversion_event IN (
     'ACTIVATE','EVOKE','LOGIN','REGISTER','PAYMENT','CUSTOMER_ACQUISITION',
     'NEXT_STAY','VISITS','AUTHENTICATION','ORDER','FINISH_THE_ORDER',
-    'FIRST_ACTIVATION','FIRST_ORDER'
+    'FIRST_ACTIVATION','FIRST_ORDER','DOWNLOAD','ACTIVITY','ADDICTION'
   ))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: advertiser-link-media monitoring task';
 
@@ -335,6 +335,9 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_hourly_metric (
   finish_the_order_count BIGINT NOT NULL DEFAULT 0,
   first_activation_count BIGINT NOT NULL DEFAULT 0,
   first_order_count BIGINT NOT NULL DEFAULT 0,
+  download_count BIGINT NOT NULL DEFAULT 0,
+  activity_count BIGINT NOT NULL DEFAULT 0,
+  addiction_count BIGINT NOT NULL DEFAULT 0,
   spend_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   rejected_click_count BIGINT NOT NULL DEFAULT 0,
@@ -498,6 +501,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat_temp (
   visits INT NOT NULL DEFAULT 0, authentication INT NOT NULL DEFAULT 0,
   place_order INT NOT NULL DEFAULT 0, finish_the_order INT NOT NULL DEFAULT 0,
   first_activation INT NOT NULL DEFAULT 0, first_order INT NOT NULL DEFAULT 0,
+  download INT NOT NULL DEFAULT 0, activity INT NOT NULL DEFAULT 0,
+  addiction INT NOT NULL DEFAULT 0,
   currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   base_price BIGINT NOT NULL DEFAULT 0, win_price BIGINT NOT NULL DEFAULT 0,
   mark TINYINT NOT NULL DEFAULT 0,
@@ -525,6 +530,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_report_mat (
   visits INT NOT NULL DEFAULT 0, authentication INT NOT NULL DEFAULT 0,
   place_order INT NOT NULL DEFAULT 0, finish_the_order INT NOT NULL DEFAULT 0,
   first_activation INT NOT NULL DEFAULT 0, first_order INT NOT NULL DEFAULT 0,
+  download INT NOT NULL DEFAULT 0, activity INT NOT NULL DEFAULT 0,
+  addiction INT NOT NULL DEFAULT 0,
   currency_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   base_price BIGINT NOT NULL DEFAULT 0, win_price BIGINT NOT NULL DEFAULT 0,
   mark TINYINT NOT NULL DEFAULT 0,

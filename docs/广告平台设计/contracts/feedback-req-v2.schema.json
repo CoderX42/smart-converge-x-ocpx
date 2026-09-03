@@ -11,6 +11,8 @@
     "lId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxPromotionLink.id" },
     "event": { "type": "string", "enum": ["IMP", "CLK"] },
     "request_id": { "type": "string", "maxLength": 128 },
+    "tagid": { "type": "string", "maxLength": 128, "description": "PHOENIX optional TAGID" },
+    "tagId": { "type": "string", "maxLength": 128, "description": "PHOENIX optional TAGID alias" },
     "callback_url": { "type": "string", "maxLength": 2000 },
     "caid": { "type": "string" },
     "caid_list": { "type": "string" },

@@ -126,7 +126,7 @@ public class LogData {
 
 	private String userType;
 
-	/** 十一类标准 Callback 转化的本条增量指标。 */
+	/** 标准 Callback 转化的本条增量指标（含 Phoenix 的三项动作）。 */
 	private int activate;
 
 	private int evoke;
@@ -152,6 +152,12 @@ public class LogData {
 	private int firstActivation;
 
 	private int firstOrder;
+
+	private int download;
+
+	private int activity;
+
+	private int addiction;
 
 	/** 合作方原始动作、标准动作编号、转化时间、订单金额和监测任务基础价格。 */
 	private String partnerActionType;

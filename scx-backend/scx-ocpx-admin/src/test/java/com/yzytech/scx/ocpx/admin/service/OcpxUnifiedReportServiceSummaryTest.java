@@ -210,10 +210,10 @@ class OcpxUnifiedReportServiceSummaryTest {
 		assertThat(lines).hasSize(2);
 		assertThat(lines[0]).isEqualTo(
 				"报告时间,媒体名称,监测名称,广告主名称,链接名称,下游配置放行率,上游Callback数,下游回传提交数,SCX扣量拦截数,SCX待判定数,扣量统计起始时间,去重展示数,去重点击数,点击率,广告主消费,上游激活数,上游唤起数,"
-						+ "上游登录数,上游注册数,上游付费数,上游获客数,上游次留数,上游访问数,上游认证数,上游下单数,上游完单数,上游首活数,上游首购数,订单金额");
+						+ "上游登录数,上游注册数,上游付费数,上游获客数,上游次留数,上游访问数,上游认证数,上游下单数,上游完单数,上游首活数,上游首购数,上游下载数,上游活动数,上游深度使用数,订单金额");
 		assertThat(lines[1])
 			.isEqualTo("20260812,示例媒体,任务一,示例广告主,链接一,100%,100,80,19,1,,1000,120,12.0,2.00,11,12,13,14,15,16,17,18,"
-					+ "19,20,21,22,23,123.45");
+					+ "19,20,21,22,23,24,25,26,123.45");
 	}
 
 	@Test
@@ -266,7 +266,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		long action = 11;
 		for (String column : List.of("activate", "evoke", "login", "register", "payment", "customer_acquisition",
 				"next_stay", "visits", "authentication", "place_order", "finish_the_order", "first_activation",
-				"first_order")) {
+				"first_order", "download", "activity", "addiction")) {
 			lenient().when(rs.getLong(column)).thenReturn(action++);
 		}
 		lenient().when(rs.getBigDecimal("currency_amount")).thenReturn(new BigDecimal("123.45"));

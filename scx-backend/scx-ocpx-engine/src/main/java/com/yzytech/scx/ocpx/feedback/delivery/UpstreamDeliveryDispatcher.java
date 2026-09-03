@@ -3,6 +3,7 @@ package com.yzytech.scx.ocpx.feedback.delivery;
 import com.yzytech.scx.ocpx.feedback.delivery.aerim.AerimUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.gravity.GravityUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.renrenvideo.RenrenVideoUpstreamDeliveryService;
+import com.yzytech.scx.ocpx.feedback.delivery.phoenix.PhoenixUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.delivery.weifeng.WeifengUpstreamDeliveryService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.protocol.registry.AdvertiserProtocolRegistry;
@@ -43,6 +44,8 @@ public class UpstreamDeliveryDispatcher {
 
 	private static RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService;
 
+	private static PhoenixUpstreamDeliveryService phoenixDeliveryService;
+
 	private static AdvertiserProtocolRegistry protocolRegistry;
 
 	private static OcpxFlowLogWriter flowLogWriter;
@@ -53,14 +56,31 @@ public class UpstreamDeliveryDispatcher {
 			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
 			OcpxFlowLogWriter flowLogWriter) {
 		this(deliveryService, aerimDeliveryService, weifengDeliveryService, gravityDeliveryService,
-				renrenVideoDeliveryService, protocolRegistry, flowLogWriter, 32, 64, 200);
+				renrenVideoDeliveryService, null, protocolRegistry, flowLogWriter, 32, 64, 200);
+	}
+
+	/**
+	 * Compatibility constructor retaining the pre-Phoenix executor-configuration
+	 * signature. Existing integrations and tests may still construct the dispatcher
+	 * directly; a null Phoenix service simply leaves that protocol unavailable.
+	 */
+	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
+			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
+			GravityUpstreamDeliveryService gravityDeliveryService,
+			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService,
+			AdvertiserProtocolRegistry protocolRegistry, OcpxFlowLogWriter flowLogWriter, int coreThreads,
+			int maxThreads, int queueCapacity) {
+		this(deliveryService, aerimDeliveryService, weifengDeliveryService, gravityDeliveryService,
+				renrenVideoDeliveryService, null, protocolRegistry, flowLogWriter, coreThreads, maxThreads,
+				queueCapacity);
 	}
 
 	@Autowired
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
 			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
 			GravityUpstreamDeliveryService gravityDeliveryService,
-			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService,
+			PhoenixUpstreamDeliveryService phoenixDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
 			OcpxFlowLogWriter flowLogWriter, @Value("${ocpx.delivery.upstream.core-threads:32}") int coreThreads,
 			@Value("${ocpx.delivery.upstream.max-threads:64}") int maxThreads,
 			@Value("${ocpx.delivery.upstream.queue-capacity:200}") int queueCapacity) {
@@ -69,6 +89,7 @@ public class UpstreamDeliveryDispatcher {
 		UpstreamDeliveryDispatcher.weifengDeliveryService = weifengDeliveryService;
 		UpstreamDeliveryDispatcher.gravityDeliveryService = gravityDeliveryService;
 		UpstreamDeliveryDispatcher.renrenVideoDeliveryService = renrenVideoDeliveryService;
+		UpstreamDeliveryDispatcher.phoenixDeliveryService = phoenixDeliveryService;
 		UpstreamDeliveryDispatcher.protocolRegistry = protocolRegistry;
 		UpstreamDeliveryDispatcher.flowLogWriter = flowLogWriter;
 		ExecutorService previous = EXECUTORS;
@@ -121,6 +142,7 @@ public class UpstreamDeliveryDispatcher {
 			case WEIFENG -> weifengDeliveryService;
 			case GRAVITY -> gravityDeliveryService;
 			case RENREN_VIDEO -> renrenVideoDeliveryService;
+			case PHOENIX -> phoenixDeliveryService;
 			case TEMPLATE_GET -> deliveryService;
 		}).orElse(null);
 	}

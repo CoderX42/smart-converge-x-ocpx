@@ -10,6 +10,8 @@ import com.yzytech.scx.ocpx.entity.OcpxAdvertiser;
 import com.yzytech.scx.ocpx.entity.OcpxDeductionRule;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
+import com.yzytech.scx.ocpx.protocol.PhoenixTemplateContract;
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import com.yzytech.scx.ocpx.protocol.RenrenVideoTemplateContract;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxDeductionRuleMapper;
@@ -74,7 +76,7 @@ public class OcpxPromotionLinkService {
 					q -> q.like(OcpxAdvertiser::getId, keyword).or().like(OcpxAdvertiser::getAdvertiserName, keyword))
 			.orderByAsc(OcpxAdvertiser::getAdvertiserName))
 			.stream()
-			.map(a -> new PromotionLinkViews.AdvertiserOption(a.getId(), a.getAdvertiserName()))
+			.map(a -> new PromotionLinkViews.AdvertiserOption(a.getId(), a.getAdvertiserName(), a.getUpstreamProtocol()))
 			.toList();
 	}
 
@@ -100,7 +102,8 @@ public class OcpxPromotionLinkService {
 	public PromotionLinkViews.Item create(PromotionLinkRequests.Create request) {
 		advertiserScope.requireOwner(request.getAdvertiserId());
 		OcpxAdvertiser advertiser = requireAdvertiser(request.getAdvertiserId());
-		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkUrl());
+		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkChannel(), request.getLinkUrl(),
+				request.getDeeplink());
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		apply(link, request.getAdvertiserId(), request.getLinkName(), request.getPlatform(), request.getLinkChannel(),
 				request.getLinkUrl(), request.getDeeplink(), request.getLinkExt(), request.getRemark());
@@ -116,7 +119,8 @@ public class OcpxPromotionLinkService {
 		advertiserScope.requireOwner(current.getAdvertiserId());
 		advertiserScope.requireOwner(request.getAdvertiserId());
 		OcpxAdvertiser advertiser = requireAdvertiser(request.getAdvertiserId());
-		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkUrl());
+		validateProtocolLink(advertiser, request.getPlatform(), request.getLinkChannel(), request.getLinkUrl(),
+				request.getDeeplink());
 		if (!current.getAdvertiserId().equals(request.getAdvertiserId()) && (taskMapper
 			.selectCount(Wrappers.<OcpxMonitorTask>lambdaQuery().eq(OcpxMonitorTask::getPromotionLinkId, id)) > 0
 				|| linkMapper.countCreativeBindings(id) > 0)) {
@@ -168,8 +172,18 @@ public class OcpxPromotionLinkService {
 		return advertiser;
 	}
 
-	private void validateProtocolLink(OcpxAdvertiser advertiser, Integer platform, String url) {
-		if (advertiser.getUpstreamProtocol() == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.RENREN_VIDEO) {
+	private void validateProtocolLink(OcpxAdvertiser advertiser, Integer platform, String channel, String url,
+			String deeplink) {
+		if (advertiser.getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX) {
+			try {
+				PhoenixTemplateContract.requireValid(url, platform);
+			}
+			catch (IllegalArgumentException exception) {
+				throw new BootBusinessException(phoenixTemplateMessage(exception.getMessage()));
+			}
+			return;
+		}
+		if (advertiser.getUpstreamProtocol() == OcpxUpstreamProtocol.RENREN_VIDEO) {
 			try {
 				RenrenVideoTemplateContract.requireValid(url, platform);
 			}
@@ -178,7 +192,7 @@ public class OcpxPromotionLinkService {
 			}
 			return;
 		}
-		if (advertiser.getUpstreamProtocol() != com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY) {
+		if (advertiser.getUpstreamProtocol() != OcpxUpstreamProtocol.GRAVITY) {
 			return;
 		}
 		if (!Integer.valueOf(ANDROID_IOS_PLATFORM).equals(platform)) {
@@ -210,6 +224,20 @@ public class OcpxPromotionLinkService {
 		catch (RuntimeException exception) {
 			throw new BootBusinessException("引力投放链接格式无效");
 		}
+	}
+
+	private String phoenixTemplateMessage(String code) {
+		return switch (code == null ? "" : code) {
+			case "PHOENIX_TEMPLATE_PLATFORM_INVALID" -> "凤凰新闻推广链接的平台必须选择 Android、IOS 或 Android+IOS";
+			case "PHOENIX_TEMPLATE_PARAMETER_DUPLICATE" -> "凤凰新闻点击模板存在重复参数";
+			case "PHOENIX_TEMPLATE_FIXED_PARAMETER_INVALID" -> "凤凰新闻点击模板必须包含静态 cid/gid/aid/mid/channel";
+			case "PHOENIX_TEMPLATE_REQUIRED_MACRO_MISSING" -> "凤凰新闻点击模板缺少必填宏";
+			case "PHOENIX_TEMPLATE_DEVICE_MACRO_MISSING" -> "凤凰新闻模板缺少对应平台的设备标识宏";
+			case "PHOENIX_TEMPLATE_UNKNOWN_PARAMETER" -> "凤凰新闻点击模板包含未声明参数";
+			case "PHOENIX_TEMPLATE_MACRO_INVALID" -> "凤凰新闻点击模板包含未知或位置错误的宏";
+			case "PHOENIX_TEMPLATE_REDIRECT_FORBIDDEN" -> "凤凰新闻点击模板不能包含用户信息或重定向地址";
+			default -> "凤凰新闻投放链接必须是合法的 HTTPS /d/cli 完整模板";
+		};
 	}
 
 	private String renrenVideoTemplateMessage(String code) {

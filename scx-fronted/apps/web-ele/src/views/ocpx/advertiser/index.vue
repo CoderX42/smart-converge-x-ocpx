@@ -89,6 +89,7 @@ const form = reactive({
 const protocolOptions: Array<{ label: string; value: OcpxUpstreamProtocol }> = [
   { label: 'AERIM', value: 'AERIM' },
   { label: '引力', value: 'GRAVITY' },
+  { label: '凤凰新闻', value: 'PHOENIX' },
   { label: '人人视频', value: 'RENREN_VIDEO' },
   { label: '微风互动', value: 'WEIFENG' },
   { label: '通用 GET 模板', value: 'TEMPLATE_GET' },
@@ -96,10 +97,13 @@ const protocolOptions: Array<{ label: string; value: OcpxUpstreamProtocol }> = [
 const protocolLabels: Record<OcpxUpstreamProtocol, string> = {
   AERIM: 'AERIM',
   GRAVITY: '引力',
+  PHOENIX: '凤凰新闻',
   RENREN_VIDEO: '人人视频',
   TEMPLATE_GET: '通用 GET 模板',
   WEIFENG: '微风互动',
 };
+// Keep the protocol-level credential rule explicit for the management contract.
+const showCredentialFields = computed(() => !['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol) && form.upstreamProtocol !== 'PHOENIX');
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
   hasAccessByCodes([
@@ -186,6 +190,7 @@ const protocolConfigs = reactive<Record<ProtocolConfig['protocol'], string[]>>({
   AERIM: [],
   GRAVITY: [],
   RENREN_VIDEO: [],
+  PHOENIX: [],
   WEIFENG: [],
 });
 
@@ -204,6 +209,10 @@ async function openProtocolConfig() {
     protocolConfigs.RENREN_VIDEO = [
       ...(result.find((item) => item.protocol === 'RENREN_VIDEO')
         ?.allowedHosts || []),
+    ];
+    protocolConfigs.PHOENIX = [
+      ...(result.find((item) => item.protocol === 'PHOENIX')?.allowedHosts ||
+        []),
     ];
     protocolConfigs.WEIFENG = [
       ...(result.find((item) => item.protocol === 'WEIFENG')?.allowedHosts ||
@@ -927,12 +936,22 @@ onMounted(async () => {
         </el-form-item>
         <el-alert
           v-if="
-            form.upstreamProtocol && form.upstreamProtocol !== 'TEMPLATE_GET'
+            form.upstreamProtocol &&
+            form.upstreamProtocol !== 'TEMPLATE_GET' &&
+            form.upstreamProtocol !== 'PHOENIX'
           "
           :closable="false"
           class="field-alert"
           show-icon
           title="AERIM、微风互动按推广链接转发，一个广告主可以配置多个产品链接；引力使用一条 Android+IOS 链接；人人视频必须为每个产品分别创建 Android、IOS 完整点击模板，固定 userId 写入模板，系统不保存其 Bearer Token。"
+          type="info"
+        />
+        <el-alert
+          v-if="form.upstreamProtocol === 'PHOENIX'"
+          :closable="false"
+          class="field-alert"
+          show-icon
+          title="凤凰新闻使用 api.feather.ifeng.com 的 /d/imp 曝光和 /d/cli 点击协议；推广链接填写实际商务分配的 cid/gid/aid/mid/channel 固定参数及对应平台宏，系统自动生成加密 Callback，不填写广告主凭据或 bidUrl。"
           type="info"
         />
         <el-form-item
@@ -946,7 +965,7 @@ onMounted(async () => {
             type="textarea"
         /></el-form-item>
         <el-form-item
-          v-if="!['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol)"
+          v-if="showCredentialFields"
           label="凭据引用"
           prop="credentialConfigKey"
           ><el-input
@@ -954,7 +973,7 @@ onMounted(async () => {
             placeholder="请输入凭据引用"
         /></el-form-item>
         <el-form-item
-          v-if="!['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol)"
+          v-if="showCredentialFields"
           label="宏参数"
           prop="macroParams"
         >
@@ -1016,6 +1035,7 @@ onMounted(async () => {
             'WEIFENG',
             'GRAVITY',
             'RENREN_VIDEO',
+            'PHOENIX',
           ] as const"
           :key="protocol"
           class="protocol-host-section"

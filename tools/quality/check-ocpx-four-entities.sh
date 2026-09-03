@@ -152,12 +152,19 @@ required = {
 	"feedback/delivery/renrenvideo/RenrenVideoUpstreamDeliveryService.java",
 	"feedback/delivery/renrenvideo/RenrenVideoEndpointPolicy.java",
 	"feedback/delivery/renrenvideo/RenrenVideoHttpClient.java",
+	"feedback/delivery/phoenix/PhoenixUpstreamDeliveryService.java",
+	"feedback/delivery/phoenix/PhoenixEndpointPolicy.java",
+	"feedback/delivery/phoenix/PhoenixHttpClient.java",
     "callback/model/CallbackReq.java",
     "callback/web/UpstreamCallbackController.java",
 	"callback/web/aerim/AerimCallbackController.java",
     "callback/web/weifeng/WeifengCallbackController.java",
 	"callback/web/renrenvideo/RenrenVideoCallbackAdapter.java",
 	"callback/web/renrenvideo/RenrenVideoCallbackController.java",
+	"callback/web/phoenix/PhoenixCallbackRequest.java",
+	"callback/web/phoenix/PhoenixCallbackResponse.java",
+	"callback/web/phoenix/PhoenixCallbackAdapter.java",
+	"callback/web/phoenix/PhoenixCallbackController.java",
     "callback/service/CallbackServiceImpl.java",
     "callback/delivery/DownstreamDeliveryDispatcher.java",
     "callback/delivery/CallbackUrlDownstreamDeliveryService.java",
@@ -538,6 +545,25 @@ for required_fragment in (
 if "INSERT INTO" in v124 or "userId" in v124 or "scx_schema_migration" in v124:
     raise SystemExit("V124 RENREN_VIDEO migration gate failed: migration must not seed configuration or use ledger")
 
+v127 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V127__add_phoenix_upstream_protocol_and_events.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX'",
+    "'AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX'",
+    "'FIRST_ACTIVATION','FIRST_ORDER','DOWNLOAD','ACTIVITY','ADDICTION'",
+    "ADD COLUMN download_count BIGINT",
+    "ADD COLUMN activity_count BIGINT",
+    "ADD COLUMN addiction_count BIGINT",
+    "ADD COLUMN download INT",
+    "ADD COLUMN activity INT",
+    "ADD COLUMN addiction INT",
+):
+    if required_fragment not in v127:
+        raise SystemExit(f"V127 PHOENIX migration gate failed: missing {required_fragment}")
+if "INSERT INTO" in v127 or "scx_schema_migration" in v127:
+    raise SystemExit("V127 PHOENIX migration gate failed: migration must not seed configuration or use ledger")
+
 current_schema = (
     root / "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql"
 ).read_text(encoding="utf-8")
@@ -556,6 +582,21 @@ for required_fragment in (
         raise SystemExit(f"current schema RENREN_VIDEO gate failed: missing {required_fragment}")
 if re.search(r"VALUES.*RENREN_VIDEO", current_schema, re.IGNORECASE | re.DOTALL):
     raise SystemExit("current schema RENREN_VIDEO gate failed: allowed host must remain empty by default")
+for required_fragment in (
+    "'TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX'",
+    "'AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX'",
+    "'FIRST_ACTIVATION','FIRST_ORDER','DOWNLOAD','ACTIVITY','ADDICTION'",
+    "download_count BIGINT NOT NULL DEFAULT 0",
+    "activity_count BIGINT NOT NULL DEFAULT 0",
+    "addiction_count BIGINT NOT NULL DEFAULT 0",
+    "download INT NOT NULL DEFAULT 0",
+    "activity INT NOT NULL DEFAULT 0",
+    "addiction INT NOT NULL DEFAULT 0",
+):
+    if required_fragment not in current_schema:
+        raise SystemExit(f"current schema PHOENIX gate failed: missing {required_fragment}")
+if re.search(r"VALUES.*PHOENIX", current_schema, re.IGNORECASE | re.DOTALL):
+    raise SystemExit("current schema PHOENIX gate failed: allowed host must remain empty by default")
 
 aerim_delivery = (
     engine / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/aerim/AerimUpstreamDeliveryService.java"
@@ -620,6 +661,62 @@ for fragment in ("ActionTypeEnum.ACTIVATE", "ActionTypeEnum.REGISTER", "ActionTy
                  "ActionTypeEnum.PAYMENT", "ActionTypeEnum.FIRST_ACTIVATION", "decryptCallback"):
     if fragment not in renren_callback:
         raise SystemExit(f"RENREN_VIDEO callback gate failed: missing {fragment}")
+
+phoenix_template = (
+    core
+    / "src/main/java/com/yzytech/scx/ocpx/protocol/PhoenixTemplateContract.java"
+).read_text(encoding="utf-8")
+for fragment in (
+    'HOST = "api.feather.ifeng.com"',
+    'CLICK_PATH = "/d/cli"',
+    'IMPRESSION_PATH = "/d/imp"',
+    "FIXED_PARAMETER_NAMES",
+    '"__OAIDMD5__"',
+    "PHOENIX_TEMPLATE_UNKNOWN_PARAMETER",
+    "PHOENIX_TEMPLATE_REDIRECT_FORBIDDEN",
+):
+    if fragment not in phoenix_template:
+        raise SystemExit(f"PHOENIX template gate failed: missing {fragment}")
+phoenix_delivery = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/phoenix/PhoenixUpstreamDeliveryService.java"
+).read_text(encoding="utf-8")
+for fragment in (
+    "PhoenixTemplateContract.requireValid",
+    "PhoenixEndpointPolicy",
+    "EventTypeEnum.CLICK",
+    "EventTypeEnum.IMP",
+    'macros.put("__REQID__", feedback.getReqId())',
+    'macros.put("__OAIDMD5__", oaidMd5)',
+    "encryptCallback",
+    "case 10001",
+    "case 10007",
+    "Integer.valueOf(0)",
+):
+    if fragment not in phoenix_delivery:
+        raise SystemExit(f"PHOENIX delivery gate failed: missing {fragment}")
+if 'PhoenixTemplateContract.IMPRESSION_PATH' not in phoenix_delivery:
+    raise SystemExit("PHOENIX delivery gate failed: impression path missing")
+phoenix_callback = (
+    engine
+    / "src/main/java/com/yzytech/scx/ocpx/callback/web/phoenix/PhoenixCallbackAdapter.java"
+).read_text(encoding="utf-8")
+for fragment in (
+    "ActionTypeEnum.ACTIVATE",
+    "ActionTypeEnum.EVOKE",
+    "ActionTypeEnum.REGISTER",
+    "ActionTypeEnum.PAYMENT",
+    "ActionTypeEnum.NEXT_STAY",
+    "ActionTypeEnum.FIRST_ORDER",
+    "ActionTypeEnum.DOWNLOAD",
+    "ActionTypeEnum.ACTIVITY",
+    "ActionTypeEnum.ADDICTION",
+    "decryptCallback",
+    "OcpxUpstreamProtocol.PHOENIX",
+    "PhoenixTemplateContract.requireValid",
+):
+    if fragment not in phoenix_callback:
+        raise SystemExit(f"PHOENIX callback gate failed: missing {fragment}")
 for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
     if re.search(r"(?m)^\s+gravity:\s*$", source):
         raise SystemExit(f"GRAVITY configuration gate failed: retired static switch found in {path}")
@@ -667,6 +764,25 @@ renren_prefix = (
 if nginx_template.count(renren_location) != 1 or renren_prefix not in nginx_template:
     raise SystemExit("Nginx gate failed: RENREN_VIDEO callback must be GET-only and proxy to Engine")
 
+phoenix_location = "location = /ocpx/phoenix/callback {"
+phoenix_block = """location = /ocpx/phoenix/callback {
+    limit_except GET { deny all; }
+    proxy_pass http://127.0.0.1:10000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 30s;
+    proxy_read_timeout 30s;
+    client_max_body_size 1m;
+}"""
+if nginx_template.count(phoenix_location) != 1 or phoenix_block not in nginx_template:
+    raise SystemExit("Nginx gate failed: PHOENIX callback must be one exact GET-only production route")
+if "location = /d/cli" in nginx_template or "location ^~ /d/cli" in nginx_template or "location = /d/imp" in nginx_template:
+    raise SystemExit("Nginx gate failed: Phoenix outbound /d/cli and /d/imp must not be inbound locations")
+
 test_callback_location = "location = /ocpx/test-callback {"
 for template_path in (
     "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf",
@@ -686,6 +802,8 @@ for template_path in (
         raise SystemExit(f"Nginx gate failed: {template_path} GRAVITY callback must be GET-only and proxy to Engine")
     if template.count(renren_location) != 1 or renren_prefix not in template:
         raise SystemExit(f"Nginx gate failed: {template_path} RENREN_VIDEO callback must be GET-only and proxy to Engine")
+    if "ip-uat" in template_path and phoenix_location in template:
+        raise SystemExit(f"Nginx gate failed: {template_path} must not expose the production PHOENIX route")
 
 frontend_nginx = (root / "scx-fronted/scripts/deploy/scx-fronted.conf").read_text(encoding="utf-8")
 frontend_test_proxy = (
@@ -709,6 +827,8 @@ frontend_renren_proxy = (
 )
 if frontend_nginx.count(renren_location) != 1 or frontend_renren_proxy not in frontend_nginx:
     raise SystemExit("Nginx gate failed: container frontend must proxy one GET-only RENREN_VIDEO callback route")
+if phoenix_location in frontend_nginx or "location = /d/cli" in frontend_nginx or "location = /d/imp" in frontend_nginx:
+    raise SystemExit("Nginx gate failed: container frontend must not expose the PHOENIX route")
 
 entrypoint = (java_root / "ScxOcpxEngineApplication.java").read_text(encoding="utf-8")
 for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper"):

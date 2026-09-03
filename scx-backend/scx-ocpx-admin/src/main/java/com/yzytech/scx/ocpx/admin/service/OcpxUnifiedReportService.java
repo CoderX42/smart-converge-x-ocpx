@@ -54,15 +54,17 @@ public class OcpxUnifiedReportService {
 			new MetricColumn("FINISH_THE_ORDER", "finish_the_order_count"),
 			new MetricColumn("FIRST_ACTIVATION", "first_activation_count"),
 			new MetricColumn("FIRST_ORDER", "first_order_count"),
+			new MetricColumn("DOWNLOAD", "download_count"), new MetricColumn("ACTIVITY", "activity_count"),
+			new MetricColumn("ADDICTION", "addiction_count"),
 			new MetricColumn("REJECTED_CLICK", "rejected_click_count"));
 
 	private static final List<String> SUMMARY_ACTIONS = List.of("activate", "evoke", "login", "register", "payment",
 			"customer_acquisition", "next_stay", "visits", "authentication", "place_order", "finish_the_order",
-			"first_activation", "first_order");
+			"first_activation", "first_order", "download", "activity", "addiction");
 
 	private static final List<String> SUMMARY_CSV_HEADER = List.of("报告时间", "媒体名称", "监测名称", "广告主名称", "链接名称", "下游配置放行率",
 			"上游Callback数", "下游回传提交数", "SCX扣量拦截数", "SCX待判定数", "扣量统计起始时间", "去重展示数", "去重点击数", "点击率", "广告主消费", "上游激活数",
-			"上游唤起数", "上游登录数", "上游注册数", "上游付费数", "上游获客数", "上游次留数", "上游访问数", "上游认证数", "上游下单数", "上游完单数", "上游首活数", "上游首购数",
+			"上游唤起数", "上游登录数", "上游注册数", "上游付费数", "上游获客数", "上游次留数", "上游访问数", "上游认证数", "上游下单数", "上游完单数", "上游首活数", "上游首购数", "上游下载数", "上游活动数", "上游深度使用数",
 			"订单金额");
 
 	private static final Map<String, String> SUMMARY_SORT_COLUMNS = Map.ofEntries(
@@ -77,6 +79,8 @@ public class OcpxUnifiedReportService {
 			Map.entry("visits", "visits"), Map.entry("authentication", "authentication"),
 			Map.entry("place_order", "place_order"), Map.entry("finish_the_order", "finish_the_order"),
 			Map.entry("first_activation", "first_activation"), Map.entry("first_order", "first_order"),
+			Map.entry("download", "download"), Map.entry("activity", "activity"),
+			Map.entry("addiction", "addiction"),
 			Map.entry("currency_amount", "currency_amount"));
 
 	private final JdbcTemplate jdbcTemplate;
@@ -196,6 +200,7 @@ public class OcpxUnifiedReportService {
 				rs.getLong("payment"), rs.getLong("customer_acquisition"), rs.getLong("next_stay"),
 				rs.getLong("visits"), rs.getLong("authentication"), rs.getLong("place_order"),
 				rs.getLong("finish_the_order"), rs.getLong("first_activation"), rs.getLong("first_order"),
+				rs.getLong("download"), rs.getLong("activity"), rs.getLong("addiction"),
 				rs.getBigDecimal("currency_amount"));
 	}
 
@@ -207,7 +212,7 @@ public class OcpxUnifiedReportService {
 				row.getBasePrice(), row.getActivate(), row.getEvoke(), row.getLogin(), row.getRegister(),
 				row.getPayment(), row.getCustomerAcquisition(), row.getNextStay(), row.getVisits(),
 				row.getAuthentication(), row.getPlaceOrder(), row.getFinishTheOrder(), row.getFirstActivation(),
-				row.getFirstOrder(), row.getCurrencyAmount());
+				row.getFirstOrder(), row.getDownload(), row.getActivity(), row.getAddiction(), row.getCurrencyAmount());
 	}
 
 	private String mediaCallbackRatio(String ratio) {
@@ -462,8 +467,10 @@ public class OcpxUnifiedReportService {
 						BigDecimal.ZERO));
 			}
 			BigDecimal amount = resultSet.getBigDecimal(METRICS.size() + 3);
-			rows.add(new MetricRow(key, name, "BASE_PRICE", 0, amount));
-			rows.add(new MetricRow(key, name, "CURRENCY_AMOUNT", 0, resultSet.getBigDecimal(METRICS.size() + 4)));
+			rows.add(new MetricRow(key, name, "BASE_PRICE", 0, amount == null ? BigDecimal.ZERO.setScale(6) : amount));
+			BigDecimal currencyAmount = resultSet.getBigDecimal(METRICS.size() + 4);
+			rows.add(new MetricRow(key, name, "CURRENCY_AMOUNT", 0,
+					currencyAmount == null ? BigDecimal.ZERO.setScale(6) : currencyAmount));
 		}
 		return rows;
 	}

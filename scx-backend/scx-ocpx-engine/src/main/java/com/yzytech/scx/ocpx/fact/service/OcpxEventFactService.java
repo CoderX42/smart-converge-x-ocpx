@@ -49,8 +49,9 @@ public class OcpxEventFactService {
 			  activate_count,evoke_count,login_count,register_count,payment_count,
 			  customer_acquisition_count,next_stay_count,visits_count,authentication_count,
 			  place_order_count,finish_the_order_count,first_activation_count,first_order_count,
+			  download_count,activity_count,addiction_count,
 			  spend_amount,currency_amount,rejected_click_count,rejected_conversion_count
-			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 			ON DUPLICATE KEY UPDATE
 			  impression_count=impression_count+VALUES(impression_count),
 			  click_count=click_count+VALUES(click_count),
@@ -69,6 +70,9 @@ public class OcpxEventFactService {
 			  finish_the_order_count=finish_the_order_count+VALUES(finish_the_order_count),
 			  first_activation_count=first_activation_count+VALUES(first_activation_count),
 			  first_order_count=first_order_count+VALUES(first_order_count),
+			  download_count=download_count+VALUES(download_count),
+			  activity_count=activity_count+VALUES(activity_count),
+			  addiction_count=addiction_count+VALUES(addiction_count),
 			  spend_amount=spend_amount+VALUES(spend_amount),
 			  currency_amount=currency_amount+VALUES(currency_amount),
 			  rejected_click_count=rejected_click_count+VALUES(rejected_click_count),
@@ -319,8 +323,9 @@ public class OcpxEventFactService {
 				task.promotionLinkId(), task.mediaId(), task.id(), delta.impression(), delta.click(), delta.target(),
 				delta.callback(), delta.activate(), delta.evoke(), delta.login(), delta.register(), delta.payment(),
 				delta.customerAcquisition(), delta.nextStay(), delta.visits(), delta.authentication(),
-				delta.placeOrder(), delta.finishTheOrder(), delta.firstActivation(), delta.firstOrder(), delta.spend(),
-				delta.currency(), delta.rejectedClick(), delta.rejectedConversion());
+				delta.placeOrder(), delta.finishTheOrder(), delta.firstActivation(), delta.firstOrder(),
+				delta.download(), delta.activity(), delta.addiction(), delta.spend(), delta.currency(),
+				delta.rejectedClick(), delta.rejectedConversion());
 	}
 
 	private String feedbackReason(EventTypeEnum event, TaskSnapshot task) {
@@ -401,7 +406,8 @@ public class OcpxEventFactService {
 	private record MetricDelta(long impression, long click, long target, long callback, long activate, long evoke,
 			long login, long register, long payment, long customerAcquisition, long nextStay, long visits,
 			long authentication, long placeOrder, long finishTheOrder, long firstActivation, long firstOrder,
-			BigDecimal spend, BigDecimal currency, long rejectedClick, long rejectedConversion) {
+			long download, long activity, long addiction, BigDecimal spend, BigDecimal currency, long rejectedClick,
+			long rejectedConversion) {
 
 		private static MetricDelta forImpression() {
 			return empty(1, 0, 0, ZERO, ZERO, 0, null);
@@ -425,8 +431,8 @@ public class OcpxEventFactService {
 			return new MetricDelta(base.impression(), base.click(), base.target(), 1, base.activate(), base.evoke(),
 					base.login(), base.register(), base.payment(), base.customerAcquisition(), base.nextStay(),
 					base.visits(), base.authentication(), base.placeOrder(), base.finishTheOrder(),
-					base.firstActivation(), base.firstOrder(), base.spend(), base.currency(), base.rejectedClick(),
-					rejected ? 1 : 0);
+					base.firstActivation(), base.firstOrder(), base.download(), base.activity(), base.addiction(), base.spend(),
+					base.currency(), base.rejectedClick(), rejected ? 1 : 0);
 		}
 
 		private static MetricDelta empty(long impression, long click, long target, BigDecimal spend,
@@ -438,7 +444,8 @@ public class OcpxEventFactService {
 					action == ActionTypeEnum.VISITS ? 1 : 0, action == ActionTypeEnum.AUTHENTICATION ? 1 : 0,
 					action == ActionTypeEnum.ORDER ? 1 : 0, action == ActionTypeEnum.FINISH_THE_ORDER ? 1 : 0,
 					action == ActionTypeEnum.FIRST_ACTIVATION ? 1 : 0, action == ActionTypeEnum.FIRST_ORDER ? 1 : 0,
-					spend, currency, rejectedClick, 0);
+					action == ActionTypeEnum.DOWNLOAD ? 1 : 0, action == ActionTypeEnum.ACTIVITY ? 1 : 0,
+					action == ActionTypeEnum.ADDICTION ? 1 : 0, spend, currency, rejectedClick, 0);
 		}
 	}
 

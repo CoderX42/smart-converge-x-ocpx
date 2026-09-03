@@ -1,5 +1,6 @@
 package com.yzytech.scx.ocpx.admin.dto;
 
+import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -44,12 +45,24 @@ public final class PromotionLinkViews {
 
 	@Data
 	@NoArgsConstructor
-	@AllArgsConstructor
 	public static class AdvertiserOption {
 
 		private String id;
 
 		private String name;
+
+		/** 协议用于前端在推广链接表单中应用协议级校验。 */
+		private OcpxUpstreamProtocol protocol;
+
+		public AdvertiserOption(String id, String name) {
+			this(id, name, null);
+		}
+
+		public AdvertiserOption(String id, String name, OcpxUpstreamProtocol protocol) {
+			this.id = id;
+			this.name = name;
+			this.protocol = protocol;
+		}
 
 	}
 

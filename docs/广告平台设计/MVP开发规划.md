@@ -41,6 +41,8 @@
 
 > 决策更新（2026-09-02）：V126 为 `scx_ocpx_event_fact` 增加 `(flow_type,received_at,id)` Callback 检索索引，并让上游转化记录查询和精确总数统计显式使用该索引，以避免 Feedback 大表全表扫描。源码与本地测试不代表目标库迁移、生产发布或线上耗时复测。
 
+> 决策更新（2026-09-03）：V127 新增独立 `PHOENIX` 上游，按 PDF 实现 `/d/imp` 曝光、`/d/cli` 点击和 `/ocpx/phoenix/callback` AES-GCM 回调；支持 Android/iOS，固定 Phoenix 参数不映射为 SCX 路由主键。Callback 新增 `DOWNLOAD(20)`、`ACTIVITY(21)`、`ADDICTION(22)` 标准动作，目标库迁移、宝塔 Nginx 发布、应用重启和真实第三方 UAT 仍未执行。
+
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
 
 ## 执行快照增补（2026-08-13）：SGYZ 对齐迁移交付记录

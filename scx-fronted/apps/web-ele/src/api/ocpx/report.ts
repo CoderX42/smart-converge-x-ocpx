@@ -3,6 +3,8 @@ import { downloadBlobFile } from '#/utils/util';
 
 export type SummaryReportRow = {
   activate: number;
+  activity: number;
+  addiction: number;
   advertiserId: string;
   advertiserName: string;
   authentication: number;
@@ -11,6 +13,7 @@ export type SummaryReportRow = {
   clickRate: null | number;
   currencyAmount: number;
   customerAcquisition: number;
+  download: number;
   deductionDeductedCount: number;
   deductionPassedCount: number;
   deductionPendingCount: number;

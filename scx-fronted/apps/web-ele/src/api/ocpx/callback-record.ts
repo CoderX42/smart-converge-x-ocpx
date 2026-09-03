@@ -2,8 +2,11 @@ import { requestClient } from '#/api/request';
 
 export type CallbackEventCode =
   | 'ACTIVATE'
+  | 'ACTIVITY'
+  | 'ADDICTION'
   | 'AUTHENTICATION'
   | 'CUSTOMER_ACQUISITION'
+  | 'DOWNLOAD'
   | 'EVOKE'
   | 'EVOKE_C'
   | 'EVOKE_C_VALID'

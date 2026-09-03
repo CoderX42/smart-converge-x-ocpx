@@ -207,6 +207,7 @@ public class OcpxFlowLogWriter {
 		put(m, "creative_id", v.getCreativeId());
 		put(m, "impresss_id", v.getImpresssId());
 		put(m, "clickid", v.getClickId());
+		put(m, "tagid", v.getTagId());
 		return m;
 	}
 

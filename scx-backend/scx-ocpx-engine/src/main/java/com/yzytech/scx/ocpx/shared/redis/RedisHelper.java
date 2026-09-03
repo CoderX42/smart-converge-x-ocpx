@@ -21,7 +21,8 @@ import java.util.Arrays;
 @Service
 public class RedisHelper {
 
-	public static final int ACTION_CAPACITY = 19;
+	/** 标准动作数组容量；20-22 为 Phoenix 新增动作，旧 19 位数组读取时自动补零。 */
+	public static final int ACTION_CAPACITY = 22;
 
 	private final StringRedisTemplate redis;
 
@@ -57,7 +58,7 @@ public class RedisHelper {
 
 	/**
 	 * 读取各标准动作的上游原始转化计数。
-	 * @return 未配置或无法解析时返回 19 位零数组；历史 11 位数组自动补零
+	 * @return 未配置或无法解析时返回 22 位零数组；历史 11/19 位数组自动补零
 	 */
 	public int[] getRouteOriginalCounts(String lId, String mId) {
 		int[] original = new int[ACTION_CAPACITY];
@@ -76,7 +77,7 @@ public class RedisHelper {
 
 	/**
 	 * 读取各标准动作的实际媒体回传计数。
-	 * @return 未配置或无法解析时返回 19 位零数组；历史 11 位数组自动补零
+	 * @return 未配置或无法解析时返回 22 位零数组；历史 11/19 位数组自动补零
 	 */
 	public int[] getRouteDeliveredCounts(String lId, String mId) {
 		int[] delivered = new int[ACTION_CAPACITY];

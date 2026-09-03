@@ -78,6 +78,12 @@ public class OcpxReportMat extends Model<OcpxReportMat> {
 
 	private Integer firstOrder;
 
+	private Integer download;
+
+	private Integer activity;
+
+	private Integer addiction;
+
 	private BigDecimal currencyAmount;
 
 	private Long basePrice;

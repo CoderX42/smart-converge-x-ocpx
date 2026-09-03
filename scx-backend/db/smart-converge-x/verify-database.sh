@@ -42,7 +42,7 @@ assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promot
 assert_exact_columns scx_ocpx_billing_config_audit 'id,monitor_task_id,advertiser_id,action_type,before_config,after_config,operator_user_id,occurred_at'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_event_fact 'id,fact_key,flow_type,event_code,request_id,advertiser_id,promotion_link_id,media_id,monitor_task_id,target_conversion,billing_enabled_snapshot,billing_type_snapshot,billing_unit_price_snapshot,conversion_event_snapshot,deduction_decision,deduction_ratio_snapshot,deduction_decided_at,spend_amount,currency_amount,billing_status,billing_reason_code,received_at'
-assert_exact_columns scx_ocpx_hourly_metric 'id,time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,impression_count,click_count,target_conversion_count,callback_count,deduction_passed_count,deduction_deducted_count,activate_count,evoke_count,login_count,register_count,payment_count,customer_acquisition_count,next_stay_count,visits_count,authentication_count,place_order_count,finish_the_order_count,first_activation_count,first_order_count,spend_amount,currency_amount,rejected_click_count,rejected_conversion_count,update_time'
+assert_exact_columns scx_ocpx_hourly_metric 'id,time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,impression_count,click_count,target_conversion_count,callback_count,deduction_passed_count,deduction_deducted_count,activate_count,evoke_count,login_count,register_count,payment_count,customer_acquisition_count,next_stay_count,visits_count,authentication_count,place_order_count,finish_the_order_count,first_activation_count,first_order_count,download_count,activity_count,addiction_count,spend_amount,currency_amount,rejected_click_count,rejected_conversion_count,update_time'
 
 advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_advertiser'
@@ -52,11 +52,11 @@ advertiser_account_column="$(scalar "SELECT COUNT(*) FROM information_schema.col
 
 invalid_upstream_protocols="$(scalar "SELECT COUNT(*) FROM scx_ocpx_advertiser
  WHERE upstream_protocol IS NOT NULL
- AND upstream_protocol NOT IN ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY')")"
+ AND upstream_protocol NOT IN ('TEMPLATE_GET','AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX')")"
 [[ "$invalid_upstream_protocols" -eq 0 ]] || fail "advertiser upstream protocol is invalid"
 
 invalid_protocol_hosts="$(scalar "SELECT COUNT(*) FROM scx_ocpx_protocol_allowed_host
- WHERE protocol_type NOT IN ('AERIM','WEIFENG','GRAVITY') OR host<>LOWER(host)
+ WHERE protocol_type NOT IN ('AERIM','WEIFENG','GRAVITY','RENREN_VIDEO','PHOENIX') OR host<>LOWER(host)
  OR host LIKE '%://%' OR host LIKE '%/%' OR host LIKE '%:%' OR host LIKE '%*%'")"
 [[ "$invalid_protocol_hosts" -eq 0 ]] || fail "protocol allowed hosts contain an invalid value"
 
@@ -80,7 +80,7 @@ monitor_text_urls="$(scalar "SELECT COUNT(*) FROM information_schema.columns
 
 invalid_conversion_events="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE conversion_event NOT IN (
  'ACTIVATE','EVOKE','LOGIN','REGISTER','PAYMENT','CUSTOMER_ACQUISITION','NEXT_STAY','VISITS',
- 'AUTHENTICATION','ORDER','FINISH_THE_ORDER','FIRST_ACTIVATION','FIRST_ORDER')")"
+ 'AUTHENTICATION','ORDER','FINISH_THE_ORDER','FIRST_ACTIVATION','FIRST_ORDER','DOWNLOAD','ACTIVITY','ADDICTION')")"
 [[ "$invalid_conversion_events" -eq 0 ]] || fail "monitor target conversion event is invalid"
 
 invalid_billing_config="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task
@@ -180,6 +180,11 @@ aerim_report_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns 
  AND table_name IN ('scx_ocpx_report_mat_temp','scx_ocpx_report_mat')
  AND column_name IN ('first_activation','first_order','currency_amount')")"
 [[ "$aerim_report_columns" -eq 6 ]] || fail "AERIM report columns are incomplete"
+
+phoenix_report_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
+ AND table_name IN ('scx_ocpx_report_mat_temp','scx_ocpx_report_mat')
+ AND column_name IN ('download','activity','addiction')")"
+[[ "$phoenix_report_columns" -eq 6 ]] || fail "PHOENIX report columns are incomplete"
 
 feedback_detail_columns="$(scalar "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE()
  AND table_name IN ('scx_ocpx_log_feedback','scx_ocpx_log_feedback_day')

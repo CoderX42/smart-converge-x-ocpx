@@ -163,6 +163,9 @@ const conversionEvents: Array<{ label: string; value: ConversionEvent }> = [
   { label: '完单', value: 'FINISH_THE_ORDER' },
   { label: '首活', value: 'FIRST_ACTIVATION' },
   { label: '首购', value: 'FIRST_ORDER' },
+  { label: '下载', value: 'DOWNLOAD' },
+  { label: '活动', value: 'ACTIVITY' },
+  { label: '深度使用', value: 'ADDICTION' },
 ];
 
 const conversionEventLabels = Object.fromEntries(

@@ -151,6 +151,9 @@ public class CallbackServiceImpl implements CallbackService {
 			case FINISH_THE_ORDER -> logData.setFinishTheOrder(1);
 			case FIRST_ACTIVATION -> logData.setFirstActivation(1);
 			case FIRST_ORDER -> logData.setFirstOrder(1);
+			case DOWNLOAD -> logData.setDownload(1);
+			case ACTIVITY -> logData.setActivity(1);
+			case ADDICTION -> logData.setAddiction(1);
 			default -> {
 			}
 		}

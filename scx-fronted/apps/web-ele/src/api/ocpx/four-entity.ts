@@ -5,7 +5,12 @@ import { requestClient } from '#/api/request';
 export type PlatformCode = 1 | 2 | 3 | 4;
 
 export type OcpxUpstreamProtocol =
-  'AERIM' | 'GRAVITY' | 'RENREN_VIDEO' | 'TEMPLATE_GET' | 'WEIFENG';
+  | 'AERIM'
+  | 'GRAVITY'
+  | 'PHOENIX'
+  | 'RENREN_VIDEO'
+  | 'TEMPLATE_GET'
+  | 'WEIFENG';
 
 export type AdvertiserV2 = {
   advertiserName: string;
@@ -48,7 +53,7 @@ export type ProtocolConfig = {
   allowedHosts: string[];
   protocol: Extract<
     OcpxUpstreamProtocol,
-    'AERIM' | 'GRAVITY' | 'RENREN_VIDEO' | 'WEIFENG'
+    'AERIM' | 'GRAVITY' | 'PHOENIX' | 'RENREN_VIDEO' | 'WEIFENG'
   >;
 };
 
@@ -174,10 +179,13 @@ export type ConversionEvent =
   | 'ACTIVATE'
   | 'AUTHENTICATION'
   | 'CUSTOMER_ACQUISITION'
+  | 'DOWNLOAD'
   | 'EVOKE'
   | 'FINISH_THE_ORDER'
   | 'FIRST_ACTIVATION'
   | 'FIRST_ORDER'
+  | 'ACTIVITY'
+  | 'ADDICTION'
   | 'LOGIN'
   | 'NEXT_STAY'
   | 'ORDER'
@@ -208,6 +216,10 @@ export type MonitorTaskCreatePayload = {
 export type MonitorTaskUpdatePayload = MonitorTaskCreatePayload;
 
 export type EntityOption = { id: string; name: string };
+
+export type PromotionAdvertiserOption = EntityOption & {
+  protocol?: OcpxUpstreamProtocol;
+};
 
 export function listAdvertisers(params: AdvertiserQuery) {
   return requestClient.get<PageResult<AdvertiserV2>>('/ocpx/advertisers', {
@@ -293,7 +305,7 @@ export function listPromotionLinks(params: PromotionLinkQuery) {
   });
 }
 export function promotionLinkAdvertisers(keyword?: string) {
-  return requestClient.get<EntityOption[]>(
+  return requestClient.get<PromotionAdvertiserOption[]>(
     '/ocpx/promotion-links/advertiser-options',
     { params: { keyword } },
   );

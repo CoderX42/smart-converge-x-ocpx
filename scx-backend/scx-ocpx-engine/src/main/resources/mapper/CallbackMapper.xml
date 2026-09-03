@@ -21,13 +21,14 @@
         INSERT INTO scx_ocpx_report_mat_temp
         (time_hour,m_id,a_id,t_id,l_id,activate,evoke,login,register,payment,
          customer_acquisition,next_stay,visits,authentication,place_order,finish_the_order,
-         first_activation,first_order,currency_amount)
+         first_activation,first_order,download,activity,addiction,currency_amount)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (LEFT(${item.timeKeyRes},10),#{item.mId},#{item.aId},#{item.tId},#{item.lId},#{item.activate},
              #{item.evoke},#{item.login},#{item.register},#{item.payment},#{item.customerAcquisition},
              #{item.nextStay},#{item.visits},#{item.authentication},#{item.placeOrder},#{item.finishTheOrder},
-             #{item.firstActivation},#{item.firstOrder},IFNULL(#{item.currencyAmount},0))
+             #{item.firstActivation},#{item.firstOrder},#{item.download},#{item.activity},#{item.addiction},
+             IFNULL(#{item.currencyAmount},0))
         </foreach>
     </insert>
 </mapper>

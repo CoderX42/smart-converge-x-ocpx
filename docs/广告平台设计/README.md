@@ -1,6 +1,6 @@
 # Smart Converge X 广告平台文档中心
 
-> 当前源码基线：2026-09-02 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力与 V124 人人视频上游协议、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计、V123 流程日志检索优化、V125 MySQL IOPS 治理及 V126 Callback 记录检索索引优化（迁移号至 V126）。源码变更不代表目标数据库、UAT 或生产发布已验收。
+> 当前源码基线：2026-09-03 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力、V124 人人视频、V127 凤凰新闻上游协议、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计、V123 流程日志检索优化、V125 MySQL IOPS 治理及 V126 Callback 记录检索索引优化。源码变更不代表目标数据库、UAT 或生产发布已验收。
 
 ## 当前广告业务
 
@@ -16,7 +16,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 管理端页面字段和交互以 `/Users/karl/code/sgyz-ocpx/vientiane-frontend/src/views` 为参考；`/manage/channel/channel` 映射为 SCX“媒体管理”。管理 API 始终使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`，不提供参考系统旧字段别名。
 
-`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY` 或 `RENREN_VIDEO`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频按产品和 Android/IOS 分别保存完整点击模板，不保存 Bearer Token；下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
+`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback`、凤凰新闻 `/phoenix/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY`、`RENREN_VIDEO` 或 `PHOENIX`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频和凤凰新闻按推广链接保存完整点击模板，不保存合作方令牌；凤凰新闻按事件投递 `/d/imp` 或 `/d/cli`，支持 Android、iOS 及混合平台。下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
 
 六个共享实体位于 `scx-ocpx-core`。V108 由 MySQL 唯一事件事实、不可变账务流水、广告主账户和小时汇总统一驱动 Dashboard 与报表；V110 增加仅真实系统管理员可用的幂等人工余额扣减；V111 增加广告主自有图片创意、多链接绑定、关闭/点击/目标转化三种计费模式和全量账务流水查询。V111 不引入 `cId`、创意级监测地址、创意事实或创意报表维度，外部 `creative_id` 语义不变。Redis 余额和旧报表队列不再是数据真相。Dashboard 默认展示今天，支持今天、昨天、过去 7 天、过去 30 天和自定义日期；过去 7/30 天采用不含今天的完整历史日口径。广告主只能查看自己的可用余额和今日消费；业务指标可按授权数据范围查询。浏览器只传输服务端凭据引用；广告主开户时一次性提交登录用户名和原始密码，密码只用于服务端 BCrypt，不进入业务表、响应或日志。Secret、AES Key 和解析后的合作方凭据始终不进入浏览器。
 
@@ -45,6 +45,8 @@ V124 新增独立 `RENREN_VIDEO` 上游：仅投递 CLICK，推广链接保存�
 V125 保留事实、账务、扣量和小时汇总实时写入，默认关闭已经退役的兼容日志/报表队列及合并任务；兼容队列显式启用时使用有限重试和退避。上下游投递改为有界线程池，成功流程日志按稳定请求指纹采样，清理任务改为每十分钟的小批量限额执行，并为遗留日志时间清理增加三个索引。V125 不删除历史表；目标库迁移、部署和生产 IOPS 验收均未执行。
 
 V126 为 `scx_ocpx_event_fact` 增加 `(flow_type,received_at,id)` 有序索引，并让上游 Callback 记录的精确总数和分页查询显式使用该索引，避免在包含大量 Feedback 事实的表上全表扫描。V126 不改变 Callback 事实、计费、扣量、下游投递和权限语义；目标库迁移、部署、重启和线上耗时复测仍需独立证据。
+
+V127 新增独立 `PHOENIX` 上游：按 PDF 实现 `/d/imp` 曝光与 `/d/cli` 点击，支持 Android/iOS 的设备宏、实际投放固定参数和 13 位毫秒时间戳；Callback 缺省 `active` 及九类事件映射到 SCX `1/2/4/5/5/7/19/20/21/22`，新增 `DOWNLOAD`、`ACTIVITY`、`ADDICTION` 三项标准动作。只在宝塔生产 OCPX 站点开放精确 `/ocpx/phoenix/callback` GET；不新增凤凰出站路径入站路由，不修改 IP-UAT 或容器 Nginx。V127 目标库迁移、配置录入、应用重启、Nginx reload 和第三方 UAT 均未执行。
 
 ## 推荐阅读顺序
 
@@ -83,10 +85,11 @@ V126 为 `scx_ocpx_event_fact` 增加 `(flow_type,received_at,id)` 有序索引�
 - [V124 人人视频 CPA 上游协议契约](contracts/management-v124.md)：分平台完整点击模板、精确空白名单、认证 Callback 和第三方验收边界。
 - [V126 上游 Callback 转化记录检索性能契约](contracts/management-v126.md)：Callback 事实有序索引、精确总数查询与生产发布边界。
 - [V125 MySQL IOPS 治理契约](contracts/management-v125.md)：关闭退役报表多写、有限重试、有界并发、成功日志采样及小批量索引清理。
+- [V127 凤凰新闻 CPA 上游协议契约](contracts/management-v127.md)：IMP/CLICK 模板、精确白名单、AES-GCM Callback、三项新标准动作和宝塔生产 Nginx 路由边界。
 
 ## 数据库与发布边界
 
-- 空库结构以 `scx_current_schema.sql` 为准；已执行 V121 的数据库必须在部署不含审计/WAL的新版本后前向执行 V122，禁止修改或重放 V121。V122 删除 V121 两张审计表及专用权限，不影响 V119 流程日志和业务事实表。V123 只增加流程日志分页索引；V124 只扩展协议约束且不预置人人视频域名、广告主或 `userId`；V125 只增加三个遗留日志清理索引；V126 只增加 Callback 事实检索索引，不删除或清空历史表。目标环境执行前必须备份、审核 DDL 并取得明确授权。此前各迁移的数据预检和不回填边界保持不变；发布前还必须人工盘点 Redis 非零余额，任一存在都不得直接迁移。
+- 空库结构以 `scx_current_schema.sql` 为准；已执行 V121 的数据库必须在部署不含审计/WAL的新版本后前向执行 V122，禁止修改或重放 V121。V122 删除 V121 两张审计表及专用权限，不影响 V119 流程日志和业务事实表。V123 只增加流程日志分页索引；V124 只扩展协议约束且不预置人人视频域名、广告主或 `userId`；V125 只增加三个遗留日志清理索引；V126 只增加 Callback 事实检索索引；V127 只扩展 Phoenix 协议/动作约束及指标列，不预置广告主、任务、凭据或域名，不删除或清空历史表。目标环境执行前必须备份、审核 DDL 并取得明确授权。此前各迁移的数据预检和不回填边界保持不变；发布前还必须人工盘点 Redis 非零余额，任一存在都不得直接迁移。
 - V102 预检会拒绝无法映射的平台值和已软删的广告主/媒体，不静默删除或复活数据。
 - V96–V102 保持不变；所有当前和未来 SQL 都不读写已退役的 `scx_schema_migration`。
 - Engine profile 中只保存服务端凭据映射；生产值不得出现在浏览器、日志、文档或对外差异中。

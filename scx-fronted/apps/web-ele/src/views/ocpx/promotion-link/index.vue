@@ -1,7 +1,12 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
-import type { EntityOption, PlatformCode, PromotionLink } from '#/api/ocpx';
+import type {
+  EntityOption,
+  PlatformCode,
+  PromotionAdvertiserOption,
+  PromotionLink,
+} from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 
@@ -49,7 +54,7 @@ const columns = [
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<PromotionLink[]>([]);
-const advertisers = ref<EntityOption[]>([]);
+const advertisers = ref<PromotionAdvertiserOption[]>([]);
 const linkSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -75,11 +80,122 @@ const form = reactive({
   platform: undefined as PlatformCode | undefined,
   remark: '',
 });
+const PHOENIX_COMMON_MACROS: Record<string, string> = {
+  reqid: '__REQID__',
+  os: '__OS__',
+  ts: '__TS__',
+  callback: '__CALLBACK__',
+};
+const selectedAdvertiser = computed(() =>
+  advertisers.value.find((item) => item.id === form.advertiserId),
+);
+const isPhoenix = computed(
+  () => selectedAdvertiser.value?.protocol === 'PHOENIX',
+);
+
+function isPhoenixTemplate(value: string, platform?: PlatformCode) {
+  try {
+    const url = new URL(value.trim());
+    if (
+      value !== value.trim() ||
+      url.protocol !== 'https:' ||
+      url.hostname !== 'api.feather.ifeng.com' ||
+      url.pathname !== '/d/cli' ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      return false;
+    }
+    const pairs = [...url.searchParams.entries()];
+    const names = pairs.map(([name]) => name);
+    const allowed = new Set([
+      'aid',
+      'android_id',
+      'caid',
+      'callback',
+      'channel',
+      'cid',
+      'gid',
+      'idfa',
+      'idfa_md5',
+      'imei',
+      'ip',
+      'mid',
+      'model',
+      'oaid',
+      'oaid_md5',
+      'os',
+      'reqid',
+      'tagid',
+      'ts',
+      'ua',
+    ]);
+    if (
+      names.length !== new Set(names).size ||
+      names.some((name) => !allowed.has(name))
+    ) {
+      return false;
+    }
+    for (const name of ['cid', 'gid', 'aid', 'mid', 'channel']) {
+      const value = url.searchParams.get(name);
+      if (!value || /^__[A-Z0-9_]+__$/.test(value)) return false;
+    }
+    for (const [name, macro] of Object.entries(PHOENIX_COMMON_MACROS)) {
+      if (url.searchParams.get(name) !== macro) return false;
+    }
+    if ((platform === 1 || platform === 3) &&
+      (url.searchParams.get('oaid') !== '__OAID__' || url.searchParams.get('oaid_md5') !== '__OAIDMD5__')) return false;
+    if ((platform === 2 || platform === 3) && url.searchParams.get('caid') !== '__CAID__') return false;
+    return pairs.every(([, value]) => {
+      if (/[{}]|:\/\//.test(value)) return false;
+      return !value.includes('__') || /^__[A-Z0-9_]+__$/.test(value);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function handleAdvertiserChange() {
+  void nextTick(() => formRef.value?.clearValidate());
+}
+
 const rules: FormRules = {
   advertiserId: [{ message: '请选择广告主', required: true, trigger: 'blur' }],
   linkName: [{ message: '请输入名称', required: true, trigger: 'blur' }],
-  linkUrl: [{ message: '请输入投放链接', required: true, trigger: 'blur' }],
-  platform: [{ message: '请选择平台', required: true, trigger: 'blur' }],
+  linkUrl: [
+    { message: '请输入投放链接', required: true, trigger: 'blur' },
+    {
+      trigger: ['blur', 'change'],
+      validator: (
+        _rule: unknown,
+        value: string,
+        callback: (error?: Error) => void,
+      ) =>
+        callback(
+          isPhoenix.value && !isPhoenixTemplate(value, form.platform)
+            ? new Error('凤凰新闻必须填写完整的 HTTPS /d/cli 模板及对应平台宏')
+            : undefined,
+        ),
+    },
+  ],
+  platform: [
+    { message: '请选择平台', required: true, trigger: 'blur' },
+    {
+      trigger: ['blur', 'change'],
+      validator: (
+        _rule: unknown,
+        value: PlatformCode | undefined,
+        callback: (error?: Error) => void,
+      ) =>
+        callback(
+          isPhoenix.value && ![1, 2, 3].includes(value as number)
+            ? new Error('凤凰新闻仅支持 Android、IOS 或 Android+IOS')
+            : undefined,
+        ),
+    },
+  ],
 };
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
@@ -393,6 +509,7 @@ onMounted(async () => {
             v-model="form.advertiserId"
             filterable
             placeholder="请选择广告主"
+            @change="handleAdvertiserChange"
             ><el-option
               v-for="item in advertisers"
               :key="item.id"
@@ -442,6 +559,14 @@ onMounted(async () => {
           class="field-alert"
           show-icon
           title="人人视频广告主必须为 Android、IOS 分别创建链接；投放链接填写 /ad-action/click 完整模板和商务分配的固定 userId，不要创建 Android+IOS 混合链接。"
+          type="info"
+        />
+        <el-alert
+          v-if="isPhoenix"
+          :closable="false"
+          class="field-alert"
+          show-icon
+          title="凤凰新闻使用 api.feather.ifeng.com 的 /d/imp 曝光和 /d/cli 点击协议。请填写实际商务分配的 cid/gid/aid/mid/channel 固定参数，并按平台配置 OAID/OAIDMD5 或 CAID；REQID、OS、TS 和 Callback 宏由 Engine 在投放时替换。"
           type="info"
         />
         <el-form-item label="唤起链接" prop="deeplink"

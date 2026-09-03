@@ -39,8 +39,8 @@ class OcpxUnifiedReportServiceTest {
 		when(resultSet.getLong(5)).thenReturn(10L);
 		when(resultSet.getLong(6)).thenReturn(10L);
 		when(resultSet.getLong(7)).thenReturn(2L);
-		when(resultSet.getBigDecimal(25)).thenReturn(new BigDecimal("25.000000"));
-		when(resultSet.getBigDecimal(26)).thenReturn(BigDecimal.ZERO);
+		when(resultSet.getBigDecimal(28)).thenReturn(new BigDecimal("25.000000"));
+		when(resultSet.getBigDecimal(29)).thenReturn(BigDecimal.ZERO);
 		when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
 			.thenAnswer(invocation -> ((ResultSetExtractor) invocation.getArgument(1)).extractData(resultSet));
 		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
@@ -155,11 +155,11 @@ class OcpxUnifiedReportServiceTest {
 		when(resultSet.next()).thenReturn(true, false);
 		when(resultSet.getString(1)).thenReturn("2026081201");
 		when(resultSet.getString(2)).thenReturn("2026-08-12 01:00");
-		for (int index = 3; index <= 24; index++) {
+		for (int index = 3; index <= 27; index++) {
 			when(resultSet.getLong(index)).thenReturn((long) index - 2);
 		}
-		when(resultSet.getBigDecimal(25)).thenReturn(new BigDecimal("25.000000"));
-		when(resultSet.getBigDecimal(26)).thenReturn(new BigDecimal("123.45"));
+		when(resultSet.getBigDecimal(28)).thenReturn(new BigDecimal("25.000000"));
+		when(resultSet.getBigDecimal(29)).thenReturn(new BigDecimal("123.45"));
 		when(jdbcTemplate.query(anyString(), any(ResultSetExtractor.class), any(Object[].class)))
 			.thenAnswer(invocation -> ((ResultSetExtractor) invocation.getArgument(1)).extractData(resultSet));
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
@@ -176,7 +176,7 @@ class OcpxUnifiedReportServiceTest {
 
 		assertThat(page.getTotal()).isEqualTo(1);
 		assertThat(page.getRecords()).hasSize(1);
-		assertThat(page.getRecords().get(0).getMetrics()).hasSize(24);
+		assertThat(page.getRecords().get(0).getMetrics()).hasSize(27);
 		assertThat(page.getRecords().get(0).getMetrics().get("SHOW").getCount()).isEqualTo(1);
 		assertThat(page.getRecords().get(0).getMetrics().get("CALLBACK").getCount()).isEqualTo(6);
 		assertThat(page.getRecords().get(0).getMetrics().get("DEDUCTION_PASSED").getCount()).isEqualTo(7);
@@ -184,6 +184,9 @@ class OcpxUnifiedReportServiceTest {
 		assertThat(page.getRecords().get(0).getMetrics().get("FINISH_THE_ORDER").getCount()).isEqualTo(19);
 		assertThat(page.getRecords().get(0).getMetrics().get("FIRST_ACTIVATION").getCount()).isEqualTo(20);
 		assertThat(page.getRecords().get(0).getMetrics().get("FIRST_ORDER").getCount()).isEqualTo(21);
+		assertThat(page.getRecords().get(0).getMetrics().get("DOWNLOAD").getCount()).isEqualTo(22);
+		assertThat(page.getRecords().get(0).getMetrics().get("ACTIVITY").getCount()).isEqualTo(23);
+		assertThat(page.getRecords().get(0).getMetrics().get("ADDICTION").getCount()).isEqualTo(24);
 		assertThat(page.getRecords().get(0).getMetrics().get("BASE_PRICE").getAmount())
 			.isEqualByComparingTo(new BigDecimal("25.000000"));
 		assertThat(page.getRecords().get(0).getMetrics().get("CURRENCY_AMOUNT").getAmount())
@@ -191,8 +194,9 @@ class OcpxUnifiedReportServiceTest {
 		assertThat(page.getSummary().keySet()).containsAll(
 				List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK", "ACTIVATE", "EVOKE", "LOGIN", "REGISTER",
 						"PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS", "AUTHENTICATION", "PLACE_ORDER",
-						"FINISH_THE_ORDER", "FIRST_ACTIVATION", "FIRST_ORDER", "TARGET_CONVERSION", "CALLBACK",
-						"DEDUCTION_PASSED", "DEDUCTION_DEDUCTED", "REJECTED_CLICK", "BASE_PRICE", "CURRENCY_AMOUNT"));
+					"FINISH_THE_ORDER", "FIRST_ACTIVATION", "FIRST_ORDER", "TARGET_CONVERSION", "CALLBACK",
+					"DEDUCTION_PASSED", "DEDUCTION_DEDUCTED", "REJECTED_CLICK", "DOWNLOAD", "ACTIVITY",
+					"ADDICTION", "BASE_PRICE", "CURRENCY_AMOUNT"));
 	}
 
 	private void assertMetric(Map<String, com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews.DashboardMetric> metrics,

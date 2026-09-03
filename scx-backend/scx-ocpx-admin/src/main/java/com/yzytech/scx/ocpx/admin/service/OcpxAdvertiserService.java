@@ -217,7 +217,8 @@ public class OcpxAdvertiserService {
 		target.setAdvertiserName(name.trim());
 		target.setUpstreamProtocol(upstreamProtocol);
 		if (upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.GRAVITY
-				|| upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.RENREN_VIDEO) {
+				|| upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.RENREN_VIDEO
+				|| upstreamProtocol == com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol.PHOENIX) {
 			target.setCredentialConfigKey(null);
 			target.setBidUrl(null);
 			target.setMacroParams(null);

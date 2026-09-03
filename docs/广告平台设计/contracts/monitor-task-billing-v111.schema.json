@@ -35,7 +35,10 @@
         "ORDER",
         "FINISH_THE_ORDER",
         "FIRST_ACTIVATION",
-        "FIRST_ORDER"
+        "FIRST_ORDER",
+        "DOWNLOAD",
+        "ACTIVITY",
+        "ADDICTION"
       ]
     }
   },

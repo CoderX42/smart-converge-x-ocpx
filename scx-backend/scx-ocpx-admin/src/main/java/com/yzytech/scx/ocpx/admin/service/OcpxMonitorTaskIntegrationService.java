@@ -45,7 +45,8 @@ public class OcpxMonitorTaskIntegrationService {
 			Map.entry("EVOKE", 2), Map.entry("LOGIN", 3), Map.entry("REGISTER", 4), Map.entry("PAYMENT", 5),
 			Map.entry("CUSTOMER_ACQUISITION", 6), Map.entry("NEXT_STAY", 7), Map.entry("VISITS", 8),
 			Map.entry("AUTHENTICATION", 9), Map.entry("ORDER", 10), Map.entry("FINISH_THE_ORDER", 11),
-			Map.entry("FIRST_ACTIVATION", 18), Map.entry("FIRST_ORDER", 19));
+			Map.entry("FIRST_ACTIVATION", 18), Map.entry("FIRST_ORDER", 19), Map.entry("DOWNLOAD", 20),
+			Map.entry("ACTIVITY", 21), Map.entry("ADDICTION", 22));
 
 	private final OcpxMonitorTaskMapper taskMapper;
 

@@ -32,6 +32,7 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.lId(request.getLId())
 			.event(EventTypeEnum.getEventTypeEnum(request.getEvent()))
 			.reqId(request.getRequest_id())
+			.tagId(request.resolvedTagId())
 			.callbackUrl(request.getCallback_url())
 			.caid(request.getCaid())
 			.caidList(request.getCaid_list())

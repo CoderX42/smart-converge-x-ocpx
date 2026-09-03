@@ -80,6 +80,12 @@ public final class SummaryReportViews {
 
 		private long firstOrder;
 
+		private long download;
+
+		private long activity;
+
+		private long addiction;
+
 		private BigDecimal currencyAmount;
 
 	}

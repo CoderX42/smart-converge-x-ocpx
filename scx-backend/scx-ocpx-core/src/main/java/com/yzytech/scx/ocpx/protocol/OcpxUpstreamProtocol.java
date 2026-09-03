@@ -11,6 +11,9 @@ public enum OcpxUpstreamProtocol {
 
 	GRAVITY,
 
-	RENREN_VIDEO
+	RENREN_VIDEO,
+
+	/** 凤凰新闻 CPA 曝光/点击与 Callback 协议。 */
+	PHOENIX
 
 }

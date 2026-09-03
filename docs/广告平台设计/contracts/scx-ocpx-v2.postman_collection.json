@@ -47,6 +47,13 @@
       }
     },
     {
+      "name": "凤凰新闻 PHOENIX Callback GET",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/ocpx/phoenix/callback?kid={{callbackKid}}&ext={{callbackExt}}&event_type=active"
+      }
+    },
+    {
       "name": "读取共享广告主角色权限",
       "request": {
         "method": "GET",
@@ -245,6 +252,22 @@
           "options": { "raw": { "language": "json" } }
         },
         "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/RENREN_VIDEO/allowed-hosts"
+      }
+    },
+    {
+      "name": "替换 PHOENIX 允许域名",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "satoken", "value": "Bearer {{adminToken}}", "type": "text" },
+          { "key": "Content-Type", "value": "application/json", "type": "text" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"allowedHosts\": [\"api.feather.ifeng.com\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{adminBaseUrl}}/boot/ocpx/protocol-configs/PHOENIX/allowed-hosts"
       }
     },
     {

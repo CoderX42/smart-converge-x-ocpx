@@ -53,6 +53,10 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
   成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
 - `GET /ocpx/weifeng/callback`：接收微风互动的 `event/amount/days`；
   成功、重复和扣量均返回空 `200`，协议参数非法返回 `400`，内部异常返回 `500`。
+- `GET /ocpx/phoenix/callback`：接收凤凰新闻的 `kid/ext/event_type`；使用当前或历史
+  AES-GCM 密钥环恢复 CLICK 上下文，缺省 `event_type` 按 `active` 处理，成功、重复、非目标
+  事件和扣量均返回固定 `{"code":0,"msg":"success","data":""}`，协议参数、解密或
+  路由不匹配返回 `400`，数据库/Redis 故障返回 `500`。
 - `GET /ocpx/test-callback`：只接收管理端完整测试生成的最后一跳；要求同路由、同事件
   已经存在扣量放行的正式 Callback 事实，幂等写入脱敏流程日志后返回空 `204`。该端点
   不接受目标地址，成功不代表真实媒体入库。
@@ -62,12 +66,16 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
 `OcpxAdvertiser.bidUrl + macroParams` 替换宏，并使用 `credentialConfigKey` 追加 MD5
 `signature`；AERIM 和微风互动都只处理点击，并按 `lId` 从关联推广链接读取完整
 上游模板。AERIM 生成 `/aerim/callback` 且不追加签名；微风保留模板自带的固定
-`aid/did`。两类地址都必须命中管理后台维护的精确域名白名单，并解析到公网地址。
+`aid/did`。凤凰新闻按事件投递 `/d/imp` 曝光或 `/d/cli` 点击，固定 `cid/gid/aid/mid/channel`
+保留在推广链接模板中，并按平台要求 OAID/OAIDMD5 或 CAID、13 位毫秒时间戳和精确 Phoenix Callback。
+三类地址都必须命中管理后台维护的精确域名白名单，并解析到公网地址。
 
 反向链路为：解密 `ext` → Callback 去重 → Callback 队列 → 按
 `lId + mId` 读取 Redis 扣量数组 → 对允许回传的数据解码原 `callback_url`、
 追加 `event_type` 与可选 `currency_amount` 后执行媒体 GET。AERIM 的九类字符串动作
-映射为 SCX 编号 `1/2/4/5/6/7/11/18/19`，金额只允许随 `purchase` 出现。
+映射为 SCX 编号 `1/2/4/5/6/7/11/18/19`，凤凰 `download/activity/addiction` 分别映射为
+`DOWNLOAD(20)`、`ACTIVITY(21)`、`ADDICTION(22)`；金额只允许随 `purchase` 出现，Phoenix
+`pay_amount` 不携带金额。
 
 配置由 Mapper 启动加载到不可变内存快照。Admin 写入 `r:da:refresh` 后，Engine 的
 分钟任务等待五秒，重载广告主、推广链接、媒体、任务和协议允许域名索引并删除标记。
@@ -142,8 +150,9 @@ bash scripts/bt-deploy/02-manage.sh engine-restart
 ```
 
 生产 profile 只监听 `127.0.0.1:10000`。公网由 `ocpx` 专用 Nginx 站点精确开放
-Feedback、通用 Callback、AERIM Callback、微风互动 Callback、受签名保护的完整测试 Callback
-和既有 Open API，不能直接放行 10000 端口。
+Feedback、通用 Callback、AERIM Callback、微风互动 Callback、人人视频 Callback、凤凰新闻
+Callback、受签名保护的完整测试 Callback 和既有 Open API，不能直接放行 10000 端口。Phoenix
+的 `/d/cli`、`/d/imp` 是出站地址，不能配置为入站 location；IP-UAT 和容器 Nginx 不增加该路由。
 没有可用公网域名时，可将 `ocpx.aerim.callback-base-url` 临时配置为公网 HTTP IP，并把
 `nginx-scx-ocpx-engine-ip-uat-rewrite.conf` 中的精确路由加入该 IP 站点。该配置只用于 UAT；
 取得域名和证书后应删除覆盖项，让 AERIM 恢复使用 `domain.name`。已生成的旧 IP Callback

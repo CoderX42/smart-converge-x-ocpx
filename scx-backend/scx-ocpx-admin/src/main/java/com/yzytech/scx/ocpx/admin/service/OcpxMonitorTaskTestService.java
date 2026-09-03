@@ -13,6 +13,7 @@ import com.yzytech.scx.ocpx.entity.OcpxMedia;
 import com.yzytech.scx.ocpx.entity.OcpxMonitorTask;
 import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
+import com.yzytech.scx.ocpx.protocol.PhoenixTemplateContract;
 import com.yzytech.scx.ocpx.protocol.RenrenVideoTemplateContract;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -92,6 +93,7 @@ public class OcpxMonitorTaskTestService {
 				new ParameterSpec("ipv6", "IPv6", "网络终端", "__IPV6__", OsSupport.BOTH, false),
 				new ParameterSpec("ua", "User-Agent", "网络终端", "__UA__", OsSupport.BOTH, false),
 				new ParameterSpec("model", "机型", "网络终端", "__MODEL__", OsSupport.BOTH, false),
+				new ParameterSpec("tagid", "版位 TAGID", "平台路由", "__TAGID__", OsSupport.BOTH, false),
 				new ParameterSpec("osv", "系统版本", "网络终端", "__OSV__", OsSupport.BOTH, false),
 				new ParameterSpec("ts", "时间戳", "网络终端", "__TS__", OsSupport.BOTH, false),
 				new ParameterSpec("mts", "毫秒时间戳", "网络终端", "__MTS__", OsSupport.BOTH, false),
@@ -101,7 +103,7 @@ public class OcpxMonitorTaskTestService {
 				new ParameterSpec("creative_id", "创意", "广告维度", "__CREATIVE_ID__", OsSupport.BOTH, false),
 				new ParameterSpec("adv_id", "外部广告主", "广告维度", "__ADVERTISER_ID__", OsSupport.BOTH, false));
 
-	private static final Set<String> DEFAULT_NON_DEVICE = Set.of("ip", "ua", "model", "ts", "mts");
+	private static final Set<String> DEFAULT_NON_DEVICE = Set.of("ip", "ua", "model", "tagid", "ts", "mts");
 
 	private final OcpxMonitorTaskMapper taskMapper;
 
@@ -236,7 +238,10 @@ public class OcpxMonitorTaskTestService {
 		}
 		else if (formalUpstreamCallback) {
 			state = "COMPLETED";
-			conclusion = "人人视频正式 Callback 已成功处理并通过媒体扣量；本次未注入测试 callback_url，不验证下游媒体最后一跳";
+			String protocolName = context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX ? "凤凰新闻"
+					: "人人视频";
+			conclusion = protocolName
+					+ "正式 Callback 已成功处理并通过媒体扣量；本次未注入测试 callback_url，不验证下游媒体最后一跳";
 		}
 		else {
 			state = "DOWNSTREAM_PENDING";
@@ -310,7 +315,11 @@ public class OcpxMonitorTaskTestService {
 		Set<String> mediaMacros = macros(context.media().getMacroParams());
 		Set<String> upstreamMacros = upstreamMacros(context);
 		boolean formalUpstreamCallback = isFormalUpstreamCallback(context);
-		validateRenrenVideoSelection(context, os, selected, blockers);
+		validateFormalProtocolSelection(context, os, selected, blockers);
+		if (context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX
+				&& selected.contains("oaid") && !selected.contains("oaid_md5")) {
+			warnings.add("Phoenix 未提供 OAIDMD5，Engine 将根据原始 OAID 自动计算大写 MD5");
+		}
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (selected.contains(spec.key()) && !spec.os().supports(os)) {
 				blockers.add(spec.label() + " 与 " + os + " 不兼容");
@@ -336,7 +345,7 @@ public class OcpxMonitorTaskTestService {
 			warnings.add("媒体宏未配置 CALLBACK_URL，本次完整测试将临时加入 SCX 测试回调接收器");
 		}
 		if (formalUpstreamCallback) {
-			warnings.add("人人视频使用正式上游 Callback；测试请求不会注入 /test-callback，也不会验证下游媒体最后一跳");
+			warnings.add("该协议使用正式上游 Callback；测试请求不会注入 /test-callback，也不会验证下游媒体最后一跳");
 		}
 		BigDecimal expectedCharge = expectedCharge(context.task());
 		BigDecimal availableBalance = availableBalance(context.task().getAdvertiserId());
@@ -347,20 +356,22 @@ public class OcpxMonitorTaskTestService {
 			blockers.add("广告主余额不足，无法保证完整测试中的点击或目标转化计费完成");
 		}
 		String callbackUrl = formalUpstreamCallback ? null : buildCallbackUrl(context, requestId, callbackToken);
+		String callbackDisplayUrl = formalUpstreamCallback ? formalCallbackDisplayUrl(context) : callbackUrl;
 		List<MonitorTaskTestViews.Parameter> parameters = parameterViews(requestId, callbackUrl, os, selected, values,
-				mediaMacros, upstreamMacros, formalUpstreamCallback);
+				mediaMacros, upstreamMacros, formalUpstreamCallback, context.advertiser().getUpstreamProtocol(),
+				callbackDisplayUrl);
 		String testUrl = buildUri(context, requestId, callbackToken, os, selected, values).toASCIIString();
 		return new MonitorTaskTestViews.Preview(requestId, "CLK", os, context.task().getId(),
 				context.task().getMonitorName(), context.advertiser().getAdvertiserName(),
 				context.media().getMediaName(), context.link().getLinkName(), context.link().getPlatform(), testUrl,
-				callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "TEST_COLLECTOR",
-				formalUpstreamCallback ? formalCallbackDisplayUrl() : callbackUrl, expectedCharge, availableBalance,
+				callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "TEST_COLLECTOR", callbackDisplayUrl,
+				expectedCharge, availableBalance,
 				blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings), parameters);
 	}
 
 	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String callbackUrl, String os,
 			Set<String> selected, Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros,
-			boolean formalUpstreamCallback) {
+			boolean formalUpstreamCallback, OcpxUpstreamProtocol protocol, String callbackDisplayUrl) {
 		List<MonitorTaskTestViews.Parameter> result = new ArrayList<>();
 		result.add(new MonitorTaskTestViews.Parameter("request_id", "请求/测试 ID", "固定参数", "__REQUEST_ID__", true, false,
 				true, true, false, requestId));
@@ -370,8 +381,10 @@ public class OcpxMonitorTaskTestService {
 		result.add(new MonitorTaskTestViews.Parameter("os", "操作系统", "固定参数", "__OS__", mediaMacros.contains("__OS__"),
 				upstreamMacros.contains("__OS__"), true, true, false, "IOS".equals(os) ? "1" : "0"));
 		if (formalUpstreamCallback) {
-			result.add(new MonitorTaskTestViews.Parameter("callback", "人人视频正式 Callback（Engine 自动生成）", "上游回调",
-					"__CALLBACK__", true, true, true, true, false, formalCallbackDisplayUrl()));
+			String label = protocol == OcpxUpstreamProtocol.PHOENIX ? "凤凰新闻正式 Callback（Engine 自动生成）"
+					: "人人视频正式 Callback（Engine 自动生成）";
+			result.add(new MonitorTaskTestViews.Parameter("callback", label, "上游回调", "__CALLBACK__", true, true, true,
+					true, false, callbackDisplayUrl));
 		}
 		else {
 			result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环",
@@ -499,6 +512,7 @@ public class OcpxMonitorTaskTestService {
 				: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/124.0 Mobile Safari/537.36");
 		values.put("model", "IOS".equals(os) ? "iPhone 15" : "Pixel 8");
 		values.put("osv", "IOS".equals(os) ? "17.5" : "14");
+		values.put("tagid", "uat-tag-" + randomHex(6));
 		values.put("ts", Long.toString(System.currentTimeMillis() / 1000));
 		values.put("mts", Long.toString(System.currentTimeMillis()));
 		String suffix = randomHex(6);
@@ -579,13 +593,16 @@ public class OcpxMonitorTaskTestService {
 		}
 	}
 
-	private String formalCallbackDisplayUrl() {
+	private String formalCallbackDisplayUrl(Context context) {
 		URI base = engineBase();
-		return base + "/renren-video/callback?kid=<运行时密钥版本>&ext=<加密路由>";
+		String path = context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX
+				? "/phoenix/callback" : "/renren-video/callback";
+		return base + path + "?kid=<运行时密钥版本>&ext=<加密路由>";
 	}
 
 	private boolean isFormalUpstreamCallback(Context context) {
-		return context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.RENREN_VIDEO;
+		return context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.RENREN_VIDEO
+				|| context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX;
 	}
 
 	private URI engineBase() {
@@ -671,11 +688,22 @@ public class OcpxMonitorTaskTestService {
 	}
 
 	private Set<String> upstreamMacros(Context context) {
-		if (context.advertiser().getUpstreamProtocol() != OcpxUpstreamProtocol.RENREN_VIDEO) {
+		OcpxUpstreamProtocol protocol = context.advertiser().getUpstreamProtocol();
+		if (protocol != OcpxUpstreamProtocol.RENREN_VIDEO && protocol != OcpxUpstreamProtocol.PHOENIX) {
 			return macros(safe(context.advertiser().getBidUrl()) + "&" + safe(context.advertiser().getMacroParams()));
 		}
 		String template = safe(context.link().getLinkUrl());
 		Set<String> result = macros(template);
+		if (protocol == OcpxUpstreamProtocol.PHOENIX) {
+			normalizePartnerMacro(result, template, "__REQID__", "__REQUEST_ID__");
+			normalizePartnerMacro(result, template, "__OAIDMD5__", "__OAID_MD5__");
+			normalizePartnerMacro(result, template, "__ANDROID__", "__ANDROIDID__");
+			normalizePartnerMacro(result, template, "__IDFAMD5__", "__IDFA_MD5__");
+			if (template.contains("__CALLBACK__")) {
+				result.add("__CALLBACK_URL__");
+			}
+			return result;
+		}
 		normalizeRenrenVideoMacro(result, template, "__IMEI__", "__IMEI_MD5__");
 		normalizeRenrenVideoMacro(result, template, "__ANDROID_ID__", "__ANDROIDID__");
 		normalizeRenrenVideoMacro(result, template, "__ANDROID_ID_MD5__", "__ANDROIDID_MD5__");
@@ -689,7 +717,12 @@ public class OcpxMonitorTaskTestService {
 		return result;
 	}
 
-	private void validateRenrenVideoSelection(Context context, String os, Set<String> selected, List<String> blockers) {
+	private void validateFormalProtocolSelection(Context context, String os, Set<String> selected,
+			List<String> blockers) {
+		if (context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX) {
+			validatePhoenixSelection(context, os, selected, blockers);
+			return;
+		}
 		if (context.advertiser().getUpstreamProtocol() != OcpxUpstreamProtocol.RENREN_VIDEO) {
 			return;
 		}
@@ -722,7 +755,46 @@ public class OcpxMonitorTaskTestService {
 		}
 	}
 
+	private void validatePhoenixSelection(Context context, String os, Set<String> selected, List<String> blockers) {
+		try {
+			PhoenixTemplateContract.requireValid(context.link().getLinkUrl(), context.link().getPlatform());
+		}
+		catch (IllegalArgumentException exception) {
+			blockers.add("凤凰新闻推广链接模板不符合实时点击协议");
+			return;
+		}
+		Integer platform = context.link().getPlatform();
+		if (platform == 1 && !"ANDROID".equals(os)) {
+			blockers.add("凤凰新闻 Android 链接只能生成 Android 测试参数");
+		}
+		else if (platform == 2 && !"IOS".equals(os)) {
+			blockers.add("凤凰新闻 iOS 链接只能生成 iOS 测试参数");
+		}
+		if ("ANDROID".equals(os)) {
+			if (!selected.contains("oaid")) {
+				blockers.add("凤凰新闻 Android 测试缺少必填设备参数 oaid");
+			}
+			if (!selected.contains("oaid_md5")) {
+				blockers.add("凤凰新闻 Android 测试缺少必填设备参数 oaid_md5");
+			}
+		}
+		else if ("IOS".equals(os) && !selected.contains("caid")) {
+			blockers.add("凤凰新闻 iOS 测试缺少必填设备参数 caid");
+		}
+		if (!selected.contains("ts")) {
+			blockers.add("凤凰新闻测试缺少必填时间戳 ts");
+		}
+	}
+
 	private void normalizeRenrenVideoMacro(Set<String> result, String template, String partnerMacro,
+			String canonicalMacro) {
+		if (template.contains(partnerMacro)) {
+			result.remove(partnerMacro);
+			result.add(canonicalMacro);
+		}
+	}
+
+	private void normalizePartnerMacro(Set<String> result, String template, String partnerMacro,
 			String canonicalMacro) {
 		if (template.contains(partnerMacro)) {
 			result.remove(partnerMacro);

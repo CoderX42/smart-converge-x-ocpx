@@ -23,6 +23,11 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 	/** 请求唯一标识和媒体回调地址。 */
 	private String request_id;
 
+	/** Phoenix 可选投放版位标识；同时接受 tagid 与常见驼峰别名 tagId。 */
+	private String tagid;
+
+	private String tagId;
+
 	private String callback_url;
 
 	/** 设备标识及其散列或历史版本。 */
@@ -112,6 +117,23 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 			return null;
 		}
 		return request_id;
+	}
+
+	public String getTagid() {
+		return cleanMacro(tagid, "__TAGID__");
+	}
+
+	public String getTagId() {
+		return cleanMacro(tagId, "__TAGID__");
+	}
+
+	/** 返回两个别名中第一个实际值。 */
+	public String resolvedTagId() {
+		return StringUtils.hasText(getTagid()) ? getTagid() : getTagId();
+	}
+
+	private String cleanMacro(String value, String macro) {
+		return StringUtils.hasText(value) && macro.equalsIgnoreCase(value.trim()) ? null : value;
 	}
 
 	public String getCaid() {

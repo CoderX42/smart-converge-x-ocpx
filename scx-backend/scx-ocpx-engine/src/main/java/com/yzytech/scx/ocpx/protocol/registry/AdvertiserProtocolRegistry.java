@@ -43,7 +43,9 @@ public class AdvertiserProtocolRegistry {
 
 		GRAVITY,
 
-		RENREN_VIDEO
+		RENREN_VIDEO,
+
+		PHOENIX
 
 	}
 

@@ -40,6 +40,9 @@ const canViewFlowLog = computed(() => hasAccessByCodes(['ocpx:flow-log:view']));
 
 const eventOptions: Array<{ label: string; value: CallbackEventCode }> = [
   { label: '激活', value: 'ACTIVATE' },
+  { label: '下载', value: 'DOWNLOAD' },
+  { label: '活动', value: 'ACTIVITY' },
+  { label: '深度使用', value: 'ADDICTION' },
   { label: '唤起', value: 'EVOKE' },
   { label: '登录', value: 'LOGIN' },
   { label: '注册', value: 'REGISTER' },

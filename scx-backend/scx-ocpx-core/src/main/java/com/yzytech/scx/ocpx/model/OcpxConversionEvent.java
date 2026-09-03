@@ -33,7 +33,13 @@ public enum OcpxConversionEvent {
 
 	FIRST_ACTIVATION,
 
-	FIRST_ORDER;
+	FIRST_ORDER,
+
+	DOWNLOAD,
+
+	ACTIVITY,
+
+	ADDICTION;
 
 	public static boolean supports(String value) {
 		return value != null && Arrays.stream(values()).anyMatch(item -> item.name().equals(value));
