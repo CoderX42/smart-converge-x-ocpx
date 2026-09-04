@@ -236,7 +236,7 @@ public class OcpxPromotionLinkService {
 			case "PHOENIX_TEMPLATE_UNKNOWN_PARAMETER" -> "凤凰新闻点击模板包含未声明参数";
 			case "PHOENIX_TEMPLATE_MACRO_INVALID" -> "凤凰新闻点击模板包含未知或位置错误的宏";
 			case "PHOENIX_TEMPLATE_REDIRECT_FORBIDDEN" -> "凤凰新闻点击模板不能包含用户信息或重定向地址";
-			default -> "凤凰新闻投放链接必须是合法的 HTTPS /d/cli 完整模板";
+			default -> "凤凰新闻投放链接必须是合法的 HTTPS 模板";
 		};
 	}
 

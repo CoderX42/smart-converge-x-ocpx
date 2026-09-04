@@ -17,9 +17,10 @@ import java.util.regex.Pattern;
 /**
  * 凤凰新闻 CPA 模板的管理面与数据面共享契约。
  *
- * <p>凤凰提供两条 HTTPS GET 路径：{@code /d/imp} 曝光和 {@code /d/cli} 点击。管理端保存点击
- * 模板；Engine 投递曝光时只替换路径并省略 callback 参数。cid/gid/aid/mid/channel 是凤凰在
- * 实际投放中分配的固定参数，SCX 只校验它们存在且不是动态宏，不把它们臆造为默认值。</p>
+ * <p>凤凰协议通常使用 {@code /d/imp} 曝光和 {@code /d/cli} 点击。管理端保留合作方提交的
+ * HTTPS 点击路径，SCX 不再强制路径必须等于其中某一个固定值；曝光仍使用 {@code /d/imp}。
+ * cid/gid/aid/mid/channel 是凤凰在实际投放中分配的
+ * 固定参数，SCX 只校验它们存在且不是动态宏，不把它们臆造为默认值。</p>
  */
 public final class PhoenixTemplateContract {
 
@@ -64,7 +65,7 @@ public final class PhoenixTemplateContract {
 
 	/**
 	 * 校验凤凰模板。
-	 * @param clickTemplate 是否为点击模板；曝光模板只允许使用 {@link #IMPRESSION_PATH}，并不要求 callback
+	 * @param clickTemplate 是否为点击模板；点击模板要求 callback 宏，曝光投递会省略 callback
 	 */
 	public static Template requireValid(String value, Integer platform, boolean clickTemplate) {
 		if (!StringUtils.hasText(value) || value.length() > MAX_URL_LENGTH
@@ -76,10 +77,9 @@ public final class PhoenixTemplateContract {
 		}
 		try {
 			URI uri = URI.create(value.trim());
-			String expectedPath = clickTemplate ? CLICK_PATH : IMPRESSION_PATH;
 			if (!"https".equalsIgnoreCase(uri.getScheme()) || !HOST.equalsIgnoreCase(uri.getHost())
 					|| uri.getPort() != -1 || uri.getUserInfo() != null || uri.getFragment() != null
-					|| !expectedPath.equals(uri.getRawPath()) || !StringUtils.hasText(uri.getRawQuery())) {
+					|| !StringUtils.hasText(uri.getRawQuery())) {
 				throw invalid("PHOENIX_TEMPLATE_URL_INVALID");
 			}
 

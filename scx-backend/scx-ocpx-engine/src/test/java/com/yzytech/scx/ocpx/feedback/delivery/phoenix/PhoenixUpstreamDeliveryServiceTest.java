@@ -74,6 +74,17 @@ class PhoenixUpstreamDeliveryServiceTest {
 	}
 
 	@Test
+	void keepsSuppliedClickPathWithoutChangingImpressionEndpoint() {
+		when(linkIndex.get("link-id")).thenReturn(link(1, "/ocpx/d/cli"));
+		FeedbackReq feedback = base(EventTypeEnum.CLICK, OsTypeEnum.ANDROID).oaid("oaid-value").build();
+
+		assertThat(URI.create(service.buildRequestUrl(feedback)).getPath()).isEqualTo("/ocpx/d/cli");
+
+		feedback.setEvent(EventTypeEnum.IMP);
+		assertThat(URI.create(service.buildRequestUrl(feedback)).getPath()).isEqualTo("/d/imp");
+	}
+
+	@Test
 	void rejectsPlatformIdentityMismatchAndInvalidTimestamp() {
 		when(linkIndex.get("link-id")).thenReturn(link(1));
 		assertThatIllegalArgumentException().isThrownBy(() -> service.buildRequestUrl(
@@ -84,11 +95,15 @@ class PhoenixUpstreamDeliveryServiceTest {
 	}
 
 	private OcpxPromotionLink link(int platform) {
+		return link(platform, "/d/cli");
+	}
+
+	private OcpxPromotionLink link(int platform, String path) {
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		link.setId("link-id");
 		link.setAdvertiserId("advertiser-id");
 		link.setPlatform(platform);
-		link.setLinkUrl("https://api.feather.ifeng.com/d/cli?cid=123&gid=456&aid=789&mid=999&channel=abc"
+		link.setLinkUrl("https://api.feather.ifeng.com" + path + "?cid=123&gid=456&aid=789&mid=999&channel=abc"
 				+ "&reqid=__REQID__&os=__OS__&ts=__TS__&callback=__CALLBACK__"
 				+ (platform == 1 ? "&oaid=__OAID__&oaid_md5=__OAIDMD5__" : "&caid=__CAID__&idfa=__IDFA__"));
 		return link;

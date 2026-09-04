@@ -16,7 +16,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 管理端页面字段和交互以 `/Users/karl/code/sgyz-ocpx/vientiane-frontend/src/views` 为参考；`/manage/channel/channel` 映射为 SCX“媒体管理”。管理 API 始终使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`，不提供参考系统旧字段别名。
 
-`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback`、凤凰新闻 `/phoenix/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY`、`RENREN_VIDEO` 或 `PHOENIX`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频和凤凰新闻按推广链接保存完整点击模板，不保存合作方令牌；凤凰新闻按事件投递 `/d/imp` 或 `/d/cli`，支持 Android、iOS 及混合平台。下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
+`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback`、凤凰新闻 `/phoenix/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY`、`RENREN_VIDEO` 或 `PHOENIX`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频和凤凰新闻按推广链接保存完整点击模板，不保存合作方令牌；凤凰新闻点击按模板路径投递、曝光使用 `/d/imp`，支持 Android、iOS 及混合平台。下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
 
 六个共享实体位于 `scx-ocpx-core`。V108 由 MySQL 唯一事件事实、不可变账务流水、广告主账户和小时汇总统一驱动 Dashboard 与报表；V110 增加仅真实系统管理员可用的幂等人工余额扣减；V111 增加广告主自有图片创意、多链接绑定、关闭/点击/目标转化三种计费模式和全量账务流水查询。V111 不引入 `cId`、创意级监测地址、创意事实或创意报表维度，外部 `creative_id` 语义不变。Redis 余额和旧报表队列不再是数据真相。Dashboard 默认展示今天，支持今天、昨天、过去 7 天、过去 30 天和自定义日期；过去 7/30 天采用不含今天的完整历史日口径。广告主只能查看自己的可用余额和今日消费；业务指标可按授权数据范围查询。浏览器只传输服务端凭据引用；广告主开户时一次性提交登录用户名和原始密码，密码只用于服务端 BCrypt，不进入业务表、响应或日志。Secret、AES Key 和解析后的合作方凭据始终不进入浏览器。
 
@@ -47,6 +47,8 @@ V125 保留事实、账务、扣量和小时汇总实时写入，默认关闭已
 V126 为 `scx_ocpx_event_fact` 增加 `(flow_type,received_at,id)` 有序索引，并让上游 Callback 记录的精确总数和分页查询显式使用该索引，避免在包含大量 Feedback 事实的表上全表扫描。V126 不改变 Callback 事实、计费、扣量、下游投递和权限语义；目标库迁移、部署、重启和线上耗时复测仍需独立证据。
 
 V127 新增独立 `PHOENIX` 上游：按 PDF 实现 `/d/imp` 曝光与 `/d/cli` 点击，支持 Android/iOS 的设备宏、实际投放固定参数和 13 位毫秒时间戳；Callback 缺省 `active` 及九类事件映射到 SCX `1/2/4/5/5/7/19/20/21/22`，新增 `DOWNLOAD`、`ACTIVITY`、`ADDICTION` 三项标准动作。只在宝塔生产 OCPX 站点开放精确 `/ocpx/phoenix/callback` GET；不新增凤凰出站路径入站路由，不修改 IP-UAT 或容器 Nginx。V127 目标库迁移、配置录入、应用重启、Nginx reload 和第三方 UAT 均未执行。
+
+2026-09-04 修订：PHOENIX 点击路径按推广链接原值投递，不再强制等于 `/d/cli`；曝光仍使用 `/d/imp`。HTTPS、精确域名白名单、DNS 公网与参数/平台宏校验保持不变。
 
 ## 推荐阅读顺序
 

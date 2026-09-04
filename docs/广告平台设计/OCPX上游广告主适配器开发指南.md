@@ -22,7 +22,7 @@ SCX 不再从广告主表读取旧 Adapter 字段。上游协议由广告主 `up
 3. AERIM 或微风互动在“协议与域名”中维护合作方精确域名，并为每个产品创建一条推广链接，保存该产品完整点击模板；微风模板须保留固定 `aid/did`。
    GRAVITY 只创建一条 Android+IOS 基础链接，不保存动态参数或宏；无需账号、Token、凭据引用和广告主级请求地址。
    RENREN_VIDEO 按产品分别创建 Android、IOS 完整 `/ad-action/click` 模板，固定 `userId` 写入模板；不保存 Bearer Token、凭据引用或广告主级请求地址。
-   PHOENIX 按实际投放创建 Android、IOS 或 Android+IOS 推广链接；完整 `/d/cli` 模板保留凤凰商务提供的静态 `cid/gid/aid/mid/channel`，不填写广告主凭据或 `bidUrl`。
+   PHOENIX 按实际投放创建 Android、IOS 或 Android+IOS 推广链接；完整 HTTPS 模板保留商务提供的点击路径和静态 `cid/gid/aid/mid/channel`，不强制路径为 `/d/cli`，不填写广告主凭据或 `bidUrl`。
 4. 运行协议索引、四主键归属、域名/DNS、签名、宏残留、脱敏和未选择协议拒绝测试。
 5. 在隔离环境完成真实协议联调；目标库迁移、生产凭据和发布需单独复核。
 
@@ -52,7 +52,7 @@ SCX 不再从广告主表读取旧 Adapter 字段。上游协议由广告主 `up
 
 ## 凤凰新闻协议
 
-只有配置为 `PHOENIX` 的广告主才进入凤凰新闻投递。Engine 按事件使用 `/d/imp` 曝光或 `/d/cli` 点击；推广链接的五个固定参数必须使用凤凰商务实际值，不能改写为 SCX `aId/mId`。Android 输出 `OS=0` 并要求 OAID/OAIDMD5，iOS 输出 `OS=1` 并要求 CAID（IDFA 可选），`REQID` 使用 `request_id`，`TS` 为 13 位毫秒时间戳，所有宏只编码一次。HTTP 200 且 JSON `code=0` 才算成功，10001–10007 记录稳定拒绝结论和脱敏响应摘要。Callback 使用 `/ocpx/phoenix/callback?kid&ext&event_type`，AES-GCM 密钥环不接受明文回退；事件映射和 `DOWNLOAD(20)`、`ACTIVITY(21)`、`ADDICTION(22)` 详见 `contracts/management-v127.md`。
+只有配置为 `PHOENIX` 的广告主才进入凤凰新闻投递。Engine 点击使用推广链接填写的路径，不强制 `/d/cli`；曝光仍使用 `/d/imp`。推广链接的五个固定参数必须使用凤凰商务实际值，不能改写为 SCX `aId/mId`。Android 输出 `OS=0` 并要求 OAID/OAIDMD5，iOS 输出 `OS=1` 并要求 CAID（IDFA 可选），`REQID` 使用 `request_id`，`TS` 为 13 位毫秒时间戳，所有宏只编码一次。HTTP 200 且 JSON `code=0` 才算成功，10001–10007 记录稳定拒绝结论和脱敏响应摘要。Callback 使用 `/ocpx/phoenix/callback?kid&ext&event_type`，AES-GCM 密钥环不接受明文回退；事件映射和 `DOWNLOAD(20)`、`ACTIVITY(21)`、`ADDICTION(22)` 详见 `contracts/management-v127.md`。
 
 ## 发布门槛
 

@@ -43,6 +43,8 @@
 
 > 决策更新（2026-09-03）：V127 新增独立 `PHOENIX` 上游，按 PDF 实现 `/d/imp` 曝光、`/d/cli` 点击和 `/ocpx/phoenix/callback` AES-GCM 回调；支持 Android/iOS，固定 Phoenix 参数不映射为 SCX 路由主键。Callback 新增 `DOWNLOAD(20)`、`ACTIVITY(21)`、`ADDICTION(22)` 标准动作，目标库迁移、宝塔 Nginx 发布、应用重启和真实第三方 UAT 仍未执行。
 
+> 决策更新（2026-09-04）：按产品要求移除 PHOENIX 点击路径必须等于 `/d/cli` 的前端、管理后端与 Engine 校验。点击保留实际填写的路径（包括 `/ocpx/d/cli`），曝光仍使用 `/d/imp`；HTTPS、精确域名白名单、DNS 公网、参数及平台宏校验保持不变。
+
 本文不是竞品复刻说明，也不代表文中所有候选设计已经被接受。它的作用是把两份调研材料转换为可分配、可验证、可交接的 SCX MVP 开发计划，并约束 Agent 不把页面观察、技术推测或规划状态误报为已实现能力。
 
 ## 执行快照增补（2026-08-13）：SGYZ 对齐迁移交付记录

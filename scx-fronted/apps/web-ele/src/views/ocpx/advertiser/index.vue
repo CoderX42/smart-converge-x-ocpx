@@ -951,7 +951,7 @@ onMounted(async () => {
           :closable="false"
           class="field-alert"
           show-icon
-          title="凤凰新闻使用 api.feather.ifeng.com 的 /d/imp 曝光和 /d/cli 点击协议；推广链接填写实际商务分配的 cid/gid/aid/mid/channel 固定参数及对应平台宏，系统自动生成加密 Callback，不填写广告主凭据或 bidUrl。"
+          title="凤凰新闻点击路径按商务提供的链接保存，不再强制为 /d/cli；推广链接填写实际分配的 cid/gid/aid/mid/channel 固定参数及对应平台宏，系统自动生成加密 Callback，不填写广告主凭据或 bidUrl。"
           type="info"
         />
         <el-form-item

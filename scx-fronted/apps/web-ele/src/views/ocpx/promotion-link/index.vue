@@ -100,7 +100,6 @@ function isPhoenixTemplate(value: string, platform?: PlatformCode) {
       value !== value.trim() ||
       url.protocol !== 'https:' ||
       url.hostname !== 'api.feather.ifeng.com' ||
-      url.pathname !== '/d/cli' ||
       url.port ||
       url.username ||
       url.password ||
@@ -175,7 +174,7 @@ const rules: FormRules = {
       ) =>
         callback(
           isPhoenix.value && !isPhoenixTemplate(value, form.platform)
-            ? new Error('凤凰新闻必须填写完整的 HTTPS /d/cli 模板及对应平台宏')
+            ? new Error('凤凰新闻投放链接必须是合法的 HTTPS 模板及对应平台宏')
             : undefined,
         ),
     },
@@ -566,7 +565,7 @@ onMounted(async () => {
           :closable="false"
           class="field-alert"
           show-icon
-          title="凤凰新闻使用 api.feather.ifeng.com 的 /d/imp 曝光和 /d/cli 点击协议。请填写实际商务分配的 cid/gid/aid/mid/channel 固定参数，并按平台配置 OAID/OAIDMD5 或 CAID；REQID、OS、TS 和 Callback 宏由 Engine 在投放时替换。"
+          title="凤凰新闻点击路径按商务提供的链接保存，不再强制为 /d/cli。请填写实际分配的 cid/gid/aid/mid/channel 固定参数，并按平台配置 OAID/OAIDMD5 或 CAID；REQID、OS、TS 和 Callback 宏由 Engine 在投放时替换。"
           type="info"
         />
         <el-form-item label="唤起链接" prop="deeplink"

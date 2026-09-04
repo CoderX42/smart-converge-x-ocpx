@@ -5,7 +5,7 @@
 - 广告主的 `upstream_protocol` 可选择 `PHOENIX`；协议允许域名由现有“协议与域名”接口维护。
 - Phoenix 的唯一允许主机是 `api.feather.ifeng.com`。V127 不预置广告主、推广链接、监测任务、凭据或线上白名单数据。
 - 推广链接可选择 Android（`platform=1`）、IOS（`platform=2`）或 Android+IOS（`platform=3`）；渠道号和唤起链接按实际投放填写，协议不对其臆造固定值。
-- 点击模板必须是 HTTPS 的精确 `/d/cli` 地址，保留凤凰商务实际分配的静态 `cid/gid/aid/mid/channel`，并通过后端严格宏校验。SCX 不把固定 `aid/mid` 映射为自身的 `aId/mId`。曝光投递使用同一模板的 `/d/imp` 路径并省略 callback。
+- 点击模板必须是合法的 HTTPS 地址，点击路径按商务提供值保存和投递，不再强制为 `/d/cli`（例如允许 `/ocpx/d/cli`）；保留凤凰商务实际分配的静态 `cid/gid/aid/mid/channel`，并通过后端宏校验。SCX 不把固定 `aid/mid` 映射为自身的 `aId/mId`。曝光投递仍使用 `/d/imp` 路径并省略 callback。
 
 ## 点击投递
 

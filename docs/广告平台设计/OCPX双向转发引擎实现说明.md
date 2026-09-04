@@ -29,7 +29,7 @@ GRAVITY 也仅处理 CLICK，但使用单条 Android+IOS 基础链接：iOS 发�
 
 RENREN_VIDEO 仅处理 CLICK。每个产品分别保存 Android 或 IOS `/ad-action/click` 完整模板和商务固定 `userId`；Engine 校验公共宏、Android 严格设备字段或 IOS 至少一种设备标识，按需派生小写 MD5、秒/毫秒时间戳和稳定点击 ID。出站兼容 HTTP/HTTPS，但必须精确命中数据库白名单且 DNS 全部为公网地址；动态值只编码一次且不自动重试。只有 HTTP 200 与 JSON `code=200` 同时成立才算成功。
 
-PHOENIX 按 PDF 协议处理 Android/iOS 的 IMP 与 CLICK。推广链接保存 HTTPS 精确 `/d/cli` 点击模板，固定 `cid/gid/aid/mid/channel` 必须来自实际商务投放且保持静态，不映射为 SCX 路由主键；曝光投递将路径切换为 `/d/imp` 并省略 callback。Engine 输出 `REQID`、平台对应的 `OS(0/1)`、13 位毫秒 `TS`，Android 校验 OAID/OAIDMD5，iOS 校验 CAID（IDFA 可选），动态宏只编码一次，出站地址执行精确主机白名单、DNS 公网与 SSRF 校验。HTTP 200 且 JSON `code=0` 才成功，10001–10007 映射稳定结论并保留脱敏响应摘要。
+PHOENIX 处理 Android/iOS 的 IMP 与 CLICK。推广链接保存商务提供的 HTTPS 点击模板，点击路径不再强制为 `/d/cli`，Engine 按填写路径投递；固定 `cid/gid/aid/mid/channel` 必须来自实际商务投放且保持静态，不映射为 SCX 路由主键；曝光投递仍使用 `/d/imp` 并省略 callback。Engine 输出 `REQID`、平台对应的 `OS(0/1)`、13 位毫秒 `TS`，Android 校验 OAID/OAIDMD5，iOS 校验 CAID（IDFA 可选），动态宏只编码一次，出站地址执行精确主机白名单、DNS 公网与 SSRF 校验。HTTP 200 且 JSON `code=0` 才成功，10001–10007 映射稳定结论并保留脱敏响应摘要。
 
 ## 反向 Callback
 

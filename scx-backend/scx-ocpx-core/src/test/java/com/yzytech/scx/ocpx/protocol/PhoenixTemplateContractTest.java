@@ -19,13 +19,13 @@ class PhoenixTemplateContractTest {
 	}
 
 	@Test
-	void rejectsInventedLegacyPathMissingFixedValuesAndUnsupportedPlatform() {
+	void acceptsCustomPathButRejectsInvalidValuesAndUnsupportedPlatform() {
 		String valid = "https://api.feather.ifeng.com/d/cli?cid=123&gid=456&aid=789&mid=999&channel=abc"
 				+ "&reqid=__REQID__&os=__OS__&ts=__TS__&callback=__CALLBACK__"
 				+ "&oaid=__OAID__&oaid_md5=__OAIDMD5__";
 
-		assertThatIllegalArgumentException().isThrownBy(() -> PhoenixTemplateContract.requireValid(
-				valid.replace("/d/cli", "/ocpx/d/cli"), 1)).withMessage("PHOENIX_TEMPLATE_URL_INVALID");
+		assertThat(PhoenixTemplateContract.requireValid(valid.replace("/d/cli", "/ocpx/d/cli"), 1).uri().getPath())
+				.isEqualTo("/ocpx/d/cli");
 		assertThatIllegalArgumentException().isThrownBy(() -> PhoenixTemplateContract.requireValid(
 				valid.replace("cid=123", "cid=__CID__"), 1)).withMessage("PHOENIX_TEMPLATE_MACRO_INVALID");
 		assertThatIllegalArgumentException().isThrownBy(() -> PhoenixTemplateContract.requireValid(valid, 4))

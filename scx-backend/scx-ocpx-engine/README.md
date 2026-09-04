@@ -66,7 +66,7 @@ Controller 依赖请求适配器抽象，Dispatcher 依赖投递服务抽象。�
 `OcpxAdvertiser.bidUrl + macroParams` 替换宏，并使用 `credentialConfigKey` 追加 MD5
 `signature`；AERIM 和微风互动都只处理点击，并按 `lId` 从关联推广链接读取完整
 上游模板。AERIM 生成 `/aerim/callback` 且不追加签名；微风保留模板自带的固定
-`aid/did`。凤凰新闻按事件投递 `/d/imp` 曝光或 `/d/cli` 点击，固定 `cid/gid/aid/mid/channel`
+`aid/did`。凤凰新闻点击按推广链接填写的路径投递，不强制 `/d/cli`，曝光仍使用 `/d/imp`；固定 `cid/gid/aid/mid/channel`
 保留在推广链接模板中，并按平台要求 OAID/OAIDMD5 或 CAID、13 位毫秒时间戳和精确 Phoenix Callback。
 三类地址都必须命中管理后台维护的精确域名白名单，并解析到公网地址。
 

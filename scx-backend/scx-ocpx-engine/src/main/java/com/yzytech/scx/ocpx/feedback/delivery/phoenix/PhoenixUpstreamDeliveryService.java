@@ -148,9 +148,16 @@ public class PhoenixUpstreamDeliveryService extends UpstreamDeliveryService {
 		List<String> query = template.parameters().stream().map(parameter -> encodePair(parameter, macros, click))
 				.filter(StringUtils::hasText).toList();
 		URI uri = template.uri();
-		String path = click ? PhoenixTemplateContract.CLICK_PATH : PhoenixTemplateContract.IMPRESSION_PATH;
+		String path = pathForEvent(uri.getRawPath(), click);
 		String base = uri.getScheme() + "://" + uri.getRawAuthority() + path;
 		return base + "?" + String.join("&", query);
+	}
+
+	/**
+	 * 点击保留合作方填写的路径；曝光继续使用 Phoenix 协议的曝光路径。
+	 */
+	private String pathForEvent(String rawPath, boolean click) {
+		return click ? (StringUtils.hasText(rawPath) ? rawPath : "/") : PhoenixTemplateContract.IMPRESSION_PATH;
 	}
 
 	/** 生成带当前密钥版本的 Phoenix Callback 地址。 */
