@@ -546,28 +546,6 @@ onMounted(async () => {
             placeholder="请输入投放链接"
             type="textarea"
         /></el-form-item>
-        <el-alert
-          :closable="false"
-          class="field-alert"
-          show-icon
-          title="引力广告主请选择 Android+IOS，投放链接只保存引力 HTTPS 基础地址和固定参数，不填写 {idfa}、{callback} 等动态宏。"
-          type="info"
-        />
-        <el-alert
-          :closable="false"
-          class="field-alert"
-          show-icon
-          title="人人视频广告主必须为 Android、IOS 分别创建链接；投放链接填写 /ad-action/click 完整模板和商务分配的固定 userId，不要创建 Android+IOS 混合链接。"
-          type="info"
-        />
-        <el-alert
-          v-if="isPhoenix"
-          :closable="false"
-          class="field-alert"
-          show-icon
-          title="凤凰新闻点击路径按商务提供的链接保存，不再强制为 /d/cli。请填写实际分配的 cid/gid/aid/mid/channel 固定参数，并按平台配置 OAID/OAIDMD5 或 CAID；REQID、OS、TS 和 Callback 宏由 Engine 在投放时替换。"
-          type="info"
-        />
         <el-form-item label="唤起链接" prop="deeplink"
           ><el-input
             v-model="form.deeplink"
