@@ -48,9 +48,13 @@ expected_data = {
     "scx_ocpx_log_callback",
     "scx_ocpx_report_mat_temp",
     "scx_ocpx_report_mat",
+    "scx_ocpx_rta_profile",
+    "scx_ocpx_rta_task_binding",
+    "scx_ocpx_rta_decision_fact",
+    "scx_ocpx_rta_hourly_metric",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 20:
+if set(actual) != expected_business | expected_data or len(actual) != 24:
     raise SystemExit(f"OCPX management gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
@@ -287,7 +291,7 @@ active_management = "\n".join(
     for file in (root / relative).rglob("*.java")
 )
 for retired_name in (
-    "advertiserCode", "mediaCode", "adapterCode", "credentialVersion",
+    "advertiserCode", "mediaCode", "credentialVersion",
     "upstreamHostAllowlist", "callbackHostAllowlist", "configVersion",
     "linkUrlTemplate", "deeplinkUrl", "downloadUrl", "macroSet",
     "redirectEnabled", "taskCode", "taskName", "archivedAt",
@@ -837,33 +841,18 @@ for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech
 if "com.yzytech.scx.ocpx.dao.mapper" in entrypoint:
     raise SystemExit("feature-package gate failed: retired MapperScan remains")
 
-# 当前数据面公开入口全部是 GET；任何写方法映射都必须先经过新协议评审。
+# 当前数据面公开入口保留 GET；V128 仅允许新增的内部 Mock RTA POST 入口。
 for file in java_root.rglob("*Controller.java"):
     source = file.read_text(encoding="utf-8")
     mutating = ["@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping"]
-    if any(annotation in source for annotation in mutating):
+    if any(annotation in source for annotation in mutating) and file.name != "RtaController.java":
         raise SystemExit(f"GET-only gate failed: mutating mapping found in {file}")
 
-rta_pattern = re.compile(
-    r"(?:\b(?:RTA|rta)\b|rta_mode|rtaMode|handleRta|\bRta[A-Z]|_rta|rta_)",
-)
-for relative in (
-    "scx-backend/scx-ocpx-core/src",
-    "scx-backend/scx-ocpx-admin/src",
-    "scx-backend/scx-ocpx-engine/src",
-    "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql",
-    "scx-fronted/apps/web-ele/src",
-    "scx-fronted/apps/web-ele/e2e",
-    "docs/接口文档",
-    "docs/广告平台设计/contracts",
-    "docs/广告平台设计/ocpx-aerim-模块实现规格",
-):
-    path = root / relative
-    files = path.rglob("*") if path.is_dir() else [path]
-    for file in files:
-        if file.is_file() and file.suffix in {".java", ".json", ".md", ".sql", ".ts", ".xml", ".yml", ".yaml"}:
-            if rta_pattern.search(file.read_text(encoding="utf-8")):
-                raise SystemExit(f"RTA retirement gate failed: active reference remains in {file}")
+rta_controller = (java_root / "rta/web/RtaController.java").read_text(encoding="utf-8")
+if '@PostMapping("/rta")' not in rta_controller:
+    raise SystemExit("RTA gate failed: the internal Mock RTA POST entry is missing")
+if any(annotation in rta_controller for annotation in ("@PutMapping", "@PatchMapping", "@DeleteMapping")):
+    raise SystemExit("RTA gate failed: the Engine RTA controller exposes an unsupported mutating route")
 
 print("OCPX management and generic data-layer gate passed")
 PY

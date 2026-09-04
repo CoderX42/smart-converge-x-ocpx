@@ -46,6 +46,15 @@ ocpx:
       queue-capacity: 200
 
 app:
+  rta:
+    enabled: false
+    mock-enabled: false
+    admission-ttl-seconds: 300
+    stream-key: r:ocpx:rta:decision-fact
+    consumer-group: scx-ocpx-rta-facts
+    batch-size: 100
+    max-retries: 3
+    claim-idle-seconds: 60
   http:
     timeout-millis: 3000
   jobs:

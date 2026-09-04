@@ -22,6 +22,9 @@ domain:
   name: https://ocpx.zhongsenyuedong.cn/ocpx
 
 app:
+  rta:
+    enabled: false
+    mock-enabled: false
   callback-crypto:
     active-key-id: v1
     keys:

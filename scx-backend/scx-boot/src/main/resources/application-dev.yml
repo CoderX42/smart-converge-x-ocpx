@@ -7,6 +7,11 @@ scx:
       advertisers: {}
       media: {}
 
+app:
+  rta:
+    enabled: true
+    mock-enabled: true
+
 spring:
   config:
     fail-on-unresolved-placeholders: false

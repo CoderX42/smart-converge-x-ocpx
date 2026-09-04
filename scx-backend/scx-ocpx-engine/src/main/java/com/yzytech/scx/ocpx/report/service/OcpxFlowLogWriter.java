@@ -3,6 +3,8 @@ package com.yzytech.scx.ocpx.report.service;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
+import com.yzytech.scx.ocpx.rta.model.RtaDecisionEvent;
+import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -99,6 +101,25 @@ public class OcpxFlowLogWriter {
 		}
 	}
 
+	/** 记录 RTA 点击门禁结果；只保存路由、requestId 哈希和固定原因码。 */
+	public void rtaGate(FeedbackReq request, boolean success, String reasonCode) {
+		write(request, "FEEDBACK", "RTA_GATE", event(request), feedbackFingerprint(request), success,
+				success ? 200 : 403, reasonCode, null, 0L, "GET", "/rta", null, null);
+	}
+
+	/** 记录 RTA 决策摘要；设备标识、完整请求体和适配器配置均不进入日志。 */
+	public void rtaDecision(RtaDecisionEvent event) {
+		if (event == null) {
+			return;
+		}
+		FeedbackReq request = FeedbackReq.builder().mId(event.getMediaId()).tId(event.getMonitorTaskId())
+				.aId(event.getAdvertiserId()).lId(event.getPromotionLinkId()).reqId(event.getRequestId())
+				.event(EventTypeEnum.CLICK).build();
+		write(request, "FEEDBACK", "RTA_DECISION", event.getDecision().name(), event.getRequestHash(),
+				event.getDecision().name().equals("ALLOW"), 200, event.getReasonCode(), null, event.getLatencyMs(),
+				"POST", "/rta", null, null);
+	}
+
 	private void internal(CallbackReq request, String stage, boolean success, String message) {
 		if (hasFeedback(request)) {
 			write(request.getFeedback(), "CALLBACK", stage, action(request), callbackFingerprint(request), success,
@@ -109,7 +130,8 @@ public class OcpxFlowLogWriter {
 	private void write(FeedbackReq request, String type, String stage, String eventCode, String payloadHash,
 			boolean success, Integer status, String message, String response, long duration, String method,
 			String endpoint, Map<String, ?> macroAudit, Map<String, Object> requestParams) {
-		if (sampleableSuccess(success, message) && !sampleSuccess(payloadHash)) {
+		if (!"RTA_DECISION".equals(stage) && !"RTA_GATE".equals(stage) && sampleableSuccess(success, message)
+				&& !sampleSuccess(payloadHash)) {
 			return;
 		}
 		try {

@@ -7,10 +7,10 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 /**
- * 四实体内存索引的启动初始化器。
+ * OCPX 业务和 RTA 运行配置内存索引的启动初始化器。
  *
  * <p>
- * 应用接受流量前从数据库装载广告主、推广链接、媒体和监测任务配置。
+ * 应用接受流量前从数据库装载广告主、推广链接、媒体、监测任务和不含密钥的 RTA 配置。
  */
 @Slf4j
 @Component

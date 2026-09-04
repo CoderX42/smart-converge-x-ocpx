@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.example.invalid/contracts/rta-request-v1.schema.json",
+  "title": "SCX RTA request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "advertiserId", "promotionLinkId", "mediaId", "monitorTaskId"],
+  "properties": {
+    "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "advertiserId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "promotionLinkId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "mediaId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "monitorTaskId": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "device": { "$ref": "#/$defs/device" },
+    "context": { "$ref": "#/$defs/context" },
+    "attributes": {
+      "type": "object",
+      "maxProperties": 16,
+      "additionalProperties": false,
+      "properties": {
+        "channel": { "type": "string", "maxLength": 256 },
+        "campaign": { "type": "string", "maxLength": 256 },
+        "placement": { "type": "string", "maxLength": 256 },
+        "source": { "type": "string", "maxLength": 256 }
+      }
+    }
+  },
+  "$defs": {
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oaid": { "type": "string", "maxLength": 256 },
+        "oaidMd5": { "type": "string", "maxLength": 64 },
+        "imei": { "type": "string", "maxLength": 256 },
+        "imeiMd5": { "type": "string", "maxLength": 64 },
+        "idfa": { "type": "string", "maxLength": 256 },
+        "idfaMd5": { "type": "string", "maxLength": 64 },
+        "caid": { "type": "string", "maxLength": 256 },
+        "caidVersion": { "type": "string", "maxLength": 64 },
+        "preCaid": { "type": "string", "maxLength": 256 },
+        "preCaidVersion": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ip": { "type": "string", "maxLength": 64 },
+        "ipv6": { "type": "string", "maxLength": 128 },
+        "os": { "type": "string", "maxLength": 32 },
+        "osv": { "type": "string", "maxLength": 64 },
+        "model": { "type": "string", "maxLength": 128 },
+        "ua": { "type": "string", "maxLength": 1024 }
+      }
+    }
+  }
+}

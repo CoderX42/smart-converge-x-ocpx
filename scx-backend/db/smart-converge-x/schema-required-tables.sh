@@ -11,6 +11,7 @@ SCX_REQUIRED_TABLES=(
   sys_user sys_user_role
   scx_ocpx_advertiser scx_ocpx_protocol_allowed_host scx_ocpx_promotion_link scx_ocpx_creative
   scx_ocpx_creative_promotion_link scx_ocpx_media scx_ocpx_monitor_task
+  scx_ocpx_rta_profile scx_ocpx_rta_task_binding scx_ocpx_rta_decision_fact scx_ocpx_rta_hourly_metric
   scx_ocpx_billing_config_audit
   scx_ocpx_deduction_rule
   scx_ocpx_advertiser_account scx_ocpx_event_fact scx_ocpx_billing_entry

@@ -45,7 +45,11 @@ class OcpxFourEntityResetContractTest {
 				"action_time BIGINT", "currency_amount DECIMAL(20,6)", "first_activation", "first_order")
 			.doesNotContain("CREATE TABLE IF NOT EXISTS scx_ocpx_report_hourly")
 			.doesNotContain("credential_ciphertext", "secret_ciphertext", "password_hash");
-		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(20);
+		assertThat(occurrences(schema, "CREATE TABLE IF NOT EXISTS scx_ocpx_")).isEqualTo(24);
+		assertThat(schema).contains("CREATE TABLE IF NOT EXISTS scx_ocpx_rta_profile",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_rta_task_binding",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_rta_decision_fact",
+				"CREATE TABLE IF NOT EXISTS scx_ocpx_rta_hourly_metric");
 	}
 
 	@Test

@@ -8,6 +8,12 @@ scx:
       advertisers: {}
       media: {}
 
+app:
+  rta:
+    enabled: true
+    mock-enabled: true
+    admission-ttl-seconds: 300
+
 # =============================================================================
 # 生产配置：直接写在本文件，不依赖环境变量 /etc/scx/scx.env
 #

@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
   advertiser_id VARCHAR(32) NOT NULL,
   promotion_link_id VARCHAR(32) NOT NULL,
   media_id VARCHAR(32) NOT NULL,
+  rta_enabled TINYINT(1) NOT NULL DEFAULT 0,
   billing_enabled TINYINT(1) NOT NULL DEFAULT 0,
   billing_type TINYINT UNSIGNED NOT NULL DEFAULT 1,
   unit_price DECIMAL(20,6) NOT NULL DEFAULT 0,
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
     REFERENCES scx_ocpx_promotion_link(advertiser_id,id),
   CONSTRAINT fk_ocpx_monitor_task_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
   CONSTRAINT ck_ocpx_monitor_task_billing_enabled CHECK (billing_enabled IN (0,1)),
+  CONSTRAINT ck_ocpx_monitor_task_rta_enabled CHECK (rta_enabled IN (0,1)),
   CONSTRAINT ck_ocpx_monitor_task_billing_type CHECK (billing_type IN (1,2)),
   CONSTRAINT ck_ocpx_monitor_task_billing_price CHECK (billing_enabled=0 OR unit_price>0),
   CONSTRAINT ck_ocpx_monitor_task_conversion_event CHECK (conversion_event IN (
@@ -182,6 +184,108 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_monitor_task (
     'FIRST_ACTIVATION','FIRST_ORDER','DOWNLOAD','ACTIVITY','ADDICTION'
   ))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='BUSINESS: advertiser-link-media monitoring task';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_rta_profile (
+  id VARCHAR(32) NOT NULL,
+  code VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  adapter_code VARCHAR(32) NOT NULL DEFAULT 'MOCK',
+  status VARCHAR(16) NOT NULL DEFAULT 'DISABLED',
+  config_json JSON NOT NULL,
+  version INT NOT NULL DEFAULT 1,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_rta_profile_code (code),
+  CONSTRAINT ck_ocpx_rta_profile_adapter CHECK (adapter_code='MOCK'),
+  CONSTRAINT ck_ocpx_rta_profile_status CHECK (status IN ('DISABLED','ACTIVE')),
+  CONSTRAINT ck_ocpx_rta_profile_version CHECK (version>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='CONFIG: RTA decision profile without secrets';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_rta_task_binding (
+  id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  profile_id VARCHAR(32) NOT NULL,
+  external_task_id VARCHAR(128) NOT NULL,
+  external_product_id VARCHAR(128) NULL,
+  enabled TINYINT(1) NOT NULL DEFAULT 1,
+  version INT NOT NULL DEFAULT 1,
+  create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_rta_binding_task_profile_external (monitor_task_id,profile_id,external_task_id),
+  KEY idx_ocpx_rta_binding_scope (advertiser_id,monitor_task_id,enabled),
+  CONSTRAINT fk_ocpx_rta_binding_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT fk_ocpx_rta_binding_profile FOREIGN KEY (profile_id) REFERENCES scx_ocpx_rta_profile(id),
+  CONSTRAINT fk_ocpx_rta_binding_advertiser FOREIGN KEY (advertiser_id) REFERENCES scx_ocpx_advertiser(id),
+  CONSTRAINT fk_ocpx_rta_binding_link FOREIGN KEY (promotion_link_id) REFERENCES scx_ocpx_promotion_link(id),
+  CONSTRAINT fk_ocpx_rta_binding_media FOREIGN KEY (media_id) REFERENCES scx_ocpx_media(id),
+  CONSTRAINT ck_ocpx_rta_binding_enabled CHECK (enabled IN (0,1)),
+  CONSTRAINT ck_ocpx_rta_binding_version CHECK (version>0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='RELATION: monitor task to RTA external task binding';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_rta_decision_fact (
+  id VARCHAR(32) NOT NULL,
+  request_id VARCHAR(128) NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NOT NULL,
+  profile_id VARCHAR(32) NULL,
+  adapter_code VARCHAR(32) NOT NULL,
+  decision VARCHAR(8) NOT NULL,
+  outcome_class VARCHAR(16) NOT NULL,
+  reason_code VARCHAR(64) NOT NULL,
+  latency_ms BIGINT NOT NULL DEFAULT 0,
+  matched_task_ids JSON NULL,
+  received_at DATETIME(3) NOT NULL,
+  completed_at DATETIME(3) NOT NULL,
+  metric_version INT NOT NULL DEFAULT 1,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_rta_decision_identity (monitor_task_id,request_id),
+  KEY idx_ocpx_rta_decision_scope_time (advertiser_id,received_at,monitor_task_id,profile_id),
+  CONSTRAINT fk_ocpx_rta_decision_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT fk_ocpx_rta_decision_profile FOREIGN KEY (profile_id) REFERENCES scx_ocpx_rta_profile(id),
+  CONSTRAINT ck_ocpx_rta_decision_value CHECK (decision IN ('ALLOW','DENY')),
+  CONSTRAINT ck_ocpx_rta_decision_outcome CHECK (outcome_class IN ('SUCCESS','TIMEOUT','ERROR','REJECTED')),
+  CONSTRAINT ck_ocpx_rta_decision_latency CHECK (latency_ms>=0),
+  CONSTRAINT ck_ocpx_rta_decision_hash CHECK (request_hash REGEXP '^[0-9a-f]{64}$')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='FACT: asynchronous RTA decision result';
+
+CREATE TABLE IF NOT EXISTS scx_ocpx_rta_hourly_metric (
+  id VARCHAR(32) NOT NULL,
+  time_hour DATETIME(3) NOT NULL,
+  advertiser_id VARCHAR(32) NOT NULL,
+  promotion_link_id VARCHAR(32) NOT NULL,
+  media_id VARCHAR(32) NOT NULL,
+  monitor_task_id VARCHAR(32) NOT NULL,
+  profile_id VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+  request_count BIGINT NOT NULL DEFAULT 0,
+  allow_count BIGINT NOT NULL DEFAULT 0,
+  deny_count BIGINT NOT NULL DEFAULT 0,
+  timeout_count BIGINT NOT NULL DEFAULT 0,
+  error_count BIGINT NOT NULL DEFAULT 0,
+  allow_rate DECIMAL(12,8) NULL,
+  metric_version INT NOT NULL DEFAULT 1,
+  update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ocpx_rta_hourly_metric_scope
+    (time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,profile_id),
+  KEY idx_ocpx_rta_hourly_scope_time (advertiser_id,time_hour,monitor_task_id,profile_id),
+  CONSTRAINT fk_ocpx_rta_metric_task FOREIGN KEY (monitor_task_id) REFERENCES scx_ocpx_monitor_task(id),
+  CONSTRAINT ck_ocpx_rta_metric_nonnegative CHECK (
+    request_count>=0 AND allow_count>=0 AND deny_count>=0 AND timeout_count>=0 AND error_count>=0
+    AND allow_count<=request_count
+  )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+  COMMENT='METRIC: asynchronous RTA hourly projection';
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_billing_config_audit (
   id VARCHAR(32) NOT NULL,
@@ -685,6 +789,7 @@ VALUES
   ('menu_ocpx_creative','创意管理','/ocpx/creative','0','lucide:images','ocpx/creative/index','ocpx:creative:view',25,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_media','媒体管理','/ocpx/media','0','lucide:radio-tower','ocpx/media/index','ocpx:media:view',30,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_monitor_task','监测任务','/ocpx/monitor-task','0','lucide:list-checks','ocpx/monitor-task/index','ocpx:monitor-task:view',40,'0','app_base',NOW(),NOW(),'0'),
+  ('menu_ocpx_rta','RTA 管理','/ocpx/rta','0','lucide:shield-check','ocpx/rta/index','ocpx:rta:view',42,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_deduction_rule','扣量规则','/ocpx/deduction','0','lucide:percent','ocpx/deduction/index','ocpx:deduction-rule:list',45,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_report','报表中心','/ocpx/report','0','lucide:chart-column','ocpx/report/index','ocpx:report:view',50,'0','app_base',NOW(),NOW(),'0'),
   ('menu_ocpx_callback_record','上游转化记录','/ocpx/callback-record','0','lucide:webhook','ocpx/callback-record/index','ocpx:callback-record:view',55,'0','app_base',NOW(),NOW(),'0'),
@@ -719,6 +824,11 @@ VALUES
   ('perm_ocpx_monitor_task_billing','配置监测任务计费','','menu_ocpx_monitor_task','ocpx:monitor-task:billing',40,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_test','执行监测任务点击测试','','menu_ocpx_monitor_task','ocpx:monitor-task:test',50,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_monitor_task_integration','下游媒体联调','','menu_ocpx_monitor_task','ocpx:monitor-task:integration',60,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_rta_add','新增 RTA Profile','','menu_ocpx_rta','ocpx:rta:add',10,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_rta_edit','编辑 RTA Profile','','menu_ocpx_rta','ocpx:rta:edit',20,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_rta_bind','配置 RTA 任务绑定','','menu_ocpx_rta','ocpx:rta:bind',30,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_rta_decision_view','查看 RTA 决策','','menu_ocpx_rta','ocpx:rta:decision:view',40,'1','app_base',NOW(),NOW(),'0'),
+  ('perm_ocpx_rta_report','查看 RTA 报表','','menu_ocpx_rta','ocpx:rta:report',50,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_report_export','导出报表','','menu_ocpx_report','ocpx:report:export',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_list','查询扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:list',10,'1','app_base',NOW(),NOW(),'0'),
   ('perm_ocpx_deduction_rule_create','新增扣量规则','','menu_ocpx_deduction_rule','ocpx:deduction-rule:create',20,'1','app_base',NOW(),NOW(),'0'),
@@ -744,12 +854,13 @@ SELECT CONCAT('current_',LEFT(SHA2(CONCAT('role_advertiser','|',m.id),256),52)),
 FROM sys_menu m
 WHERE m.del_flag='0' AND m.id IN (
   'menu_ocpx_home','menu_ocpx_advertiser','menu_ocpx_promotion_link','menu_ocpx_creative','menu_ocpx_media',
-  'menu_ocpx_monitor_task','menu_ocpx_deduction_rule','menu_ocpx_report','menu_ocpx_callback_record','menu_ocpx_flow_log',
+  'menu_ocpx_monitor_task','menu_ocpx_rta','menu_ocpx_deduction_rule','menu_ocpx_report','menu_ocpx_callback_record','menu_ocpx_flow_log',
   'perm_ocpx_advertiser_add','perm_ocpx_advertiser_edit','perm_ocpx_billing_entry_view',
   'perm_ocpx_advertiser_delete','perm_ocpx_promotion_link_add','perm_ocpx_promotion_link_edit',
   'perm_ocpx_promotion_link_delete','perm_ocpx_media_add','perm_ocpx_media_edit','perm_ocpx_media_delete',
   'perm_ocpx_creative_add','perm_ocpx_creative_edit','perm_ocpx_creative_delete','perm_ocpx_creative_bind',
   'perm_ocpx_monitor_task_add','perm_ocpx_monitor_task_edit','perm_ocpx_monitor_task_delete',
+  'perm_ocpx_rta_bind','perm_ocpx_rta_decision_view','perm_ocpx_rta_report',
   'perm_ocpx_report_export','perm_ocpx_deduction_rule_list','perm_ocpx_deduction_rule_create',
   'perm_ocpx_deduction_rule_update','perm_ocpx_deduction_rule_delete','perm_ocpx_adv_scope_all'
 );

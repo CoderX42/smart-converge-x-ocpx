@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scx.example.invalid/contracts/rta-response-v1.schema.json",
+  "title": "SCX RTA response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "decision", "taskIds", "reasonCode"],
+  "properties": {
+    "requestId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "decision": { "type": "string", "enum": ["ALLOW", "DENY"] },
+    "taskIds": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": 128 } },
+    "reasonCode": { "type": "string", "maxLength": 64 }
+  }
+}

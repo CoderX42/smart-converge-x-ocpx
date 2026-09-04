@@ -11,4 +11,11 @@ public record FeedbackIngressResponse(int ret, int code, String msg, Map<String,
 		return SUCCESS;
 	}
 
+	/**
+	 * 返回仍保持 HTTP 400 的可读错误信封。机器端可继续按状态码处理，浏览器直接打开时也能看到原因。
+	 */
+	public static FeedbackIngressResponse badRequest(String message) {
+		return new FeedbackIngressResponse(1, 400, message, Map.of());
+	}
+
 }

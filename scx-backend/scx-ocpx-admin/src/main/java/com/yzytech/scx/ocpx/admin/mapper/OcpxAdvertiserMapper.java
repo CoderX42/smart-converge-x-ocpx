@@ -61,6 +61,15 @@ public interface OcpxAdvertiserMapper extends BaseMapper<OcpxAdvertiser> {
 	@Delete("DELETE FROM scx_ocpx_flow_log WHERE advertiser_id=#{id}")
 	int deleteFlowLogs(@Param("id") String id);
 
+	@Delete("DELETE FROM scx_ocpx_rta_decision_fact WHERE advertiser_id=#{id}")
+	int deleteRtaDecisionFacts(@Param("id") String id);
+
+	@Delete("DELETE FROM scx_ocpx_rta_hourly_metric WHERE advertiser_id=#{id}")
+	int deleteRtaHourlyMetrics(@Param("id") String id);
+
+	@Delete("DELETE FROM scx_ocpx_rta_task_binding WHERE advertiser_id=#{id}")
+	int deleteRtaTaskBindings(@Param("id") String id);
+
 	@Delete("DELETE FROM scx_ocpx_creative_promotion_link WHERE advertiser_id=#{id}")
 	int deleteCreativeBindings(@Param("id") String id);
 

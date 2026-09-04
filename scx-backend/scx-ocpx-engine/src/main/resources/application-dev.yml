@@ -17,6 +17,9 @@ domain:
   name: http://127.0.0.1:10000/ocpx
 
 app:
+  rta:
+    enabled: true
+    mock-enabled: true
   callback-crypto:
     active-key-id: v1
     keys:

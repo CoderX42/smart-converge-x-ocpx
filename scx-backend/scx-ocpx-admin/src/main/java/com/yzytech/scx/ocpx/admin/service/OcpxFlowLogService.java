@@ -32,7 +32,8 @@ public class OcpxFlowLogService {
 	private static final Set<String> STATUSES = Set.of("SUCCESS", "FAILED");
 
 	private static final Set<String> STAGES = Set.of("LEGACY", "MEDIA_INGRESS", "ADVERTISER_DELIVERY",
-			"ADVERTISER_CALLBACK", "CALLBACK_ACCOUNTING", "MEDIA_DEDUCTION", "MEDIA_DELIVERY");
+			"ADVERTISER_CALLBACK", "CALLBACK_ACCOUNTING", "MEDIA_DEDUCTION", "MEDIA_DELIVERY", "RTA_GATE",
+			"RTA_DECISION");
 
 	private static final long MAX_PAGEABLE_TOTAL = 10_000L;
 

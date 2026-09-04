@@ -142,6 +142,9 @@ public class OcpxAdvertiserService {
 		advertiserMapper.deleteFeedbackDayLogs(id);
 		advertiserMapper.deleteFeedbackLogs(id);
 		advertiserMapper.deleteFlowLogs(id);
+		advertiserMapper.deleteRtaDecisionFacts(id);
+		advertiserMapper.deleteRtaHourlyMetrics(id);
+		advertiserMapper.deleteRtaTaskBindings(id);
 		advertiserMapper.deleteCreativeBindings(id);
 		advertiserMapper.deleteCreatives(id);
 		advertiserMapper.deleteDeductionRules(id);

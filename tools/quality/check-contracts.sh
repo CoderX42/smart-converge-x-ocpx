@@ -41,8 +41,13 @@ required = [
     "management-v124.md",
     "management-v126.md",
     "management-v127.md",
+    "management-v128.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
+    "rta-request-v1.schema.json",
+    "rta-response-v1.schema.json",
+    "rta-decision-fact-v1.schema.json",
+    "rta-mock-example.md",
 ]
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
@@ -82,13 +87,24 @@ v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
 v116_paths = {"/flow-logs/{id}/request-detail"}
 v118_paths = {"/callback-records"}
 v119_paths = {"/media-macros"}
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths
+rta_paths = {"/rta", "/rta/profiles", "/rta/profiles/{id}", "/rta/monitor-tasks/{taskId}", "/rta/decisions", "/rta/metrics"}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | rta_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
 assert "400" in paths["/feedback"]["get"]["responses"]
 assert all(set(paths[path]) <= {"get", "parameters"} for path in data_plane_paths)
 assert all("requestBody" not in operation for path in data_plane_paths for operation in paths[path].values() if isinstance(operation, dict))
+rta = paths["/rta"]["post"]
+assert rta["security"] == []
+assert rta["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("RtaRequest")
+assert set(rta["responses"]) >= {"200", "400", "409", "503"}
+assert paths["/rta/profiles"]["get"]["security"] == [{"saToken": []}]
+assert {"get", "post"} <= set(paths["/rta/profiles"])
+assert {"get", "put"} <= set(paths["/rta/profiles/{id}"])
+assert {"get", "put"} <= set(paths["/rta/monitor-tasks/{taskId}"])
+assert paths["/rta/monitor-tasks/{taskId}"]["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("RtaTaskConfigPayload")
+assert paths["/rta/metrics"]["get"]["security"] == [{"saToken": []}]
 management = paths[management_path]
 assert {"get", "put"} <= set(management)
 assert management["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("AdvertiserRolePermissionsUpdate")
@@ -176,6 +192,7 @@ assert {
     , "FlowLogStage", "MediaMacro", "MediaMacroListEnvelope"
     , "CallbackEventCode", "CallbackRecord", "CallbackRecordPageEnvelope"
     , "GravityCallbackSuccess", "GravityCallbackFailure", "PhoenixCallbackSuccess"
+    , "RtaRequest", "RtaResponse", "RtaProfilePayload", "RtaTaskConfigPayload", "RtaDecisionFactEvent"
 } <= set(schemas)
 assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
 assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
@@ -200,7 +217,7 @@ assert {"model", "osVersion", "ipv6", "caid2"} <= set(schemas["FlowLogRequestDet
 assert {"resultStatus", "partnerHttpStatus", "message", "durationMs", "responsePreview"} <= set(schemas["FlowLogRequestDetail"]["properties"])
 assert schemas["FlowLogRequestDetail"]["properties"]["responsePreview"]["maxLength"] == 4096
 assert {"traceId", "coverageStatus", "stages"} <= set(schemas["FlowLogRequestDetail"]["properties"])
-assert set(schemas["FlowLogStage"]["properties"]["stageCode"]["enum"]) == {"LEGACY", "MEDIA_INGRESS", "ADVERTISER_DELIVERY", "ADVERTISER_CALLBACK", "CALLBACK_ACCOUNTING", "MEDIA_DEDUCTION", "MEDIA_DELIVERY"}
+assert set(schemas["FlowLogStage"]["properties"]["stageCode"]["enum"]) == {"LEGACY", "MEDIA_INGRESS", "ADVERTISER_DELIVERY", "ADVERTISER_CALLBACK", "CALLBACK_ACCOUNTING", "MEDIA_DEDUCTION", "MEDIA_DELIVERY", "RTA_DECISION", "RTA_GATE"}
 assert paths["/media-macros"]["get"]["security"] == [{"saToken": []}]
 assert set(schemas["CallbackRecord"]["properties"]["deductionDecision"]["enum"]) == {"PENDING", "PASSED", "DEDUCTED", None}
 assert set(callback_record_parameters["deductionDecision"]["schema"]["enum"]) == {"PENDING", "PASSED", "DEDUCTED", "UNAVAILABLE"}
@@ -225,7 +242,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "gravity-callback-req-v1.schema.json", "renren-video-callback-req-v1.schema.json", "phoenix-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "gravity-callback-req-v1.schema.json", "renren-video-callback-req-v1.schema.json", "phoenix-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json", "rta-request-v1.schema.json", "rta-response-v1.schema.json", "rta-decision-fact-v1.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)

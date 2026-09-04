@@ -157,6 +157,9 @@ public class OcpxMonitorTaskService {
 	public void delete(String id) {
 		OcpxMonitorTask current = require(id);
 		advertiserScope.requireOwner(current.getAdvertiserId());
+		jdbcTemplate.update("DELETE FROM scx_ocpx_rta_decision_fact WHERE monitor_task_id=?", id);
+		jdbcTemplate.update("DELETE FROM scx_ocpx_rta_hourly_metric WHERE monitor_task_id=?", id);
+		jdbcTemplate.update("DELETE FROM scx_ocpx_rta_task_binding WHERE monitor_task_id=?", id);
 		taskMapper.deleteById(id);
 		configRefreshPublisher.mark();
 	}

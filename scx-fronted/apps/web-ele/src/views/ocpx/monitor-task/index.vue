@@ -11,6 +11,7 @@ import type {
   MonitorTaskTestOs,
   MonitorTaskTestPreview,
   MonitorTaskTestResult,
+  RtaProfile,
 } from '#/api/ocpx';
 
 import {
@@ -37,13 +38,16 @@ import {
   generateMonitorTaskTestLink,
   getMonitorTaskIntegrationFeedback,
   getMonitorTaskTestResult,
+  getRtaTaskConfig,
   listMonitorTasks,
+  listRtaProfiles,
   mediaOptions,
   monitorTaskOptions,
   promotionLinkAdvertisers,
   promotionLinkOptions,
   sendMonitorTaskIntegrationCallback,
   updateMonitorTask,
+  updateRtaTaskConfig,
 } from '#/api/ocpx';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
@@ -148,6 +152,13 @@ const form = reactive({
   remark: '',
   unitPrice: '' as number | string,
 });
+const rtaProfiles = ref<RtaProfile[]>([]);
+const rtaLoading = ref(false);
+const rtaEnabled = ref(false);
+const rtaProfileId = ref('');
+const rtaBindings = ref<
+  Array<{ externalProductId: string; externalTaskId: string }>
+>([]);
 
 const conversionEvents: Array<{ label: string; value: ConversionEvent }> = [
   { label: '激活', value: 'ACTIVATE' },
@@ -223,6 +234,7 @@ const canOperate = computed(() =>
 const canManageBilling = computed(() =>
   hasAccessByCodes(['ocpx:monitor-task:billing']),
 );
+const canManageRta = computed(() => hasAccessByCodes(['ocpx:rta:bind']));
 const canTest = computed(() => hasAccessByCodes(['ocpx:monitor-task:test']));
 const canIntegrate = computed(() =>
   hasAccessByCodes(['ocpx:monitor-task:integration']),
@@ -301,6 +313,42 @@ async function loadPromotionOptions(advertiserId: string, keepId = false) {
   }
 }
 
+async function loadRtaTaskConfig(taskId?: string) {
+  rtaEnabled.value = false;
+  rtaProfileId.value = '';
+  rtaBindings.value = [];
+  rtaProfiles.value = [];
+  if (!taskId || !canManageRta.value) return;
+  rtaLoading.value = true;
+  try {
+    const [config, profilePage] = await Promise.all([
+      getRtaTaskConfig(taskId),
+      listRtaProfiles({ current: 1, size: 100 }),
+    ]);
+    rtaEnabled.value = config.enabled;
+    rtaProfileId.value = config.profileId || '';
+    rtaBindings.value = config.bindings.map((item) => ({
+      externalProductId: item.externalProductId || '',
+      externalTaskId: item.externalTaskId,
+    }));
+    rtaProfiles.value = profilePage.records;
+  } catch (error) {
+    ElMessage.error(
+      error instanceof Error ? error.message : 'RTA 配置加载失败',
+    );
+  } finally {
+    rtaLoading.value = false;
+  }
+}
+
+function addRtaBinding() {
+  rtaBindings.value.push({ externalProductId: '', externalTaskId: '' });
+}
+
+function removeRtaBinding(index: number) {
+  rtaBindings.value.splice(index, 1);
+}
+
 function search() {
   resetPage(query);
   void load();
@@ -321,12 +369,31 @@ async function edit(row?: MonitorTask) {
     unitPrice: row?.unitPrice ?? '',
   });
   await loadPromotionOptions(form.advertiserId, true);
+  await loadRtaTaskConfig(row?.id);
   dialogOpen.value = true;
   void nextTick(() => formRef.value?.clearValidate());
 }
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
+  if (
+    canManageRta.value &&
+    editing.value &&
+    rtaEnabled.value &&
+    (!rtaProfileId.value || rtaBindings.value.length === 0)
+  ) {
+    ElMessage.warning('启用 RTA 前必须选择 Profile 并绑定至少一个外部任务');
+    return;
+  }
+  if (
+    canManageRta.value &&
+    editing.value &&
+    rtaEnabled.value &&
+    rtaBindings.value.some((item) => !item.externalTaskId.trim())
+  ) {
+    ElMessage.warning('外部任务 ID 不能为空');
+    return;
+  }
   const billingModeChanged =
     (form.billingEnabled && !editing.value?.billingEnabled) ||
     (Boolean(editing.value) && editing.value?.billingType !== form.billingType);
@@ -357,9 +424,22 @@ async function save() {
       remark: form.remark || undefined,
       unitPrice: Number(form.unitPrice),
     };
-    await (editingId
+    const savedTask = await (editingId
       ? updateMonitorTask(editingId, payload)
       : createMonitorTask(payload));
+    const savedTaskId = editingId || savedTask.id;
+    if (canManageRta.value && editingId) {
+      await updateRtaTaskConfig(savedTaskId, {
+        bindings: rtaEnabled.value
+          ? rtaBindings.value.map((item) => ({
+              externalProductId: item.externalProductId.trim() || undefined,
+              externalTaskId: item.externalTaskId.trim(),
+            }))
+          : [],
+        enabled: rtaEnabled.value,
+        profileId: rtaEnabled.value ? rtaProfileId.value : undefined,
+      });
+    }
     ElMessage.success(editingId ? '编辑成功' : '新增成功');
     dialogOpen.value = false;
     await loadMonitorSelects(false);
@@ -385,6 +465,10 @@ function handleDialogClose() {
     remark: '',
     unitPrice: '',
   });
+  rtaEnabled.value = false;
+  rtaProfileId.value = '';
+  rtaBindings.value = [];
+  rtaProfiles.value = [];
 }
 
 async function remove(row: MonitorTask) {
@@ -1230,7 +1314,8 @@ onBeforeUnmount(clearTestPolling);
           </el-timeline>
           <div class="ocpx-test-result-tip">
             <template v-if="formalUpstreamTest">
-              上游 HTTP 200 只表示点击接口已响应；只有正式 Callback HTTP 200、唯一转化事实和扣量结果均正常，才能确认本次人人视频回调闭环。
+              上游 HTTP 200 只表示点击接口已响应；只有正式 Callback HTTP
+              200、唯一转化事实和扣量结果均正常，才能确认本次人人视频回调闭环。
             </template>
             <template v-else>
               上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；SCX
@@ -1735,6 +1820,81 @@ onBeforeUnmount(clearTestPolling);
             />
           </el-select>
         </el-form-item>
+        <el-divider content-position="left">RTA Mock 配置</el-divider>
+        <el-alert
+          v-if="!editing"
+          class="mb-3"
+          :closable="false"
+          title="监测任务保存后，可在编辑窗口中配置 RTA。新任务默认关闭。"
+          type="info"
+        />
+        <template v-else>
+          <el-form-item label="RTA 开关">
+            <el-switch
+              v-model="rtaEnabled"
+              :disabled="!canManageRta || rtaLoading"
+              active-text="开启"
+              inactive-text="关闭"
+            />
+          </el-form-item>
+          <el-form-item label="RTA Profile">
+            <el-select
+              v-model="rtaProfileId"
+              :disabled="!canManageRta || rtaLoading"
+              filterable
+              placeholder="请选择 Mock Profile"
+            >
+              <el-option
+                v-for="profile in rtaProfiles"
+                :key="profile.id"
+                :disabled="profile.status !== 'ACTIVE'"
+                :label="`${profile.name} (${profile.code})`"
+                :value="profile.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="外部任务绑定">
+            <div class="rta-binding-editor">
+              <div
+                v-for="(binding, index) in rtaBindings"
+                :key="`${index}-${binding.externalTaskId}`"
+                class="rta-binding-row"
+              >
+                <el-input
+                  v-model="binding.externalTaskId"
+                  :disabled="!canManageRta || rtaLoading"
+                  placeholder="外部任务 ID"
+                />
+                <el-input
+                  v-model="binding.externalProductId"
+                  :disabled="!canManageRta || rtaLoading"
+                  placeholder="外部产品 ID（可选）"
+                />
+                <el-button
+                  :disabled="!canManageRta || rtaLoading"
+                  text
+                  type="danger"
+                  @click="removeRtaBinding(index)"
+                >
+                  删除
+                </el-button>
+              </div>
+              <el-button
+                :disabled="!canManageRta || rtaLoading"
+                plain
+                type="primary"
+                @click="addRtaBinding"
+              >
+                添加外部任务
+              </el-button>
+            </div>
+          </el-form-item>
+          <el-alert
+            :closable="false"
+            title="RTA 仅使用 Mock 适配器；启用后，点击必须携带同一 requestId 并先通过 admission。"
+            type="warning"
+          />
+        </template>
         <el-form-item label="备注" prop="remark"
           ><el-input
             v-model="form.remark"
@@ -1914,6 +2074,20 @@ onBeforeUnmount(clearTestPolling);
   grid-template-columns: minmax(300px, 1.2fr) minmax(220px, 1fr) auto auto;
   gap: 10px;
   margin-top: 16px;
+}
+
+.rta-binding-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.rta-binding-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
 }
 
 @media (width <= 900px) {

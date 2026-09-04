@@ -32,6 +32,11 @@
 | `management-v124.md` | 人人视频点击模板、精确白名单、认证 Callback 与发布边界 |
 | `management-v126.md` | 上游 Callback 转化记录检索索引与生产发布边界 |
 | `management-v127.md` | 凤凰新闻 CPA 曝光/点击模板、Callback 事件和宝塔生产路由边界 |
+| `management-v128.md` | Mock-only RTA 决策、admission 点击门禁、异步事实与管理端契约 |
+| `rta-request-v1.schema.json` | RTA 规范化请求 JSON Schema |
+| `rta-response-v1.schema.json` | RTA ALLOW/DENY 响应 JSON Schema |
+| `rta-decision-fact-v1.schema.json` | RTA Redis Stream 决策事实 JSON Schema |
+| `rta-mock-example.md` | 隔离环境 Mock 联调示例 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |

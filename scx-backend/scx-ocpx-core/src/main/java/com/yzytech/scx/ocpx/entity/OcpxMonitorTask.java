@@ -26,6 +26,9 @@ public class OcpxMonitorTask {
 
 	private String mediaId;
 
+	/** RTA 强门禁开关；默认关闭，开启后点击必须先通过 RTA admission。 */
+	private Boolean rtaEnabled;
+
 	private Boolean billingEnabled;
 
 	/** 1=click, 2=target conversion. */

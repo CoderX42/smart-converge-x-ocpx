@@ -7,6 +7,7 @@ import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.report.model.LogData;
 import com.yzytech.scx.ocpx.shared.constant.RedisConstants;
 import com.yzytech.scx.ocpx.feedback.delivery.UpstreamDeliveryDispatcher;
+import com.yzytech.scx.ocpx.rta.admission.RtaGate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,20 +42,30 @@ public class FeedbackServiceImpl implements FeedbackService {
 
 	private final boolean compatibilityReportEnabled;
 
+	private final RtaGate rtaGate;
+
 	public FeedbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
 			OcpxEventFactService eventFactService, TestCallbackCollectorService testCallbackCollectorService) {
-		this(redis, reportBucket, eventFactService, testCallbackCollectorService, true);
+		this(redis, reportBucket, eventFactService, testCallbackCollectorService, true, null);
+	}
+
+	/** Compatibility constructor retained for existing service tests and embedders. */
+	public FeedbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
+			OcpxEventFactService eventFactService, TestCallbackCollectorService testCallbackCollectorService,
+			boolean compatibilityReportEnabled) {
+		this(redis, reportBucket, eventFactService, testCallbackCollectorService, compatibilityReportEnabled, null);
 	}
 
 	@Autowired
 	public FeedbackServiceImpl(StringRedisTemplate redis, @Value("${bid.job.thread}") Integer reportBucket,
 			OcpxEventFactService eventFactService, TestCallbackCollectorService testCallbackCollectorService,
-			@Value("${ocpx.compatibility-report.enabled:false}") boolean compatibilityReportEnabled) {
+			@Value("${ocpx.compatibility-report.enabled:false}") boolean compatibilityReportEnabled, RtaGate rtaGate) {
 		this.redis = redis;
 		this.reportBucket = reportBucket;
 		this.eventFactService = eventFactService;
 		this.testCallbackCollectorService = testCallbackCollectorService;
 		this.compatibilityReportEnabled = compatibilityReportEnabled;
+		this.rtaGate = rtaGate;
 	}
 
 	@Override
@@ -64,6 +75,9 @@ public class FeedbackServiceImpl implements FeedbackService {
 				request.getUserType());
 		request.setTimeKeyRes(PURE_DATE_TIME.format(LocalDateTime.now()));
 		request.setFlagLog(ThreadLocalRandom.current().nextInt(10) == 1);
+		if (rtaGate != null) {
+			rtaGate.requireAllowed(request);
+		}
 		OcpxEventFactService.FeedbackFactResult factResult = eventFactService.recordFeedback(request);
 		try {
 			testCallbackCollectorService.arm(request);

@@ -166,6 +166,30 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('buildSafeFlowLogText(requestDetail.value)');
   });
 
+  it('exposes the disabled-by-default Mock RTA workbench and async metric boundary', () => {
+    const source = page('rta');
+    for (const label of [
+      'RTA 管理',
+      'RTA Profile',
+      'Mock 配置',
+      'RTA 开关',
+      '外部任务绑定',
+      'RTA 决策记录',
+      'RTA 统计',
+      'RTA 命中率',
+      '数据截至',
+      'ocpx:rta:bind',
+      '暂无 RTA 决策记录',
+    ]) {
+      expect(source).toContain(label);
+    }
+    expect(source).toContain('当前仅支持 Mock 适配器；生产默认关闭');
+    const monitorTask = page('monitor-task');
+    expect(monitorTask).toContain('RTA Mock 配置');
+    expect(monitorTask).toContain('添加外部任务');
+    expect(monitorTask).toContain('updateRtaTaskConfig');
+  });
+
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
     const advertiser = page('advertiser');
     expect(advertiser).toContain('请输入登录用户名');

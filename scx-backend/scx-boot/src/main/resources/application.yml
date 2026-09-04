@@ -114,6 +114,12 @@ ocpx:
   compatibility-report:
     enabled: false
 
+app:
+  rta:
+    enabled: false
+    mock-enabled: false
+    admission-ttl-seconds: 300
+
 boot:
   swagger:
     enabled: true

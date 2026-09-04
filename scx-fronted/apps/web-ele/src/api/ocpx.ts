@@ -9,6 +9,7 @@ export * from './ocpx/four-entity';
 export * from './ocpx/monitor-task-integration';
 export * from './ocpx/monitor-task-test';
 export * from './ocpx/report';
+export * from './ocpx/rta';
 
 export type ReportOption = {
   id: string;

@@ -3,6 +3,8 @@ package com.yzytech.scx.ocpx.feedback.web;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.feedback.service.FeedbackService;
 import com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter;
+import com.yzytech.scx.ocpx.rta.exception.RtaAdmissionDeniedException;
+import com.yzytech.scx.ocpx.rta.exception.RtaInfrastructureException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.regex.Pattern;
 
 import org.springframework.util.StringUtils;
 
@@ -22,6 +26,13 @@ import org.springframework.util.StringUtils;
 public class FeedbackIngressController {
 
 	private static final Set<String> RETIRED_ROUTE_PARAMETERS = Set.of("chid", "mid", "dspid", "linkid");
+
+	private static final String RETIRED_ROUTE_MESSAGE = "这条监测链接已停止使用，请从管理端重新复制最新链接。";
+
+	private static final String INVALID_CLICK_REQUEST_ID_MESSAGE =
+			"当前访问的是未完成替换的监测链接模板，请先替换 request_id，或从管理端获取完整测试链接。";
+
+	private static final Pattern UNEXPANDED_MACRO = Pattern.compile("__[A-Z][A-Z0-9_]*__");
 
 	private final Logger errorLog = LoggerFactory.getLogger("error");
 
@@ -57,12 +68,14 @@ public class FeedbackIngressController {
 	public ResponseEntity<FeedbackIngressResponse> handleFeedback(@Valid @ModelAttribute FeedbackIngressRequest request,
 			HttpServletRequest servletRequest) {
 		if (RETIRED_ROUTE_PARAMETERS.stream().anyMatch(servletRequest.getParameterMap()::containsKey)) {
-			return ResponseEntity.badRequest().build();
+			return ResponseEntity.badRequest()
+				.body(FeedbackIngressResponse.badRequest(RETIRED_ROUTE_MESSAGE));
 		}
 		if ("CLK".equals(request.getEvent()) && invalidClickRequestId(request.rawRequestId())) {
 			feedbackLog.warn("feedback ingress rejected code:CLICK_REQUEST_ID_INVALID mId:{} tId:{} aId:{} lId:{}",
 					request.getMId(), request.getTId(), request.getAId(), request.getLId());
-			return ResponseEntity.badRequest().build();
+			return ResponseEntity.badRequest()
+				.body(FeedbackIngressResponse.badRequest(invalidClickRequestMessage(servletRequest)));
 		}
 		try {
 			feedbackLog.info("feedback ingress event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}", request.getEvent(),
@@ -75,6 +88,12 @@ public class FeedbackIngressController {
 			return ResponseEntity.ok(FeedbackIngressResponse.success());
 		}
 		catch (Exception exception) {
+			if (exception instanceof RtaAdmissionDeniedException) {
+				return ResponseEntity.status(403).build();
+			}
+			if (exception instanceof RtaInfrastructureException) {
+				return ResponseEntity.status(503).build();
+			}
 			errorLog.error("feedback ingress error type:{} event:{} mId:{} tId:{} aId:{} lId:{} reqId:{}",
 					exception.getClass().getSimpleName(), request.getEvent(), request.getMId(), request.getTId(),
 					request.getAId(), request.getLId(), request.getRequest_id());
@@ -87,6 +106,25 @@ public class FeedbackIngressController {
 			return true;
 		}
 		return value.chars().anyMatch(character -> Character.isISOControl(character));
+	}
+
+	private String invalidClickRequestMessage(HttpServletRequest servletRequest) {
+		Set<String> unresolvedParameters = new LinkedHashSet<>();
+		servletRequest.getParameterMap().forEach((name, values) -> {
+			if (values != null) {
+				for (String value : values) {
+					if (value != null && UNEXPANDED_MACRO.matcher(value).find()) {
+						unresolvedParameters.add(name);
+						break;
+					}
+				}
+			}
+		});
+		if (unresolvedParameters.isEmpty()) {
+			return INVALID_CLICK_REQUEST_ID_MESSAGE;
+		}
+		return "监测链接中仍有未替换的宏参数：" + String.join("、", unresolvedParameters)
+				+ "。请先替换这些参数，或从管理端获取完整测试链接。";
 	}
 
 }

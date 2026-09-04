@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 12.4.0
-  description: SCX OCPX Feedback/Callback data plane, V119 complete flow trace, V120 GRAVITY, V124 RENREN_VIDEO, V127 PHOENIX CPA, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 12.5.0
+  description: SCX OCPX Feedback/Callback data plane, Mock-only RTA decision and admission gate, V119 complete flow trace, V120 GRAVITY, V124 RENREN_VIDEO, V127 PHOENIX CPA, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -54,7 +54,7 @@ paths:
         - { name: impresss_id, in: query, required: false, schema: { type: string } }
         - { name: clickid, in: query, required: false, schema: { type: string } }
       responses:
-        '400': { description: 缺少短路由主键，或请求仍包含已退役的 chid/mid/dspid/linkid }
+        '400': { description: 模板宏未替换、缺少短路由主键，或请求仍包含已退役的 chid/mid/dspid/linkid；返回兼容信封并在 msg 中说明原因 }
         '200':
           description: MySQL fact transaction committed successfully.
           content:
@@ -215,6 +215,108 @@ paths:
         '400': { description: 测试身份、路由、事件或金额格式无效 }
         '409': { description: 对应正式 Callback 尚未形成 PASSED 扣量事实 }
         '500': { description: 脱敏审计写入失败 }
+  /rta:
+    post:
+      operationId: decideRta
+      summary: Mock RTA decision
+      description: >-
+        Normalized internal RTA request. The current release only permits the Mock adapter;
+        an ALLOW is published to the decision Stream before the five-minute admission is cached.
+        Device identifiers are transient and are never persisted or logged.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RtaRequest' }
+      responses:
+        '200':
+          description: ALLOW or DENY business decision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RtaResponse' }
+        '400': { description: Invalid request or route ownership mismatch }
+        '409': { description: Same requestId was used with a different normalized request }
+        '503': { description: Redis or Stream dependency unavailable; ALLOW is never returned }
+  /rta/profiles:
+    get:
+      operationId: listRtaProfiles
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: keyword, in: query, required: false, schema: { type: string, maxLength: 128 } }
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses: { '200': { description: Profile page } }
+    post:
+      operationId: createRtaProfile
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RtaProfilePayload' }
+      responses: { '200': { description: Created Mock profile } }
+  /rta/profiles/{id}:
+    get:
+      operationId: getRtaProfile
+      security: [{ saToken: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }]
+      responses: { '200': { description: Profile } }
+    put:
+      operationId: updateRtaProfile
+      security: [{ saToken: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RtaProfilePayload' }
+      responses: { '200': { description: Updated Mock profile } }
+  /rta/monitor-tasks/{taskId}:
+    get:
+      operationId: getRtaTaskConfig
+      security: [{ saToken: [] }]
+      parameters: [{ name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }]
+      responses: { '200': { description: RTA switch and external task bindings } }
+    put:
+      operationId: updateRtaTaskConfig
+      security: [{ saToken: [] }]
+      parameters: [{ name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RtaTaskConfigPayload' }
+      responses: { '200': { description: Updated RTA switch and bindings } }
+  /rta/decisions:
+    get:
+      operationId: listRtaDecisions
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: profileId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses: { '200': { description: RTA decision fact page } }
+  /rta/metrics:
+    get:
+      operationId: listRtaMetrics
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
+        - { name: grain, in: query, required: false, schema: { type: string, enum: [DAY, HOUR] } }
+        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+        - { name: profileId, in: query, required: false, schema: { type: string, maxLength: 32 } }
+      responses: { '200': { description: RTA asynchronous metric projection and dataAsOf } }
   /protocol-configs:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -1489,7 +1591,7 @@ components:
       required: [id, stageCode, flowType, eventCode, resultStatus, durationMs, requestParams, macroAudit, requestTruncated, eventTime]
       properties:
         id: { type: string, maxLength: 32 }
-        stageCode: { type: string, enum: [LEGACY, MEDIA_INGRESS, ADVERTISER_DELIVERY, ADVERTISER_CALLBACK, CALLBACK_ACCOUNTING, MEDIA_DEDUCTION, MEDIA_DELIVERY] }
+        stageCode: { type: string, enum: [LEGACY, MEDIA_INGRESS, ADVERTISER_DELIVERY, ADVERTISER_CALLBACK, CALLBACK_ACCOUNTING, MEDIA_DEDUCTION, MEDIA_DELIVERY, RTA_DECISION, RTA_GATE] }
         flowType: { type: string, enum: [FEEDBACK, CALLBACK] }
         eventCode: { type: string, maxLength: 64 }
         resultStatus: { type: string, enum: [SUCCESS, FAILED] }
@@ -1639,3 +1741,104 @@ components:
         code: { type: integer, const: 0 }
         msg: { type: [string, 'null'] }
         data: { $ref: '#/components/schemas/DashboardSummary' }
+    RtaRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, advertiserId, promotionLinkId, mediaId, monitorTaskId]
+      properties:
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        advertiserId: { type: string, minLength: 1, maxLength: 32 }
+        promotionLinkId: { type: string, minLength: 1, maxLength: 32 }
+        mediaId: { type: string, minLength: 1, maxLength: 32 }
+        monitorTaskId: { type: string, minLength: 1, maxLength: 32 }
+        device: { $ref: '#/components/schemas/RtaDevice' }
+        context: { $ref: '#/components/schemas/RtaContext' }
+        attributes:
+          type: object
+          maxProperties: 16
+          additionalProperties: false
+          properties:
+            channel: { type: string, maxLength: 256 }
+            campaign: { type: string, maxLength: 256 }
+            placement: { type: string, maxLength: 256 }
+            source: { type: string, maxLength: 256 }
+    RtaDevice:
+      type: object
+      additionalProperties: false
+      properties:
+        oaid: { type: string, maxLength: 256 }
+        oaidMd5: { type: string, maxLength: 64 }
+        imei: { type: string, maxLength: 256 }
+        imeiMd5: { type: string, maxLength: 64 }
+        idfa: { type: string, maxLength: 256 }
+        idfaMd5: { type: string, maxLength: 64 }
+        caid: { type: string, maxLength: 256 }
+        caidVersion: { type: string, maxLength: 64 }
+        preCaid: { type: string, maxLength: 256 }
+        preCaidVersion: { type: string, maxLength: 64 }
+    RtaContext:
+      type: object
+      additionalProperties: false
+      properties:
+        ip: { type: string, maxLength: 64 }
+        ipv6: { type: string, maxLength: 128 }
+        os: { type: string, maxLength: 32 }
+        osv: { type: string, maxLength: 64 }
+        model: { type: string, maxLength: 128 }
+        ua: { type: string, maxLength: 1024 }
+    RtaResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, decision, taskIds, reasonCode]
+      properties:
+        requestId: { type: string, minLength: 1, maxLength: 128 }
+        decision: { type: string, enum: [ALLOW, DENY] }
+        taskIds: { type: array, maxItems: 100, items: { type: string, maxLength: 128 } }
+        reasonCode: { type: string, maxLength: 64 }
+    RtaProfilePayload:
+      type: object
+      additionalProperties: false
+      required: [code, name, adapterCode, status, configJson]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64 }
+        name: { type: string, minLength: 1, maxLength: 128 }
+        adapterCode: { type: string, const: MOCK }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+        configJson: { type: string, maxLength: 4096 }
+    RtaTaskConfigPayload:
+      type: object
+      additionalProperties: false
+      required: [enabled, bindings]
+      properties:
+        enabled: { type: boolean }
+        profileId: { type: [string, 'null'], maxLength: 32 }
+        bindings:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [externalTaskId]
+            additionalProperties: false
+            properties:
+              externalTaskId: { type: string, minLength: 1, maxLength: 128 }
+              externalProductId: { type: [string, 'null'], maxLength: 128 }
+    RtaDecisionFactEvent:
+      type: object
+      additionalProperties: false
+      required: [requestId, requestHash, advertiserId, promotionLinkId, mediaId, monitorTaskId, adapterCode, decision, outcomeClass, reasonCode, latencyMs, matchedTaskIds, receivedAt, completedAt]
+      properties:
+        requestId: { type: string, maxLength: 128 }
+        requestHash: { type: string, pattern: '^[0-9a-f]{64}$' }
+        advertiserId: { type: string, maxLength: 32 }
+        promotionLinkId: { type: string, maxLength: 32 }
+        mediaId: { type: string, maxLength: 32 }
+        monitorTaskId: { type: string, maxLength: 32 }
+        profileId: { type: [string, 'null'], maxLength: 32 }
+        adapterCode: { type: string, const: MOCK }
+        decision: { type: string, enum: [ALLOW, DENY] }
+        outcomeClass: { type: string, enum: [SUCCESS, TIMEOUT, ERROR, REJECTED] }
+        reasonCode: { type: string, maxLength: 64 }
+        latencyMs: { type: integer, minimum: 0 }
+        matchedTaskIds: { type: array, items: { type: string, maxLength: 128 } }
+        receivedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
