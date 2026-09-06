@@ -4,12 +4,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,27 +26,31 @@ class FlowLogRetentionTaskTest {
 		@SuppressWarnings("unchecked")
 		ValueOperations<String, String> values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		when(values.setIfAbsent(eq("rtb{flowLogRetention}"), anyString(), eq(30L), eq(TimeUnit.MINUTES))).thenReturn(true);
 		JdbcTemplate jdbc = mock(JdbcTemplate.class);
 		when(jdbc.update(anyString())).thenReturn(1000, 2, 0, 0, 0, 0);
+		when(jdbc.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(), org.mockito.ArgumentMatchers.any()))
+			.thenReturn(java.util.List.of());
 		FlowLogRetentionTask task = new FlowLogRetentionTask(redis, jdbc);
 		ReflectionTestUtils.setField(task, "batchPauseMs", 0L);
 
 		task.clean();
 
 		var sql = org.mockito.ArgumentCaptor.forClass(String.class);
-		verify(jdbc, org.mockito.Mockito.times(6)).update(sql.capture());
+		verify(jdbc, org.mockito.Mockito.times(5)).update(sql.capture());
 		assertThat(sql.getAllValues()).anySatisfy(
 				value -> assertThat(value).contains("scx_ocpx_flow_log_detail", "expires_at<NOW(3)", "LIMIT 1000"));
 		assertThat(sql.getAllValues())
 			.anySatisfy(value -> assertThat(value).contains("scx_ocpx_log_feedback", "INTERVAL 7 DAY", "LIMIT 1000"));
 		assertThat(sql.getAllValues())
 			.anySatisfy(value -> assertThat(value).contains("scx_ocpx_log_callback", "INTERVAL 7 DAY", "LIMIT 1000"));
-		assertThat(sql.getAllValues())
-			.anySatisfy(value -> assertThat(value).contains("response_preview=NULL", "INTERVAL 7 DAY", "LIMIT 1000"));
 		assertThat(sql.getAllValues()).anySatisfy(
 				value -> assertThat(value).contains("DELETE FROM scx_ocpx_flow_log", "INTERVAL 90 DAY", "LIMIT 1000"));
-		verify(redis).unlink("rtb{flowLogRetention}");
+		var querySql = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(jdbc).query(querySql.capture(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(), org.mockito.ArgumentMatchers.any());
+		assertThat(querySql.getValue()).contains("response_preview IS NOT NULL", "FORCE INDEX (idx_ocpx_flow_log_page)",
+				"ORDER BY event_time,id", "LIMIT ?");
+		verify(redis).execute(any(), eq(java.util.List.of("rtb{flowLogRetention}")), anyString());
 	}
 
 	@Test
@@ -52,30 +59,32 @@ class FlowLogRetentionTaskTest {
 		@SuppressWarnings("unchecked")
 		ValueOperations<String, String> values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(false);
+		when(values.setIfAbsent(eq("rtb{flowLogRetention}"), anyString(), eq(30L), eq(TimeUnit.MINUTES))).thenReturn(false);
 		JdbcTemplate jdbc = mock(JdbcTemplate.class);
 
 		new FlowLogRetentionTask(redis, jdbc).clean();
 
 		verify(jdbc, never()).update(anyString());
-		verify(redis, never()).unlink("rtb{flowLogRetention}");
+		verify(redis, never()).execute(any(), eq(java.util.List.of("rtb{flowLogRetention}")), anyString());
 	}
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void capsEachRunAtTenBatchesAcrossFiveRetentionTargets() {
+	void capsEachRunAtConfiguredBatchesAcrossDeletionTargets() {
 		StringRedisTemplate redis = mock(StringRedisTemplate.class);
 		ValueOperations<String, String> values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		when(values.setIfAbsent(eq("rtb{flowLogRetention}"), anyString(), eq(30L), eq(TimeUnit.MINUTES))).thenReturn(true);
 		JdbcTemplate jdbc = mock(JdbcTemplate.class);
 		when(jdbc.update(anyString())).thenReturn(1000);
+		when(jdbc.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(), any(Object[].class)))
+			.thenReturn(java.util.List.of());
 		FlowLogRetentionTask task = new FlowLogRetentionTask(redis, jdbc);
 		ReflectionTestUtils.setField(task, "batchPauseMs", 0L);
 
 		task.clean();
 
-		verify(jdbc, org.mockito.Mockito.times(10)).update(anyString());
+		verify(jdbc, org.mockito.Mockito.times(8)).update(anyString());
 	}
 
 	@Test
@@ -84,13 +93,13 @@ class FlowLogRetentionTaskTest {
 		StringRedisTemplate redis = mock(StringRedisTemplate.class);
 		ValueOperations<String, String> values = mock(ValueOperations.class);
 		when(redis.opsForValue()).thenReturn(values);
-		when(values.setIfAbsent("rtb{flowLogRetention}", "1", 30, TimeUnit.MINUTES)).thenReturn(true);
+		when(values.setIfAbsent(eq("rtb{flowLogRetention}"), anyString(), eq(30L), eq(TimeUnit.MINUTES))).thenReturn(true);
 		JdbcTemplate jdbc = mock(JdbcTemplate.class);
 		when(jdbc.update(anyString())).thenThrow(new IllegalStateException("db down"));
 
 		new FlowLogRetentionTask(redis, jdbc).clean();
 
-		verify(redis).unlink("rtb{flowLogRetention}");
+		verify(redis).execute(any(), eq(java.util.List.of("rtb{flowLogRetention}")), anyString());
 	}
 
 }

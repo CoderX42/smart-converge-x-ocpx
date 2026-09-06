@@ -7,6 +7,8 @@ import com.yzytech.scx.ocpx.report.mapper.FeedbackMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
@@ -41,10 +43,27 @@ public class ResetRedisKeyTask {
 
 	private final FeedbackMapper feedbackMapper;
 
+	private final int feedbackDayBatchSize;
+
+	private final int feedbackDayMaxBatches;
+
+	private final long feedbackDayBatchPauseMs;
+
 	public ResetRedisKeyTask(StringRedisTemplate redis, SystemMemory systemMemory, FeedbackMapper feedbackMapper) {
+		this(redis, systemMemory, feedbackMapper, 1000, 2, 100L);
+	}
+
+	@Autowired
+	public ResetRedisKeyTask(StringRedisTemplate redis, SystemMemory systemMemory, FeedbackMapper feedbackMapper,
+			@Value("${app.jobs.feedback-day-retention-batch-size:1000}") Integer batchSize,
+			@Value("${app.jobs.feedback-day-retention-max-batches:2}") Integer maxBatches,
+			@Value("${app.jobs.feedback-day-retention-batch-pause-ms:100}") Long pauseMs) {
 		this.redis = redis;
 		this.systemMemory = systemMemory;
 		this.feedbackMapper = feedbackMapper;
+		this.feedbackDayBatchSize = Math.min(1000, Math.max(1, batchSize == null ? 1000 : batchSize));
+		this.feedbackDayMaxBatches = Math.min(10, Math.max(1, maxBatches == null ? 2 : maxBatches));
+		this.feedbackDayBatchPauseMs = Math.min(5_000L, Math.max(0L, pauseMs == null ? 100L : pauseMs));
 	}
 
 	/** 每日零点由单个实例清理 100 个 Feedback 去重 Hash。 */
@@ -103,8 +122,8 @@ public class ResetRedisKeyTask {
 		}
 	}
 
-	/** 每日 00:10 由单个实例删除 Feedback 日明细表中前一日的全部小时明细。 */
-	@Scheduled(cron = "0 10 0 * * ?")
+	/** Every ten minutes, delete a bounded slice before today's boundary. */
+	@Scheduled(cron = "${app.jobs.feedback-day-retention-cron:0 5/10 * * * ?}")
 	public void deleteFeedbackDay() {
 		// 花括号确保 Redis Cluster 中锁键具有稳定的 hash tag。
 		String lockKey = "rtb{deleteFeedbackDay}";
@@ -114,16 +133,36 @@ public class ResetRedisKeyTask {
 		}
 		try {
 			log.info("deleteFeedbackDay start");
-			String yesterday = PURE_DATE.format(LocalDate.now().minusDays(1));
-			for (int hour = 0; hour < 24; hour++) {
-				feedbackMapper.deleteFeedbackDay(Integer.valueOf(yesterday + String.format("%02d", hour)));
+			String endTime = PURE_DATE.format(LocalDate.now()) + "00";
+			int total = 0;
+			for (int batch = 0; batch < feedbackDayMaxBatches; batch++) {
+				int changed = feedbackMapper.deleteFeedbackDayBefore(endTime, feedbackDayBatchSize);
+				total += changed;
+				if (changed < feedbackDayBatchSize) {
+					break;
+				}
+				pauseFeedbackDayCleanup();
 			}
+			log.info("deleteFeedbackDay bounded cleanup endTime:{} rows:{} maxBatches:{} batchSize:{}", endTime, total,
+					feedbackDayMaxBatches, feedbackDayBatchSize);
 		}
 		catch (Exception exception) {
 			errorLog.error("deleteFeedbackDay error:{}", exception.getMessage(), exception);
 		}
 		finally {
 			log.info("deleteFeedbackDay end");
+		}
+	}
+
+	private void pauseFeedbackDayCleanup() {
+		if (feedbackDayBatchPauseMs <= 0) {
+			return;
+		}
+		try {
+			Thread.sleep(feedbackDayBatchPauseMs);
+		}
+		catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
 		}
 	}
 

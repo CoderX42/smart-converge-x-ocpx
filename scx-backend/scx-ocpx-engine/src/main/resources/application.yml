@@ -17,7 +17,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: never
@@ -62,8 +62,15 @@ app:
     storage-batch-size: 500
     storage-max-retries: 3
     storage-retry-backoff-ms: 1000
+    storage-max-batches-per-run: 20
+    storage-max-run-ms: 30000
+    storage-batch-pause-ms: 100
     retention-cron: '0 0/10 * * * ?'
     retention-batch-size: 1000
     retention-max-batches-per-target: 2
     retention-batch-pause-ms: 100
+    feedback-day-retention-cron: '0 5/10 * * * ?'
+    feedback-day-retention-batch-size: 1000
+    feedback-day-retention-max-batches: 2
+    feedback-day-retention-batch-pause-ms: 100
     reset-enabled: true

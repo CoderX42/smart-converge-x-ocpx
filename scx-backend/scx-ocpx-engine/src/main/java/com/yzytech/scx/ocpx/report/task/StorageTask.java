@@ -22,8 +22,10 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /**
  * Redis Feedback/Callback 队列的定时落库消费者。
@@ -36,6 +38,8 @@ import java.util.function.Consumer;
 @Component
 @ConditionalOnProperty(name = "ocpx.compatibility-report.enabled", havingValue = "true")
 public class StorageTask {
+
+	private static final String RELEASE_LOCK_SCRIPT = "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end";
 
 	private final Logger errorLog = LoggerFactory.getLogger("error");
 
@@ -53,10 +57,24 @@ public class StorageTask {
 
 	private final long retryBackoffMs;
 
+	private final int maxBatchesPerRun;
+
+	private final long maxRunMs;
+
+	private final long batchPauseMs;
+
+	private final LongSupplier nanoTime;
+
 	private MeterRegistry meterRegistry;
 
 	public StorageTask(StringRedisTemplate redis, ReportService reportService, Integer reportBucket) {
-		this(redis, reportService, reportBucket, 500, 3, 1000L);
+		this(redis, reportService, reportBucket, 500, 3, 1000L, 20, 30_000L, 100L);
+	}
+
+	/** Compatibility constructor retained for existing embedders and tests. */
+	public StorageTask(StringRedisTemplate redis, ReportService reportService, Integer reportBucket, Integer batchSize,
+			Integer maxBatchRetries, Long retryBackoffMs) {
+		this(redis, reportService, reportBucket, batchSize, maxBatchRetries, retryBackoffMs, 20, 30_000L, 100L);
 	}
 
 	@Autowired
@@ -64,13 +82,27 @@ public class StorageTask {
 			@Value("${bid.job.thread}") Integer reportBucket,
 			@Value("${app.jobs.storage-batch-size:500}") Integer batchSize,
 			@Value("${app.jobs.storage-max-retries:3}") Integer maxBatchRetries,
-			@Value("${app.jobs.storage-retry-backoff-ms:1000}") Long retryBackoffMs) {
+			@Value("${app.jobs.storage-retry-backoff-ms:1000}") Long retryBackoffMs,
+			@Value("${app.jobs.storage-max-batches-per-run:20}") Integer maxBatchesPerRun,
+			@Value("${app.jobs.storage-max-run-ms:30000}") Long maxRunMs,
+			@Value("${app.jobs.storage-batch-pause-ms:100}") Long batchPauseMs) {
+		this(redis, reportService, reportBucket, batchSize, maxBatchRetries, retryBackoffMs, maxBatchesPerRun,
+				maxRunMs, batchPauseMs, System::nanoTime);
+	}
+
+	StorageTask(StringRedisTemplate redis, ReportService reportService, Integer reportBucket, Integer batchSize,
+			Integer maxBatchRetries, Long retryBackoffMs, Integer maxBatchesPerRun, Long maxRunMs, Long batchPauseMs,
+			LongSupplier nanoTime) {
 		this.redis = redis;
 		this.reportService = reportService;
-		this.reportBucket = reportBucket;
-		this.batchSize = Math.max(1, batchSize == null ? 500 : batchSize);
-		this.maxBatchRetries = Math.max(0, maxBatchRetries == null ? 3 : maxBatchRetries);
-		this.retryBackoffMs = Math.max(0, retryBackoffMs == null ? 1000L : retryBackoffMs);
+		this.reportBucket = Math.max(1, reportBucket == null ? 1 : reportBucket);
+		this.batchSize = Math.min(1000, Math.max(1, batchSize == null ? 500 : batchSize));
+		this.maxBatchRetries = Math.min(10, Math.max(0, maxBatchRetries == null ? 3 : maxBatchRetries));
+		this.retryBackoffMs = Math.min(30_000L, Math.max(0, retryBackoffMs == null ? 1000L : retryBackoffMs));
+		this.maxBatchesPerRun = Math.min(100, Math.max(1, maxBatchesPerRun == null ? 20 : maxBatchesPerRun));
+		this.maxRunMs = Math.min(60_000L, Math.max(1L, maxRunMs == null ? 30_000L : maxRunMs));
+		this.batchPauseMs = Math.min(5_000L, Math.max(0L, batchPauseMs == null ? 100L : batchPauseMs));
+		this.nanoTime = nanoTime == null ? System::nanoTime : nanoTime;
 	}
 
 	@Autowired(required = false)
@@ -94,13 +126,13 @@ public class StorageTask {
 	private void consume(String queuePrefix, String lockPrefix, Consumer<List<LogData>> writer, String operation) {
 		String tempKey = "";
 		String lockKey = lockPrefix;
-		String inet4Address = IpUtil.getInet4Address();
+		String ownerToken = IpUtil.getInet4Address() + ":" + UUID.randomUUID();
 		Integer slot = null;
 		// Callback 与 Feedback 使用独立锁和队列，但遵循相同的单分桶消费方式。
 		try {
 			for (int index = 0; index < reportBucket; index++) {
 				tempKey = lockKey + index + "}";
-				Boolean check = redis.opsForValue().setIfAbsent(tempKey, inet4Address, 10, TimeUnit.MINUTES);
+				Boolean check = redis.opsForValue().setIfAbsent(tempKey, ownerToken, 10, TimeUnit.MINUTES);
 				if (Boolean.TRUE.equals(check)) {
 					slot = index;
 					break;
@@ -123,8 +155,11 @@ public class StorageTask {
 		}
 		otherLog.info("{} begin{}", operation, slot);
 		int consecutiveFailures = 0;
+		int batches = 0;
+		long startedAt = nanoTime.getAsLong();
 		try {
-			while (true) {
+			while (batches < maxBatchesPerRun && withinBudget(startedAt)) {
+				batches++;
 				try {
 					String queueKey = queuePrefix + slot;
 					Long count = redis.opsForList().size(queueKey);
@@ -164,6 +199,7 @@ public class StorageTask {
 						increment("ocpx.storage.batch.skipped", operation);
 						consecutiveFailures = 0;
 						increment("ocpx.storage.batch.success", operation);
+						pauseBetweenBatches(startedAt);
 						continue;
 					}
 					try {
@@ -176,6 +212,7 @@ public class StorageTask {
 							otherLog.warn("{} skipped records slot:{} skipped:{} batch:{}", operation, slot, skipped,
 									jsons.size());
 						}
+						pauseBetweenBatches(startedAt);
 					}
 					catch (Exception exception) {
 						consecutiveFailures++;
@@ -186,7 +223,7 @@ public class StorageTask {
 							break;
 						}
 						increment("ocpx.storage.batch.retry", operation);
-						backoff(consecutiveFailures);
+						backoff(consecutiveFailures, startedAt);
 					}
 				}
 				catch (RedisCommandTimeoutException exception) {
@@ -206,17 +243,45 @@ public class StorageTask {
 		}
 		finally {
 			if (StringUtils.hasText(tempKey)) {
-				// 保留旧行为：直接删除锁键，不校验当前锁值是否仍属于本实例。
-				redis.delete(tempKey);
+				// Only the owner may release the lease; an expired lease may already belong to another instance.
+				try {
+					redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(RELEASE_LOCK_SCRIPT,
+							Long.class), java.util.List.of(tempKey), ownerToken);
+				}
+				catch (RuntimeException exception) {
+					errorLog.warn("{} owner lock release failed", operation);
+				}
 			}
 		}
 	}
 
-	private void backoff(int attempt) {
+	private boolean withinBudget(long startedAt) {
+		return TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt) < maxRunMs;
+	}
+
+	private void pauseBetweenBatches(long startedAt) {
+		if (batchPauseMs <= 0 || !withinBudget(startedAt)) {
+			return;
+		}
+		try {
+			Thread.sleep(Math.min(batchPauseMs,
+					Math.max(0L, maxRunMs - TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt))));
+		}
+		catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+		}
+	}
+
+	private void backoff(int attempt, long startedAt) {
 		if (retryBackoffMs <= 0) {
 			return;
 		}
 		long delay = Math.min(retryBackoffMs * (1L << Math.min(attempt - 1, 5)), 30_000L);
+		delay = Math.min(delay, Math.max(0L,
+				maxRunMs - TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt)));
+		if (delay <= 0) {
+			return;
+		}
 		try {
 			Thread.sleep(delay);
 		}

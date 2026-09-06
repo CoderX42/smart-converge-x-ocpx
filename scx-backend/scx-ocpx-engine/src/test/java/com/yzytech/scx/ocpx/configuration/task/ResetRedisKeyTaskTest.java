@@ -67,7 +67,7 @@ class ResetRedisKeyTaskTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void deletesAllTwentyFourHoursOfThePreviousDayFromTheFeedbackDayTable() {
+	void deletesAtMostOneBoundedBatchBeforeCurrentDay() {
 		StringRedisTemplate redis = mock(StringRedisTemplate.class);
 		ValueOperations<String, String> values = mock(ValueOperations.class);
 		FeedbackMapper feedbackMapper = mock(FeedbackMapper.class);
@@ -76,10 +76,23 @@ class ResetRedisKeyTaskTest {
 
 		new ResetRedisKeyTask(redis, mock(SystemMemory.class), feedbackMapper).deleteFeedbackDay();
 
-		String yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-		verify(feedbackMapper, times(24)).deleteFeedbackDay(anyInt());
-		verify(feedbackMapper).deleteFeedbackDay(Integer.valueOf(yesterday + "00"));
-		verify(feedbackMapper).deleteFeedbackDay(Integer.valueOf(yesterday + "23"));
+		String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+		verify(feedbackMapper).deleteFeedbackDayBefore(today + "00", 1000);
+	}
+
+	@Test
+	void capsFeedbackDayCleanupBatches() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		FeedbackMapper feedbackMapper = mock(FeedbackMapper.class);
+		when(redis.opsForValue()).thenReturn(values);
+		when(values.setIfAbsent(eq("rtb{deleteFeedbackDay}"), anyString(), anyLong(), eq(TimeUnit.MINUTES)))
+				.thenReturn(true);
+		when(feedbackMapper.deleteFeedbackDayBefore(anyString(), eq(10))).thenReturn(10, 10, 10);
+
+		new ResetRedisKeyTask(redis, mock(SystemMemory.class), feedbackMapper, 10, 2, 0L).deleteFeedbackDay();
+
+		verify(feedbackMapper, times(2)).deleteFeedbackDayBefore(anyString(), eq(10));
 	}
 
 	@Test

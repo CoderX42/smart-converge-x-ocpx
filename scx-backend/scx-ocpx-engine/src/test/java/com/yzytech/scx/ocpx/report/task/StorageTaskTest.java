@@ -9,8 +9,13 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -42,7 +47,7 @@ class StorageTaskTest {
 		var ordered = inOrder(reportService, lists);
 		ordered.verify(reportService).addFeedback(anyList());
 		ordered.verify(lists).trim(RedisConstants.DATA_REPORT + "0", 1, -1);
-		verify(redis).delete("rtb{consumeFeedback0}");
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
 	}
 
 	@Test
@@ -66,7 +71,7 @@ class StorageTaskTest {
 
 		verify(reportService).addFeedback(anyList());
 		verify(lists, never()).trim(RedisConstants.DATA_REPORT + "0", 1, -1);
-		verify(redis).delete("rtb{consumeFeedback0}");
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
 	}
 
 	@Test
@@ -90,7 +95,7 @@ class StorageTaskTest {
 
 		verify(reportService, org.mockito.Mockito.times(3)).addFeedback(anyList());
 		verify(lists, never()).trim(RedisConstants.DATA_REPORT + "0", 1, -1);
-		verify(redis).delete("rtb{consumeFeedback0}");
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
 	}
 
 	@Test
@@ -114,7 +119,7 @@ class StorageTaskTest {
 		verify(lists, never()).range(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.anyLong());
 		verify(reportService, never()).addFeedback(anyList());
-		verify(redis).delete("rtb{consumeFeedback0}");
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
 	}
 
 	@Test
@@ -158,7 +163,34 @@ class StorageTaskTest {
 
 		verify(lists).trim(RedisConstants.DATA_REPORT + "0", 2, -1);
 		verify(reportService, never()).addFeedback(anyList());
-		verify(redis).delete("rtb{consumeFeedback0}");
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	void stopsDrainingAfterTheConfiguredRunBudget() {
+		StringRedisTemplate redis = mock(StringRedisTemplate.class);
+		ValueOperations<String, String> values = mock(ValueOperations.class);
+		ListOperations<String, String> lists = mock(ListOperations.class);
+		ReportService reportService = mock(ReportService.class);
+		AtomicLong now = new AtomicLong();
+		when(redis.opsForValue()).thenReturn(values);
+		when(redis.opsForList()).thenReturn(lists);
+		when(values.setIfAbsent(org.mockito.ArgumentMatchers.anyString(),
+				org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.anyLong(),
+				org.mockito.ArgumentMatchers.any())).thenReturn(true);
+		when(lists.size(RedisConstants.DATA_REPORT + "0")).thenReturn(1L, 1L);
+		when(lists.range(RedisConstants.DATA_REPORT + "0", 0, 499)).thenReturn(List.of("{\"reqId\":\"r1\"}"));
+		org.mockito.Mockito.doAnswer(invocation -> {
+			now.addAndGet(TimeUnit.MILLISECONDS.toNanos(31_000));
+			return null;
+		}).when(reportService).addFeedback(anyList());
+
+		new StorageTask(redis, reportService, 1, 500, 0, 0L, 20, 30_000L, 0L, now::get).consumeFeedback();
+
+		verify(reportService).addFeedback(anyList());
+		verify(lists).trim(RedisConstants.DATA_REPORT + "0", 1, -1);
+		verify(redis).execute(any(), eq(List.of("rtb{consumeFeedback0}")), anyString());
 	}
 
 }

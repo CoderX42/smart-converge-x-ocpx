@@ -20,4 +20,7 @@ public interface FeedbackMapper {
 	/** 按响应小时（yyyyMMddHH）删除 Feedback 日明细。 */
 	void deleteFeedbackDay(@Param("time") Integer time);
 
+	/** Delete at most {@code limit} historical rows before the current-day boundary. */
+	int deleteFeedbackDayBefore(@Param("endTime") String endTime, @Param("limit") int limit);
+
 }

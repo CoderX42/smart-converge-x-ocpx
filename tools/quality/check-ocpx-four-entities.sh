@@ -739,6 +739,29 @@ for path, source in (
 nginx_template = (
     root / "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf"
 ).read_text(encoding="utf-8")
+rta_location = "location = /rta {"
+rta_block = """location = /rta {
+    limit_except POST { deny all; }
+    proxy_pass http://127.0.0.1:10000/ocpx/rta;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 30s;
+    proxy_read_timeout 30s;
+    client_max_body_size 64k;
+}"""
+if nginx_template.count(rta_location) != 1 or rta_block not in nginx_template:
+    raise SystemExit("Nginx gate failed: production RTA alias must be one exact POST-only route")
+for template_path in (
+    "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-ip-uat-rewrite.conf",
+    "scx-fronted/scripts/deploy/scx-fronted.conf",
+):
+    if rta_location in (root / template_path).read_text(encoding="utf-8"):
+        raise SystemExit(f"Nginx gate failed: {template_path} must not expose the production RTA alias")
+
 weifeng_location = "location = /ocpx/weifeng/callback {"
 if nginx_template.count(weifeng_location) != 1:
     raise SystemExit("Nginx gate failed: WEIFENG callback must have one exact location")

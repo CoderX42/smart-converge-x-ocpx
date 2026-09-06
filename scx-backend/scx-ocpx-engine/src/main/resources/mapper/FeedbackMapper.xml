@@ -49,4 +49,10 @@
     <delete id="deleteFeedbackDay">
         DELETE FROM scx_ocpx_log_feedback_day WHERE time_hour_res = #{time}
     </delete>
+    <delete id="deleteFeedbackDayBefore">
+        DELETE FROM scx_ocpx_log_feedback_day
+        WHERE time_hour_res &lt; #{endTime}
+        ORDER BY time_hour_res,id
+        LIMIT #{limit}
+    </delete>
 </mapper>

@@ -17,6 +17,8 @@ class ScxOcpxEngineApplicationTest {
 		assertThat(source.getProperty("server.servlet.context-path")).isEqualTo("/ocpx");
 		assertThat(source.getProperty("spring.profiles.active")).isEqualTo("dev");
 		assertThat(source.getProperty("spring.main.web-application-type")).isEqualTo("servlet");
+		assertThat(source.getProperty("management.endpoints.web.exposure.include"))
+			.isEqualTo("health,info,metrics,prometheus");
 		assertThat(source.getProperty("bid.job.thread")).isEqualTo(1);
 		assertThat(source.getProperty("ocpx.compatibility-report.enabled")).isEqualTo(false);
 		assertThat(source.getProperty("ocpx.flow-log.success-sample-rate")).isEqualTo(0.1);
