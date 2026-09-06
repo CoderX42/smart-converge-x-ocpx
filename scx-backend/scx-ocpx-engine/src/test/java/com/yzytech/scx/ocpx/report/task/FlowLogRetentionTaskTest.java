@@ -119,7 +119,8 @@ class FlowLogRetentionTaskTest {
 
 		new FlowLogRetentionTask(redis, jdbc).clean();
 
-		verify(jdbc, never()).query(anyString(), any(), any(Object[].class));
+		verify(jdbc, never()).query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Object>>any(),
+				any(Object[].class));
 	}
 
 }
