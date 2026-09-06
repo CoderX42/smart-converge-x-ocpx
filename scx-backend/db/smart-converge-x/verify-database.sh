@@ -237,6 +237,18 @@ flow_log_page_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistic
  AND ((seq_in_index=1 AND column_name='event_time') OR (seq_in_index=2 AND column_name='id'))")"
 [[ "$flow_log_page_index" -eq 2 ]] || fail "flow-log event-time pagination index is missing or invalid"
 
+flow_preview_present_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_flow_log'
+ AND column_name='response_preview_present' AND data_type='tinyint'
+ AND is_generated='ALWAYS' AND generation_expression LIKE '%response_preview%'")"
+[[ "$flow_preview_present_column" -eq 1 ]] || fail "flow-log response preview presence column is missing or invalid"
+
+flow_preview_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
+ WHERE table_schema=DATABASE() AND table_name='scx_ocpx_flow_log'
+ AND index_name='idx_ocpx_flow_log_preview_retention'
+ AND ((seq_in_index=1 AND column_name='response_preview_present') OR (seq_in_index=2 AND column_name='event_time') OR (seq_in_index=3 AND column_name='id'))")"
+[[ "$flow_preview_retention_index" -eq 3 ]] || fail "flow-log response preview retention index is missing or invalid"
+
 feedback_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_log_feedback'
  AND index_name='idx_ocpx_feedback_create_time' AND seq_in_index=1 AND column_name='create_time'")"

@@ -79,13 +79,18 @@ public class FlowLogRetentionTask {
 	 * already-cleared rows on every run because response_preview is not indexed.
 	 */
 	private int clearExpiredPreviews() {
+		if (!previewRetentionReady()) {
+			log.warn("skip flow-log preview retention: indexed presence flag is unavailable");
+			return 0;
+		}
 		int total = 0;
 		PreviewCursor cursor = null;
 		for (int round = 0; round < safeMaxBatches(); round++) {
 			StringBuilder sql = new StringBuilder("""
 					SELECT id,event_time
-					FROM scx_ocpx_flow_log FORCE INDEX (idx_ocpx_flow_log_page)
-					WHERE response_preview IS NOT NULL
+					FROM scx_ocpx_flow_log FORCE INDEX (idx_ocpx_flow_log_preview_retention)
+					WHERE response_preview_present=1
+					  AND response_preview IS NOT NULL
 					  AND event_time<DATE_SUB(NOW(3),INTERVAL 7 DAY)
 					""");
 			List<Object> args = new ArrayList<>();
@@ -114,6 +119,18 @@ public class FlowLogRetentionTask {
 			pause();
 		}
 		return total;
+	}
+
+	private boolean previewRetentionReady() {
+		Integer columns = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM information_schema.statistics
+				WHERE table_schema=DATABASE()
+				  AND table_name='scx_ocpx_flow_log'
+				  AND index_name='idx_ocpx_flow_log_preview_retention'
+				  AND seq_in_index IN (1,2,3)
+				""", Integer.class);
+		return columns != null && columns == 3;
 	}
 
 	private record PreviewRow(String id, LocalDateTime eventTime) {

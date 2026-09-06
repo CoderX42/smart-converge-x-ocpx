@@ -54,6 +54,8 @@ bash scripts/ops/ocpx-mysql-diagnostic.sh \
 
 当前源码的主实时写路径是 `scx_ocpx_event_fact`、`scx_ocpx_billing_entry` 和 `scx_ocpx_hourly_metric`；旧 `scx_ocpx_log_*`、`scx_ocpx_report_mat*` 和兼容队列属于历史/兼容路径。V125 已在源码中默认关闭兼容报表多写、限制投递并发和清理批次，但目标库迁移、生产 JAR 发布、重启及 24 小时 IOPS 验收仍需单独提供证据。
 
+V129 进一步修复了一个高风险读放大点：`scx_ocpx_flow_log.response_preview` 大多为空时，仅使用 `(event_time,id)` 索引仍会扫描大量空值记录。V129 增加虚拟存在标记和 `(response_preview_present,event_time,id)` 索引；应用在索引不存在时会跳过预览清理，避免新 JAR 在数据库尚未完成 DDL 时再次触发全表扫描。
+
 ### 连接、锁与批处理
 
 `[transactions]` 只输出事务状态和锁定/修改行数，不输出事务 SQL；发现长时间 `RUNNING`、`trx_rows_locked` 持续增长或 `wait_started` 非空时，结合应用 trace 和 DBA 授权的锁图定位。`[processlist_summary]` 仅按命令/状态聚合，避免把请求参数写入诊断文件。
@@ -67,13 +69,14 @@ Engine 已提供内部 Prometheus 端点 `/ocpx/actuator/prometheus`；生产进
 ### P0：告警窗口内止损（只读确认后再做已授权开关）
 
 1. 先固定告警窗口证据、RDS 规格与 `MaxIops`，区分容量、IOPS、吞吐、延迟和 CPU/内存；磁盘扩容不能作为 IOPS 优化结论。
-2. 核对是否仍运行旧 JAR 或 `ocpx.compatibility-report.enabled=true`。若确认旧兼容队列是写放大来源，按发布流程准备切换到已审查的 V125 包；不要直接编辑源文件或仅重启旧 JAR。
-3. 对正在增长的慢 SQL/清理任务，先限流或暂停对应**已授权**非核心作业，并观察 15 分钟读写 IOPS、延迟、`Innodb_log_waits`、锁等待和 Callback P95；不得删除事实、账务或小时指标。
+2. 若进程列表出现 `response_preview IS NOT NULL ... ORDER BY event_time,id` 且持续执行，先发布带 V129 防护的 Engine；数据库索引尚未完成时，新代码会跳过该清理，避免再次扫描数百万行。不要只重启旧 JAR。
+3. 核对是否仍运行旧 JAR 或 `ocpx.compatibility-report.enabled=true`。若确认旧兼容队列是写放大来源，按发布流程准备切换到已审查的 V125/V129 包；不要直接编辑源文件或仅重启旧 JAR。
+4. 对正在增长的慢 SQL/清理任务，先限流或暂停对应**已授权**非核心作业，并观察 15 分钟读写 IOPS、延迟、`Innodb_log_waits`、锁等待和 Callback P95；不得删除事实、账务或小时指标。
 
-### P1：低峰发布 V125/V126（需备份、审批和回滚点）
+### P1：低峰发布 V125/V126/V129（需备份、审批和回滚点）
 
 1. 核对生产 JAR SHA-256、Git 提交、目标数据库身份和现有索引；备份受影响表或完成云备份可恢复性确认。
-2. 对 V125 三个清理索引和 V126 Callback 索引在目标库执行前做 `EXPLAIN`/在线 DDL 能力审核；确认 `information_schema.statistics` 不重复后再按低峰窗口执行前向 SQL。不要修改已执行的增量文件，不依赖退役迁移账本。
+2. 对 V125 三个清理索引、V126 Callback 索引和 V129 预览索引在目标库执行前做 `EXPLAIN`/在线 DDL 能力审核；确认 `information_schema.columns/statistics` 不重复后再按低峰窗口执行前向 SQL。不要修改已执行的增量文件，不依赖退役迁移账本。
 3. 发布并重启 Boot/Engine，使用宝塔脚本的健康检查确认新 PID 与 `/boot/actuator/health`、`/ocpx/actuator/health`；检查启动日志中的配置和 JAR 时间。
 4. 发布后观察至少 2 小时及一个完整 24 小时周期：RDS IOPS、读写 IOPS、吞吐、延迟、CPU/内存、连接、redo/锁等待、Top SQL、Callback P95/499/5xx、小时汇总延迟、Redis 队列深度和清理批次。任一关键指标恶化应按回滚点恢复，并保留对账证据。
 
