@@ -36,4 +36,22 @@ public class CallbackReq {
 	/** AERIM purchase 原始十进制金额，不推断币种或换算单位。 */
 	private BigDecimal currencyAmount;
 
+	/**
+	 * Build a detached callback snapshot for asynchronous media delivery.  RTA
+	 * protected feedback must never let the worker retain the inbound object (which
+	 * may contain raw identifiers); {@link FeedbackReq#copyForRtaDownstream()} keeps
+	 * only hashed/context fields and a callback URL that passed the raw-value scan.
+	 */
+	public CallbackReq copyForRtaDownstream() {
+		FeedbackReq snapshot = feedback != null && feedback.isRtaProtected()
+				? feedback.copyForRtaDownstream() : feedback;
+		return CallbackReq.builder()
+			.feedback(snapshot)
+			.actionType(actionType)
+			.actionTime(actionTime)
+			.partnerActionType(partnerActionType)
+			.currencyAmount(currencyAmount)
+			.build();
+	}
+
 }

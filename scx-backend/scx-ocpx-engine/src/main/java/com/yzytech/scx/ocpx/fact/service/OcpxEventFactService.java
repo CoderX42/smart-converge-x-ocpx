@@ -7,7 +7,7 @@ import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -42,48 +42,10 @@ public class OcpxEventFactService {
 
 	private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(6, RoundingMode.UNNECESSARY);
 
-	private static final String HOURLY_UPSERT = """
-			INSERT INTO scx_ocpx_hourly_metric (
-			  time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,
-			  impression_count,click_count,target_conversion_count,callback_count,
-			  activate_count,evoke_count,login_count,register_count,payment_count,
-			  customer_acquisition_count,next_stay_count,visits_count,authentication_count,
-			  place_order_count,finish_the_order_count,first_activation_count,first_order_count,
-			  download_count,activity_count,addiction_count,
-			  spend_amount,currency_amount,rejected_click_count,rejected_conversion_count
-			) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-			ON DUPLICATE KEY UPDATE
-			  impression_count=impression_count+VALUES(impression_count),
-			  click_count=click_count+VALUES(click_count),
-			  target_conversion_count=target_conversion_count+VALUES(target_conversion_count),
-			  callback_count=callback_count+VALUES(callback_count),
-			  activate_count=activate_count+VALUES(activate_count),
-			  evoke_count=evoke_count+VALUES(evoke_count),
-			  login_count=login_count+VALUES(login_count),
-			  register_count=register_count+VALUES(register_count),
-			  payment_count=payment_count+VALUES(payment_count),
-			  customer_acquisition_count=customer_acquisition_count+VALUES(customer_acquisition_count),
-			  next_stay_count=next_stay_count+VALUES(next_stay_count),
-			  visits_count=visits_count+VALUES(visits_count),
-			  authentication_count=authentication_count+VALUES(authentication_count),
-			  place_order_count=place_order_count+VALUES(place_order_count),
-			  finish_the_order_count=finish_the_order_count+VALUES(finish_the_order_count),
-			  first_activation_count=first_activation_count+VALUES(first_activation_count),
-			  first_order_count=first_order_count+VALUES(first_order_count),
-			  download_count=download_count+VALUES(download_count),
-			  activity_count=activity_count+VALUES(activity_count),
-			  addiction_count=addiction_count+VALUES(addiction_count),
-			  spend_amount=spend_amount+VALUES(spend_amount),
-			  currency_amount=currency_amount+VALUES(currency_amount),
-			  rejected_click_count=rejected_click_count+VALUES(rejected_click_count),
-			  rejected_conversion_count=rejected_conversion_count+VALUES(rejected_conversion_count),
-			  update_time=CURRENT_TIMESTAMP(3)
-			""";
+	private final OcpxEventFactSqlMapper sqlMapper;
 
-	private final JdbcTemplate jdbcTemplate;
-
-	public OcpxEventFactService(JdbcTemplate jdbcTemplate) {
-		this.jdbcTemplate = jdbcTemplate;
+	public OcpxEventFactService(OcpxEventFactSqlMapper sqlMapper) {
+		this.sqlMapper = sqlMapper;
 	}
 
 	@Transactional
@@ -123,11 +85,7 @@ public class OcpxEventFactService {
 		}
 
 		BigDecimal balanceAfter = balanceBefore.subtract(price).setScale(6, RoundingMode.UNNECESSARY);
-		jdbcTemplate.update("""
-				UPDATE scx_ocpx_advertiser_account
-				SET available_balance=?,update_time=CURRENT_TIMESTAMP(3)
-				WHERE advertiser_id=?
-				""", balanceAfter, task.advertiserId());
+		sqlMapper.updateRecordFeedbackAdvertiserAccount(balanceAfter, task.advertiserId());
 		insertChargeEntry("CLICK_CHARGE", "CLICK", factId, task, price, balanceBefore, balanceAfter, "POSTED", null,
 				receivedAt);
 		updateFactBilling(factId, price, "POSTED", null);
@@ -176,11 +134,7 @@ public class OcpxEventFactService {
 			return new CallbackFactResult(true, true, factId, "PENDING");
 		}
 		BigDecimal balanceAfter = balanceBefore.subtract(price).setScale(6, RoundingMode.UNNECESSARY);
-		jdbcTemplate.update("""
-				UPDATE scx_ocpx_advertiser_account
-				SET available_balance=?,update_time=CURRENT_TIMESTAMP(3)
-				WHERE advertiser_id=?
-				""", balanceAfter, task.advertiserId());
+		sqlMapper.updateRecordCallbackAdvertiserAccount(balanceAfter, task.advertiserId());
 		insertChargeEntry("CONVERSION_CHARGE", "CONVERSION", factId, task, price, balanceBefore, balanceAfter, "POSTED",
 				null, receivedAt);
 		updateFactBilling(factId, price, "POSTED", null);
@@ -208,29 +162,13 @@ public class OcpxEventFactService {
 			throw new IllegalArgumentException("deduction ratio must be between 0 and 1");
 		}
 		LocalDateTime decidedAt = LocalDateTime.now(BUSINESS_ZONE);
-		int updated = jdbcTemplate.update("""
-				UPDATE scx_ocpx_event_fact
-				SET deduction_decision=?,deduction_ratio_snapshot=?,deduction_decided_at=?
-				WHERE id=? AND flow_type='CALLBACK' AND deduction_decision='PENDING'
-				""", decision.name(), normalizedRatio, decidedAt, factId);
+		int updated = sqlMapper.updateFinalizeDeductionEventFact(decision.name(), normalizedRatio, decidedAt, factId);
 		if (updated == 0) {
 			return false;
 		}
 		long passed = decision == DeductionDecision.PASSED ? 1 : 0;
 		long deducted = decision == DeductionDecision.DEDUCTED ? 1 : 0;
-		int projected = jdbcTemplate.update("""
-				INSERT INTO scx_ocpx_hourly_metric (
-				  time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,
-				  callback_count,deduction_passed_count,deduction_deducted_count
-				)
-				SELECT CAST(DATE_FORMAT(received_at,'%Y%m%d%H') AS UNSIGNED),advertiser_id,
-				       promotion_link_id,media_id,monitor_task_id,1,?,?
-				FROM scx_ocpx_event_fact WHERE id=?
-				ON DUPLICATE KEY UPDATE
-				  deduction_passed_count=deduction_passed_count+VALUES(deduction_passed_count),
-				  deduction_deducted_count=deduction_deducted_count+VALUES(deduction_deducted_count),
-				  update_time=CURRENT_TIMESTAMP(3)
-				""", passed, deducted, factId);
+		int projected = sqlMapper.insertFinalizeDeductionHourlyMetric(passed, deducted, factId);
 		if (projected == 0) {
 			throw new IllegalStateException("media deduction fact could not be projected to hourly metrics");
 		}
@@ -238,12 +176,10 @@ public class OcpxEventFactService {
 	}
 
 	private CallbackFactResult existingCallback(String factKey) {
-		List<CallbackFactResult> facts = jdbcTemplate.query("""
-				SELECT id,target_conversion,deduction_decision
-				FROM scx_ocpx_event_fact
-				WHERE fact_key=? AND flow_type='CALLBACK'
-				""", (rs, rowNum) -> new CallbackFactResult(false, rs.getBoolean("target_conversion"),
-				rs.getString("id"), rs.getString("deduction_decision")), factKey);
+		List<CallbackFactResult> facts = sqlMapper.selectExistingCallbackEventFact(factKey)
+			.stream()
+			.map(rs -> new CallbackFactResult(false, rs.targetConversion(), rs.id(), rs.deductionDecision()))
+			.toList();
 		if (facts.size() != 1) {
 			throw new IllegalStateException("duplicate callback fact is unavailable");
 		}
@@ -254,17 +190,11 @@ public class OcpxEventFactService {
 			TaskSnapshot task, boolean targetConversion, BigDecimal spendAmount, BigDecimal currencyAmount,
 			String billingStatus, String billingReasonCode, String deductionDecision, LocalDateTime receivedAt) {
 		try {
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_event_fact (
-					  id,fact_key,flow_type,event_code,request_id,advertiser_id,promotion_link_id,
-					  media_id,monitor_task_id,target_conversion,billing_enabled_snapshot,billing_type_snapshot,
-					  billing_unit_price_snapshot,conversion_event_snapshot,deduction_decision,spend_amount,
-					  currency_amount,billing_status,billing_reason_code,received_at
-					) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", factId, factKey, flowType, eventCode, feedback.getReqId(), feedback.getAId(),
-					feedback.getLId(), feedback.getMId(), feedback.getTId(), targetConversion, task.billingEnabled(),
-					task.billingType(), money(task.unitPrice()), task.conversionEvent(), deductionDecision, spendAmount,
-					currencyAmount, billingStatus, billingReasonCode, receivedAt);
+			sqlMapper.insertInsertFactEventFact(new OcpxEventFactSqlMapper.InsertInsertFactEventFactCommand(factId,
+					factKey, flowType, eventCode, feedback.getReqId(), feedback.getAId(), feedback.getLId(),
+					feedback.getMId(), feedback.getTId(), targetConversion, task.billingEnabled(), task.billingType(),
+					money(task.unitPrice()), task.conversionEvent(), deductionDecision, spendAmount, currencyAmount,
+					billingStatus, billingReasonCode, receivedAt));
 			return true;
 		}
 		catch (DuplicateKeyException ignored) {
@@ -273,16 +203,11 @@ public class OcpxEventFactService {
 	}
 
 	private TaskSnapshot requireTask(String taskId, String advertiserId, String linkId, String mediaId) {
-		List<TaskSnapshot> tasks = jdbcTemplate.query(
-				"""
-						SELECT id,advertiser_id,promotion_link_id,media_id,billing_enabled,billing_type,unit_price,conversion_event
-						FROM scx_ocpx_monitor_task
-						WHERE id=? AND advertiser_id=? AND promotion_link_id=? AND media_id=? AND is_delete=0
-						""",
-				(rs, rowNum) -> new TaskSnapshot(rs.getString("id"), rs.getString("advertiser_id"),
-						rs.getString("promotion_link_id"), rs.getString("media_id"), rs.getBoolean("billing_enabled"),
-						rs.getInt("billing_type"), rs.getBigDecimal("unit_price"), rs.getString("conversion_event")),
-				taskId, advertiserId, linkId, mediaId);
+		List<TaskSnapshot> tasks = sqlMapper.selectRequireTaskMonitorTask(taskId, advertiserId, linkId, mediaId)
+			.stream()
+			.map(rs -> new TaskSnapshot(rs.id(), rs.advertiserId(), rs.promotionLinkId(), rs.mediaId(),
+					rs.billingEnabled(), rs.billingType(), rs.unitPrice(), rs.conversionEvent()))
+			.toList();
 		if (tasks.size() != 1) {
 			throw new IllegalArgumentException("monitor task does not match advertiser, promotion link and media");
 		}
@@ -290,10 +215,10 @@ public class OcpxEventFactService {
 	}
 
 	private BigDecimal lockBalance(String advertiserId) {
-		List<BigDecimal> balances = jdbcTemplate.query("""
-				SELECT available_balance FROM scx_ocpx_advertiser_account
-				WHERE advertiser_id=? FOR UPDATE
-				""", (rs, rowNum) -> rs.getBigDecimal(1), advertiserId);
+		List<BigDecimal> balances = sqlMapper.selectLockBalanceAdvertiserAccount(advertiserId)
+			.stream()
+			.map(rs -> rs.availableBalance())
+			.toList();
 		if (balances.size() != 1) {
 			throw new IllegalStateException("advertiser account is missing");
 		}
@@ -303,29 +228,25 @@ public class OcpxEventFactService {
 	private void insertChargeEntry(String entryType, String businessPrefix, String factId, TaskSnapshot task,
 			BigDecimal amount, BigDecimal balanceBefore, BigDecimal balanceAfter, String status, String reasonCode,
 			LocalDateTime occurredAt) {
-		jdbcTemplate.update("""
-				INSERT INTO scx_ocpx_billing_entry (
-				  id,advertiser_id,monitor_task_id,event_fact_id,entry_type,status,amount,
-				  balance_before,balance_after,business_key,reason_code,occurred_at
-				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-				""", nextId(), task.advertiserId(), task.id(), factId, entryType, status, amount, balanceBefore,
-				balanceAfter, businessPrefix + ":" + factId, reasonCode, occurredAt);
+		sqlMapper.insertInsertChargeEntryBillingEntry(
+				new OcpxEventFactSqlMapper.InsertInsertChargeEntryBillingEntryCommand(nextId(), task.advertiserId(),
+						task.id(), factId, entryType, status, amount, balanceBefore, balanceAfter,
+						businessPrefix + ":" + factId, reasonCode, occurredAt));
 	}
 
 	private void updateFactBilling(String factId, BigDecimal spendAmount, String billingStatus, String reasonCode) {
-		jdbcTemplate.update(
-				"UPDATE scx_ocpx_event_fact SET spend_amount=?,billing_status=?,billing_reason_code=? WHERE id=?",
-				spendAmount, billingStatus, reasonCode, factId);
+		sqlMapper.updateUpdateFactBillingEventFact(spendAmount, billingStatus, reasonCode, factId);
 	}
 
 	private void upsertMetric(LocalDateTime receivedAt, TaskSnapshot task, MetricDelta delta) {
-		jdbcTemplate.update(HOURLY_UPSERT, Integer.parseInt(HOUR_KEY.format(receivedAt)), task.advertiserId(),
-				task.promotionLinkId(), task.mediaId(), task.id(), delta.impression(), delta.click(), delta.target(),
-				delta.callback(), delta.activate(), delta.evoke(), delta.login(), delta.register(), delta.payment(),
+		sqlMapper.insertUpsertMetricHourlyMetric(new OcpxEventFactSqlMapper.InsertUpsertMetricHourlyMetricCommand(
+				Integer.parseInt(HOUR_KEY.format(receivedAt)), task.advertiserId(), task.promotionLinkId(),
+				task.mediaId(), task.id(), delta.impression(), delta.click(), delta.target(), delta.callback(),
+				delta.activate(), delta.evoke(), delta.login(), delta.register(), delta.payment(),
 				delta.customerAcquisition(), delta.nextStay(), delta.visits(), delta.authentication(),
 				delta.placeOrder(), delta.finishTheOrder(), delta.firstActivation(), delta.firstOrder(),
 				delta.download(), delta.activity(), delta.addiction(), delta.spend(), delta.currency(),
-				delta.rejectedClick(), delta.rejectedConversion());
+				delta.rejectedClick(), delta.rejectedConversion()));
 	}
 
 	private String feedbackReason(EventTypeEnum event, TaskSnapshot task) {
@@ -431,8 +352,8 @@ public class OcpxEventFactService {
 			return new MetricDelta(base.impression(), base.click(), base.target(), 1, base.activate(), base.evoke(),
 					base.login(), base.register(), base.payment(), base.customerAcquisition(), base.nextStay(),
 					base.visits(), base.authentication(), base.placeOrder(), base.finishTheOrder(),
-					base.firstActivation(), base.firstOrder(), base.download(), base.activity(), base.addiction(), base.spend(),
-					base.currency(), base.rejectedClick(), rejected ? 1 : 0);
+					base.firstActivation(), base.firstOrder(), base.download(), base.activity(), base.addiction(),
+					base.spend(), base.currency(), base.rejectedClick(), rejected ? 1 : 0);
 		}
 
 		private static MetricDelta empty(long impression, long click, long target, BigDecimal spend,

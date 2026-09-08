@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.callback.delivery;
 
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
+import com.yzytech.scx.ocpx.oppo.callback.OppoUploadActiveDataDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,17 +30,24 @@ public class DownstreamDeliveryDispatcher {
 	public static volatile ExecutorService EXECUTORS = createExecutor(32, 64, 200);
 
 	private static CallbackUrlDownstreamDeliveryService deliveryService;
+	private static OppoUploadActiveDataDeliveryService oppoDeliveryService;
 
 	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService) {
 		this(deliveryService, 32, 64, 200);
 	}
 
-	@Autowired
+	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService, int coreThreads,
+			int maxThreads, int queueCapacity) {
+		this(deliveryService, null, coreThreads, maxThreads, queueCapacity);
+	}
+
 	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService,
+			OppoUploadActiveDataDeliveryService oppoDeliveryService,
 			@Value("${ocpx.delivery.downstream.core-threads:32}") int coreThreads,
 			@Value("${ocpx.delivery.downstream.max-threads:64}") int maxThreads,
 			@Value("${ocpx.delivery.downstream.queue-capacity:200}") int queueCapacity) {
 		DownstreamDeliveryDispatcher.deliveryService = deliveryService;
+		DownstreamDeliveryDispatcher.oppoDeliveryService = oppoDeliveryService;
 		ExecutorService previous = EXECUTORS;
 		EXECUTORS = createExecutor(coreThreads, maxThreads, queueCapacity);
 		if (previous != EXECUTORS) {
@@ -63,6 +71,13 @@ public class DownstreamDeliveryDispatcher {
 	 * @param request 待回传的转化请求
 	 */
 	public static void dispatch(CallbackReq request) {
+		if (oppoDeliveryService != null && oppoDeliveryService.supports(request)) {
+			EXECUTORS.execute(() -> oppoDeliveryService.deliver(request));
+			return;
+		}
+		// Snapshot before enqueueing so a RTA-protected callback cannot retain or
+		// expose raw identifiers through the asynchronous worker.  The snapshot keeps
+		// a validated callback destination when it is free of raw device values.
 		EXECUTORS.execute(() -> {
 			try {
 				DownstreamDeliveryService service = resolve();

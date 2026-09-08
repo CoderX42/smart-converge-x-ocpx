@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxMediaMapper">
+    <select id="countReferences" resultType="int" useCache="false" flushCache="true">
+        SELECT CASE WHEN EXISTS(SELECT 1
+        FROM scx_ocpx_monitor_task
+        WHERE media_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_deduction_rule
+        WHERE media_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_flow_log
+        WHERE media_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_log_feedback
+        WHERE m_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_log_feedback_day
+        WHERE m_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_log_callback
+        WHERE m_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_report_mat_temp
+        WHERE m_id=#{id}) OR EXISTS(SELECT 1
+        FROM scx_ocpx_report_mat
+        WHERE m_id=#{id}) THEN 1 ELSE 0 END
+    </select>
+    <delete id="deleteRtaAccess">
+        DELETE
+        FROM scx_ocpx_rta_media_access
+        WHERE media_id=#{id}
+    </delete>
+    <select id="selectOptionsForAdvertiser" resultType="com.yzytech.scx.ocpx.admin.dto.ManagementRows$NamedOption" useCache="false" flushCache="true">
+        SELECT DISTINCT m.id,
+        m.media_name AS name
+        FROM scx_ocpx_media m
+        JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0
+        WHERE t.advertiser_id=#{advertiserId}
+        ORDER BY m.id DESC
+    </select>
+</mapper>

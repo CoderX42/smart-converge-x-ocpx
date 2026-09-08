@@ -4,7 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.yzytech.scx.ocpx.persistence.mapper.FlowLogRetentionSqlMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +27,7 @@ public class FlowLogRetentionTask {
 
 	private final StringRedisTemplate redis;
 
-	private final JdbcTemplate jdbcTemplate;
+	private final FlowLogRetentionSqlMapper sqlMapper;
 
 	@Value("${app.jobs.retention-batch-size:1000}")
 	private int batchSize = DEFAULT_BATCH_SIZE;
@@ -49,14 +50,11 @@ public class FlowLogRetentionTask {
 		if (!Boolean.TRUE.equals(acquired))
 			return;
 		try {
-			int details = drain("DELETE FROM scx_ocpx_flow_log_detail WHERE expires_at<NOW(3) LIMIT " + limit());
-			int feedback = drain("DELETE FROM scx_ocpx_log_feedback "
-					+ "WHERE create_time<DATE_SUB(NOW(3),INTERVAL 7 DAY) ORDER BY create_time LIMIT " + limit());
-			int callbacks = drain("DELETE FROM scx_ocpx_log_callback "
-					+ "WHERE create_time<DATE_SUB(NOW(3),INTERVAL 7 DAY) ORDER BY create_time LIMIT " + limit());
+			int details = drain(() -> sqlMapper.deleteExpiredDetails(limit()));
+			int feedback = drain(() -> sqlMapper.deleteExpiredFeedback(limit()));
+			int callbacks = drain(() -> sqlMapper.deleteExpiredCallbacks(limit()));
 			int previews = clearExpiredPreviews();
-			int metadata = drain("DELETE FROM scx_ocpx_flow_log "
-					+ "WHERE event_time<DATE_SUB(NOW(3),INTERVAL 90 DAY) ORDER BY event_time LIMIT " + limit());
+			int metadata = drain(() -> sqlMapper.deleteExpiredMetadata(limit()));
 			log.info("flow log retention completed detail:{} feedback:{} callback:{} preview:{} metadata:{}", details,
 					feedback, callbacks, previews, metadata);
 		}
@@ -86,31 +84,17 @@ public class FlowLogRetentionTask {
 		int total = 0;
 		PreviewCursor cursor = null;
 		for (int round = 0; round < safeMaxBatches(); round++) {
-			StringBuilder sql = new StringBuilder("""
-					SELECT id,event_time
-					FROM scx_ocpx_flow_log FORCE INDEX (idx_ocpx_flow_log_preview_retention)
-					WHERE response_preview_present=1
-					  AND response_preview IS NOT NULL
-					  AND event_time<DATE_SUB(NOW(3),INTERVAL 7 DAY)
-					""");
-			List<Object> args = new ArrayList<>();
-			if (cursor != null) {
-				sql.append(" AND (event_time>? OR (event_time=? AND id>?))");
-				args.add(cursor.eventTime());
-				args.add(cursor.eventTime());
-				args.add(cursor.id());
-			}
-			sql.append(" ORDER BY event_time,id LIMIT ?");
-			args.add(limit());
-			List<PreviewRow> rows = jdbcTemplate.query(sql.toString(), (rs, rowNum) ->
-					new PreviewRow(rs.getString("id"), rs.getTimestamp("event_time").toLocalDateTime()), args.toArray());
+			List<PreviewRow> rows = sqlMapper
+				.selectExpiredPreviews(cursor == null ? null : cursor.eventTime(), cursor == null ? null : cursor.id(),
+						limit())
+				.stream()
+				.map(rs -> new PreviewRow(rs.id(), rs.eventTime().toLocalDateTime()))
+				.toList();
 			if (rows.isEmpty()) {
 				break;
 			}
-			String placeholders = String.join(",", java.util.Collections.nCopies(rows.size(), "?"));
 			List<Object> ids = new ArrayList<>(rows.stream().map(PreviewRow::id).toList());
-			total += jdbcTemplate.update(
-					"UPDATE scx_ocpx_flow_log SET response_preview=NULL WHERE id IN (" + placeholders + ")", ids.toArray());
+			total += sqlMapper.clearPreviews(ids);
 			PreviewRow last = rows.get(rows.size() - 1);
 			cursor = new PreviewCursor(last.eventTime(), last.id());
 			if (rows.size() < limit()) {
@@ -122,14 +106,7 @@ public class FlowLogRetentionTask {
 	}
 
 	private boolean previewRetentionReady() {
-		Integer columns = jdbcTemplate.queryForObject("""
-				SELECT COUNT(*)
-				FROM information_schema.statistics
-				WHERE table_schema=DATABASE()
-				  AND table_name='scx_ocpx_flow_log'
-				  AND index_name='idx_ocpx_flow_log_preview_retention'
-				  AND seq_in_index IN (1,2,3)
-				""", Integer.class);
+		Integer columns = sqlMapper.selectPreviewRetentionReadyInformationSchema();
 		return columns != null && columns == 3;
 	}
 
@@ -139,12 +116,12 @@ public class FlowLogRetentionTask {
 	private record PreviewCursor(LocalDateTime eventTime, String id) {
 	}
 
-	private int drain(String sql) {
+	private int drain(java.util.function.IntSupplier deleteBatch) {
 		int total = 0;
 		int changed = 0;
 		int rounds = 0;
 		while (rounds++ < safeMaxBatches()) {
-			changed = jdbcTemplate.update(sql);
+			changed = deleteBatch.getAsInt();
 			total += changed;
 			if (changed < safeBatchSize()) {
 				break;

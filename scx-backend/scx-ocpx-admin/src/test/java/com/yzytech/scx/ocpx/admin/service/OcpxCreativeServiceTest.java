@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxCreativeSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.CreativeRequests;
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
@@ -61,7 +64,8 @@ class OcpxCreativeServiceTest {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
 		service = new OcpxCreativeService(creativeMapper, materialMapper, advertiserMapper, linkMapper,
-				storageUploadService, jdbcTemplate, advertiserScope);
+				storageUploadService, XmlMapperTestSupport.mapper(OcpxCreativeSqlMapper.class, jdbcTemplate),
+				advertiserScope);
 
 		when(advertiserScope.constrainSelfOwned(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
@@ -82,8 +86,7 @@ class OcpxCreativeServiceTest {
 	void uploadParsesJpegPngAndWebpFromTheirRealFileHeaders() throws Exception {
 		var jpeg = service.upload("advertiser-1", file("image.jpg", image("jpeg")));
 		var png = service.upload("advertiser-1", file("image.png", image("png")));
-		var webp = service.upload("advertiser-1",
-				file("image.webp", Base64.getDecoder().decode(ONE_PIXEL_WEBP)));
+		var webp = service.upload("advertiser-1", file("image.webp", Base64.getDecoder().decode(ONE_PIXEL_WEBP)));
 
 		assertThat(jpeg.getMimeType()).isEqualTo("image/jpeg");
 		assertThat(png.getMimeType()).isEqualTo("image/png");
@@ -106,8 +109,7 @@ class OcpxCreativeServiceTest {
 
 	@Test
 	void oversizedCorruptAndOverDimensionImagesAreRejectedBeforeStorageUpload() throws Exception {
-		assertThatThrownBy(() -> service.upload("advertiser-1",
-				file("too-large.png", new byte[20 * 1024 * 1024 + 1])))
+		assertThatThrownBy(() -> service.upload("advertiser-1", file("too-large.png", new byte[20 * 1024 * 1024 + 1])))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("20MB");
 		assertThatThrownBy(() -> service.upload("advertiser-1", file("corrupt.png", new byte[] { 1, 2, 3 })))
@@ -125,8 +127,8 @@ class OcpxCreativeServiceTest {
 
 	@Test
 	void createRejectsMaterialThatIsMissingOrOwnedByAnotherAdvertiser() {
-		CreativeRequests.Save request = new CreativeRequests.Save("advertiser-1", "创意一", "material-other", 1,
-				List.of(), null);
+		CreativeRequests.Save request = new CreativeRequests.Save("advertiser-1", "创意一", "material-other", 1, List.of(),
+				null);
 
 		assertThatThrownBy(() -> service.create(request)).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("不属于当前广告主");
@@ -149,8 +151,7 @@ class OcpxCreativeServiceTest {
 
 	@Test
 	void strictAdvertiserScopeRejectsCrossOwnerUploadBeforeStorage() {
-		when(advertiserScope.constrainSelfOwned("advertiser-other"))
-			.thenThrow(new BootBusinessException("只能维护自身创意"));
+		when(advertiserScope.constrainSelfOwned("advertiser-other")).thenThrow(new BootBusinessException("只能维护自身创意"));
 
 		assertThatThrownBy(() -> service.upload("advertiser-other", file("image.png", new byte[] { 1 })))
 			.isInstanceOf(BootBusinessException.class);

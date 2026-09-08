@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxBillingEntrySqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +34,8 @@ class OcpxBillingEntryServiceTest {
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
-		service = new OcpxBillingEntryService(jdbcTemplate, advertiserScope);
+		service = new OcpxBillingEntryService(
+				XmlMapperTestSupport.mapper(OcpxBillingEntrySqlMapper.class, jdbcTemplate), advertiserScope);
 	}
 
 	@Test
@@ -41,8 +45,7 @@ class OcpxBillingEntryServiceTest {
 		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		var result = service.list(1, 30, "advertiser-other", null, "CONVERSION_CHARGE", "REJECTED", null,
-				null, null);
+		var result = service.list(1, 30, "advertiser-other", null, "CONVERSION_CHARGE", "REJECTED", null, null, null);
 
 		assertThat(result.getTotal()).isZero();
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -56,8 +59,8 @@ class OcpxBillingEntryServiceTest {
 		assertThatThrownBy(() -> service.list(1, 30, null, null, null, "SUCCESS", null, null, null))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("status");
-		assertThatThrownBy(() -> service.list(1, 30, null, null, null, null, null,
-				LocalDateTime.of(2026, 8, 18, 0, 0), LocalDateTime.of(2026, 8, 17, 0, 0)))
+		assertThatThrownBy(() -> service.list(1, 30, null, null, null, null, null, LocalDateTime.of(2026, 8, 18, 0, 0),
+				LocalDateTime.of(2026, 8, 17, 0, 0)))
 			.isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("时间范围无效");
 	}

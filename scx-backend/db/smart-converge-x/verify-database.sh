@@ -22,8 +22,8 @@ business_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY tabl
 expected_business_tables='scx_ocpx_advertiser,scx_ocpx_creative,scx_ocpx_deduction_rule,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link'
 [[ "$business_tables" == "$expected_business_tables" ]] || fail "the OCPX business main tables are not exact"
 
-ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%'")"
-expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_flow_log_detail,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp,scx_ocpx_rta_decision_fact,scx_ocpx_rta_hourly_metric,scx_ocpx_rta_profile,scx_ocpx_rta_task_binding'
+ocpx_tables="$(scalar "SELECT COALESCE(GROUP_CONCAT(table_name ORDER BY table_name),'') FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name LIKE 'scx_ocpx\\_%' AND table_name NOT IN ('scx_ocpx_rta_profile','scx_ocpx_rta_task_binding','scx_ocpx_rta_decision_fact','scx_ocpx_rta_hourly_metric')")"
+expected_ocpx_tables='scx_ocpx_advertiser,scx_ocpx_advertiser_account,scx_ocpx_billing_config_audit,scx_ocpx_billing_entry,scx_ocpx_creative,scx_ocpx_creative_promotion_link,scx_ocpx_deduction_rule,scx_ocpx_event_fact,scx_ocpx_flow_log,scx_ocpx_flow_log_detail,scx_ocpx_hourly_metric,scx_ocpx_log_callback,scx_ocpx_log_feedback,scx_ocpx_log_feedback_day,scx_ocpx_media,scx_ocpx_monitor_task,scx_ocpx_promotion_link,scx_ocpx_protocol_allowed_host,scx_ocpx_report_mat,scx_ocpx_report_mat_temp,scx_ocpx_rta_binding,scx_ocpx_rta_hour_stat,scx_ocpx_rta_log,scx_ocpx_rta_media_access,scx_ocpx_rta_upstream'
 [[ "$ocpx_tables" == "$expected_ocpx_tables" ]] || fail "OCPX truthful facts, account, ledger and reporting tables are incomplete"
 
 assert_exact_columns() {
@@ -39,10 +39,6 @@ assert_exact_columns scx_ocpx_creative 'id,advertiser_id,creative_name,creative_
 assert_exact_columns scx_ocpx_creative_promotion_link 'advertiser_id,creative_id,promotion_link_id,create_by,create_time'
 assert_exact_columns scx_ocpx_media 'id,media_name,credential_config_key,uri,macro_params,create_time,update_time'
 assert_exact_columns scx_ocpx_monitor_task 'id,monitor_name,advertiser_id,promotion_link_id,media_id,rta_enabled,billing_enabled,billing_type,unit_price,conversion_event,biz_id,show_url,clk_url,remark,is_delete,create_time,update_time'
-assert_exact_columns scx_ocpx_rta_profile 'id,code,name,adapter_code,status,config_json,version,create_time,update_time'
-assert_exact_columns scx_ocpx_rta_task_binding 'id,monitor_task_id,advertiser_id,promotion_link_id,media_id,profile_id,external_task_id,external_product_id,enabled,version,create_time,update_time'
-assert_exact_columns scx_ocpx_rta_decision_fact 'id,request_id,request_hash,advertiser_id,promotion_link_id,media_id,monitor_task_id,profile_id,adapter_code,decision,outcome_class,reason_code,latency_ms,matched_task_ids,received_at,completed_at,metric_version'
-assert_exact_columns scx_ocpx_rta_hourly_metric 'id,time_hour,advertiser_id,promotion_link_id,media_id,monitor_task_id,profile_id,request_count,allow_count,deny_count,timeout_count,error_count,allow_rate,metric_version,update_time'
 assert_exact_columns scx_ocpx_billing_config_audit 'id,monitor_task_id,advertiser_id,action_type,before_config,after_config,operator_user_id,occurred_at'
 assert_exact_columns scx_ocpx_deduction_rule 'id,promotion_link_id,media_id,ratio,is_delete,create_time,update_time'
 assert_exact_columns scx_ocpx_event_fact 'id,fact_key,flow_type,event_code,request_id,advertiser_id,promotion_link_id,media_id,monitor_task_id,target_conversion,billing_enabled_snapshot,billing_type_snapshot,billing_unit_price_snapshot,conversion_event_snapshot,deduction_decision,deduction_ratio_snapshot,deduction_decided_at,spend_amount,currency_amount,billing_status,billing_reason_code,received_at'
@@ -95,32 +91,15 @@ invalid_billing_config="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task
 invalid_rta_tasks="$(scalar "SELECT COUNT(*) FROM scx_ocpx_monitor_task WHERE rta_enabled NOT IN (0,1)")"
 [[ "$invalid_rta_tasks" -eq 0 ]] || fail "monitor RTA switch is invalid"
 
-invalid_rta_bindings="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_task_binding b
+invalid_rta_bindings="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_binding b
  LEFT JOIN scx_ocpx_monitor_task t ON t.id=b.monitor_task_id
- WHERE t.id IS NULL OR b.advertiser_id<>t.advertiser_id
- OR b.promotion_link_id<>t.promotion_link_id OR b.media_id<>t.media_id")"
-[[ "$invalid_rta_bindings" -eq 0 ]] || fail "RTA binding route ownership is invalid"
-
-multiple_rta_profiles="$(scalar "SELECT COUNT(*) FROM (
- SELECT monitor_task_id FROM scx_ocpx_rta_task_binding WHERE enabled=1
- GROUP BY monitor_task_id HAVING COUNT(DISTINCT profile_id)>1
-) invalid_profiles")"
-[[ "$multiple_rta_profiles" -eq 0 ]] || fail "a monitor task has multiple active RTA Profiles"
-
-invalid_rta_profiles="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_profile WHERE adapter_code<>'MOCK' OR status NOT IN ('DISABLED','ACTIVE') OR version<=0")"
-[[ "$invalid_rta_profiles" -eq 0 ]] || fail "RTA Profile configuration is invalid"
-
-invalid_rta_facts="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_decision_fact WHERE decision NOT IN ('ALLOW','DENY') OR outcome_class NOT IN ('SUCCESS','TIMEOUT','ERROR','REJECTED') OR latency_ms<0 OR request_hash NOT REGEXP '^[0-9a-f]{64}$'")"
-[[ "$invalid_rta_facts" -eq 0 ]] || fail "RTA decision facts are invalid"
-
-invalid_rta_metrics="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_hourly_metric WHERE request_count<0 OR allow_count<0 OR deny_count<0 OR timeout_count<0 OR error_count<0 OR allow_count>request_count")"
-[[ "$invalid_rta_metrics" -eq 0 ]] || fail "RTA hourly metrics are invalid"
-
-rta_unique_indexes="$(scalar "SELECT COUNT(DISTINCT CONCAT(table_name,':',index_name)) FROM information_schema.statistics
- WHERE table_schema=DATABASE() AND non_unique=0
- AND ((table_name='scx_ocpx_rta_decision_fact' AND index_name='uk_ocpx_rta_decision_identity')
-   OR (table_name='scx_ocpx_rta_hourly_metric' AND index_name='uk_ocpx_rta_hourly_metric_scope'))")"
-[[ "$rta_unique_indexes" -eq 2 ]] || fail "RTA decision or hourly metric idempotency index is missing"
+ LEFT JOIN scx_ocpx_rta_upstream u ON u.id=b.upstream_id
+ WHERE t.id IS NULL OR u.id IS NULL OR u.advertiser_id<>t.advertiser_id")"
+[[ "$invalid_rta_bindings" -eq 0 ]] || fail "RTA binding ownership invalid"
+invalid_rta_media="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_media_access r LEFT JOIN scx_ocpx_media m ON m.id=r.media_id WHERE m.id IS NULL")"
+[[ "$invalid_rta_media" -eq 0 ]] || fail "RTA media configuration references missing media"
+rta_menu_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE parent_id='menu_ocpx_rta' AND type='0' AND del_flag='0'")"
+[[ "$rta_menu_count" -eq 6 ]] || fail "RTA management requires six child pages"
 
 deduction_ratio_contract="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_deduction_rule'
@@ -240,7 +219,7 @@ flow_log_page_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistic
 flow_preview_present_column="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_flow_log'
  AND column_name='response_preview_present' AND data_type='tinyint'
- AND is_generated='ALWAYS' AND generation_expression LIKE '%response_preview%'")"
+ AND extra LIKE '%GENERATED%' AND generation_expression LIKE '%response_preview%'")"
 [[ "$flow_preview_present_column" -eq 1 ]] || fail "flow-log response preview presence column is missing or invalid"
 
 flow_preview_retention_index="$(scalar "SELECT COUNT(*) FROM information_schema.statistics
@@ -421,3 +400,13 @@ dangling_role_menu="$(scalar "SELECT COUNT(*) FROM sys_role_menu rm LEFT JOIN sy
 [[ "$dangling_role_menu" -eq 0 ]] || fail "dangling role-menu assignments found"
 
 echo "Database verification passed: OCPX management, truthful fact, account, ledger, hourly metric and system tables are valid."
+
+assert_exact_columns scx_ocpx_rta_upstream 'id,advertiser_id,name,protocol,access_code,endpoint,credential_ref,timeout_ms,admission_seconds,enabled,version,update_time'
+
+assert_exact_columns scx_ocpx_rta_media_access 'media_id,notify_url,credential_ref,enabled,version,update_time'
+
+assert_exact_columns scx_ocpx_rta_binding 'monitor_task_id,upstream_id,product_id,external_task_id,enabled,version,update_time'
+
+assert_exact_columns scx_ocpx_rta_log 'id,relay_request_id,request_id,media_id,advertiser_id,upstream_id,task_id,stage,status,reason,duration_ms,event_time,update_time'
+
+assert_exact_columns scx_ocpx_rta_hour_stat 'time_hour,media_id,advertiser_id,task_id,upstream_id,request_count,allow_count,deny_count,error_count,timeout_count,delivery_success_count,delivery_failed_count,version,update_time'

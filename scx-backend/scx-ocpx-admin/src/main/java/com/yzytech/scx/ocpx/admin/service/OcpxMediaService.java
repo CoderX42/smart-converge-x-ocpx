@@ -92,6 +92,7 @@ public class OcpxMediaService {
 		if (mediaMapper.countReferences(id) > 0) {
 			throw new BootBusinessException("媒体仍有监测任务、扣量规则或历史数据，不能删除");
 		}
+		mediaMapper.deleteRtaAccess(id);
 		if (mediaMapper.deleteById(id) != 1) {
 			throw new IllegalStateException("媒体删除失败");
 		}

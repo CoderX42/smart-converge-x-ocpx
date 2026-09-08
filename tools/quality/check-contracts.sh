@@ -15,6 +15,12 @@ import yaml
 root = pathlib.Path(sys.argv[1])
 required = [
     "openapi.yaml",
+    "rta-async.md",
+    "rta-async-request.schema.json",
+    "rta-async-decision.schema.json",
+    "rta-async-accepted.schema.json",
+    "rta-async-notification.schema.json",
+
     "feedback-req-v2.schema.json",
     "callback-req-v2.schema.json",
     "aerim-callback-req-v1.schema.json",
@@ -42,12 +48,9 @@ required = [
     "management-v126.md",
     "management-v127.md",
     "management-v128.md",
+    "management-v130.md",
     "creative-save-v111.schema.json",
     "monitor-task-billing-v111.schema.json",
-    "rta-request-v1.schema.json",
-    "rta-response-v1.schema.json",
-    "rta-decision-fact-v1.schema.json",
-    "rta-mock-example.md",
 ]
 missing = [name for name in required if not (root / name).is_file()]
 if missing:
@@ -87,7 +90,7 @@ v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
 v116_paths = {"/flow-logs/{id}/request-detail"}
 v118_paths = {"/callback-records"}
 v119_paths = {"/media-macros"}
-rta_paths = {"/rta", "/rta/profiles", "/rta/profiles/{id}", "/rta/monitor-tasks/{taskId}", "/rta/decisions", "/rta/metrics"}
+rta_paths = {"/rta/options/{kind}", "/rta/requests", "/rta/callbacks/{accessCode}", "/rta/upstreams", "/rta/media", "/rta/bindings", "/rta/records", "/rta/logs", "/rta/reports"}
 assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | rta_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
@@ -95,16 +98,16 @@ assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)
 assert "400" in paths["/feedback"]["get"]["responses"]
 assert all(set(paths[path]) <= {"get", "parameters"} for path in data_plane_paths)
 assert all("requestBody" not in operation for path in data_plane_paths for operation in paths[path].values() if isinstance(operation, dict))
-rta = paths["/rta"]["post"]
-assert rta["security"] == []
-assert rta["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("RtaRequest")
-assert set(rta["responses"]) >= {"200", "400", "409", "503"}
-assert paths["/rta/profiles"]["get"]["security"] == [{"saToken": []}]
-assert {"get", "post"} <= set(paths["/rta/profiles"])
-assert {"get", "put"} <= set(paths["/rta/profiles/{id}"])
-assert {"get", "put"} <= set(paths["/rta/monitor-tasks/{taskId}"])
-assert paths["/rta/monitor-tasks/{taskId}"]["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("RtaTaskConfigPayload")
-assert paths["/rta/metrics"]["get"]["security"] == [{"saToken": []}]
+rta = paths["/rta/requests"]["post"]
+assert "202" in rta["responses"] and "200" not in rta["responses"]
+assert {p["name"] for p in rta["parameters"]} == {"X-Rta-Key", "X-Rta-Timestamp", "X-Rta-Nonce", "X-Rta-Sign"}
+assert paths["/rta/callbacks/{accessCode}"]["post"]["requestBody"]
+for resource in ("upstreams", "media", "bindings", "records", "logs", "reports"):
+    assert paths["/rta/"+resource]["get"]["security"] == [{"saToken": []}]
+for name in ("request", "decision", "accepted", "notification"):
+    schema=json.loads((root/("rta-async-"+name+".schema.json")).read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    assert schema["additionalProperties"] is False
 management = paths[management_path]
 assert {"get", "put"} <= set(management)
 assert management["put"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("AdvertiserRolePermissionsUpdate")
@@ -192,8 +195,12 @@ assert {
     , "FlowLogStage", "MediaMacro", "MediaMacroListEnvelope"
     , "CallbackEventCode", "CallbackRecord", "CallbackRecordPageEnvelope"
     , "GravityCallbackSuccess", "GravityCallbackFailure", "PhoenixCallbackSuccess"
-    , "RtaRequest", "RtaResponse", "RtaProfilePayload", "RtaTaskConfigPayload", "RtaDecisionFactEvent"
+    , "RtaAsyncRequest", "RtaAsyncDecision", "RtaAsyncAccepted", "RtaAsyncNotification"
 } <= set(schemas)
+assert {"androidId", "androidIdMd5", "macMd5", "caidMd5", "preCaidMd5"} <= set(
+    schemas["RtaAsyncRequest"]["properties"]["device"]["properties"]
+)
+assert "mac" not in schemas["RtaAsyncRequest"]["properties"]["device"]["properties"]
 assert set(schemas["ProtocolAllowedHostsUpdate"]["required"]) == {"allowedHosts"}
 assert schemas["ProtocolAllowedHostsUpdate"]["properties"]["allowedHosts"]["maxItems"] == 50
 assert set(schemas["ProtocolConfig"]["properties"]["protocol"]["enum"]) == {"AERIM", "WEIFENG", "GRAVITY", "RENREN_VIDEO", "PHOENIX"}
@@ -242,7 +249,7 @@ assert "downstreamConversionGet" in webhooks, "standard downstream callback webh
 assert set(webhooks["downstreamConversionGet"]) == {"get"}
 assert "requestBody" not in webhooks["downstreamConversionGet"]["get"]
 
-for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "gravity-callback-req-v1.schema.json", "renren-video-callback-req-v1.schema.json", "phoenix-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json", "rta-request-v1.schema.json", "rta-response-v1.schema.json", "rta-decision-fact-v1.schema.json"):
+for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aerim-callback-req-v1.schema.json", "weifeng-callback-req-v1.schema.json", "gravity-callback-req-v1.schema.json", "renren-video-callback-req-v1.schema.json", "phoenix-callback-req-v1.schema.json", "creative-save-v111.schema.json", "monitor-task-billing-v111.schema.json"):
     with (root / name).open(encoding="utf-8") as handle:
         schema = json.load(handle)
     jsonschema.Draft202012Validator.check_schema(schema)
@@ -257,6 +264,7 @@ for name in ("feedback-req-v2.schema.json", "callback-req-v2.schema.json", "aeri
             "active", "recall", "register", "pay", "pay_amount", "next_day", "first_order",
             "download", "activity", "addiction",
         }
+
 
 with (root / "scx-ocpx-v2.postman_collection.json").open(encoding="utf-8") as handle:
     postman = json.load(handle)

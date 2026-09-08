@@ -28,7 +28,8 @@ import static org.mockito.Mockito.when;
 
 class PhoenixCallbackAdapterTest {
 
-	private final OcpxKeyRingCrypto crypto = new OcpxKeyRingCrypto("v1", Map.of("v1", "phoenix-callback-key"), List.of("v1"));
+	private final OcpxKeyRingCrypto crypto = new OcpxKeyRingCrypto("v1", Map.of("v1", "phoenix-callback-key"),
+			List.of("v1"));
 
 	private final OcpxAdvertiserIndex advertiserIndex = mock(OcpxAdvertiserIndex.class);
 
@@ -51,8 +52,7 @@ class PhoenixCallbackAdapterTest {
 		link.setAdvertiserId("advertiser-id");
 		link.setPlatform(1);
 		link.setLinkUrl("https://api.feather.ifeng.com/d/cli?cid=123&gid=456&aid=789&mid=999&channel=abc"
-				+ "&reqid=__REQID__&os=__OS__&ts=__TS__&callback=__CALLBACK__"
-				+ "&oaid=__OAID__&oaid_md5=__OAIDMD5__");
+				+ "&reqid=__REQID__&os=__OS__&ts=__TS__&callback=__CALLBACK__" + "&oaid=__OAID__&oaid_md5=__OAIDMD5__");
 		OcpxMonitorTask task = new OcpxMonitorTask();
 		task.setId("task-id");
 		task.setAdvertiserId("advertiser-id");
@@ -66,7 +66,8 @@ class PhoenixCallbackAdapterTest {
 	}
 
 	@ParameterizedTest
-	@CsvSource({ "active,ACTIVATE", "download,DOWNLOAD", "activity,ACTIVITY", "addiction,ADDICTION", "pay_amount,PAYMENT" })
+	@CsvSource({ "active,ACTIVATE", "download,DOWNLOAD", "activity,ACTIVITY", "addiction,ADDICTION",
+			"pay_amount,PAYMENT" })
 	void mapsPdfEventTypes(String event, ActionTypeEnum expected) {
 		String ext = crypto.encryptCallback(JSON.toJSONString(feedback()));
 		PhoenixCallbackRequest request = new PhoenixCallbackRequest();
@@ -88,8 +89,14 @@ class PhoenixCallbackAdapterTest {
 	}
 
 	private FeedbackReq feedback() {
-		return FeedbackReq.builder().mId("media-id").tId("task-id").aId("advertiser-id").lId("link-id")
-				.reqId("request-id").event(EventTypeEnum.CLICK).build();
+		return FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.reqId("request-id")
+			.event(EventTypeEnum.CLICK)
+			.build();
 	}
 
 }

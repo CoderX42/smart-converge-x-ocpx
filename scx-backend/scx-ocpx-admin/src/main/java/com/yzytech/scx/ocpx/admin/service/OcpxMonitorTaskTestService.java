@@ -17,7 +17,8 @@ import com.yzytech.scx.ocpx.protocol.PhoenixTemplateContract;
 import com.yzytech.scx.ocpx.protocol.RenrenVideoTemplateContract;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -117,7 +118,7 @@ public class OcpxMonitorTaskTestService {
 
 	private final AdvertiserScope advertiserScope;
 
-	private final JdbcTemplate jdbcTemplate;
+	private final OcpxMonitorTaskTestSqlMapper sqlMapper;
 
 	private final OcpxMonitorTaskTestHttpClient httpClient;
 
@@ -162,37 +163,27 @@ public class OcpxMonitorTaskTestService {
 		requireSystemAdministrator();
 		Context context = context(taskId);
 		validateRequestId(requestId);
-		List<MonitorTaskTestViews.Fact> facts = jdbcTemplate.query("""
-				SELECT event_code,billing_status,billing_reason_code,spend_amount,received_at
-				FROM scx_ocpx_event_fact
-				WHERE monitor_task_id=? AND advertiser_id=? AND request_id=? AND flow_type='FEEDBACK'
-				ORDER BY received_at DESC LIMIT 1
-				""",
-				(rs, rowNum) -> new MonitorTaskTestViews.Fact(rs.getString(1), rs.getString(2), rs.getString(3),
-						rs.getBigDecimal(4), time(rs.getTimestamp(5))),
-				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		List<MonitorTaskTestViews.Fact> facts = sqlMapper
+			.selectResultEventFact(context.task().getId(), context.task().getAdvertiserId(), requestId)
+			.stream()
+			.map(rs -> new MonitorTaskTestViews.Fact(rs.eventCode(), rs.billingStatus(), rs.billingReasonCode(),
+					rs.spendAmount(), time(rs.receivedAt())))
+			.toList();
 		MonitorTaskTestViews.Fact fact = facts.isEmpty() ? null : facts.get(0);
-		List<MonitorTaskTestViews.Flow> flows = jdbcTemplate.query("""
-				SELECT result_status,partner_http_status,message,duration_ms,event_time
-				FROM scx_ocpx_flow_log
-				WHERE monitor_task_id=? AND advertiser_id=? AND event_id=? AND flow_type='FEEDBACK'
-				ORDER BY create_time DESC,id DESC LIMIT 1
-				""",
-				(rs, rowNum) -> new MonitorTaskTestViews.Flow(rs.getString(1), (Integer) rs.getObject(2),
-						rs.getString(3), rs.getLong(4), time(rs.getTimestamp(5))),
-				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		List<MonitorTaskTestViews.Flow> flows = sqlMapper
+			.selectResultFlowLog(context.task().getId(), context.task().getAdvertiserId(), requestId)
+			.stream()
+			.map(rs -> new MonitorTaskTestViews.Flow(rs.resultStatus(), (Integer) rs.partnerHttpStatus(), rs.message(),
+					rs.durationMs(), time(rs.eventTime())))
+			.toList();
 		MonitorTaskTestViews.Flow flow = flows.isEmpty() ? null : flows.get(0);
-		List<MonitorTaskTestViews.CallbackFact> callbackFacts = jdbcTemplate.query("""
-				SELECT event_code,billing_status,billing_reason_code,spend_amount,currency_amount,
-				       deduction_decision,deduction_ratio_snapshot,deduction_decided_at,received_at
-				FROM scx_ocpx_event_fact
-				WHERE monitor_task_id=? AND advertiser_id=? AND request_id=? AND flow_type='CALLBACK'
-				ORDER BY received_at DESC LIMIT 1
-				""",
-				(rs, rowNum) -> new MonitorTaskTestViews.CallbackFact(rs.getString(1), rs.getString(2), rs.getString(3),
-						rs.getBigDecimal(4), rs.getBigDecimal(5), rs.getString(6), rs.getBigDecimal(7),
-						time(rs.getTimestamp(8)), time(rs.getTimestamp(9))),
-				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		List<MonitorTaskTestViews.CallbackFact> callbackFacts = sqlMapper
+			.selectResultEventFact2(context.task().getId(), context.task().getAdvertiserId(), requestId)
+			.stream()
+			.map(rs -> new MonitorTaskTestViews.CallbackFact(rs.eventCode(), rs.billingStatus(), rs.billingReasonCode(),
+					rs.spendAmount(), rs.currencyAmount(), rs.deductionDecision(), rs.deductionRatioSnapshot(),
+					time(rs.deductionDecidedAt()), time(rs.receivedAt())))
+			.toList();
 		MonitorTaskTestViews.CallbackFact callbackFact = callbackFacts.isEmpty() ? null : callbackFacts.get(0);
 		MonitorTaskTestViews.Flow callbackFlow = callbackFlow(context, requestId, false);
 		MonitorTaskTestViews.Flow downstreamFlow = callbackFlow(context, requestId, true);
@@ -240,8 +231,7 @@ public class OcpxMonitorTaskTestService {
 			state = "COMPLETED";
 			String protocolName = context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX ? "凤凰新闻"
 					: "人人视频";
-			conclusion = protocolName
-					+ "正式 Callback 已成功处理并通过媒体扣量；本次未注入测试 callback_url，不验证下游媒体最后一跳";
+			conclusion = protocolName + "正式 Callback 已成功处理并通过媒体扣量；本次未注入测试 callback_url，不验证下游媒体最后一跳";
 		}
 		else {
 			state = "DOWNSTREAM_PENDING";
@@ -316,8 +306,8 @@ public class OcpxMonitorTaskTestService {
 		Set<String> upstreamMacros = upstreamMacros(context);
 		boolean formalUpstreamCallback = isFormalUpstreamCallback(context);
 		validateFormalProtocolSelection(context, os, selected, blockers);
-		if (context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX
-				&& selected.contains("oaid") && !selected.contains("oaid_md5")) {
+		if (context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX && selected.contains("oaid")
+				&& !selected.contains("oaid_md5")) {
 			warnings.add("Phoenix 未提供 OAIDMD5，Engine 将根据原始 OAID 自动计算大写 MD5");
 		}
 		for (ParameterSpec spec : PARAMETER_SPECS) {
@@ -365,8 +355,8 @@ public class OcpxMonitorTaskTestService {
 				context.task().getMonitorName(), context.advertiser().getAdvertiserName(),
 				context.media().getMediaName(), context.link().getLinkName(), context.link().getPlatform(), testUrl,
 				callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "TEST_COLLECTOR", callbackDisplayUrl,
-				expectedCharge, availableBalance,
-				blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings), parameters);
+				expectedCharge, availableBalance, blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings),
+				parameters);
 	}
 
 	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String callbackUrl, String os,
@@ -387,8 +377,8 @@ public class OcpxMonitorTaskTestService {
 					true, false, callbackDisplayUrl));
 		}
 		else {
-			result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环",
-					"__CALLBACK_URL__", mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
+			result.add(new MonitorTaskTestViews.Parameter("callback_url", "SCX 测试回调接收器", "回调闭环", "__CALLBACK_URL__",
+					mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
 		}
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (!spec.os().supports(os)) {
@@ -595,8 +585,8 @@ public class OcpxMonitorTaskTestService {
 
 	private String formalCallbackDisplayUrl(Context context) {
 		URI base = engineBase();
-		String path = context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX
-				? "/phoenix/callback" : "/renren-video/callback";
+		String path = context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX ? "/phoenix/callback"
+				: "/renren-video/callback";
 		return base + path + "?kid=<运行时密钥版本>&ext=<加密路由>";
 	}
 
@@ -655,17 +645,15 @@ public class OcpxMonitorTaskTestService {
 	}
 
 	private BigDecimal availableBalance(String advertiserId) {
-		List<BigDecimal> balances = jdbcTemplate.query("""
-				SELECT available_balance FROM scx_ocpx_advertiser_account WHERE advertiser_id=?
-				""", (rs, rowNum) -> rs.getBigDecimal(1), advertiserId);
+		List<BigDecimal> balances = sqlMapper.selectAvailableBalanceAdvertiserAccount(advertiserId)
+			.stream()
+			.map(rs -> rs.availableBalance())
+			.toList();
 		return balances.isEmpty() ? null : balances.get(0);
 	}
 
 	private boolean factExists(String taskId, String requestId) {
-		Long count = jdbcTemplate.queryForObject("""
-				SELECT COUNT(*) FROM scx_ocpx_event_fact
-				WHERE monitor_task_id=? AND request_id=? AND event_code='CLK' AND flow_type='FEEDBACK'
-				""", Long.class, taskId, requestId);
+		Long count = sqlMapper.selectFactExistsEventFact(taskId, requestId);
 		return count != null && count > 0;
 	}
 
@@ -815,19 +803,12 @@ public class OcpxMonitorTaskTestService {
 	}
 
 	private MonitorTaskTestViews.Flow callbackFlow(Context context, String requestId, boolean downstream) {
-		String predicate = downstream ? "message = 'TEST_CALLBACK_RECEIVED'"
-				: "message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')";
-		String sql = """
-				SELECT result_status,partner_http_status,message,duration_ms,event_time
-				FROM scx_ocpx_flow_log
-				WHERE monitor_task_id=? AND advertiser_id=? AND event_id=? AND flow_type='CALLBACK'
-				  AND %s
-				ORDER BY create_time DESC,id DESC LIMIT 1
-				""".formatted(predicate);
-		List<MonitorTaskTestViews.Flow> flows = jdbcTemplate.query(sql,
-				(rs, rowNum) -> new MonitorTaskTestViews.Flow(rs.getString(1), (Integer) rs.getObject(2),
-						rs.getString(3), rs.getLong(4), time(rs.getTimestamp(5))),
-				context.task().getId(), context.task().getAdvertiserId(), requestId);
+		List<MonitorTaskTestViews.Flow> flows = sqlMapper
+			.selectCallbackFlow(context.task().getId(), context.task().getAdvertiserId(), requestId, downstream)
+			.stream()
+			.map(rs -> new MonitorTaskTestViews.Flow(rs.resultStatus(), (Integer) rs.partnerHttpStatus(), rs.message(),
+					rs.durationMs(), time(rs.eventTime())))
+			.toList();
 		return flows.isEmpty() ? null : flows.get(0);
 	}
 

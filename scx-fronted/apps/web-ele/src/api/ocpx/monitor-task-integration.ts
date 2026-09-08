@@ -5,10 +5,10 @@ import { requestClient } from '#/api/request';
 export type MonitorTaskIntegrationFeedback = {
   advertiserId?: string;
   androidId?: string;
-  callbackAvailable: boolean;
-  callbackUrl?: string;
   caid?: string;
   caid1?: string;
+  callbackAvailable: boolean;
+  callbackUrl?: string;
   clickId?: string;
   creativeId?: string;
   deviceOs?: string;

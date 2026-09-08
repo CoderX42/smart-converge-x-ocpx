@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper">
+    <insert id="insertCreateAdvertiserAccount">
+        INSERT INTO scx_ocpx_advertiser_account (advertiser_id,
+        currency,
+        available_balance)
+        VALUES (#{advertiserId},
+        'CNY',
+        0)
+    </insert>
+    <resultMap id="selectBalanceAdvertiserAccountRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper$SelectBalanceAdvertiserAccountRow">
+        <constructor>
+            <arg column="available_balance" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectBalanceAdvertiserAccount" resultMap="selectBalanceAdvertiserAccountRow" useCache="false" flushCache="true">
+        SELECT available_balance
+        FROM scx_ocpx_advertiser_account
+        WHERE advertiser_id=#{advertiserId}
+    </select>
+    <update id="updateRechargeAdvertiserAccount">
+        UPDATE scx_ocpx_advertiser_account SET available_balance=#{balanceAfter},
+        update_time=CURRENT_TIMESTAMP(3)
+        WHERE advertiser_id=#{advertiserId}
+    </update>
+    <insert id="insertRechargeBillingEntry">
+        INSERT INTO scx_ocpx_billing_entry ( id,
+        advertiser_id,
+        entry_type,
+        status,
+        amount,
+        balance_before,
+        balance_after,
+        business_key,
+        operator_user_id,
+        remark,
+        occurred_at )
+        VALUES (#{command.id},
+        #{command.advertiserId},
+        'RECHARGE',
+        'POSTED',
+        #{command.amount},
+        #{command.balanceBefore},
+        #{command.balanceAfter},
+        #{command.businessKey},
+        #{command.operatorUserId},
+        #{command.remark},
+        #{command.occurredAt})
+    </insert>
+    <update id="updateDeductAdvertiserAccount">
+        UPDATE scx_ocpx_advertiser_account SET available_balance=#{balanceAfter},
+        update_time=CURRENT_TIMESTAMP(3)
+        WHERE advertiser_id=#{advertiserId}
+    </update>
+    <insert id="insertDeductBillingEntry">
+        INSERT INTO scx_ocpx_billing_entry ( id,
+        advertiser_id,
+        entry_type,
+        status,
+        amount,
+        balance_before,
+        balance_after,
+        business_key,
+        operator_user_id,
+        remark,
+        occurred_at )
+        VALUES (#{command.id},
+        #{command.advertiserId},
+        'MANUAL_DEBIT',
+        'POSTED',
+        #{command.amount},
+        #{command.balanceBefore},
+        #{command.balanceAfter},
+        #{command.businessKey},
+        #{command.operatorUserId},
+        #{command.remark},
+        #{command.occurredAt})
+    </insert>
+    <select id="selectAssertDeletableEventFact" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_event_fact
+        WHERE advertiser_id=#{advertiserId}
+    </select>
+    <select id="selectAssertDeletableBillingEntry" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_billing_entry
+        WHERE advertiser_id=#{advertiserId}
+    </select>
+    <select id="selectAssertDeletableBillingConfigAudit" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_billing_config_audit
+        WHERE advertiser_id=#{advertiserId}
+    </select>
+    <delete id="deleteDeleteEmptyAccountAdvertiserAccount">
+        DELETE
+        FROM scx_ocpx_advertiser_account
+        WHERE advertiser_id=#{advertiserId}
+    </delete>
+    <resultMap id="selectLockBalanceAdvertiserAccountRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper$SelectLockBalanceAdvertiserAccountRow">
+        <constructor>
+            <arg column="available_balance" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectLockBalanceAdvertiserAccount" resultMap="selectLockBalanceAdvertiserAccountRow" useCache="false" flushCache="true">
+        SELECT available_balance
+        FROM scx_ocpx_advertiser_account
+        WHERE advertiser_id=#{advertiserId} FOR UPDATE
+    </select>
+    <resultMap id="selectFindRechargeBillingEntryRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper$SelectFindRechargeBillingEntryRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="amount" javaType="java.math.BigDecimal"/>
+            <arg column="balance_after" javaType="java.math.BigDecimal"/>
+            <arg column="occurred_at" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectFindRechargeBillingEntry" resultMap="selectFindRechargeBillingEntryRow" useCache="false" flushCache="true">
+        SELECT id,
+        advertiser_id,
+        amount,
+        balance_after,
+        occurred_at
+        FROM scx_ocpx_billing_entry
+        WHERE business_key=#{businessKey}
+    </select>
+    <resultMap id="selectFindDeductionBillingEntryRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper$SelectFindDeductionBillingEntryRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="amount" javaType="java.math.BigDecimal"/>
+            <arg column="balance_after" javaType="java.math.BigDecimal"/>
+            <arg column="occurred_at" javaType="java.sql.Timestamp"/>
+            <arg column="remark" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectFindDeductionBillingEntry" resultMap="selectFindDeductionBillingEntryRow" useCache="false" flushCache="true">
+        SELECT id,
+        advertiser_id,
+        amount,
+        balance_after,
+        remark,
+        occurred_at
+        FROM scx_ocpx_billing_entry
+        WHERE business_key=#{businessKey}
+    </select>
+    <resultMap id="selectBalancesByIdsRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper$SelectBalancesByIdsRow">
+        <constructor>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="available_balance" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectBalancesByIds" resultMap="selectBalancesByIdsRow" useCache="false" flushCache="true">
+        SELECT advertiser_id,
+        available_balance
+        FROM scx_ocpx_advertiser_account
+        WHERE
+        <choose>
+            <when test="ids != null and !ids.isEmpty()">
+                advertiser_id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </when>
+            <otherwise>
+                1=0
+            </otherwise>
+        </choose>
+    </select>
+</mapper>

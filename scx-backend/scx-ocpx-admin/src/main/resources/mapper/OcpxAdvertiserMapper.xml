@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper">
+    <select id="selectUsernamesByAdvertiserIds" resultType="com.yzytech.scx.ocpx.admin.dto.ManagementRows$AdvertiserUsername" useCache="false" flushCache="true">
+        SELECT a.id AS advertiser_id,
+        u.username
+        FROM scx_ocpx_advertiser a
+        LEFT
+        JOIN sys_user u ON u.id=a.account_user_id AND u.del_flag='0'
+        WHERE
+        <choose>
+            <when test="ids != null and !ids.isEmpty()">
+                a.id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </when>
+            <otherwise>
+                1=0
+            </otherwise>
+        </choose>
+    </select>
+    <select id="selectByIdForUpdate" resultType="com.yzytech.scx.ocpx.entity.OcpxAdvertiser" useCache="false" flushCache="true">
+        SELECT *
+        FROM scx_ocpx_advertiser
+        WHERE id=#{id} FOR UPDATE
+    </select>
+    <select id="selectCascadeRoutes" resultType="com.yzytech.scx.ocpx.admin.dto.ManagementRows$RouteKey" useCache="false" flushCache="true">
+        SELECT DISTINCT route.promotion_link_id,
+        route.media_id
+        FROM ( SELECT promotion_link_id,
+        media_id
+        FROM scx_ocpx_monitor_task
+        WHERE advertiser_id=#{id} UNION SELECT r.promotion_link_id,
+        r.media_id
+        FROM scx_ocpx_deduction_rule r
+        JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id
+        WHERE p.advertiser_id=#{id} ) route
+    </select>
+    <delete id="deleteReportMatTemp">
+        DELETE
+        FROM scx_ocpx_report_mat_temp
+        WHERE a_id=#{id}
+    </delete>
+    <delete id="deleteReportMat">
+        DELETE
+        FROM scx_ocpx_report_mat
+        WHERE a_id=#{id}
+    </delete>
+    <delete id="deleteCallbackLogs">
+        DELETE
+        FROM scx_ocpx_log_callback
+        WHERE a_id=#{id}
+    </delete>
+    <delete id="deleteFeedbackDayLogs">
+        DELETE
+        FROM scx_ocpx_log_feedback_day
+        WHERE a_id=#{id}
+    </delete>
+    <delete id="deleteFeedbackLogs">
+        DELETE
+        FROM scx_ocpx_log_feedback
+        WHERE a_id=#{id}
+    </delete>
+    <delete id="deleteFlowLogs">
+        DELETE
+        FROM scx_ocpx_flow_log
+        WHERE advertiser_id=#{id}
+    </delete>
+    <delete id="deleteRtaTaskBindings">
+        DELETE b
+        FROM scx_ocpx_rta_binding b
+        JOIN scx_ocpx_monitor_task t ON t.id=b.monitor_task_id
+        WHERE t.advertiser_id=#{id}
+    </delete>
+    <delete id="deleteRtaUpstreams">
+        DELETE
+        FROM scx_ocpx_rta_upstream
+        WHERE advertiser_id=#{id}
+    </delete>
+    <delete id="deleteCreativeBindings">
+        DELETE
+        FROM scx_ocpx_creative_promotion_link
+        WHERE advertiser_id=#{id}
+    </delete>
+    <delete id="deleteCreatives">
+        DELETE
+        FROM scx_ocpx_creative
+        WHERE advertiser_id=#{id}
+    </delete>
+    <delete id="deleteDeductionRules">
+        DELETE r
+        FROM scx_ocpx_deduction_rule r
+        JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id
+        WHERE p.advertiser_id=#{id}
+    </delete>
+    <delete id="deleteMonitorTasks">
+        DELETE
+        FROM scx_ocpx_monitor_task
+        WHERE advertiser_id=#{id}
+    </delete>
+    <delete id="deletePromotionLinks">
+        DELETE
+        FROM scx_ocpx_promotion_link
+        WHERE advertiser_id=#{id}
+    </delete>
+</mapper>

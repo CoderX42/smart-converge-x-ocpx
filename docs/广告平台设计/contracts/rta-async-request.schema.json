@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "requestId",
+    "taskIds",
+    "device",
+    "context"
+  ],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._-]{1,128}$"
+    },
+    "taskIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{1,32}$"
+      }
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "oaid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "oaidMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "imei": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "imeiMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "idfa": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "idfaMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "androidId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "androidIdMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "macMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "caid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "caidVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "caidMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "preCaid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "preCaidVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "preCaidMd5": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "minProperties": 1
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "os": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "osv": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "ip": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "ipv6": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "ua": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.admin.dto.UnifiedReportQuery;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -58,7 +61,9 @@ class OcpxUnifiedReportServiceTest {
 		when(advertiserScope.accountAdvertiserId("adv-1")).thenReturn("adv-1");
 		OcpxAdvertiserAccountService accountService = mock(OcpxAdvertiserAccountService.class);
 		when(accountService.balance("adv-1")).thenReturn(new BigDecimal("75.000000"));
-		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope, accountService);
+		OcpxUnifiedReportService service = new OcpxUnifiedReportService(
+				XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate), advertiserScope,
+				accountService);
 
 		var dashboard = service.dashboard(new UnifiedReportQuery(LocalDate.of(2026, 8, 15), LocalDate.of(2026, 8, 15),
 				"TIME", "adv-1", null, null, null, 1, 30));
@@ -91,7 +96,8 @@ class OcpxUnifiedReportServiceTest {
 		when(jdbcTemplate.queryForObject(anyString(), eq(LocalDateTime.class), any(Object[].class))).thenReturn(null);
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
 		when(advertiserScope.constrain(nullable(String.class))).thenReturn(null);
-		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope,
+		OcpxUnifiedReportService service = new OcpxUnifiedReportService(
+				XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate), advertiserScope,
 				mock(OcpxAdvertiserAccountService.class));
 
 		var dashboard = service.dashboard(new UnifiedReportQuery(LocalDate.of(2026, 8, 15), LocalDate.of(2026, 8, 15),
@@ -118,7 +124,8 @@ class OcpxUnifiedReportServiceTest {
 			.thenAnswer(invocation -> ((ResultSetExtractor) invocation.getArgument(1)).extractData(resultSet));
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
 		when(advertiserScope.constrain(nullable(String.class))).thenReturn(null);
-		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope,
+		OcpxUnifiedReportService service = new OcpxUnifiedReportService(
+				XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate), advertiserScope,
 				mock(OcpxAdvertiserAccountService.class));
 
 		var dashboard = service.dashboard(null);
@@ -138,7 +145,9 @@ class OcpxUnifiedReportServiceTest {
 		when(advertiserScope.currentAdvertiserId()).thenReturn("advertiser-own");
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		new OcpxUnifiedReportService(jdbcTemplate, advertiserScope, advertiserAccountService).options();
+		new OcpxUnifiedReportService(XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate),
+				advertiserScope, advertiserAccountService)
+			.options();
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -167,7 +176,8 @@ class OcpxUnifiedReportServiceTest {
 		when(jdbcTemplate.queryForObject(anyString(), org.mockito.ArgumentMatchers.eq(Long.class), any(Object[].class)))
 			.thenReturn(1L);
 		OcpxAdvertiserAccountService advertiserAccountService = mock(OcpxAdvertiserAccountService.class);
-		OcpxUnifiedReportService service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope,
+		OcpxUnifiedReportService service = new OcpxUnifiedReportService(
+				XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate), advertiserScope,
 				advertiserAccountService);
 		UnifiedReportQuery query = new UnifiedReportQuery(LocalDate.of(2026, 8, 12), LocalDate.of(2026, 8, 12), "TIME",
 				"advertiser-id", "link-id", "media-id", "task-id", 1, 20);
@@ -191,12 +201,11 @@ class OcpxUnifiedReportServiceTest {
 			.isEqualByComparingTo(new BigDecimal("25.000000"));
 		assertThat(page.getRecords().get(0).getMetrics().get("CURRENCY_AMOUNT").getAmount())
 			.isEqualByComparingTo(new BigDecimal("123.45"));
-		assertThat(page.getSummary().keySet()).containsAll(
-				List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK", "ACTIVATE", "EVOKE", "LOGIN", "REGISTER",
-						"PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS", "AUTHENTICATION", "PLACE_ORDER",
-					"FINISH_THE_ORDER", "FIRST_ACTIVATION", "FIRST_ORDER", "TARGET_CONVERSION", "CALLBACK",
-					"DEDUCTION_PASSED", "DEDUCTION_DEDUCTED", "REJECTED_CLICK", "DOWNLOAD", "ACTIVITY",
-					"ADDICTION", "BASE_PRICE", "CURRENCY_AMOUNT"));
+		assertThat(page.getSummary().keySet()).containsAll(List.of("SHOW", "UNIQUE_SHOW", "CLICK", "UNIQUE_CLICK",
+				"ACTIVATE", "EVOKE", "LOGIN", "REGISTER", "PAYMENT", "CUSTOMER_ACQUISITION", "NEXT_STAY", "VISITS",
+				"AUTHENTICATION", "PLACE_ORDER", "FINISH_THE_ORDER", "FIRST_ACTIVATION", "FIRST_ORDER",
+				"TARGET_CONVERSION", "CALLBACK", "DEDUCTION_PASSED", "DEDUCTION_DEDUCTED", "REJECTED_CLICK", "DOWNLOAD",
+				"ACTIVITY", "ADDICTION", "BASE_PRICE", "CURRENCY_AMOUNT"));
 	}
 
 	private void assertMetric(Map<String, com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews.DashboardMetric> metrics,

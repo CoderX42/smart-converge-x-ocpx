@@ -1,0 +1,273 @@
+package com.yzytech.scx.ocpx.admin.rta;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.yzytech.scx.common.security.handler.BootBusinessException;
+import com.yzytech.scx.ocpx.admin.service.AdvertiserScope;
+import com.yzytech.scx.ocpx.rta.contract.RtaContract;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import com.yzytech.scx.ocpx.admin.mapper.RtaManagementSqlMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.net.URI;
+import java.util.*;
+
+@Service
+public class RtaManagement {
+
+	private final RtaManagementSqlMapper sqlMapper;
+
+	private final AdvertiserScope scope;
+
+	private final StringRedisTemplate redis;
+
+	@Value("${app.rta-relay.public-base-url:}")
+	private String publicBaseUrl;
+
+	@Value("${app.rta-relay.allowed-hosts:}")
+	private List<String> allowedHosts;
+
+	public RtaManagement(RtaManagementSqlMapper sqlMapper, AdvertiserScope scope, StringRedisTemplate redis) {
+		this.sqlMapper = sqlMapper;
+		this.scope = scope;
+		this.redis = redis;
+	}
+
+	public record Page(List<Map<String, Object>> records, long total, long current, long size, String dataAsOf) {
+	}
+
+	public Page list(String kind, Map<String, String> query) {
+		String advertiser = scope.constrain(query.get("advertiserId"));
+		long current = number(query.get("current"), 1, 1, 1000), size = number(query.get("size"), 30, 1, 100);
+		if (!Set.of("upstreams", "media", "bindings", "logs", "reports").contains(kind))
+			throw new BootBusinessException("未知 RTA 页面");
+		long now = System.currentTimeMillis(), start = now - 86400000L, end = now;
+		if (kind.equals("logs") || kind.equals("reports")) {
+			start = number(query.get("startTime"), start, 0, Long.MAX_VALUE);
+			end = number(query.get("endTime"), end, 0, Long.MAX_VALUE);
+			if (start > end || end - start > 31L * 86400000)
+				throw new BootBusinessException("时间范围最多31天");
+		}
+		var filters = new HashMap<>(query);
+		if (filters.get("keyword") != null)
+			filters.put("keyword", filters.get("keyword").trim());
+		var criteria = new RtaManagementSqlMapper.Query(kind, advertiser, filters, new java.sql.Timestamp(start),
+				new java.sql.Timestamp(end), new java.sql.Timestamp(now - 86400000L), size, (current - 1) * size);
+		Long total = sqlMapper.count(criteria);
+		String asOf = kind.equals("logs") || kind.equals("reports") ? sqlMapper.dataAsOf(criteria) : null;
+		List<Map<String, Object>> rows = sqlMapper.selectPage(criteria).stream().map(this::camel).toList();
+		for (var row : rows) {
+			if (kind.equals("upstreams"))
+				row.put("callbackUrl", publicBaseUrl + "/rta/callbacks/" + row.get("accessCode"));
+			if (kind.equals("media"))
+				row.put("requestUrl", publicBaseUrl + "/rta/requests");
+			if (kind.equals("reports")) {
+				long count = ((Number) row.get("requestCount")).longValue();
+				long done = 0;
+				for (String f : List.of("allowCount", "denyCount", "errorCount", "timeoutCount"))
+					done += ((Number) row.get(f)).longValue();
+				row.put("pendingCount", Math.max(0, count - done));
+				row.put("allowRate", count == 0 ? 0 : ((Number) row.get("allowCount")).doubleValue() / count);
+			}
+		}
+		return new Page(rows, total == null ? 0 : total, current, size, asOf);
+	}
+
+	public List<Map<String, Object>> options(String kind, Map<String, String> query) {
+		String advertiser = scope.constrain(query.get("advertiserId"));
+		if (!Set.of("advertisers", "media", "tasks", "upstreams").contains(kind))
+			throw new BootBusinessException("未知选项类型");
+		return sqlMapper
+			.selectOptions(new RtaManagementSqlMapper.Query(kind, advertiser, query, null, null, null, 100, 0));
+	}
+
+	@Transactional
+	public void save(String kind, Map<String, Object> body) {
+		String id = text(body, "id", 32, false);
+		boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
+		long version = number(Objects.toString(body.get("version"), null), 0, 0, Long.MAX_VALUE);
+		if (kind.equals("upstreams")) {
+			scope.requireSystemAdministrator();
+			String advertiser = text(body, "advertiserId", 32, true), name = text(body, "name", 128, true),
+					code = text(body, "accessCode", 64, true), endpoint = text(body, "endpoint", 2048, true),
+					ref = text(body, "credentialRef", 64, true);
+			identifier(code);
+			identifier(ref);
+			exists(sqlMapper.countAdvertiser(advertiser));
+			url(endpoint);
+			int timeout = (int) number(Objects.toString(body.get("timeoutMs"), null), 5000, 100, 30000),
+					ttl = (int) number(Objects.toString(body.get("admissionSeconds"), null), 300, 1, 86400);
+			if (id.isEmpty())
+				sqlMapper.insertSaveRtaUpstream(new RtaManagementSqlMapper.InsertSaveRtaUpstreamCommand(
+						UUID.randomUUID().toString().replace("-", ""), advertiser, name, code, endpoint, ref, timeout,
+						ttl, enabled));
+			else
+				changed(sqlMapper.updateSaveRtaUpstream(new RtaManagementSqlMapper.UpdateSaveRtaUpstreamCommand(name,
+						endpoint, ref, timeout, ttl, enabled, id, advertiser, code, version)));
+		}
+		else if (kind.equals("media")) {
+			scope.requireSystemAdministrator();
+			String media = text(body, "mediaId", 32, true), notify = text(body, "notifyUrl", 2048, true),
+					ref = text(body, "credentialRef", 64, true);
+			exists(sqlMapper.countMedia(media));
+			identifier(ref);
+			url(notify);
+			if (version == 0)
+				sqlMapper.insertSaveRtaMediaAccess(media, notify, ref, enabled);
+			else
+				changed(sqlMapper.updateSaveRtaMediaAccess(notify, ref, enabled, media, version));
+		}
+		else if (kind.equals("bindings")) {
+			String task = text(body, "monitorTaskId", 32, true), upstream = text(body, "upstreamId", 32, true),
+					product = text(body, "productId", 128, true), external = text(body, "externalTaskId", 128, true);
+			List<Map<String, Object>> tasks = sqlMapper.lockTask(task);
+			if (tasks.size() != 1)
+				throw new BootBusinessException("任务不可用");
+			var t = tasks.get(0);
+			scope.requireOwner(t.get("advertiser_id").toString());
+			sqlMapper.selectSaveRtaMediaAccess(t.get("media_id"));
+			Long valid = sqlMapper.countValidRoute(t.get("media_id"), upstream, t.get("advertiser_id"), enabled);
+			if (valid == null || valid != 1)
+				throw new BootBusinessException("广告主接入或媒体配置不可用");
+			Long duplicate = sqlMapper.selectSaveRtaBinding(t.get("media_id"), upstream, product, external, task);
+			if (enabled && duplicate != null && duplicate > 0)
+				throw new BootBusinessException("同一媒体的产品/任务映射存在歧义");
+			if (version == 0)
+				sqlMapper.insertSaveRtaBinding(task, upstream, product, external, enabled);
+			else
+				changed(sqlMapper.updateSaveRtaBinding(new RtaManagementSqlMapper.UpdateSaveRtaBindingCommand(upstream,
+						product, external, enabled, task, version)));
+			sqlMapper.updateSaveMonitorTask(enabled, task);
+		}
+		else
+			throw new BootBusinessException("不支持的写操作");
+	}
+
+	public Page records(Map<String, String> query) {
+		String advertiser = scope.constrain(query.get("advertiserId")), media = query.get("mediaId");
+		long current = number(query.get("current"), 1, 1, 1000), size = number(query.get("size"), 30, 1, 100),
+				now = System.currentTimeMillis();
+		String key = RtaContract.PREFIX + "records:" + (advertiser != null ? "advertiser:" + advertiser
+				: media != null && !media.isBlank() ? "media:" + media : "all");
+		redis.opsForZSet().removeRangeByScore(key, 0, now - RtaContract.RETENTION_MS);
+		List<Map<String, Object>> rows = new ArrayList<>();
+		long matched = 0;
+		for (long offset = 0;; offset += 500) {
+			Set<String> ids = redis.opsForZSet().reverseRange(key, offset, offset + 499);
+			if (ids == null || ids.isEmpty())
+				break;
+			List<String> values = redis.opsForValue()
+				.multiGet(ids.stream().map(id -> RtaContract.PREFIX + "state:" + id).toList());
+			if (values != null)
+				for (String value : values) {
+					if (value == null)
+						continue;
+					JSONObject state = JSON.parseObject(value);
+					if (advertiser != null && !advertiser.equals(state.getString("advertiserId")))
+						continue;
+					if (media != null && !media.isBlank() && !media.equals(state.getString("mediaId")))
+						continue;
+					boolean matches = true;
+					for (String f : List.of("requestId", "relayRequestId", "status", "deliveryStatus"))
+						if (query.get(f) != null && !query.get(f).isBlank() && !query.get(f).equals(state.getString(f)))
+							matches = false;
+					String task = query.get("monitorTaskId");
+					if (task != null && !task.isBlank()
+							&& state.getJSONArray("bindings")
+								.stream()
+								.map(item -> JSON.parseObject(JSON.toJSONString(item)))
+								.noneMatch(item -> task.equals(item.getString("taskId"))))
+						matches = false;
+					if (!matches)
+						continue;
+					if (matched++ < (current - 1) * size || rows.size() >= size)
+						continue;
+					Map<String, Object> row = new LinkedHashMap<>();
+					for (String field : List.of("requestId", "relayRequestId", "mediaId", "advertiserId", "status",
+							"deliveryStatus", "reasonCode", "receivedAt", "completedAt", "deadline", "expiresAt",
+							"matchedTaskIds", "deliveryAttempts"))
+						row.put(field, state.get(field));
+					if (!(row.get("matchedTaskIds") instanceof List))
+						row.put("matchedTaskIds", List.of());
+					rows.add(row);
+				}
+			if (ids.size() < 500)
+				break;
+		}
+		Set<Object> mediaIds = new HashSet<>();
+		for (var row : rows)
+			mediaIds.add(row.get("mediaId"));
+		Map<String, String> names = new HashMap<>();
+		if (!mediaIds.isEmpty())
+			sqlMapper.selectMediaNames(mediaIds)
+				.forEach(row -> names.put((String) row.get("id"), (String) row.get("media_name")));
+		for (var row : rows)
+			row.put("mediaName", names.getOrDefault(row.get("mediaId"), Objects.toString(row.get("mediaId"))));
+		return new Page(rows, matched, current, size, null);
+	}
+
+	private void exists(Long count) {
+		if (!Long.valueOf(1).equals(count))
+			throw new BootBusinessException("对象不可用");
+	}
+
+	private void url(String value) {
+		try {
+			URI u = URI.create(value);
+			if (!"https".equals(u.getScheme()) || u.getHost() == null || u.getUserInfo() != null
+					|| u.getRawQuery() != null || u.getFragment() != null || u.getPort() != -1 && u.getPort() != 443
+					|| allowedHosts == null || !allowedHosts.contains(u.getHost().toLowerCase(Locale.ROOT)))
+				throw new IllegalArgumentException();
+		}
+		catch (Exception e) {
+			throw new BootBusinessException("地址必须是允许域名中的 HTTPS 地址，不能包含查询参数或凭据");
+		}
+	}
+
+	private static String text(Map<String, Object> body, String name, int max, boolean required) {
+		Object value = body.get(name);
+		if (value != null && !(value instanceof String))
+			throw new BootBusinessException("字段类型无效");
+		String s = value == null ? "" : value.toString().trim();
+		if (s.length() > max || required && s.isEmpty() || s.chars().anyMatch(Character::isISOControl))
+			throw new BootBusinessException("字段无效：" + name);
+		return s;
+	}
+
+	private static void identifier(String value) {
+		if (!value.matches("[A-Za-z0-9_-]{1,64}"))
+			throw new BootBusinessException("接入编号或凭据引用无效");
+	}
+
+	private static void changed(int n) {
+		if (n != 1)
+			throw new BootBusinessException(409, "配置已变更，请刷新后重试");
+	}
+
+	private static long number(String value, long fallback, long min, long max) {
+		try {
+			long n = value == null || value.isBlank() ? fallback : Long.parseLong(value);
+			if (n < min || n > max)
+				throw new NumberFormatException();
+			return n;
+		}
+		catch (NumberFormatException e) {
+			throw new BootBusinessException("数字参数越界");
+		}
+	}
+
+	private Map<String, Object> camel(Map<String, Object> input) {
+		Map<String, Object> out = new LinkedHashMap<>();
+		input.forEach((key, value) -> {
+			String[] parts = key.toLowerCase(Locale.ROOT).split("_");
+			StringBuilder name = new StringBuilder(parts[0]);
+			for (int i = 1; i < parts.length; i++)
+				name.append(Character.toUpperCase(parts[i].charAt(0))).append(parts[i].substring(1));
+			out.put(name.toString(), value instanceof java.sql.Timestamp ? value.toString() : value);
+		});
+		return out;
+	}
+
+}

@@ -17,9 +17,13 @@ domain:
   name: http://127.0.0.1:10000/ocpx
 
 app:
-  rta:
-    enabled: true
-    mock-enabled: true
+  rta-relay:
+    enabled: false
+    public-base-url: https://example.invalid/ocpx
+    callback-base-url: https://example.invalid/ocpx
+    allowed-hosts: rta.example.invalid
+    credentials: {}
+    payload-key: ''
   callback-crypto:
     active-key-id: v1
     keys:

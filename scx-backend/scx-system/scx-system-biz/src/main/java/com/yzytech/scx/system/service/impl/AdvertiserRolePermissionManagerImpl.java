@@ -40,16 +40,14 @@ import java.util.Set;
 public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermissionManager {
 
 	private static final Set<String> FULL_SCOPE_REQUIRED_PERMISSIONS = Set.of("ocpx:advertiser:add",
-			"ocpx:advertiser:delete", "ocpx:media:view", "ocpx:media:add", "ocpx:media:edit",
-			"ocpx:media:delete", "ocpx:deduction-rule:list", "ocpx:deduction-rule:create",
-			"ocpx:deduction-rule:update", "ocpx:deduction-rule:delete");
+			"ocpx:advertiser:delete", "ocpx:media:view", "ocpx:media:add", "ocpx:media:edit", "ocpx:media:delete",
+			"ocpx:deduction-rule:list", "ocpx:deduction-rule:create", "ocpx:deduction-rule:update",
+			"ocpx:deduction-rule:delete");
 
 	private static final Set<String> NON_DELEGABLE_PERMISSIONS = Set.of(
 			SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION,
-			SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION,
-			SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION,
-			SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION,
-			SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION,
+			SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION, SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION,
+			SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION, SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION,
 			SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION);
 
 	private static final Comparator<SysMenu> MENU_ORDER = Comparator
@@ -90,7 +88,9 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 		roleMenuMapper.delete(Wrappers.<SysRoleMenu>lambdaQuery().eq(SysRoleMenu::getRoleId, role.getId()));
 		if (!stored.isEmpty()) {
 			LocalDateTime now = LocalDateTime.now();
-			List<SysRoleMenu> relations = stored.stream().sorted().map(menuId -> relation(role.getId(), menuId, now))
+			List<SysRoleMenu> relations = stored.stream()
+				.sorted()
+				.map(menuId -> relation(role.getId(), menuId, now))
 				.toList();
 			roleMenuMapper.saveBatch(relations);
 		}
@@ -108,10 +108,7 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 			.stream()
 			.map(SysRoleMenu::getMenuId)
 			.collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-		List<String> selected = stored.stream()
-			.filter(catalog.menuById()::containsKey)
-			.sorted()
-			.toList();
+		List<String> selected = stored.stream().filter(catalog.menuById()::containsKey).sorted().toList();
 		return new Configuration(role.getId(), role.getRoleName(), role.getRoleCode(), selected,
 				stored.contains(catalog.allScopeMenuId()), accounts.size(), buildTree(catalog));
 	}
@@ -171,7 +168,8 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 		Map<String, List<SysMenu>> children = new HashMap<>();
 		catalog.menuById()
 			.values()
-			.forEach(menu -> children.computeIfAbsent(text(menu.getParentId()), ignored -> new ArrayList<>()).add(menu));
+			.forEach(
+					menu -> children.computeIfAbsent(text(menu.getParentId()), ignored -> new ArrayList<>()).add(menu));
 		children.values().forEach(items -> items.sort(MENU_ORDER));
 		return catalog.menuById()
 			.values()
@@ -196,11 +194,8 @@ public class AdvertiserRolePermissionManagerImpl implements AdvertiserRolePermis
 	}
 
 	private SysRole requireFixedRole(boolean lock) {
-		var query = Wrappers.<SysRole>lambdaQuery().eq(SysRole::getId, SystemAccountConstants.ROLE_ADVERTISER_ID);
-		if (lock) {
-			query.last("FOR UPDATE");
-		}
-		SysRole role = roleMapper.selectOne(query);
+		SysRole role = lock ? roleMapper.selectByIdForUpdate(SystemAccountConstants.ROLE_ADVERTISER_ID)
+				: roleMapper.selectById(SystemAccountConstants.ROLE_ADVERTISER_ID);
 		if (role == null || !SystemAccountConstants.ROLE_ADVERTISER_CODE.equals(role.getRoleCode())
 				|| !"0".equals(role.getType()) || role.getShopId() != null) {
 			throw new IllegalStateException("固定广告主角色不存在或配置无效");

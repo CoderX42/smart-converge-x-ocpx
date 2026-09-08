@@ -53,6 +53,17 @@
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2</artifactId>
         </dependency>
+        <!--
+            The RTA client uses OkHttp's injectable Dns boundary so the addresses
+            validated by the SSRF policy are the exact addresses used for the
+            connection.  java.net.http does not expose a per-client resolver and
+            would leave a DNS rebinding window between validation and connect.
+        -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>${okhttp.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

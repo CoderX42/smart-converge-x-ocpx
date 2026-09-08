@@ -115,10 +115,13 @@ ocpx:
     enabled: false
 
 app:
-  rta:
+  rta-relay:
     enabled: false
-    mock-enabled: false
-    admission-ttl-seconds: 300
+    public-base-url: https://example.invalid/ocpx
+    callback-base-url: https://example.invalid/ocpx
+    allowed-hosts: rta.example.invalid
+    credentials: {}
+    payload-key: ''
 
 boot:
   swagger:

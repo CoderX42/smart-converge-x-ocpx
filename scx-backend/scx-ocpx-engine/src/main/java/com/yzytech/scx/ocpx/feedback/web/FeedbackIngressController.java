@@ -29,10 +29,9 @@ public class FeedbackIngressController {
 
 	private static final String RETIRED_ROUTE_MESSAGE = "这条监测链接已停止使用，请从管理端重新复制最新链接。";
 
-	private static final String INVALID_CLICK_REQUEST_ID_MESSAGE =
-			"当前访问的是未完成替换的监测链接模板，请先替换 request_id，或从管理端获取完整测试链接。";
+	private static final String INVALID_CLICK_REQUEST_ID_MESSAGE = "当前访问的是未完成替换的监测链接模板，请先替换 request_id，或从管理端获取完整测试链接。";
 
-	private static final Pattern UNEXPANDED_MACRO = Pattern.compile("__[A-Z][A-Z0-9_]*__");
+	private static final Pattern UNEXPANDED_MACRO = Pattern.compile("__[A-Za-z][A-Za-z0-9_]*__");
 
 	private final Logger errorLog = LoggerFactory.getLogger("error");
 
@@ -68,8 +67,7 @@ public class FeedbackIngressController {
 	public ResponseEntity<FeedbackIngressResponse> handleFeedback(@Valid @ModelAttribute FeedbackIngressRequest request,
 			HttpServletRequest servletRequest) {
 		if (RETIRED_ROUTE_PARAMETERS.stream().anyMatch(servletRequest.getParameterMap()::containsKey)) {
-			return ResponseEntity.badRequest()
-				.body(FeedbackIngressResponse.badRequest(RETIRED_ROUTE_MESSAGE));
+			return ResponseEntity.badRequest().body(FeedbackIngressResponse.badRequest(RETIRED_ROUTE_MESSAGE));
 		}
 		if ("CLK".equals(request.getEvent()) && invalidClickRequestId(request.rawRequestId())) {
 			feedbackLog.warn("feedback ingress rejected code:CLICK_REQUEST_ID_INVALID mId:{} tId:{} aId:{} lId:{}",
@@ -102,7 +100,8 @@ public class FeedbackIngressController {
 	}
 
 	private boolean invalidClickRequestId(String value) {
-		if (!StringUtils.hasText(value) || value.length() > 128 || "__REQUEST_ID__".equals(value)) {
+		if (!StringUtils.hasText(value) || value.length() > 128
+				|| (value != null && UNEXPANDED_MACRO.matcher(value.trim()).find())) {
 			return true;
 		}
 		return value.chars().anyMatch(character -> Character.isISOControl(character));
@@ -123,8 +122,7 @@ public class FeedbackIngressController {
 		if (unresolvedParameters.isEmpty()) {
 			return INVALID_CLICK_REQUEST_ID_MESSAGE;
 		}
-		return "监测链接中仍有未替换的宏参数：" + String.join("、", unresolvedParameters)
-				+ "。请先替换这些参数，或从管理端获取完整测试链接。";
+		return "监测链接中仍有未替换的宏参数：" + String.join("、", unresolvedParameters) + "。请先替换这些参数，或从管理端获取完整测试链接。";
 	}
 
 }

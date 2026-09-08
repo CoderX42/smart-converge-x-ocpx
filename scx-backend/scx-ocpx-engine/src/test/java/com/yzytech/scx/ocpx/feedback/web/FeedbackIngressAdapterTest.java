@@ -73,6 +73,7 @@ class FeedbackIngressAdapterTest {
 		FeedbackReq result = new FeedbackIngressAdapter().toFeedback(request);
 
 		assertThat(result.getReqId()).matches("[0-9a-f]{32}");
+		assertThat(result.isRequestIdGenerated()).isTrue();
 		assertThat(result.getCallbackUrl()).isNull();
 		assertThat(result.getCaid()).isNull();
 		assertThat(result.getIdfaMd5()).isNull();
@@ -85,6 +86,18 @@ class FeedbackIngressAdapterTest {
 		assertThat(result.getIpv6()).isNull();
 		assertThat(result.getModel()).isNull();
 		assertThat(result.getOsv()).isNull();
+	}
+
+	@Test
+	void treatsCaseInsensitiveRequestIdMacroAsMissing() {
+		FeedbackIngressRequest request = new FeedbackIngressRequest();
+		request.setEvent("IMP");
+		request.setRequest_id(" __request_id__ ");
+
+		FeedbackReq result = new FeedbackIngressAdapter().toFeedback(request);
+
+		assertThat(result.getReqId()).matches("[0-9a-f]{32}");
+		assertThat(result.isRequestIdGenerated()).isTrue();
 	}
 
 	@Test

@@ -49,6 +49,12 @@ must not create, read, write or otherwise depend on the retired ledger.
 Do not run `init-database.sh` against development or production databases that
 already contain tables. Do not restore or replay the retired V1-V78 scripts.
 
+The current V130 delta is
+`scx-backend/scx-boot/src/main/resources/db/migration/V130__add_weifeng_rta_adapter.sql`.
+It only widens the RTA Profile adapter CHECK from `MOCK` to `MOCK`/`WEIFENG_RTA`;
+it is never applied by the initializer and does not seed a Weifeng Profile,
+endpoint, credential, task binding or gateway allowlist.
+
 ## Read-only inspection
 
 ```bash

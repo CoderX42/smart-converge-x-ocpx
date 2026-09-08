@@ -48,13 +48,14 @@ expected_data = {
     "scx_ocpx_log_callback",
     "scx_ocpx_report_mat_temp",
     "scx_ocpx_report_mat",
-    "scx_ocpx_rta_profile",
-    "scx_ocpx_rta_task_binding",
-    "scx_ocpx_rta_decision_fact",
-    "scx_ocpx_rta_hourly_metric",
+    "scx_ocpx_rta_upstream",
+    "scx_ocpx_rta_media_access",
+    "scx_ocpx_rta_binding",
+    "scx_ocpx_rta_log",
+    "scx_ocpx_rta_hour_stat",
 }
 actual = re.findall(r"CREATE TABLE IF NOT EXISTS\s+(scx_ocpx_[a-z0-9_]+)", schema, re.IGNORECASE)
-if set(actual) != expected_business | expected_data or len(actual) != 24:
+if set(actual) != expected_business | expected_data or len(actual) != 25:
     raise SystemExit(f"OCPX management gate failed: OCPX tables are {actual!r}")
 if "scx_ocpx_report_hourly" in schema:
     raise SystemExit("legacy data-layer gate failed: obsolete hourly table remains")
@@ -504,7 +505,7 @@ if "name: http://127.0.0.1:10000/ocpx" not in application_dev_yml:
 if "name: https://ocpx.zhongsenyuedong.cn/ocpx" not in application_prod_yml:
     raise SystemExit("configuration gate failed: prod callback domain is missing")
 for path, source in (("application-dev.yml", application_dev_yml), ("application-prod.yml", application_prod_yml)):
-    if "protocols:" in source or "allowed-hosts:" in source:
+    if "protocols:" in source or "allowed-hosts:" in re.sub(r"^  rta-relay:\n(?:    .*\n)*", "", source, flags=re.MULTILINE):
         raise SystemExit(f"configuration gate failed: database-managed protocol mapping or allowlist remains in {path}")
     if "media-ids:" in source:
         raise SystemExit(f"configuration gate failed: retired WEIFENG media mapping found in {path}")
@@ -568,6 +569,18 @@ for required_fragment in (
 if "INSERT INTO" in v127 or "scx_schema_migration" in v127:
     raise SystemExit("V127 PHOENIX migration gate failed: migration must not seed configuration or use ledger")
 
+v130 = (
+    root / "scx-backend/scx-boot/src/main/resources/db/migration/V130__add_weifeng_rta_adapter.sql"
+).read_text(encoding="utf-8")
+for required_fragment in (
+    "DROP CHECK ck_ocpx_rta_profile_adapter",
+    "adapter_code IN ('MOCK','WEIFENG_RTA')",
+):
+    if required_fragment not in v130:
+        raise SystemExit(f"V130 WEIFENG_RTA migration gate failed: missing {required_fragment}")
+if any(fragment in v130 for fragment in ("CREATE TABLE", "DROP TABLE", "INSERT INTO", "scx_schema_migration")):
+    raise SystemExit("V130 WEIFENG_RTA migration gate failed: migration must only widen the adapter check")
+
 current_schema = (
     root / "scx-backend/scx-boot/src/main/resources/db/schema/scx_current_schema.sql"
 ).read_text(encoding="utf-8")
@@ -601,6 +614,9 @@ for required_fragment in (
         raise SystemExit(f"current schema PHOENIX gate failed: missing {required_fragment}")
 if re.search(r"VALUES.*PHOENIX", current_schema, re.IGNORECASE | re.DOTALL):
     raise SystemExit("current schema PHOENIX gate failed: allowed host must remain empty by default")
+if "CREATE TABLE IF NOT EXISTS scx_ocpx_rta_profile" in current_schema:
+    raise SystemExit("Retired RTA tables must not be created in the current schema")
+
 
 aerim_delivery = (
     engine / "src/main/java/com/yzytech/scx/ocpx/feedback/delivery/aerim/AerimUpstreamDeliveryService.java"
@@ -739,28 +755,8 @@ for path, source in (
 nginx_template = (
     root / "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-rewrite.conf"
 ).read_text(encoding="utf-8")
-rta_location = "location = /rta {"
-rta_block = """location = /rta {
-    limit_except POST { deny all; }
-    proxy_pass http://127.0.0.1:10000/ocpx/rta;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 30s;
-    proxy_read_timeout 30s;
-    client_max_body_size 64k;
-}"""
-if nginx_template.count(rta_location) != 1 or rta_block not in nginx_template:
-    raise SystemExit("Nginx gate failed: production RTA alias must be one exact POST-only route")
-for template_path in (
-    "scripts/bt-deploy/templates/nginx-scx-ocpx-engine-ip-uat-rewrite.conf",
-    "scx-fronted/scripts/deploy/scx-fronted.conf",
-):
-    if rta_location in (root / template_path).read_text(encoding="utf-8"):
-        raise SystemExit(f"Nginx gate failed: {template_path} must not expose the production RTA alias")
+if "location = /rta {" in nginx_template or "^/ocpx/rta/(requests|callbacks/" not in nginx_template:
+    raise SystemExit("RTA must expose only the new asynchronous endpoints")
 
 weifeng_location = "location = /ocpx/weifeng/callback {"
 if nginx_template.count(weifeng_location) != 1:
@@ -864,16 +860,16 @@ for mapper_package in ("com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech
 if "com.yzytech.scx.ocpx.dao.mapper" in entrypoint:
     raise SystemExit("feature-package gate failed: retired MapperScan remains")
 
-# 当前数据面公开入口保留 GET；V128 仅允许新增的内部 Mock RTA POST 入口。
+# 当前数据面公开入口保留 GET；V130 允许受网关白名单保护的 RTA POST 入口。
 for file in java_root.rglob("*Controller.java"):
     source = file.read_text(encoding="utf-8")
     mutating = ["@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping"]
-    if any(annotation in source for annotation in mutating) and file.name != "RtaController.java":
+    if any(annotation in source for annotation in mutating) and file.name != "RelayController.java":
         raise SystemExit(f"GET-only gate failed: mutating mapping found in {file}")
 
-rta_controller = (java_root / "rta/web/RtaController.java").read_text(encoding="utf-8")
-if '@PostMapping("/rta")' not in rta_controller:
-    raise SystemExit("RTA gate failed: the internal Mock RTA POST entry is missing")
+rta_controller = (java_root / "rta/relay/RelayController.java").read_text(encoding="utf-8")
+if '@RequestMapping("/rta")' not in rta_controller or not re.search(r'value\s*=\s*"/requests"', rta_controller):
+    raise SystemExit("RTA gate failed: the internal RTA POST entry is missing")
 if any(annotation in rta_controller for annotation in ("@PutMapping", "@PatchMapping", "@DeleteMapping")):
     raise SystemExit("RTA gate failed: the Engine RTA controller exposes an unsupported mutating route")
 

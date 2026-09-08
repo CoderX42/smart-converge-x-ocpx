@@ -24,8 +24,8 @@ import java.util.concurrent.TimeUnit;
  * Engine 配置刷新与每日 Redis 状态维护任务。
  *
  * <p>
- * 任务负责清理 Feedback 去重桶、响应 Admin 发布的配置刷新标记、每日兜底重载内存索引、重置 Callback 扣量累计值，并每日清理
- * Feedback 日明细表。
+ * 任务负责清理 Feedback 去重桶、响应 Admin 发布的配置刷新标记、每日兜底重载内存索引、重置 Callback 扣量累计值，并每日清理 Feedback
+ * 日明细表。
  */
 @Async
 @Slf4j

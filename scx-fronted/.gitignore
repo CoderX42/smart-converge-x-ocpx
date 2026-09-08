@@ -51,3 +51,7 @@ vite.config.ts.*
 *.sw?
 .history
 .cursor
+
+# RTA flow log page is application source.
+!apps/web-ele/src/views/ocpx/rta/logs/
+!apps/web-ele/src/views/ocpx/rta/logs/**

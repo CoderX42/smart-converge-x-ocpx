@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.OcpxFlowLogWriterSqlMapper">
+    <insert id="insertWriteFlowLog">
+        INSERT INTO scx_ocpx_flow_log (id,
+        trace_id,
+        flow_type,
+        stage_code,
+        event_id,
+        source_event_id,
+        event_code,
+        request_method,
+        request_endpoint,
+        macro_audit,
+        payload_hash,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        result_status,
+        partner_http_status,
+        message,
+        response_preview,
+        duration_ms,
+        event_time)
+        VALUES (#{command.id},
+        #{command.traceId},
+        #{command.flowType},
+        #{command.stageCode},
+        #{command.eventId},
+        #{command.sourceEventId},
+        #{command.eventCode},
+        #{command.requestMethod},
+        #{command.requestEndpoint},
+        #{command.macroAudit},
+        #{command.payloadHash},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.resultStatus},
+        #{command.partnerHttpStatus},
+        #{command.message},
+        #{command.responsePreview},
+        #{command.durationMs},
+        #{command.eventTime})
+    </insert>
+    <insert id="insertWriteDetailFlowLogDetail">
+        INSERT INTO scx_ocpx_flow_log_detail (id,
+        flow_log_id,
+        request_params,
+        response_preview,
+        request_truncated,
+        expires_at)
+        VALUES (#{command.id},
+        #{command.flowLogId},
+        #{command.requestParams},
+        #{command.responsePreview},
+        #{command.requestTruncated},
+        #{command.expiresAt})
+    </insert>
+</mapper>

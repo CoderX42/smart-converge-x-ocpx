@@ -111,8 +111,7 @@ class StorageTaskTest {
 				org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.anyLong(),
 				org.mockito.ArgumentMatchers.any()))
 			.thenReturn(true);
-		when(lists.size(RedisConstants.DATA_REPORT + "0"))
-			.thenThrow(new RedisCommandTimeoutException("redis timeout"));
+		when(lists.size(RedisConstants.DATA_REPORT + "0")).thenThrow(new RedisCommandTimeoutException("redis timeout"));
 
 		new StorageTask(redis, reportService, 1, 500, 3, 0L).consumeFeedback();
 
@@ -178,7 +177,8 @@ class StorageTaskTest {
 		when(redis.opsForList()).thenReturn(lists);
 		when(values.setIfAbsent(org.mockito.ArgumentMatchers.anyString(),
 				org.mockito.ArgumentMatchers.nullable(String.class), org.mockito.ArgumentMatchers.anyLong(),
-				org.mockito.ArgumentMatchers.any())).thenReturn(true);
+				org.mockito.ArgumentMatchers.any()))
+			.thenReturn(true);
 		when(lists.size(RedisConstants.DATA_REPORT + "0")).thenReturn(1L, 1L);
 		when(lists.range(RedisConstants.DATA_REPORT + "0", 0, 499)).thenReturn(List.of("{\"reqId\":\"r1\"}"));
 		org.mockito.Mockito.doAnswer(invocation -> {

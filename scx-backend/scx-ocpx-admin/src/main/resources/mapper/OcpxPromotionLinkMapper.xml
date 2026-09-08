@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxPromotionLinkMapper">
+    <select id="countCreativeBindings" resultType="long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_creative_promotion_link
+        WHERE promotion_link_id=#{id}
+    </select>
+    <delete id="deleteCreativeBindings">
+        DELETE
+        FROM scx_ocpx_creative_promotion_link
+        WHERE promotion_link_id=#{id}
+    </delete>
+</mapper>

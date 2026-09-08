@@ -72,8 +72,8 @@ public class PhoenixUpstreamDeliveryService extends UpstreamDeliveryService {
 			requestUrl = endpointPolicy.requireAllowedHttpsUrl(buildRequestUrl(feedback));
 			NetUtil.HttpGetResult result = httpClient.get(requestUrl);
 			Integer code = businessCode(result.body());
-			boolean success = Integer.valueOf(200).equals(result.statusCode())
-					&& (Integer.valueOf(0).equals(code) || (EventTypeEnum.IMP.equals(feedback.getEvent()) && code == null));
+			boolean success = Integer.valueOf(200).equals(result.statusCode()) && (Integer.valueOf(0).equals(code)
+					|| (EventTypeEnum.IMP.equals(feedback.getEvent()) && code == null));
 			String conclusion = EventTypeEnum.IMP.equals(feedback.getEvent()) && code == null ? "PHOENIX_DELIVERED"
 					: conclusion(result.statusCode(), code, result.errorCode());
 			flowLogWriter.upstreamDelivery(feedback, success, result.statusCode(), conclusion, result.durationMs(),
@@ -107,7 +107,8 @@ public class PhoenixUpstreamDeliveryService extends UpstreamDeliveryService {
 				|| !StringUtils.hasText(link.getLinkUrl())) {
 			throw new IllegalArgumentException("PHOENIX_PROMOTION_LINK_INVALID");
 		}
-		PhoenixTemplateContract.Template template = PhoenixTemplateContract.requireValid(link.getLinkUrl(), link.getPlatform(), true);
+		PhoenixTemplateContract.Template template = PhoenixTemplateContract.requireValid(link.getLinkUrl(),
+				link.getPlatform(), true);
 		OsTypeEnum os = requireOs(feedback, link.getPlatform());
 		if (!StringUtils.hasText(feedback.getReqId()) || feedback.getReqId().length() > 128) {
 			throw new IllegalArgumentException("PHOENIX_REQUEST_ID_INVALID");
@@ -145,8 +146,11 @@ public class PhoenixUpstreamDeliveryService extends UpstreamDeliveryService {
 		macros.put("__ANDROID__", feedback.getAndroidid());
 		macros.put("__CALLBACK__", click ? buildCallbackUrl(feedback) : null);
 
-		List<String> query = template.parameters().stream().map(parameter -> encodePair(parameter, macros, click))
-				.filter(StringUtils::hasText).toList();
+		List<String> query = template.parameters()
+			.stream()
+			.map(parameter -> encodePair(parameter, macros, click))
+			.filter(StringUtils::hasText)
+			.toList();
 		URI uri = template.uri();
 		String path = pathForEvent(uri.getRawPath(), click);
 		String base = uri.getScheme() + "://" + uri.getRawAuthority() + path;
@@ -297,8 +301,8 @@ public class PhoenixUpstreamDeliveryService extends UpstreamDeliveryService {
 			if (!normalized.matches("[0-9A-F]{32}")) {
 				throw new IllegalArgumentException(codePrefix + "_INVALID");
 			}
-			if (StringUtils.hasText(raw) && !DigestUtils.md5DigestAsHex(raw.getBytes(StandardCharsets.UTF_8))
-					.equalsIgnoreCase(normalized)) {
+			if (StringUtils.hasText(raw)
+					&& !DigestUtils.md5DigestAsHex(raw.getBytes(StandardCharsets.UTF_8)).equalsIgnoreCase(normalized)) {
 				throw new IllegalArgumentException(codePrefix + "_MISMATCH");
 			}
 			return normalized;

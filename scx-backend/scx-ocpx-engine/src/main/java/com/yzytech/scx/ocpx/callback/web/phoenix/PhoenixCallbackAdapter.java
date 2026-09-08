@@ -29,12 +29,12 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PhoenixCallbackAdapter {
 
-	private static final Map<String, ActionTypeEnum> ACTIONS = Map.ofEntries(Map.entry("active", ActionTypeEnum.ACTIVATE),
-			Map.entry("recall", ActionTypeEnum.EVOKE), Map.entry("register", ActionTypeEnum.REGISTER),
-			Map.entry("pay", ActionTypeEnum.PAYMENT), Map.entry("pay_amount", ActionTypeEnum.PAYMENT),
-			Map.entry("next_day", ActionTypeEnum.NEXT_STAY), Map.entry("first_order", ActionTypeEnum.FIRST_ORDER),
-			Map.entry("download", ActionTypeEnum.DOWNLOAD), Map.entry("activity", ActionTypeEnum.ACTIVITY),
-			Map.entry("addiction", ActionTypeEnum.ADDICTION));
+	private static final Map<String, ActionTypeEnum> ACTIONS = Map.ofEntries(
+			Map.entry("active", ActionTypeEnum.ACTIVATE), Map.entry("recall", ActionTypeEnum.EVOKE),
+			Map.entry("register", ActionTypeEnum.REGISTER), Map.entry("pay", ActionTypeEnum.PAYMENT),
+			Map.entry("pay_amount", ActionTypeEnum.PAYMENT), Map.entry("next_day", ActionTypeEnum.NEXT_STAY),
+			Map.entry("first_order", ActionTypeEnum.FIRST_ORDER), Map.entry("download", ActionTypeEnum.DOWNLOAD),
+			Map.entry("activity", ActionTypeEnum.ACTIVITY), Map.entry("addiction", ActionTypeEnum.ADDICTION));
 
 	private final OcpxKeyRingCrypto callbackCrypto;
 
@@ -69,12 +69,12 @@ public class PhoenixCallbackAdapter {
 			FeedbackReq feedback = JSON.parseObject(clearText, FeedbackReq.class);
 			requirePhoenixRoute(feedback);
 			return CallbackReq.builder()
-					.feedback(feedback)
-					.actionType(actionType)
-					.actionTime(System.currentTimeMillis())
-					.partnerActionType(originalEventType == null ? "active" : originalEventType)
-					.currencyAmount(null)
-					.build();
+				.feedback(feedback)
+				.actionType(actionType)
+				.actionTime(System.currentTimeMillis())
+				.partnerActionType(originalEventType == null ? "active" : originalEventType)
+				.currencyAmount(null)
+				.build();
 		}
 		catch (IllegalArgumentException exception) {
 			throw exception;
@@ -102,8 +102,8 @@ public class PhoenixCallbackAdapter {
 		if (advertiser == null || advertiser.getUpstreamProtocol() != OcpxUpstreamProtocol.PHOENIX || link == null
 				|| task == null || media == null || Boolean.TRUE.equals(link.getDeleted())
 				|| Boolean.TRUE.equals(task.getDeleted()) || !feedback.getAId().equals(link.getAdvertiserId())
-				|| !feedback.getAId().equals(task.getAdvertiserId()) || !feedback.getLId().equals(task.getPromotionLinkId())
-				|| !feedback.getMId().equals(task.getMediaId())
+				|| !feedback.getAId().equals(task.getAdvertiserId())
+				|| !feedback.getLId().equals(task.getPromotionLinkId()) || !feedback.getMId().equals(task.getMediaId())
 				|| !OcpxConversionEvent.supports(task.getConversionEvent())) {
 			throw new IllegalArgumentException("PHOENIX callback route mismatch");
 		}

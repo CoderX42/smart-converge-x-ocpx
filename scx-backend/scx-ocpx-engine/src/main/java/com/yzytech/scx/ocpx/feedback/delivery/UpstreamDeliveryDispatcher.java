@@ -67,9 +67,8 @@ public class UpstreamDeliveryDispatcher {
 	public UpstreamDeliveryDispatcher(TemplateGetUpstreamDeliveryService deliveryService,
 			AerimUpstreamDeliveryService aerimDeliveryService, WeifengUpstreamDeliveryService weifengDeliveryService,
 			GravityUpstreamDeliveryService gravityDeliveryService,
-			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService,
-			AdvertiserProtocolRegistry protocolRegistry, OcpxFlowLogWriter flowLogWriter, int coreThreads,
-			int maxThreads, int queueCapacity) {
+			RenrenVideoUpstreamDeliveryService renrenVideoDeliveryService, AdvertiserProtocolRegistry protocolRegistry,
+			OcpxFlowLogWriter flowLogWriter, int coreThreads, int maxThreads, int queueCapacity) {
 		this(deliveryService, aerimDeliveryService, weifengDeliveryService, gravityDeliveryService,
 				renrenVideoDeliveryService, null, protocolRegistry, flowLogWriter, coreThreads, maxThreads,
 				queueCapacity);
@@ -115,19 +114,23 @@ public class UpstreamDeliveryDispatcher {
 	 * @param request 待转发的标准 Feedback
 	 */
 	public static void dispatch(FeedbackReq request) {
+		// RTA is the sole approved destination for raw device identifiers. Build a
+		// detached snapshot before handing work to the asynchronous executor so neither
+		// the queue nor a legacy advertiser adapter can retain the inbound object.
+		FeedbackReq outbound = request != null && request.isRtaProtected() ? request.copyForRtaDownstream() : request;
 		EXECUTORS.execute(() -> {
 			try {
-				UpstreamDeliveryService service = resolve(request);
+				UpstreamDeliveryService service = resolve(outbound);
 				if (service != null) {
-					service.deliver(request);
+					service.deliver(outbound);
 				}
 				else {
-					log.warn("Reject unregistered advertiser protocol aId:{}", request.getAId());
-					flowLogWriter.rejectedAdvertiser(request);
+					log.warn("Reject unregistered advertiser protocol aId:{}", outbound.getAId());
+					flowLogWriter.rejectedAdvertiser(outbound);
 				}
 			}
 			catch (Exception error) {
-				log.warn("Upstream delivery failed aId:{} lId:{}", request.getAId(), request.getLId());
+				log.warn("Upstream delivery failed aId:{} lId:{}", outbound.getAId(), outbound.getLId());
 			}
 		});
 	}

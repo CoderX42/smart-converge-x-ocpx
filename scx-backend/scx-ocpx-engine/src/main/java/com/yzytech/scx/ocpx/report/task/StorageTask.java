@@ -86,8 +86,8 @@ public class StorageTask {
 			@Value("${app.jobs.storage-max-batches-per-run:20}") Integer maxBatchesPerRun,
 			@Value("${app.jobs.storage-max-run-ms:30000}") Long maxRunMs,
 			@Value("${app.jobs.storage-batch-pause-ms:100}") Long batchPauseMs) {
-		this(redis, reportService, reportBucket, batchSize, maxBatchRetries, retryBackoffMs, maxBatchesPerRun,
-				maxRunMs, batchPauseMs, System::nanoTime);
+		this(redis, reportService, reportBucket, batchSize, maxBatchRetries, retryBackoffMs, maxBatchesPerRun, maxRunMs,
+				batchPauseMs, System::nanoTime);
 	}
 
 	StorageTask(StringRedisTemplate redis, ReportService reportService, Integer reportBucket, Integer batchSize,
@@ -141,12 +141,12 @@ public class StorageTask {
 		}
 		catch (RedisCommandTimeoutException exception) {
 			errorLog.error("{} redis lock timeout slot:{} size:{} cause:{}", operation, tempKey, batchSize,
-				summarize(exception));
+					summarize(exception));
 			return;
 		}
 		catch (RuntimeException exception) {
 			errorLog.error("{} lock acquisition failed slot:{} size:{} cause:{}", operation, tempKey, batchSize,
-				summarize(exception));
+					summarize(exception));
 			return;
 		}
 		if (slot == null) {
@@ -228,12 +228,12 @@ public class StorageTask {
 				}
 				catch (RedisCommandTimeoutException exception) {
 					errorLog.error("{} redis timeout slot:{} size:{} cause:{}", operation, slot, batchSize,
-						summarize(exception));
+							summarize(exception));
 					break;
 				}
 				catch (RuntimeException exception) {
 					errorLog.error("{} batch failed slot:{} size:{} cause:{}", operation, slot, batchSize,
-						summarize(exception));
+							summarize(exception));
 					break;
 				}
 			}
@@ -243,10 +243,11 @@ public class StorageTask {
 		}
 		finally {
 			if (StringUtils.hasText(tempKey)) {
-				// Only the owner may release the lease; an expired lease may already belong to another instance.
+				// Only the owner may release the lease; an expired lease may already
+				// belong to another instance.
 				try {
-					redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(RELEASE_LOCK_SCRIPT,
-							Long.class), java.util.List.of(tempKey), ownerToken);
+					redis.execute(new org.springframework.data.redis.core.script.DefaultRedisScript<>(
+							RELEASE_LOCK_SCRIPT, Long.class), java.util.List.of(tempKey), ownerToken);
 				}
 				catch (RuntimeException exception) {
 					errorLog.warn("{} owner lock release failed", operation);
@@ -277,8 +278,8 @@ public class StorageTask {
 			return;
 		}
 		long delay = Math.min(retryBackoffMs * (1L << Math.min(attempt - 1, 5)), 30_000L);
-		delay = Math.min(delay, Math.max(0L,
-				maxRunMs - TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt)));
+		delay = Math.min(delay,
+				Math.max(0L, maxRunMs - TimeUnit.NANOSECONDS.toMillis(nanoTime.getAsLong() - startedAt)));
 		if (delay <= 0) {
 			return;
 		}

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper">
+    <resultMap id="selectResultEventFactRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper$SelectResultEventFactRow">
+        <constructor>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="billing_status" javaType="java.lang.String"/>
+            <arg column="billing_reason_code" javaType="java.lang.String"/>
+            <arg column="spend_amount" javaType="java.math.BigDecimal"/>
+            <arg column="received_at" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectResultEventFact" resultMap="selectResultEventFactRow" useCache="false" flushCache="true">
+        SELECT event_code,
+        billing_status,
+        billing_reason_code,
+        spend_amount,
+        received_at
+        FROM scx_ocpx_event_fact
+        WHERE monitor_task_id=#{id} AND advertiser_id=#{advertiserId} AND request_id=#{requestId} AND
+        flow_type='FEEDBACK'
+        ORDER BY received_at DESC LIMIT 1
+    </select>
+    <resultMap id="selectResultFlowLogRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper$SelectResultFlowLogRow">
+        <constructor>
+            <arg column="result_status" javaType="java.lang.String"/>
+            <arg column="partner_http_status" javaType="java.lang.Integer"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectResultFlowLog" resultMap="selectResultFlowLogRow" useCache="false" flushCache="true">
+        SELECT result_status,
+        partner_http_status,
+        message,
+        duration_ms,
+        event_time
+        FROM scx_ocpx_flow_log
+        WHERE monitor_task_id=#{id} AND advertiser_id=#{advertiserId} AND event_id=#{requestId} AND
+        flow_type='FEEDBACK'
+        ORDER BY create_time DESC,
+        id DESC LIMIT 1
+    </select>
+    <resultMap id="selectResultEventFact2Row" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper$SelectResultEventFact2Row">
+        <constructor>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="billing_status" javaType="java.lang.String"/>
+            <arg column="billing_reason_code" javaType="java.lang.String"/>
+            <arg column="spend_amount" javaType="java.math.BigDecimal"/>
+            <arg column="currency_amount" javaType="java.math.BigDecimal"/>
+            <arg column="deduction_decision" javaType="java.lang.String"/>
+            <arg column="deduction_ratio_snapshot" javaType="java.math.BigDecimal"/>
+            <arg column="deduction_decided_at" javaType="java.sql.Timestamp"/>
+            <arg column="received_at" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectResultEventFact2" resultMap="selectResultEventFact2Row" useCache="false" flushCache="true">
+        SELECT event_code,
+        billing_status,
+        billing_reason_code,
+        spend_amount,
+        currency_amount,
+        deduction_decision,
+        deduction_ratio_snapshot,
+        deduction_decided_at,
+        received_at
+        FROM scx_ocpx_event_fact
+        WHERE monitor_task_id=#{id} AND advertiser_id=#{advertiserId} AND request_id=#{requestId} AND
+        flow_type='CALLBACK'
+        ORDER BY received_at DESC LIMIT 1
+    </select>
+    <resultMap id="selectAvailableBalanceAdvertiserAccountRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper$SelectAvailableBalanceAdvertiserAccountRow">
+        <constructor>
+            <arg column="available_balance" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectAvailableBalanceAdvertiserAccount" resultMap="selectAvailableBalanceAdvertiserAccountRow" useCache="false" flushCache="true">
+        SELECT available_balance
+        FROM scx_ocpx_advertiser_account
+        WHERE advertiser_id=#{advertiserId}
+    </select>
+    <select id="selectFactExistsEventFact" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_event_fact
+        WHERE monitor_task_id=#{taskId} AND request_id=#{requestId} AND event_code='CLK' AND
+        flow_type='FEEDBACK'
+    </select>
+    <resultMap id="selectCallbackFlowRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper$SelectCallbackFlowRow">
+        <constructor>
+            <arg column="result_status" javaType="java.lang.String"/>
+            <arg column="partner_http_status" javaType="java.lang.Integer"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectCallbackFlow" resultMap="selectCallbackFlowRow" useCache="false" flushCache="true">
+        SELECT result_status,
+        partner_http_status,
+        message,
+        duration_ms,
+        event_time
+        FROM scx_ocpx_flow_log
+        WHERE monitor_task_id=#{taskId} AND advertiser_id=#{advertiserId} AND event_id=#{requestId} AND
+        flow_type='CALLBACK'
+        <choose>
+            <when test="downstream">
+                AND message = 'TEST_CALLBACK_RECEIVED'
+            </when>
+            <otherwise>
+                AND message NOT IN ('TEST_CALLBACK_ARMED',
+                'TEST_CALLBACK_RECEIVED')
+            </otherwise>
+        </choose>
+        ORDER BY create_time DESC,
+        id DESC LIMIT 1
+    </select>
+</mapper>

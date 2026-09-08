@@ -41,6 +41,8 @@ public final class MonitorTaskViews {
 
 		private Boolean billingEnabled;
 
+		private Boolean rtaEnabled;
+
 		private Integer billingType;
 
 		private BigDecimal unitPrice;

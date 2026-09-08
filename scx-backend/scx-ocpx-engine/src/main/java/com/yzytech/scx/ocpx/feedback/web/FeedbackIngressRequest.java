@@ -7,6 +7,8 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.springframework.util.StringUtils;
 
+import java.util.regex.Pattern;
+
 /**
  * {@code /feedback} 的完整查询参数模型。
  *
@@ -20,8 +22,12 @@ import org.springframework.util.StringUtils;
 @AllArgsConstructor
 public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
+	private static final Pattern UNEXPANDED_REQUEST_ID = Pattern.compile("__[A-Za-z][A-Za-z0-9_]*__");
+
 	/** 请求唯一标识和媒体回调地址。 */
 	private String request_id;
+
+	private String rtaRequestId;
 
 	/** Phoenix 可选投放版位标识；同时接受 tagid 与常见驼峰别名 tagId。 */
 	private String tagid;
@@ -113,7 +119,7 @@ public class FeedbackIngressRequest extends FeedbackRoutingRequest {
 
 	/** 返回清洗后的请求 ID；未替换的宏将触发适配器的 MD5 回退逻辑。 */
 	public String getRequest_id() {
-		if (StringUtils.hasText(request_id) && "__REQUEST_ID__".equals(request_id)) {
+		if (StringUtils.hasText(request_id) && UNEXPANDED_REQUEST_ID.matcher(request_id.trim()).find()) {
 			return null;
 		}
 		return request_id;

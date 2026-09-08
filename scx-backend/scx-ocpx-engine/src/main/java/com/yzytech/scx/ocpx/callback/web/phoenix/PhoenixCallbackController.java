@@ -39,8 +39,8 @@ public class PhoenixCallbackController {
 			return ResponseEntity.ok(PhoenixCallbackResponse.success());
 		}
 		catch (IllegalArgumentException exception) {
-			callbackLog.warn("phoenix callback rejected eventTypePresent:{} durationMs:{}", request != null && request.getEvent_type() != null,
-					 elapsedMs(startedAt));
+			callbackLog.warn("phoenix callback rejected eventTypePresent:{} durationMs:{}",
+					request != null && request.getEvent_type() != null, elapsedMs(startedAt));
 			return ResponseEntity.badRequest().build();
 		}
 		catch (RuntimeException exception) {

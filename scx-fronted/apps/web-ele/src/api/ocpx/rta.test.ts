@@ -1,48 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { listRtaDecisions, listRtaMetrics, updateRtaTaskConfig } from './rta';
+import { queryRta, saveRta } from './rta';
 
-const requestClient = vi.hoisted(() => ({
-  get: vi.fn(),
-  put: vi.fn(),
-}));
-
-vi.mock('#/api/request', () => ({ requestClient }));
-
-describe('rta management API', () => {
+const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+vi.mock('#/api/request', () => ({ requestClient: client }));
+describe('async RTA management contracts', () => {
   beforeEach(() => vi.clearAllMocks());
-
-  it('uses the task binding endpoint and keeps external task IDs explicit', async () => {
-    const data = {
-      bindings: [{ externalTaskId: 'external-1' }],
-      enabled: true,
-      profileId: 'profile-1',
-    };
-    await updateRtaTaskConfig('task-1', data);
-    expect(requestClient.put).toHaveBeenCalledWith(
-      '/ocpx/rta/monitor-tasks/task-1',
-      data,
-    );
-  });
-
-  it('passes asynchronous decision and metric filters through unchanged', async () => {
-    const params = {
-      endDate: '2026-09-04',
-      grain: 'HOUR' as const,
-      monitorTaskId: 'task-1',
-      startDate: '2026-09-04',
-    };
-    await listRtaDecisions(params);
-    await listRtaMetrics(params);
-    expect(requestClient.get).toHaveBeenNthCalledWith(
-      1,
-      '/ocpx/rta/decisions',
-      {
-        params,
-      },
-    );
-    expect(requestClient.get).toHaveBeenNthCalledWith(2, '/ocpx/rta/metrics', {
-      params,
+  it('keeps media identity and independent resource endpoints', async () => {
+    await queryRta('records', { mediaId: 'media-a', requestId: 'request-a' });
+    expect(client.get).toHaveBeenCalledWith('/ocpx/rta/records', {
+      params: { mediaId: 'media-a', requestId: 'request-a' },
+    });
+    await saveRta('media', {
+      mediaId: 'media-a',
+      enabled: false,
+      credentialRef: 'media-a-key',
+      version: 2,
+    });
+    expect(client.post).toHaveBeenCalledWith('/ocpx/rta/media', {
+      mediaId: 'media-a',
+      enabled: false,
+      credentialRef: 'media-a-key',
+      version: 2,
     });
   });
 });

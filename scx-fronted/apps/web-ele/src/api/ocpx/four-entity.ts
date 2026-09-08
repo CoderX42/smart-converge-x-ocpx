@@ -5,12 +5,7 @@ import { requestClient } from '#/api/request';
 export type PlatformCode = 1 | 2 | 3 | 4;
 
 export type OcpxUpstreamProtocol =
-  | 'AERIM'
-  | 'GRAVITY'
-  | 'PHOENIX'
-  | 'RENREN_VIDEO'
-  | 'TEMPLATE_GET'
-  | 'WEIFENG';
+  'AERIM' | 'GRAVITY' | 'PHOENIX' | 'RENREN_VIDEO' | 'TEMPLATE_GET' | 'WEIFENG';
 
 export type AdvertiserV2 = {
   advertiserName: string;
@@ -170,6 +165,7 @@ export type MonitorTask = {
   promotionLinkId: string;
   promotionLinkName: string;
   remark?: string;
+  rtaEnabled?: boolean;
   showUrl: string;
   unitPrice?: number;
   updateTime: string;
@@ -177,6 +173,8 @@ export type MonitorTask = {
 
 export type ConversionEvent =
   | 'ACTIVATE'
+  | 'ACTIVITY'
+  | 'ADDICTION'
   | 'AUTHENTICATION'
   | 'CUSTOMER_ACQUISITION'
   | 'DOWNLOAD'
@@ -184,8 +182,6 @@ export type ConversionEvent =
   | 'FINISH_THE_ORDER'
   | 'FIRST_ACTIVATION'
   | 'FIRST_ORDER'
-  | 'ACTIVITY'
-  | 'ADDICTION'
   | 'LOGIN'
   | 'NEXT_STAY'
   | 'ORDER'

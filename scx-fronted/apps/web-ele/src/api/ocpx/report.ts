@@ -13,10 +13,10 @@ export type SummaryReportRow = {
   clickRate: null | number;
   currencyAmount: number;
   customerAcquisition: number;
-  download: number;
   deductionDeductedCount: number;
   deductionPassedCount: number;
   deductionPendingCount: number;
+  download: number;
   evoke: number;
   finishTheOrder: number;
   firstActivation: number;

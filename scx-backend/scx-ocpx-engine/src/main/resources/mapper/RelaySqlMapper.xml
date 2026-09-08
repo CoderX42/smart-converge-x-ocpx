@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.RelaySqlMapper">
+    <resultMap id="selectMediaByCredentialRtaMediaAccessRow" type="com.yzytech.scx.ocpx.persistence.mapper.RelaySqlMapper$SelectMediaByCredentialRtaMediaAccessRow">
+        <constructor>
+            <arg column="media_id" javaType="java.lang.String"/>
+            <arg column="notify_url" javaType="java.lang.String"/>
+            <arg column="credential_ref" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="enabled" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+    <select id="selectMediaByCredentialRtaMediaAccess" resultMap="selectMediaByCredentialRtaMediaAccessRow" useCache="false" flushCache="true">
+        SELECT r.*
+        FROM scx_ocpx_rta_media_access r
+        JOIN scx_ocpx_media m ON m.id=r.media_id
+        WHERE r.credential_ref=#{ref} AND r.enabled=1
+    </select>
+    <resultMap id="selectBindingMonitorTaskRow" type="com.yzytech.scx.ocpx.persistence.mapper.RelaySqlMapper$SelectBindingMonitorTaskRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="media_id" javaType="java.lang.String"/>
+            <arg column="promotion_link_id" javaType="java.lang.String"/>
+            <arg column="upstream_id" javaType="java.lang.String"/>
+            <arg column="product_id" javaType="java.lang.String"/>
+            <arg column="external_task_id" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <select id="selectBindingMonitorTask" resultMap="selectBindingMonitorTaskRow" useCache="false" flushCache="true">
+        SELECT t.id,
+        t.media_id,
+        t.advertiser_id,
+        t.promotion_link_id,
+        b.upstream_id,
+        b.product_id,
+        b.external_task_id,
+        b.version
+        FROM scx_ocpx_monitor_task t
+        JOIN scx_ocpx_rta_binding b ON b.monitor_task_id=t.id AND b.enabled=1
+        JOIN scx_ocpx_advertiser a ON a.id=t.advertiser_id
+        JOIN scx_ocpx_promotion_link l ON l.id=t.promotion_link_id AND l.advertiser_id=t.advertiser_id AND
+        l.is_delete=0
+        WHERE t.id=#{id} AND t.media_id=#{mediaId} AND t.is_delete=0 AND t.rta_enabled=1
+    </select>
+    <resultMap id="selectTaskRequiresRtaMonitorTaskRow" type="com.yzytech.scx.ocpx.persistence.mapper.RelaySqlMapper$SelectTaskRequiresRtaMonitorTaskRow">
+        <constructor>
+            <arg column="rta_enabled" javaType="_boolean"/>
+        </constructor>
+    </resultMap>
+    <select id="selectTaskRequiresRtaMonitorTask" resultMap="selectTaskRequiresRtaMonitorTaskRow" useCache="false" flushCache="true">
+        SELECT rta_enabled
+        FROM scx_ocpx_monitor_task
+        WHERE id=#{taskId} AND is_delete=0
+    </select>
+    <resultMap id="selectUpstreamRow" type="com.yzytech.scx.ocpx.persistence.mapper.RelaySqlMapper$SelectUpstreamRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="access_code" javaType="java.lang.String"/>
+            <arg column="endpoint" javaType="java.lang.String"/>
+            <arg column="credential_ref" javaType="java.lang.String"/>
+            <arg column="version" javaType="_long"/>
+            <arg column="timeout_ms" javaType="_int"/>
+            <arg column="admission_seconds" javaType="_int"/>
+        </constructor>
+    </resultMap>
+    <select id="selectUpstream" resultMap="selectUpstreamRow" useCache="false" flushCache="true">
+        SELECT u.*
+        FROM scx_ocpx_rta_upstream u
+        JOIN scx_ocpx_advertiser a ON a.id=u.advertiser_id
+        WHERE
+        <choose>
+            <when test="column == &#x27;id&#x27;">
+                u.id=#{value}
+            </when>
+            <when test="column == &#x27;access_code&#x27;">
+                u.access_code=#{value}
+            </when>
+            <otherwise>
+                1=0
+            </otherwise>
+        </choose>
+        AND u.enabled=1
+    </select>
+</mapper>

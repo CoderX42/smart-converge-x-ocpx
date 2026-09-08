@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: SCX OCPX data plane and management contracts
-  version: 12.5.0
-  description: SCX OCPX Feedback/Callback data plane, Mock-only RTA decision and admission gate, V119 complete flow trace, V120 GRAVITY, V124 RENREN_VIDEO, V127 PHOENIX CPA, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
+  version: 13.0.0
+  description: SCX OCPX Feedback/Callback data plane, provider-neutral RTA decision and admission gate (MOCK and WEIFENG_RTA), V119 complete flow trace, V120 GRAVITY, V124 RENREN_VIDEO, V127 PHOENIX CPA, retained callback key-ring compatibility, and V122 retirement of V121 full wire audit. Partner data-plane requests use HTTP GET Query String parameters unless explicitly documented otherwise.
 servers:
   - url: https://{domain}/ocpx
     variables:
@@ -10,10 +10,581 @@ servers:
         default: sandbox.example.invalid
   - url: http://localhost:10000/ocpx
 paths:
+  /rta/options/{kind}:
+    get:
+      summary: RTA 独立远程下拉选项，最多100条；支持 keyword/advertiserId/mediaId。
+      security:
+      - saToken: []
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - advertisers
+          - media
+          - tasks
+          - upstreams
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Result<Array<{id,name}>>，按当前广告主数据范围过滤
+  /rta/requests:
+    post:
+      summary: 媒体异步请求
+      description: 合作方 HMAC-SHA256 覆盖 POST、完整路径、凭据引用、毫秒时间戳、随机 nonce 和原始请求体 SHA256，以换行连接。时间窗口正负
+        5 分钟，同一 nonce 10 分钟内不得重用。媒体身份从凭据解析。202 不代表放行。详见 rta-async.md。
+      security: []
+      parameters:
+      - &rtaHeader001
+        name: X-Rta-Key
+        in: header
+        required: true
+        schema:
+          type: string
+      - &rtaHeader002
+        name: X-Rta-Timestamp
+        in: header
+        required: true
+        schema:
+          type: string
+      - &rtaHeader003
+        name: X-Rta-Nonce
+        in: header
+        required: true
+        schema:
+          type: string
+      - &rtaHeader004
+        name: X-Rta-Sign
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RtaAsyncRequest'
+      responses:
+        '202':
+          description: 已受理
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RtaAsyncAccepted'
+        '400':
+          description: 协议校验失败
+        '401':
+          description: 认证失败或重放
+        '404':
+          description: 请求不存在或不属于该广告主接入
+        '409':
+          description: 幂等内容冲突
+        '410':
+          description: 决策已超时
+        '413':
+          description: 请求超过64KiB
+        '503':
+          description: 暂不可用
+  /rta/callbacks/{accessCode}:
+    post:
+      summary: 广告主独立 HTTP 决策回调
+      description: 合作方 HMAC-SHA256 覆盖 POST、完整路径、凭据引用、毫秒时间戳、随机 nonce 和原始请求体 SHA256，以换行连接。时间窗口正负
+        5 分钟，同一 nonce 10 分钟内不得重用。媒体身份从凭据解析。202 不代表放行。详见 rta-async.md。
+      security: []
+      parameters:
+      - *rtaHeader001
+      - *rtaHeader002
+      - *rtaHeader003
+      - *rtaHeader004
+      - name: accessCode
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RtaAsyncDecision'
+      responses:
+        '200':
+          description: 已确认
+        '400':
+          description: 协议校验失败
+        '401':
+          description: 认证失败或重放
+        '404':
+          description: 请求不存在或不属于该广告主接入
+        '409':
+          description: 幂等内容冲突
+        '410':
+          description: 决策已超时
+        '413':
+          description: 请求超过64KiB
+        '503':
+          description: 暂不可用
+  /rta/upstreams:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: upstreams 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
+    post:
+      summary: upstreams 保存配置（带 version 乐观锁）
+      security:
+      - saToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 保存成功
+        '409':
+          description: 配置版本冲突
+  /rta/media:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: media 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
+    post:
+      summary: media 保存配置（带 version 乐观锁）
+      security:
+      - saToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 保存成功
+        '409':
+          description: 配置版本冲突
+  /rta/bindings:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: bindings 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
+    post:
+      summary: bindings 保存配置（带 version 乐观锁）
+      security:
+      - saToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: 保存成功
+        '409':
+          description: 配置版本冲突
+  /rta/records:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: records 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
+  /rta/logs:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: logs 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
+  /rta/reports:
+    get:
+      parameters:
+      - name: advertiserId
+        in: query
+        schema:
+          type: string
+      - name: mediaId
+        in: query
+        schema:
+          type: string
+      - name: monitorTaskId
+        in: query
+        schema:
+          type: string
+      - name: upstreamId
+        in: query
+        schema:
+          type: string
+      - name: requestId
+        in: query
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+      - name: deliveryStatus
+        in: query
+        schema:
+          type: string
+      - name: keyword
+        in: query
+        schema:
+          type: string
+      - name: enabled
+        in: query
+        schema:
+          type: string
+      - name: startTime
+        in: query
+        schema:
+          type: string
+      - name: endTime
+        in: query
+        schema:
+          type: string
+      - name: grain
+        in: query
+        schema:
+          type: string
+      - name: current
+        in: query
+        schema:
+          type: string
+      - name: size
+        in: query
+        schema:
+          type: string
+      summary: reports 独立分页查询
+      security:
+      - saToken: []
+      responses:
+        '200':
+          description: Result<Page>：records、total、current、size、dataAsOf
   /feedback:
     get:
       operationId: ingestFeedback
       parameters:
+        - name: rtaRequestId
+          in: query
+          description: RTA 启用任务必传 SCX relayRequestId；与曝光/点击的 request_id 独立。
+          schema: { type: string, pattern: '^[a-f0-9]{32}$' }
         - { name: mId, in: query, required: true, description: OcpxMedia.id, schema: { type: string, maxLength: 32 } }
         - { name: tId, in: query, required: true, description: OcpxMonitorTask.id, schema: { type: string, maxLength: 32 } }
         - { name: aId, in: query, required: true, description: OcpxAdvertiser.id；不同于广告主侧广告 ID adv_id, schema: { type: string, maxLength: 32 } }
@@ -215,108 +786,6 @@ paths:
         '400': { description: 测试身份、路由、事件或金额格式无效 }
         '409': { description: 对应正式 Callback 尚未形成 PASSED 扣量事实 }
         '500': { description: 脱敏审计写入失败 }
-  /rta:
-    post:
-      operationId: decideRta
-      summary: Mock RTA decision
-      description: >-
-        Normalized internal RTA request. The current release only permits the Mock adapter;
-        an ALLOW is published to the decision Stream before the five-minute admission is cached.
-        Device identifiers are transient and are never persisted or logged.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RtaRequest' }
-      responses:
-        '200':
-          description: ALLOW or DENY business decision
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RtaResponse' }
-        '400': { description: Invalid request or route ownership mismatch }
-        '409': { description: Same requestId was used with a different normalized request }
-        '503': { description: Redis or Stream dependency unavailable; ALLOW is never returned }
-  /rta/profiles:
-    get:
-      operationId: listRtaProfiles
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: keyword, in: query, required: false, schema: { type: string, maxLength: 128 } }
-        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1 } }
-        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
-      responses: { '200': { description: Profile page } }
-    post:
-      operationId: createRtaProfile
-      security: [{ saToken: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RtaProfilePayload' }
-      responses: { '200': { description: Created Mock profile } }
-  /rta/profiles/{id}:
-    get:
-      operationId: getRtaProfile
-      security: [{ saToken: [] }]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }]
-      responses: { '200': { description: Profile } }
-    put:
-      operationId: updateRtaProfile
-      security: [{ saToken: [] }]
-      parameters: [{ name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RtaProfilePayload' }
-      responses: { '200': { description: Updated Mock profile } }
-  /rta/monitor-tasks/{taskId}:
-    get:
-      operationId: getRtaTaskConfig
-      security: [{ saToken: [] }]
-      parameters: [{ name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }]
-      responses: { '200': { description: RTA switch and external task bindings } }
-    put:
-      operationId: updateRtaTaskConfig
-      security: [{ saToken: [] }]
-      parameters: [{ name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RtaTaskConfigPayload' }
-      responses: { '200': { description: Updated RTA switch and bindings } }
-  /rta/decisions:
-    get:
-      operationId: listRtaDecisions
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: profileId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: current, in: query, required: false, schema: { type: integer, minimum: 1 } }
-        - { name: size, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
-      responses: { '200': { description: RTA decision fact page } }
-  /rta/metrics:
-    get:
-      operationId: listRtaMetrics
-      security: [{ saToken: [] }]
-      parameters:
-        - { name: startDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: endDate, in: query, required: false, schema: { type: string, format: date } }
-        - { name: grain, in: query, required: false, schema: { type: string, enum: [DAY, HOUR] } }
-        - { name: advertiserId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: mediaId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: monitorTaskId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: promotionLinkId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-        - { name: profileId, in: query, required: false, schema: { type: string, maxLength: 32 } }
-      responses: { '200': { description: RTA asynchronous metric projection and dataAsOf } }
   /protocol-configs:
     servers:
       - url: https://{domain}/boot/ocpx
@@ -948,6 +1417,305 @@ components:
       in: header
       name: satoken
   schemas:
+    RtaUpstreamConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          maxLength: 32
+        version:
+          type: integer
+          minimum: 0
+        advertiserId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        accessCode:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+        endpoint:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        credentialRef:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+        timeoutMs:
+          type: integer
+          minimum: 100
+          maximum: 30000
+          default: 5000
+        admissionSeconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          default: 300
+        enabled:
+          type: boolean
+          default: false
+      required:
+      - advertiserId
+      - name
+      - accessCode
+      - endpoint
+      - credentialRef
+    RtaMediaConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        mediaId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        version:
+          type: integer
+          minimum: 0
+        notifyUrl:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        credentialRef:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{1,64}$
+        enabled:
+          type: boolean
+          default: false
+      required:
+      - mediaId
+      - notifyUrl
+      - credentialRef
+    RtaBindingConfig:
+      type: object
+      additionalProperties: false
+      properties:
+        monitorTaskId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        version:
+          type: integer
+          minimum: 0
+        upstreamId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        productId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        externalTaskId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        enabled:
+          type: boolean
+          default: false
+      required:
+      - monitorTaskId
+      - upstreamId
+      - productId
+      - externalTaskId
+    RtaAsyncRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - requestId
+      - taskIds
+      - device
+      - context
+      properties:
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9._-]{1,128}$
+        taskIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{1,32}$
+        device:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            oaid:
+              type: string
+              minLength: 1
+              maxLength: 256
+            oaidMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            imei:
+              type: string
+              minLength: 1
+              maxLength: 256
+            imeiMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            idfa:
+              type: string
+              minLength: 1
+              maxLength: 256
+            idfaMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            androidId:
+              type: string
+              minLength: 1
+              maxLength: 256
+            androidIdMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            macMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            caid:
+              type: string
+              minLength: 1
+              maxLength: 256
+            caidVersion:
+              type: string
+              minLength: 1
+              maxLength: 256
+            caidMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+            preCaid:
+              type: string
+              minLength: 1
+              maxLength: 256
+            preCaidVersion:
+              type: string
+              minLength: 1
+              maxLength: 256
+            preCaidMd5:
+              type: string
+              minLength: 1
+              maxLength: 256
+          minProperties: 1
+        context:
+          type: object
+          additionalProperties: false
+          required: []
+          properties:
+            os:
+              type: string
+              minLength: 1
+              maxLength: 1024
+            osv:
+              type: string
+              minLength: 1
+              maxLength: 1024
+            ip:
+              type: string
+              minLength: 1
+              maxLength: 1024
+            ipv6:
+              type: string
+              minLength: 1
+              maxLength: 1024
+            ua:
+              type: string
+              minLength: 1
+              maxLength: 1024
+            model:
+              type: string
+              minLength: 1
+              maxLength: 1024
+    RtaAsyncDecision:
+      type: object
+      additionalProperties: false
+      required:
+      - relayRequestId
+      - status
+      - matched
+      properties:
+        relayRequestId:
+          type: string
+          pattern: ^[a-f0-9]{32}$
+        status:
+          type: string
+          enum:
+          - ALLOW
+          - DENY
+          - ERROR
+        matched:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - productId
+            - taskId
+            properties:
+              productId: &rtaSchema001
+                type: string
+                minLength: 1
+                maxLength: 128
+              taskId: *rtaSchema001
+    RtaAsyncAccepted:
+      type: object
+      additionalProperties: false
+      required:
+      - requestId
+      - relayRequestId
+      - deadline
+      properties:
+        requestId: *rtaSchema001
+        relayRequestId:
+          type: string
+          pattern: ^[a-f0-9]{32}$
+        deadline:
+          type: integer
+          description: Unix epoch milliseconds
+    RtaAsyncNotification:
+      type: object
+      additionalProperties: false
+      required:
+      - requestId
+      - relayRequestId
+      - status
+      - matchedTaskIds
+      - reasonCode
+      - expiresAt
+      properties:
+        requestId: *rtaSchema001
+        relayRequestId:
+          type: string
+        status:
+          type: string
+          enum:
+          - ALLOW
+          - DENY
+          - ERROR
+          - TIMEOUT
+        matchedTaskIds:
+          type: array
+          items:
+            type: string
+        reasonCode:
+          type: string
+        expiresAt:
+          type: integer
     ProtocolAllowedHostsUpdate:
       type: object
       additionalProperties: false
@@ -1741,104 +2509,3 @@ components:
         code: { type: integer, const: 0 }
         msg: { type: [string, 'null'] }
         data: { $ref: '#/components/schemas/DashboardSummary' }
-    RtaRequest:
-      type: object
-      additionalProperties: false
-      required: [requestId, advertiserId, promotionLinkId, mediaId, monitorTaskId]
-      properties:
-        requestId: { type: string, minLength: 1, maxLength: 128 }
-        advertiserId: { type: string, minLength: 1, maxLength: 32 }
-        promotionLinkId: { type: string, minLength: 1, maxLength: 32 }
-        mediaId: { type: string, minLength: 1, maxLength: 32 }
-        monitorTaskId: { type: string, minLength: 1, maxLength: 32 }
-        device: { $ref: '#/components/schemas/RtaDevice' }
-        context: { $ref: '#/components/schemas/RtaContext' }
-        attributes:
-          type: object
-          maxProperties: 16
-          additionalProperties: false
-          properties:
-            channel: { type: string, maxLength: 256 }
-            campaign: { type: string, maxLength: 256 }
-            placement: { type: string, maxLength: 256 }
-            source: { type: string, maxLength: 256 }
-    RtaDevice:
-      type: object
-      additionalProperties: false
-      properties:
-        oaid: { type: string, maxLength: 256 }
-        oaidMd5: { type: string, maxLength: 64 }
-        imei: { type: string, maxLength: 256 }
-        imeiMd5: { type: string, maxLength: 64 }
-        idfa: { type: string, maxLength: 256 }
-        idfaMd5: { type: string, maxLength: 64 }
-        caid: { type: string, maxLength: 256 }
-        caidVersion: { type: string, maxLength: 64 }
-        preCaid: { type: string, maxLength: 256 }
-        preCaidVersion: { type: string, maxLength: 64 }
-    RtaContext:
-      type: object
-      additionalProperties: false
-      properties:
-        ip: { type: string, maxLength: 64 }
-        ipv6: { type: string, maxLength: 128 }
-        os: { type: string, maxLength: 32 }
-        osv: { type: string, maxLength: 64 }
-        model: { type: string, maxLength: 128 }
-        ua: { type: string, maxLength: 1024 }
-    RtaResponse:
-      type: object
-      additionalProperties: false
-      required: [requestId, decision, taskIds, reasonCode]
-      properties:
-        requestId: { type: string, minLength: 1, maxLength: 128 }
-        decision: { type: string, enum: [ALLOW, DENY] }
-        taskIds: { type: array, maxItems: 100, items: { type: string, maxLength: 128 } }
-        reasonCode: { type: string, maxLength: 64 }
-    RtaProfilePayload:
-      type: object
-      additionalProperties: false
-      required: [code, name, adapterCode, status, configJson]
-      properties:
-        code: { type: string, minLength: 1, maxLength: 64 }
-        name: { type: string, minLength: 1, maxLength: 128 }
-        adapterCode: { type: string, const: MOCK }
-        status: { type: string, enum: [ACTIVE, DISABLED] }
-        configJson: { type: string, maxLength: 4096 }
-    RtaTaskConfigPayload:
-      type: object
-      additionalProperties: false
-      required: [enabled, bindings]
-      properties:
-        enabled: { type: boolean }
-        profileId: { type: [string, 'null'], maxLength: 32 }
-        bindings:
-          type: array
-          maxItems: 100
-          items:
-            type: object
-            required: [externalTaskId]
-            additionalProperties: false
-            properties:
-              externalTaskId: { type: string, minLength: 1, maxLength: 128 }
-              externalProductId: { type: [string, 'null'], maxLength: 128 }
-    RtaDecisionFactEvent:
-      type: object
-      additionalProperties: false
-      required: [requestId, requestHash, advertiserId, promotionLinkId, mediaId, monitorTaskId, adapterCode, decision, outcomeClass, reasonCode, latencyMs, matchedTaskIds, receivedAt, completedAt]
-      properties:
-        requestId: { type: string, maxLength: 128 }
-        requestHash: { type: string, pattern: '^[0-9a-f]{64}$' }
-        advertiserId: { type: string, maxLength: 32 }
-        promotionLinkId: { type: string, maxLength: 32 }
-        mediaId: { type: string, maxLength: 32 }
-        monitorTaskId: { type: string, maxLength: 32 }
-        profileId: { type: [string, 'null'], maxLength: 32 }
-        adapterCode: { type: string, const: MOCK }
-        decision: { type: string, enum: [ALLOW, DENY] }
-        outcomeClass: { type: string, enum: [SUCCESS, TIMEOUT, ERROR, REJECTED] }
-        reasonCode: { type: string, maxLength: 64 }
-        latencyMs: { type: integer, minimum: 0 }
-        matchedTaskIds: { type: array, items: { type: string, maxLength: 128 } }
-        receivedAt: { type: string, format: date-time }
-        completedAt: { type: string, format: date-time }

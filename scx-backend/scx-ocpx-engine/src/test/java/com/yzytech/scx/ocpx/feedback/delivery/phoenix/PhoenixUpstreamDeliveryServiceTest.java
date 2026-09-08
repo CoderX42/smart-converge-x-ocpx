@@ -33,7 +33,8 @@ class PhoenixUpstreamDeliveryServiceTest {
 
 	private final OcpxFlowLogWriter flowLogWriter = mock(OcpxFlowLogWriter.class);
 
-	private final OcpxKeyRingCrypto crypto = new OcpxKeyRingCrypto("v1", Map.of("v1", "phoenix-test-key"), List.of("v1"));
+	private final OcpxKeyRingCrypto crypto = new OcpxKeyRingCrypto("v1", Map.of("v1", "phoenix-test-key"),
+			List.of("v1"));
 
 	private PhoenixUpstreamDeliveryService service;
 
@@ -47,14 +48,17 @@ class PhoenixUpstreamDeliveryServiceTest {
 	@Test
 	void buildsAndroidClickAndImpressionUsingPdfPathsAndUppercaseMd5() {
 		when(linkIndex.get("link-id")).thenReturn(link(1));
-		FeedbackReq feedback = base(EventTypeEnum.CLICK, OsTypeEnum.ANDROID).oaid("oaid-value").ts("1704038400").build();
+		FeedbackReq feedback = base(EventTypeEnum.CLICK, OsTypeEnum.ANDROID).oaid("oaid-value")
+			.ts("1704038400")
+			.build();
 
 		String click = service.buildRequestUrl(feedback);
 		assertThat(URI.create(click).getPath()).isEqualTo("/d/cli");
 		assertThat(decoded(click, "os")).isEqualTo("0");
 		assertThat(decoded(click, "ts")).isEqualTo("1704038400000");
 		assertThat(decoded(click, "oaid_md5")).isEqualTo("D22646449410711650419E4BAC150402");
-		assertThat(decoded(click, "callback")).startsWith("https://engine.example.com/ocpx/phoenix/callback?kid=v1&ext=");
+		assertThat(decoded(click, "callback"))
+			.startsWith("https://engine.example.com/ocpx/phoenix/callback?kid=v1&ext=");
 
 		feedback.setEvent(EventTypeEnum.IMP);
 		String impression = service.buildRequestUrl(feedback);
@@ -66,7 +70,8 @@ class PhoenixUpstreamDeliveryServiceTest {
 	void buildsIosUrlWithCaidAndOsOne() {
 		when(linkIndex.get("link-id")).thenReturn(link(2));
 		FeedbackReq feedback = base(EventTypeEnum.CLICK, OsTypeEnum.IOS).caidList("CAID-V1,CAID-V2")
-				.idfa("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE").build();
+			.idfa("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+			.build();
 
 		String url = service.buildRequestUrl(feedback);
 		assertThat(decoded(url, "os")).isEqualTo("1");
@@ -87,11 +92,13 @@ class PhoenixUpstreamDeliveryServiceTest {
 	@Test
 	void rejectsPlatformIdentityMismatchAndInvalidTimestamp() {
 		when(linkIndex.get("link-id")).thenReturn(link(1));
-		assertThatIllegalArgumentException().isThrownBy(() -> service.buildRequestUrl(
-				base(EventTypeEnum.CLICK, OsTypeEnum.IOS).oaid("oaid-value").build())).withMessage("PHOENIX_OS_INVALID");
+		assertThatIllegalArgumentException()
+			.isThrownBy(
+					() -> service.buildRequestUrl(base(EventTypeEnum.CLICK, OsTypeEnum.IOS).oaid("oaid-value").build()))
+			.withMessage("PHOENIX_OS_INVALID");
 		FeedbackReq missingOaid = base(EventTypeEnum.CLICK, OsTypeEnum.ANDROID).ts("bad").build();
 		assertThatIllegalArgumentException().isThrownBy(() -> service.buildRequestUrl(missingOaid))
-				.withMessage("PHOENIX_TIMESTAMP_INVALID");
+			.withMessage("PHOENIX_TIMESTAMP_INVALID");
 	}
 
 	private OcpxPromotionLink link(int platform) {
@@ -110,8 +117,15 @@ class PhoenixUpstreamDeliveryServiceTest {
 	}
 
 	private FeedbackReq.FeedbackReqBuilder base(EventTypeEnum event, OsTypeEnum os) {
-		return FeedbackReq.builder().mId("media-id").tId("task-id").aId("advertiser-id").lId("link-id")
-				.reqId("request-id").event(event).os(os).ts("1704038400");
+		return FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.reqId("request-id")
+			.event(event)
+			.os(os)
+			.ts("1704038400");
 	}
 
 	private String decoded(String url, String name) {

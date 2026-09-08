@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskTestSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskTestRequests;
@@ -69,7 +72,8 @@ class OcpxMonitorTaskTestServiceTest {
 		OcpxTrackingProperties tracking = new OcpxTrackingProperties();
 		tracking.setEngineBaseUrl("http://127.0.0.1:10000/ocpx");
 		service = new OcpxMonitorTaskTestService(taskMapper, advertiserMapper, linkMapper, mediaMapper, tracking,
-				advertiserScope, jdbcTemplate, httpClient);
+				advertiserScope, XmlMapperTestSupport.mapper(OcpxMonitorTaskTestSqlMapper.class, jdbcTemplate),
+				httpClient);
 		stubContext(1,
 				"request_id=__REQUEST_ID__&oaid=__OAID__&oaid_md5=__OAID_MD5__&androidid=__ANDROIDID__"
 						+ "&ip=__IP__&ua=__UA__&os=__OS__&model=__MODEL__&ts=__TS__&clickid=__CLICKID__",
@@ -311,8 +315,8 @@ class OcpxMonitorTaskTestServiceTest {
 		LocalDateTime now = LocalDateTime.now();
 		MonitorTaskTestViews.Fact fact = new MonitorTaskTestViews.Fact("CLK", "NOT_APPLICABLE", "BILLING_DISABLED",
 				BigDecimal.ZERO, now);
-		MonitorTaskTestViews.Flow upstream = new MonitorTaskTestViews.Flow("SUCCESS", 200, "RENREN_VIDEO_DELIVERED", 22L,
-				now);
+		MonitorTaskTestViews.Flow upstream = new MonitorTaskTestViews.Flow("SUCCESS", 200, "RENREN_VIDEO_DELIVERED",
+				22L, now);
 		MonitorTaskTestViews.CallbackFact callbackFact = new MonitorTaskTestViews.CallbackFact("ACTIVATE",
 				"NOT_APPLICABLE", "BILLING_DISABLED", BigDecimal.ZERO, BigDecimal.ZERO, "PASSED", BigDecimal.ONE, now,
 				now);

@@ -1,6 +1,7 @@
 package com.yzytech.scx.ocpx.feedback.model;
 
 import com.alibaba.fastjson2.annotation.JSONField;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.yzytech.scx.ocpx.shared.enums.DeviceIdTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
@@ -9,6 +10,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.util.StringUtils;
+
+import java.net.URLDecoder;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Engine 内部统一的媒体 Feedback 模型。
@@ -121,6 +129,33 @@ public class FeedbackReq {
 	/** 本次请求唯一标识；正式点击必须由媒体提供具体值，曝光保留兼容回退。 */
 	private String reqId;
 
+	/**
+	 * 入站适配器是否因缺少/未替换 request_id 而生成了回退值。该标记只存在于内存， 不得进入事实、日志、Redis 或下游请求。
+	 */
+	@JSONField(serialize = false, deserialize = false)
+	@JsonIgnore
+	private boolean requestIdGenerated;
+
+	/**
+	 * This feedback belongs to an RTA-enabled task. The marker is process-local and lets
+	 * compatibility/logging paths redact raw device identifiers after admission.
+	 */
+	@JSONField(serialize = false, deserialize = false)
+	@JsonIgnore
+	private boolean rtaProtected;
+
+	private String rtaRequestId;
+
+	/**
+	 * Authenticated callback-context marker.  The process-local {@link #rtaProtected}
+	 * bit deliberately stays out of ordinary JSON, while a detached RTA dispatch
+	 * snapshot carries this non-sensitive marker inside the encrypted callback
+	 * context so a later Callback can apply the same redaction policy.  Jackson keeps
+	 * the marker hidden from management/API responses.
+	 */
+	@JSONField(name = "rta_protected", serialize = true, deserialize = true)
+	private Boolean callbackRtaProtected;
+
 	/** Phoenix 可选投放版位标识（TAGID）。 */
 	private String tagId;
 
@@ -139,6 +174,155 @@ public class FeedbackReq {
 	private String userId;
 
 	private DeviceIdTypeEnum userType;
+
+	/**
+	 * Create the only form of a RTA-protected Feedback that may enter an advertiser
+	 * delivery worker. The original object is never mutated: the raw identifiers are
+	 * cleared on the copy, while their already-supplied hashes remain available to
+	 * protocols that can operate on hashed IDs. The callback URL is retained only when
+	 * its decoded representation contains none of the inbound raw identifiers; an
+	 * unsafe or malformed URL is dropped. The opaque callback envelope is always
+	 * rebuilt by the protocol adapter.
+	 *
+	 * <p>
+	 * The Weifeng RTA adapter receives the original object before this method is called.
+	 * No other upstream protocol is an approved raw-identifier destination.
+	 * </p>
+	 * @return an immutable-by-convention, raw-identifier-free dispatch snapshot
+	 */
+	public FeedbackReq copyForRtaDownstream() {
+		FeedbackReq copy = new FeedbackReq();
+		copy.mId = mId;
+		copy.tId = tId;
+		copy.aId = aId;
+		copy.lId = lId;
+		copy.event = event;
+		copy.timeKeyRes = timeKeyRes;
+		copy.showSmt = showSmt;
+		copy.uniShowSmt = uniShowSmt;
+		copy.clkSmt = clkSmt;
+		copy.uniClkSmt = uniClkSmt;
+		copy.callbackUrl = safeCallbackUrlForRta();
+		copy.caidVersion = caidVersion;
+		copy.idfaMd5 = idfaMd5;
+		copy.imeiMd5 = imeiMd5;
+		copy.oaidMd5 = oaidMd5;
+		copy.androididMd5 = androididMd5;
+		copy.macMd5 = macMd5;
+		copy.ip = ip;
+		copy.ipv6 = ipv6;
+		copy.os = os;
+		copy.ts = ts;
+		copy.tsMs = tsMs;
+		copy.ua = ua;
+		copy.advId = advId;
+		copy.groupId = groupId;
+		copy.planId = planId;
+		copy.creativeId = creativeId;
+		copy.impresssId = impresssId;
+		copy.clickId = clickId;
+		copy.reqId = reqId;
+		copy.rtaRequestId = rtaRequestId;
+		copy.requestIdGenerated = requestIdGenerated;
+		copy.rtaProtected = true;
+		copy.callbackRtaProtected = true;
+		copy.tagId = tagId;
+		copy.marke = marke;
+		copy.model = model;
+		copy.osv = osv;
+		copy.flagLog = flagLog;
+		copy.userType = userType;
+		// ext and every raw identifier intentionally remain null.  A callback URL is
+		// retained only when its decoded form contains none of the inbound raw device
+		// values; otherwise the whole URL is dropped rather than risking a leak.
+		return copy;
+	}
+
+	/**
+	 * Returns whether this object was marked as RTA protected either in-process or by
+	 * the authenticated callback context.  The latter is intentionally fail-safe:
+	 * callers only use the bit to redact/withhold data, never to permit an otherwise
+	 * forbidden operation.
+	 */
+	public boolean isRtaProtected() {
+		return rtaProtected || Boolean.TRUE.equals(callbackRtaProtected);
+	}
+
+	private String safeCallbackUrlForRta() {
+		if (!StringUtils.hasText(callbackUrl)) {
+			return callbackUrl;
+		}
+		String decoded = callbackUrl;
+		try {
+			// Ingress normally encodes once; decode a bounded number of times so a
+			// doubly-encoded device value cannot evade the scan.  A malformed escape
+			// fails closed by dropping the callback destination.
+			for (int i = 0; i < 3; i++) {
+				String next = URLDecoder.decode(decoded, StandardCharsets.UTF_8);
+				if (next.equals(decoded)) {
+					break;
+				}
+				decoded = next;
+			}
+		}
+		catch (IllegalArgumentException exception) {
+			return null;
+		}
+		try {
+			URI uri = URI.create(decoded);
+			if (uri.getUserInfo() != null || uri.getFragment() != null || uri.getQuery() == null
+					&& decoded.contains("?")) {
+				return null;
+			}
+			String query = uri.getRawQuery();
+			if (query != null) {
+				for (String parameter : query.split("&", -1)) {
+					String name = parameter;
+					int equals = parameter.indexOf('=');
+					if (equals >= 0) {
+						name = parameter.substring(0, equals);
+					}
+					name = URLDecoder.decode(name, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT).trim();
+					if (name.matches("(?:idfa|imei|oaid|androidid|android_id|aaid|caid|caid_new|mac|device|userid|user_id|device_id|advertising_id|idfa_md5sum|imei_md5sum|oaid_md5sum|android_id_md5sum|mac_md5sum)")) {
+						return null;
+					}
+				}
+			}
+		}
+		catch (IllegalArgumentException exception) {
+			return null;
+		}
+		String haystack = decoded.toLowerCase(Locale.ROOT);
+		for (String raw : rawDeviceValues()) {
+			if (StringUtils.hasText(raw) && !isMacro(raw)
+					&& haystack.contains(raw.toLowerCase(Locale.ROOT))) {
+				return null;
+			}
+		}
+		return callbackUrl;
+	}
+
+	private List<String> rawDeviceValues() {
+		List<String> values = new ArrayList<>();
+		values.add(caid);
+		values.add(caidList);
+		values.add(caid1);
+		values.add(caid2);
+		values.add(lastCaid);
+		values.add(prevCaid);
+		values.add(idfa);
+		values.add(aaid);
+		values.add(imei);
+		values.add(oaid);
+		values.add(androidid);
+		values.add(mac);
+		values.add(userId);
+		return values;
+	}
+
+	private boolean isMacro(String value) {
+		return value.startsWith("__") && value.endsWith("__");
+	}
 
 	/**
 	 * 按 OAID、CAID、IDFA、IMEI 的优先级选择统一用户标识，并同步更新 {@code userType}。

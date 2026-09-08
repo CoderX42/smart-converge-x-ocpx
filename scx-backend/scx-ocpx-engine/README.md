@@ -109,7 +109,7 @@ Admin 的 `OcpxDataMergeTask` 每分钟合并临时报表为 `mark=0`，每小�
 - Redis 扣量数组长度为 `19`，读取历史 11 位状态时自动补零；读改写仍非原子。
 - 单个 List 批次的数据库多表写入使用本地事务；Redis 读取与裁剪之间仍无事务，也没有
   processing 队列、所有者锁校验、持久重试或 DLQ。
-- 不迁移爱奇艺、百度、OPPO、华为、快手等合作方专用 Controller、枚举或协议。
+- OPPO 的 RTA 专属入口已退役，非 RTA 的 uploadActiveData 转化回传保留。新 RTA 使用通用异步协议，详见 `docs/广告平台设计/contracts/rta-async.md`。
 
 ## 运行配置
 
@@ -151,7 +151,7 @@ bash scripts/bt-deploy/02-manage.sh engine-restart
 
 生产 profile 只监听 `127.0.0.1:10000`。公网由 `ocpx` 专用 Nginx 站点精确开放
 Feedback、通用 Callback、AERIM Callback、微风互动 Callback、人人视频 Callback、凤凰新闻
-Callback、受签名保护的完整测试 Callback 和既有 Open API，不能直接放行 10000 端口。Phoenix
+Callback、OPPO RTA、受签名保护的完整测试 Callback 和既有 Open API，不能直接放行 10000 端口。Phoenix
 的 `/d/cli`、`/d/imp` 是出站地址，不能配置为入站 location；IP-UAT 和容器 Nginx 不增加该路由。
 没有可用公网域名时，可将 `ocpx.aerim.callback-base-url` 临时配置为公网 HTTP IP，并把
 `nginx-scx-ocpx-engine-ip-uat-rewrite.conf` 中的精确路由加入该 IP 站点。该配置只用于 UAT；

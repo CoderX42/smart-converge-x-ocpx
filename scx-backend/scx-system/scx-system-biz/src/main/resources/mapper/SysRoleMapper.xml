@@ -61,4 +61,5 @@
             </if>
         </where>
     </select>
+<select id="selectByIdForUpdate" resultType="com.yzytech.scx.system.api.entity.SysRole" useCache="false" flushCache="true">SELECT * FROM sys_role WHERE id=#{id} AND del_flag='0' FOR UPDATE</select>
 </mapper>

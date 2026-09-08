@@ -144,9 +144,17 @@ function isPhoenixTemplate(value: string, platform?: PlatformCode) {
     for (const [name, macro] of Object.entries(PHOENIX_COMMON_MACROS)) {
       if (url.searchParams.get(name) !== macro) return false;
     }
-    if ((platform === 1 || platform === 3) &&
-      (url.searchParams.get('oaid') !== '__OAID__' || url.searchParams.get('oaid_md5') !== '__OAIDMD5__')) return false;
-    if ((platform === 2 || platform === 3) && url.searchParams.get('caid') !== '__CAID__') return false;
+    if (
+      (platform === 1 || platform === 3) &&
+      (url.searchParams.get('oaid') !== '__OAID__' ||
+        url.searchParams.get('oaid_md5') !== '__OAIDMD5__')
+    )
+      return false;
+    if (
+      (platform === 2 || platform === 3) &&
+      url.searchParams.get('caid') !== '__CAID__'
+    )
+      return false;
     return pairs.every(([, value]) => {
       if (/[{}]|:\/\//.test(value)) return false;
       return !value.includes('__') || /^__[A-Z0-9_]+__$/.test(value);

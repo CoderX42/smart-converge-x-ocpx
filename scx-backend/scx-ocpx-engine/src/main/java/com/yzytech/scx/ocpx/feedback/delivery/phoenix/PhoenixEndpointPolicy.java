@@ -38,8 +38,7 @@ public class PhoenixEndpointPolicy {
 			}
 			URI uri = URI.create(value);
 			if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getFragment() != null
-					|| uri.getPort() != -1 || !StringUtils.hasText(uri.getHost())
-					|| unsafeQuery(uri.getRawQuery())) {
+					|| uri.getPort() != -1 || !StringUtils.hasText(uri.getHost()) || unsafeQuery(uri.getRawQuery())) {
 				throw new IllegalArgumentException("PHOENIX_URL_UNSAFE");
 			}
 			String host = ProtocolHostContract.normalizeConfiguredHost(uri.getHost());

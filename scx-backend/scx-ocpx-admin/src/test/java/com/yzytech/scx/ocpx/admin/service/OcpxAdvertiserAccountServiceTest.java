@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +40,8 @@ class OcpxAdvertiserAccountServiceTest {
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
-		service = new OcpxAdvertiserAccountService(jdbcTemplate, advertiserScope);
+		service = new OcpxAdvertiserAccountService(
+				XmlMapperTestSupport.mapper(OcpxAdvertiserAccountSqlMapper.class, jdbcTemplate), advertiserScope);
 		when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 	}
 

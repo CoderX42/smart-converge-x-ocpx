@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 扫描或装配。默认运行端口和上下文路径由本模块配置文件决定。
  */
 @SpringBootApplication
-@MapperScan({ "com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper" })
+@MapperScan({ "com.yzytech.scx.ocpx.configuration.mapper", "com.yzytech.scx.ocpx.report.mapper", "com.yzytech.scx.ocpx.persistence.mapper" })
 @EnableAsync
 @EnableScheduling
 public class ScxOcpxEngineApplication {

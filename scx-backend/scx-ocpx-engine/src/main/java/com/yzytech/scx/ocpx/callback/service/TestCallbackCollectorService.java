@@ -6,7 +6,7 @@ import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.yzytech.scx.ocpx.persistence.mapper.TestCallbackCollectorSqlMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -36,7 +36,7 @@ public class TestCallbackCollectorService {
 	private static final Set<String> CALLBACK_KEYS = Set.of("request_id", "token", "mId", "tId", "aId", "lId",
 			"event_type");
 
-	private final JdbcTemplate jdbcTemplate;
+	private final TestCallbackCollectorSqlMapper sqlMapper;
 
 	private final String callbackBaseUrl;
 
@@ -45,9 +45,10 @@ public class TestCallbackCollectorService {
 	@Autowired(required = false)
 	private OcpxKeyRingCrypto callbackCrypto;
 
-	public TestCallbackCollectorService(JdbcTemplate jdbcTemplate, @Value("${domain.name}") String callbackBaseUrl,
+	public TestCallbackCollectorService(TestCallbackCollectorSqlMapper sqlMapper,
+			@Value("${domain.name}") String callbackBaseUrl,
 			@Value("${app.callback-crypto.keys.v1}") String callbackSigningKey) {
-		this.jdbcTemplate = jdbcTemplate;
+		this.sqlMapper = sqlMapper;
 		this.callbackBaseUrl = callbackBaseUrl;
 		this.callbackSigningKey = callbackSigningKey;
 	}
@@ -110,15 +111,10 @@ public class TestCallbackCollectorService {
 				request.getAId(), request.getLId());
 		String id = fingerprint(request.getReqId(), "TEST_CALLBACK_ARMED").substring(0, 32);
 		try {
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_flow_log
-					(id,flow_type,event_id,source_event_id,event_code,payload_hash,advertiser_id,
-					 promotion_link_id,media_id,monitor_task_id,result_status,partner_http_status,
-					 message,duration_ms,event_time)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", id, "CALLBACK", request.getReqId(), request.getReqId(), "CLK", payloadHash, request.getAId(),
-					request.getLId(), request.getMId(), request.getTId(), "SUCCESS", null, "TEST_CALLBACK_ARMED", 0L,
-					LocalDateTime.now());
+			sqlMapper.insertArmFlowLog(new TestCallbackCollectorSqlMapper.InsertArmFlowLogCommand(id, "CALLBACK",
+					request.getReqId(), request.getReqId(), "CLK", payloadHash, request.getAId(), request.getLId(),
+					request.getMId(), request.getTId(), "SUCCESS", null, "TEST_CALLBACK_ARMED", 0L,
+					LocalDateTime.now()));
 			return true;
 		}
 		catch (DuplicateKeyException exception) {
@@ -145,18 +141,10 @@ public class TestCallbackCollectorService {
 		}
 		ActionTypeEnum actionType = ActionTypeEnum.getActionTypeEnum(eventType);
 		String armedHash = armedFingerprint(requestId, token, mediaId, monitorTaskId, advertiserId, promotionLinkId);
-		Long armed = jdbcTemplate.queryForObject("""
-				SELECT COUNT(*) FROM scx_ocpx_flow_log
-				WHERE event_id=? AND media_id=? AND monitor_task_id=? AND advertiser_id=?
-				  AND promotion_link_id=? AND flow_type='CALLBACK' AND message='TEST_CALLBACK_ARMED'
-				  AND payload_hash=?
-				""", Long.class, requestId, mediaId, monitorTaskId, advertiserId, promotionLinkId, armedHash);
-		Long passed = jdbcTemplate.queryForObject("""
-				SELECT COUNT(*) FROM scx_ocpx_event_fact
-				WHERE request_id=? AND media_id=? AND monitor_task_id=? AND advertiser_id=?
-				  AND promotion_link_id=? AND flow_type='CALLBACK' AND event_code=?
-				  AND deduction_decision='PASSED'
-				""", Long.class, requestId, mediaId, monitorTaskId, advertiserId, promotionLinkId, actionType.name());
+		Long armed = sqlMapper.selectRecordFlowLog(requestId, mediaId, monitorTaskId, advertiserId, promotionLinkId,
+				armedHash);
+		Long passed = sqlMapper.selectRecordEventFact(requestId, mediaId, monitorTaskId, advertiserId, promotionLinkId,
+				actionType.name());
 		if (armed == null || armed != 1L || passed == null || passed != 1L) {
 			throw new CallbackNotReadyException();
 		}
@@ -164,15 +152,9 @@ public class TestCallbackCollectorService {
 				actionType.name(), currencyAmount);
 		String id = fingerprint(requestId, actionType.name(), "TEST_CALLBACK_RECEIVED").substring(0, 32);
 		try {
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_flow_log
-					(id,flow_type,event_id,source_event_id,event_code,payload_hash,advertiser_id,
-					 promotion_link_id,media_id,monitor_task_id,result_status,partner_http_status,
-					 message,duration_ms,event_time)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", id, "CALLBACK", requestId, requestId, actionType.name(), payloadHash, advertiserId,
-					promotionLinkId, mediaId, monitorTaskId, "SUCCESS", null, "TEST_CALLBACK_RECEIVED", 0L,
-					LocalDateTime.now());
+			sqlMapper.insertRecordFlowLog(new TestCallbackCollectorSqlMapper.InsertRecordFlowLogCommand(id, "CALLBACK",
+					requestId, requestId, actionType.name(), payloadHash, advertiserId, promotionLinkId, mediaId,
+					monitorTaskId, "SUCCESS", null, "TEST_CALLBACK_RECEIVED", 0L, LocalDateTime.now()));
 			return true;
 		}
 		catch (DuplicateKeyException exception) {

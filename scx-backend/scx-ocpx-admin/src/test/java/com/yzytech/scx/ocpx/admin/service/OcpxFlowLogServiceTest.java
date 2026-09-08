@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxFlowLogSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.FlowLogViews;
 import org.junit.jupiter.api.Test;
@@ -32,7 +35,8 @@ class OcpxFlowLogServiceTest {
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
 			.thenReturn(Collections.nCopies(31, mock(FlowLogViews.Item.class)));
-		OcpxFlowLogService service = new OcpxFlowLogService(jdbcTemplate, advertiserScope);
+		OcpxFlowLogService service = new OcpxFlowLogService(
+				XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope);
 
 		FlowLogViews.Page page = service.query(LocalDate.of(2026, 8, 19), LocalDate.of(2026, 8, 25), null, null, null,
 				null, null, null, null, 1L, 30L);
@@ -65,7 +69,8 @@ class OcpxFlowLogServiceTest {
 		when(advertiserScope.constrain("advertiser-forged")).thenReturn("advertiser-own");
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		new OcpxFlowLogService(jdbcTemplate, advertiserScope).options("advertiser-forged", "media-1");
+		new OcpxFlowLogService(XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope)
+			.options("advertiser-forged", "media-1");
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -86,8 +91,9 @@ class OcpxFlowLogServiceTest {
 		when(advertiserScope.constrain("advertiser-1")).thenReturn("advertiser-1");
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		new OcpxFlowLogService(jdbcTemplate, advertiserScope).query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
-				null, null, "advertiser-1", "link-1", "media-1", "task-1", null, 1L, 20L);
+		new OcpxFlowLogService(XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope)
+			.query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), null, null, "advertiser-1", "link-1", "media-1",
+					"task-1", null, 1L, 20L);
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -108,8 +114,9 @@ class OcpxFlowLogServiceTest {
 		when(advertiserScope.constrain("advertiser-other")).thenReturn("advertiser-own");
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		new OcpxFlowLogService(jdbcTemplate, advertiserScope).query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2),
-				null, null, "advertiser-other", null, null, null, null, 1L, 20L);
+		new OcpxFlowLogService(XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope)
+			.query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), null, null, "advertiser-other", null, null, null,
+					null, 1L, 20L);
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
@@ -125,7 +132,8 @@ class OcpxFlowLogServiceTest {
 		AdvertiserScope advertiserScope = mock(AdvertiserScope.class);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), eq("flow-1"))).thenReturn(List.of());
 
-		OcpxFlowLogService service = new OcpxFlowLogService(jdbcTemplate, advertiserScope);
+		OcpxFlowLogService service = new OcpxFlowLogService(
+				XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope);
 
 		assertThatThrownBy(() -> service.requestDetail("flow-1")).isInstanceOf(BootBusinessException.class)
 			.hasMessageContaining("流程日志不存在");
@@ -167,7 +175,8 @@ class OcpxFlowLogServiceTest {
 			return List.of(mapper.mapRow(resultSet, 0));
 		});
 
-		FlowLogViews.RequestDetail detail = new OcpxFlowLogService(jdbcTemplate, advertiserScope)
+		FlowLogViews.RequestDetail detail = new OcpxFlowLogService(
+				XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope)
 			.requestDetail("flow-1");
 
 		assertThat(detail.getCallbackUrl()).isEqualTo("https://media.example/callback?request_id=request-1&token=***");
@@ -198,7 +207,8 @@ class OcpxFlowLogServiceTest {
 			return List.of(mapper.mapRow(resultSet, 0));
 		});
 
-		FlowLogViews.RequestDetail detail = new OcpxFlowLogService(jdbcTemplate, advertiserScope)
+		FlowLogViews.RequestDetail detail = new OcpxFlowLogService(
+				XmlMapperTestSupport.mapper(OcpxFlowLogSqlMapper.class, jdbcTemplate), advertiserScope)
 			.requestDetail("flow-1");
 
 		assertThat(detail.getTraceId()).isEqualTo("trace-1");

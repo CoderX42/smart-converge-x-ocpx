@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskIntegrationSqlMapper">
+    <resultMap id="selectFeedbackLogFeedbackRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskIntegrationSqlMapper$SelectFeedbackLogFeedbackRow">
+        <constructor>
+            <arg column="req_id" javaType="java.lang.String"/>
+            <arg column="callback_url" javaType="java.lang.String"/>
+            <arg column="a_id" javaType="java.lang.String"/>
+            <arg column="l_id" javaType="java.lang.String"/>
+            <arg column="m_id" javaType="java.lang.String"/>
+            <arg column="t_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectFeedbackLogFeedback" resultMap="selectFeedbackLogFeedbackRow" useCache="false" flushCache="true">
+        SELECT req_id,
+        callback_url,
+        a_id,
+        l_id,
+        m_id,
+        t_id
+        FROM scx_ocpx_log_feedback
+        WHERE id=#{feedbackLogId} AND t_id=#{taskId} LIMIT 1
+    </select>
+    <insert id="insertWriteAuditFlowLog">
+        INSERT INTO scx_ocpx_flow_log (id,
+        flow_type,
+        event_id,
+        source_event_id,
+        event_code,
+        payload_hash,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        result_status,
+        partner_http_status,
+        message,
+        duration_ms,
+        event_time)
+        VALUES (#{command.id},
+        #{command.flowType},
+        #{command.eventId},
+        #{command.sourceEventId},
+        #{command.eventCode},
+        #{command.payloadHash},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.resultStatus},
+        #{command.partnerHttpStatus},
+        #{command.message},
+        #{command.durationMs},
+        #{command.eventTime})
+    </insert>
+    <sql id="filters">
+        WHERE t_id=#{q.taskId} AND create_time&gt;=#{q.start} AND create_time&lt;#{q.end}
+        <if test="q.requestId != null">
+            AND req_id=#{q.requestId}
+        </if>
+    </sql>
+    <select id="countFeedback" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_log_feedback
+        <include refid="filters"/>
+    </select>
+    <resultMap id="selectFeedbackRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskIntegrationSqlMapper$SelectFeedbackRow">
+        <constructor>
+            <arg column="callback_url" javaType="java.lang.String"/>
+            <arg column="id" javaType="_long"/>
+            <arg column="create_time" javaType="java.sql.Timestamp"/>
+            <arg column="req_id" javaType="java.lang.String"/>
+            <arg column="clk_id" javaType="java.lang.String"/>
+            <arg column="userid" javaType="java.lang.String"/>
+            <arg column="user_type" javaType="java.lang.String"/>
+            <arg column="device_os" javaType="java.lang.String"/>
+            <arg column="device_did" javaType="java.lang.String"/>
+            <arg column="device_oaid" javaType="java.lang.String"/>
+            <arg column="device_dpid" javaType="java.lang.String"/>
+            <arg column="device_mac" javaType="java.lang.String"/>
+            <arg column="device_idfa" javaType="java.lang.String"/>
+            <arg column="device_caid" javaType="java.lang.String"/>
+            <arg column="device_caid1" javaType="java.lang.String"/>
+            <arg column="ip" javaType="java.lang.String"/>
+            <arg column="ua" javaType="java.lang.String"/>
+            <arg column="ts" javaType="java.lang.String"/>
+            <arg column="ts_ms" javaType="java.lang.String"/>
+            <arg column="adv_id" javaType="java.lang.String"/>
+            <arg column="group_id" javaType="java.lang.String"/>
+            <arg column="plan_id" javaType="java.lang.String"/>
+            <arg column="creative_id" javaType="java.lang.String"/>
+            <arg column="m_id" javaType="java.lang.String"/>
+            <arg column="a_id" javaType="java.lang.String"/>
+            <arg column="t_id" javaType="java.lang.String"/>
+            <arg column="l_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectFeedback" resultMap="selectFeedbackRow" useCache="false" flushCache="true">
+        SELECT id,
+        create_time,
+        req_id,
+        clk_id,
+        userid,
+        user_type,
+        device_os,
+        device_did,
+        device_oaid,
+        device_dpid,
+        device_mac,
+        device_idfa,
+        device_caid,
+        device_caid1,
+        ip,
+        ua,
+        callback_url,
+        ts,
+        ts_ms,
+        adv_id,
+        group_id,
+        plan_id,
+        creative_id,
+        m_id,
+        a_id,
+        t_id,
+        l_id
+        FROM scx_ocpx_log_feedback
+        <include refid="filters"/>
+        ORDER BY create_time DESC,
+        id DESC LIMIT #{q.limit} OFFSET #{q.offset}
+    </select>
+</mapper>

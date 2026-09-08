@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.OppoUploadActiveDataDeliverySqlMapper">
+    <resultMap id="selectFindAdvertiserRow" type="com.yzytech.scx.ocpx.persistence.mapper.OppoUploadActiveDataDeliverySqlMapper$SelectFindAdvertiserRow">
+        <constructor>
+            <arg column="link_ext" javaType="java.lang.String"/>
+            <arg column="credential_config_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectFindAdvertiser" resultMap="selectFindAdvertiserRow" useCache="false" flushCache="true">
+        SELECT a.credential_config_key,
+        l.link_ext
+        FROM scx_ocpx_advertiser a
+        JOIN scx_ocpx_promotion_link l ON l.advertiser_id=a.id
+        WHERE l.id=#{linkId} AND l.is_delete=0 AND JSON_UNQUOTE(JSON_EXTRACT(l.link_ext,
+        '$.downstreamProtocol'))='OPPO'
+    </select>
+</mapper>

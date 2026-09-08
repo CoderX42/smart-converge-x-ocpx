@@ -51,8 +51,9 @@ class ReportServiceImplTest {
 		}
 
 		assertThat(mapper).contains("#{item.standardActionType},#{item.actionTime},#{item.currencyAmount})")
-			.contains("#{item.firstActivation},#{item.firstOrder},#{item.download},#{item.activity},#{item.addiction},\n"
-					+ "             IFNULL(#{item.currencyAmount},0))");
+			.contains(
+					"#{item.firstActivation},#{item.firstOrder},#{item.download},#{item.activity},#{item.addiction},\n"
+							+ "             IFNULL(#{item.currencyAmount},0))");
 	}
 
 }

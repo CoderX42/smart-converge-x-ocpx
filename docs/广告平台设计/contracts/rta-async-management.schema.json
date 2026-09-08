@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RtaUpstreamConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "advertiserId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "accessCode": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "endpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 2048
+        },
+        "credentialRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 30000,
+          "default": 5000
+        },
+        "admissionSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400,
+          "default": 300
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "advertiserId",
+        "name",
+        "accessCode",
+        "endpoint",
+        "credentialRef"
+      ]
+    },
+    "RtaMediaConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mediaId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notifyUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 2048
+        },
+        "credentialRef": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "mediaId",
+        "notifyUrl",
+        "credentialRef"
+      ]
+    },
+    "RtaBindingConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "monitorTaskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "upstreamId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "productId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "externalTaskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "monitorTaskId",
+        "upstreamId",
+        "productId",
+        "externalTaskId"
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/RtaUpstreamConfig"
+    },
+    {
+      "$ref": "#/$defs/RtaMediaConfig"
+    },
+    {
+      "$ref": "#/$defs/RtaBindingConfig"
+    }
+  ]
+}

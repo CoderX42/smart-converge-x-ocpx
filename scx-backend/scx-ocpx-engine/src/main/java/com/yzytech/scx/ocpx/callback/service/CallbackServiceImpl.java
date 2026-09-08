@@ -91,6 +91,9 @@ public class CallbackServiceImpl implements CallbackService {
 		if (factResult.firstEvent() && compatibilityReportEnabled) {
 			// 兼容报表日志只记录首次事实；扣量审计和新报表不依赖该 Redis 队列。
 			LogData logData = JSON.parseObject(JSON.toJSONString(request.getFeedback()), LogData.class);
+			if (request.getFeedback().isRtaProtected()) {
+				redactRtaIdentifiers(logData);
+			}
 			logData.setActionTime(request.getActionTime());
 			logData.setPartnerActionType(request.getPartnerActionType());
 			logData.setStandardActionType(request.getActionType().getIndex());
@@ -168,6 +171,23 @@ public class CallbackServiceImpl implements CallbackService {
 		catch (RuntimeException exception) {
 			impressionLog.warn("callback compatibility queue failed reqId:{}", logData.getReqId(), exception);
 		}
+	}
+
+	/** RTA 允许将已脱敏哈希用于审计，但 never stores raw device identifiers. */
+	private void redactRtaIdentifiers(LogData logData) {
+		logData.setCaid(null);
+		logData.setCaidList(null);
+		logData.setCaid1(null);
+		logData.setCaid2(null);
+		logData.setLastCaid(null);
+		logData.setPrevCaid(null);
+		logData.setIdfa(null);
+		logData.setAaid(null);
+		logData.setImei(null);
+		logData.setOaid(null);
+		logData.setAndroidid(null);
+		logData.setMac(null);
+		logData.setUserId(null);
 	}
 
 }

@@ -17,7 +17,7 @@ mvp-db-migrate: db-migrate
 backend-build: schema-ledger-check ocpx-four-entity-check
 	cd scx-backend && mvn -pl scx-boot -am -DskipTests clean package
 
-backend-test: schema-ledger-check ocpx-four-entity-check
+backend-test: schema-ledger-check ocpx-four-entity-check business-sql-check
 	cd scx-backend && mvn -pl scx-boot -am test
 
 backend-run-dev:
@@ -26,7 +26,7 @@ backend-run-dev:
 ocpx-engine-build:
 	cd scx-backend && mvn -pl scx-ocpx-engine -am -DskipTests clean package
 
-ocpx-engine-test:
+ocpx-engine-test: business-sql-check
 	cd scx-backend && mvn -pl scx-ocpx-engine -am test
 
 ocpx-engine-run-dev:
@@ -55,3 +55,7 @@ db-verify: schema-ledger-check
 	@test -n "$${MYSQL_USERNAME:-}" || (echo "MYSQL_USERNAME is required" >&2; exit 1)
 	@test -n "$${MYSQL_PASSWORD:-}" || (echo "MYSQL_PASSWORD is required" >&2; exit 1)
 	cd scx-backend/db/smart-converge-x && bash ./verify-database.sh
+
+.PHONY: business-sql-check
+business-sql-check:
+	python3 tools/quality/check-business-sql.py

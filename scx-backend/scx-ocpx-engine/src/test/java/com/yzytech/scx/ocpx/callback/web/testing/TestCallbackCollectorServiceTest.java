@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.callback.web.testing;
 
+import com.yzytech.scx.ocpx.persistence.mapper.TestCallbackCollectorSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.callback.service.TestCallbackCollectorService;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
@@ -28,7 +31,9 @@ class TestCallbackCollectorServiceTest {
 	@BeforeEach
 	void setUp() {
 		jdbcTemplate = mock(JdbcTemplate.class);
-		service = new TestCallbackCollectorService(jdbcTemplate, "https://tracking.example/ocpx", "test-signing-key");
+		service = new TestCallbackCollectorService(
+				XmlMapperTestSupport.mapper(TestCallbackCollectorSqlMapper.class, jdbcTemplate),
+				"https://tracking.example/ocpx", "test-signing-key");
 	}
 
 	@Test

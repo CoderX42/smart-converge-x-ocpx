@@ -45,8 +45,8 @@ class FeedbackIngressControllerV119Test {
 		var response = controller.handleFeedback(route("CLK", "__REQUEST_ID__"), servlet);
 
 		assertThat(response.getStatusCode().value()).isEqualTo(400);
-		assertThat(response.getBody()).isEqualTo(FeedbackIngressResponse.badRequest(
-				"监测链接中仍有未替换的宏参数：request_id、imei、callback_url。请先替换这些参数，或从管理端获取完整测试链接。"));
+		assertThat(response.getBody()).isEqualTo(FeedbackIngressResponse
+			.badRequest("监测链接中仍有未替换的宏参数：request_id、imei、callback_url。请先替换这些参数，或从管理端获取完整测试链接。"));
 	}
 
 	@Test

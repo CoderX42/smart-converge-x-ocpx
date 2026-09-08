@@ -35,6 +35,7 @@ public class GravityCallbackAdapter {
 			.reqId(context.requestId())
 			.callbackUrl(context.callbackUrl())
 			.event(EventTypeEnum.CLICK)
+			.rtaProtected(context.rtaProtected())
 			.build();
 		return CallbackReq.builder()
 			.feedback(feedback)

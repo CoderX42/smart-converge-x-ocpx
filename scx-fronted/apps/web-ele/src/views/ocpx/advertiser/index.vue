@@ -103,7 +103,11 @@ const protocolLabels: Record<OcpxUpstreamProtocol, string> = {
   WEIFENG: '微风互动',
 };
 // Keep the protocol-level credential rule explicit for the management contract.
-const showCredentialFields = computed(() => !['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol) && form.upstreamProtocol !== 'PHOENIX');
+const showCredentialFields = computed(
+  () =>
+    !['GRAVITY', 'RENREN_VIDEO'].includes(form.upstreamProtocol) &&
+    form.upstreamProtocol !== 'PHOENIX',
+);
 const { hasAccessByCodes } = useAccess();
 const canOperate = computed(() =>
   hasAccessByCodes([

@@ -87,7 +87,7 @@ class ResetRedisKeyTaskTest {
 		FeedbackMapper feedbackMapper = mock(FeedbackMapper.class);
 		when(redis.opsForValue()).thenReturn(values);
 		when(values.setIfAbsent(eq("rtb{deleteFeedbackDay}"), anyString(), anyLong(), eq(TimeUnit.MINUTES)))
-				.thenReturn(true);
+			.thenReturn(true);
 		when(feedbackMapper.deleteFeedbackDayBefore(anyString(), eq(10))).thenReturn(10, 10, 10);
 
 		new ResetRedisKeyTask(redis, mock(SystemMemory.class), feedbackMapper, 10, 2, 0L).deleteFeedbackDay();

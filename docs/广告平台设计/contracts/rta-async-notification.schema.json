@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "requestId",
+    "relayRequestId",
+    "status",
+    "matchedTaskIds",
+    "reasonCode",
+    "expiresAt"
+  ],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "relayRequestId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ALLOW",
+        "DENY",
+        "ERROR",
+        "TIMEOUT"
+      ]
+    },
+    "matchedTaskIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reasonCode": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "integer"
+    }
+  }
+}

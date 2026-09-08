@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -31,7 +30,6 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
 
 	/**
 	 * 通过用户 id 查询角色编码，用于构造登录用户的角色集合。
-	 *
 	 * @param userId 用户 id
 	 * @return 角色编码列表
 	 */
@@ -45,5 +43,7 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
 	 */
 	@ShopDataScope
 	IPage<SysRole> selectRolePage(Page page, @Param("query") SysRole sysRole);
+
+	SysRole selectByIdForUpdate(@org.apache.ibatis.annotations.Param("id") String id);
 
 }

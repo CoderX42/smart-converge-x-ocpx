@@ -145,9 +145,11 @@ public class GravityUpstreamDeliveryService extends UpstreamDeliveryService {
 		if (!StringUtils.hasText(callbackBaseUrl)) {
 			throw new IllegalArgumentException("GRAVITY_CALLBACK_BASE_URL_MISSING");
 		}
+		FeedbackReq callbackFeedback = feedback != null && feedback.isRtaProtected()
+				? feedback.copyForRtaDownstream() : feedback;
 		GravityCallbackContext context = new GravityCallbackContext(1, ActionTypeEnum.ACTIVATE.name(),
-				feedback.getMId(), feedback.getTId(), feedback.getAId(), feedback.getLId(), feedback.getReqId(),
-				feedback.getCallbackUrl());
+				callbackFeedback.getMId(), callbackFeedback.getTId(), callbackFeedback.getAId(), callbackFeedback.getLId(),
+				callbackFeedback.getReqId(), callbackFeedback.getCallbackUrl(), callbackFeedback.isRtaProtected());
 		String base = callbackBaseUrl.endsWith("/") ? callbackBaseUrl.substring(0, callbackBaseUrl.length() - 1)
 				: callbackBaseUrl;
 		return base + "/gravity/callback?ctx=" + contextCodec.encode(context) + "&kid=" + contextCodec.activeKeyId();

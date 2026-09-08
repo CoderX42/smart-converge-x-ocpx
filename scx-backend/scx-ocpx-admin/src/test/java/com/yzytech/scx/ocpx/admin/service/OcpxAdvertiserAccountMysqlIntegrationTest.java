@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserAccountSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserRequests;
 import com.yzytech.scx.ocpx.admin.dto.AdvertiserViews;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
@@ -39,11 +42,12 @@ class OcpxAdvertiserAccountMysqlIntegrationTest {
 				System.getProperty("ocpx.mysql.user", "root"), System.getProperty("ocpx.mysql.password", ""));
 		jdbcTemplate = new JdbcTemplate(dataSource);
 		transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-		service = new OcpxAdvertiserAccountService(jdbcTemplate, mock(AdvertiserScope.class));
+		service = new OcpxAdvertiserAccountService(
+				XmlMapperTestSupport.mapper(OcpxAdvertiserAccountSqlMapper.class, jdbcTemplate),
+				mock(AdvertiserScope.class));
 		cleanup();
-		jdbcTemplate.update(
-				"INSERT INTO scx_ocpx_advertiser (id,advertiser_name,bid_url) VALUES (?,?,?)", ADVERTISER_ID,
-				"V108 recharge integration advertiser", "https://example.invalid/callback");
+		jdbcTemplate.update("INSERT INTO scx_ocpx_advertiser (id,advertiser_name,bid_url) VALUES (?,?,?)",
+				ADVERTISER_ID, "V108 recharge integration advertiser", "https://example.invalid/callback");
 		jdbcTemplate.update(
 				"INSERT INTO scx_ocpx_advertiser_account (advertiser_id,currency,available_balance) VALUES (?,'CNY',0)",
 				ADVERTISER_ID);
@@ -95,9 +99,9 @@ class OcpxAdvertiserAccountMysqlIntegrationTest {
 
 		assertThat(balance()).isEqualByComparingTo("100.000000");
 		assertThat(ledgerCount()).isEqualTo(2L);
-		assertThat(jdbcTemplate.queryForObject(
-				"SELECT SUM(amount) FROM scx_ocpx_billing_entry WHERE advertiser_id=?", BigDecimal.class,
-				ADVERTISER_ID)).isEqualByComparingTo("100.000000");
+		assertThat(jdbcTemplate.queryForObject("SELECT SUM(amount) FROM scx_ocpx_billing_entry WHERE advertiser_id=?",
+				BigDecimal.class, ADVERTISER_ID))
+			.isEqualByComparingTo("100.000000");
 	}
 
 	@Test

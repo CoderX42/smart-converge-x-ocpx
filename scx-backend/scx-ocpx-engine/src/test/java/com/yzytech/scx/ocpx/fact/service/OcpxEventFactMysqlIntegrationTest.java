@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.fact.service;
 
+import com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.service.DeductionDecision;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
@@ -46,7 +49,7 @@ class OcpxEventFactMysqlIntegrationTest {
 				System.getProperty("ocpx.mysql.user", "root"), System.getProperty("ocpx.mysql.password", ""));
 		jdbcTemplate = new JdbcTemplate(dataSource);
 		transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-		service = new OcpxEventFactService(jdbcTemplate);
+		service = new OcpxEventFactService(XmlMapperTestSupport.mapper(OcpxEventFactSqlMapper.class, jdbcTemplate));
 		cleanup();
 		jdbcTemplate.update("INSERT INTO scx_ocpx_advertiser (id,advertiser_name,bid_url) VALUES (?,?,?)",
 				ADVERTISER_ID, "V108 integration advertiser", "https://example.invalid/callback");

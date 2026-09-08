@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxCreativeSqlMapper">
+    <delete id="deleteDeleteCreativePromotionLink">
+        DELETE
+        FROM scx_ocpx_creative_promotion_link
+        WHERE creative_id=#{id}
+    </delete>
+    <select id="selectReplaceBindingsCreativePromotionLink" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT promotion_link_id
+        FROM scx_ocpx_creative_promotion_link
+        WHERE creative_id=#{id}
+    </select>
+    <resultMap id="selectBindingOptionsCreativePromotionLinkRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxCreativeSqlMapper$SelectBindingOptionsCreativePromotionLinkRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="link_name" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectBindingOptionsCreativePromotionLink" resultMap="selectBindingOptionsCreativePromotionLinkRow" useCache="false" flushCache="true">
+        SELECT l.id,
+        l.link_name
+        FROM scx_ocpx_creative_promotion_link b
+        JOIN scx_ocpx_promotion_link l ON l.id=b.promotion_link_id AND l.is_delete=0
+        WHERE b.creative_id=#{creativeId}
+        ORDER BY l.link_name
+    </select>
+    <select id="selectLockCreativeCreative" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT id
+        FROM scx_ocpx_creative
+        WHERE id=#{id} AND is_delete=0 FOR UPDATE
+    </select>
+    <delete id="deleteBindings">
+        DELETE
+        FROM scx_ocpx_creative_promotion_link
+        WHERE creative_id=#{creativeId} AND
+        <choose>
+            <when test="ids != null and !ids.isEmpty()">
+                promotion_link_id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </when>
+            <otherwise>
+                1=0
+            </otherwise>
+        </choose>
+    </delete>
+    <insert id="insertBindings">
+        INSERT INTO scx_ocpx_creative_promotion_link(advertiser_id,
+        creative_id,
+        promotion_link_id,
+        create_by,
+        create_time)
+        VALUES
+        <foreach collection="ids" item="id" separator=",">
+            (#{advertiserId},
+            #{creativeId},
+            #{id},
+            #{operator},
+            CURRENT_TIMESTAMP(3))
+        </foreach>
+    </insert>
+    <select id="selectIdsByLink" resultType="java.lang.String" useCache="false" flushCache="true">
+        SELECT creative_id
+        FROM scx_ocpx_creative_promotion_link
+        WHERE promotion_link_id=#{linkId}
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            AND advertiser_id=#{advertiserId}
+        </if>
+    </select>
+    <select id="selectAssets" resultType="com.yzytech.scx.system.api.entity.SysMaterial" useCache="false" flushCache="true">
+        SELECT *
+        FROM sys_material
+        WHERE shop_id=#{owner} AND type='1' AND del_flag='0'
+        <if test="keyword != null and !keyword.isBlank()">
+            AND name LIKE CONCAT('%',
+            #{keyword},
+            '%')
+        </if>
+        ORDER BY create_time DESC LIMIT 200
+    </select>
+</mapper>

@@ -13,7 +13,8 @@ withDefaults(defineProps<{ value?: null | string; wrap?: boolean }>(), {
     <button
       v-if="value"
       :aria-label="`复制：${value}`"
-      :class="['long-text', { 'long-text--wrap': wrap }]"
+      class="long-text"
+      :class="[{ 'long-text--wrap': wrap }]"
       type="button"
       @click="copyLongText(value)"
     >
@@ -52,10 +53,9 @@ withDefaults(defineProps<{ value?: null | string; wrap?: boolean }>(), {
 
 .long-text--wrap span {
   overflow: visible;
-  overflow-wrap: anywhere;
   text-overflow: clip;
+  overflow-wrap: anywhere;
   white-space: normal;
-  word-break: break-word;
 }
 
 .long-text--wrap .el-icon {

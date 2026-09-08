@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.fact.service;
 
+import com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.callback.service.DeductionDecision;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
@@ -243,7 +246,8 @@ class OcpxEventFactServiceTest {
 			}
 			return List.of(mapper.mapRow(resultSet, 0));
 		});
-		return new Fixture(jdbcTemplate, new OcpxEventFactService(jdbcTemplate));
+		return new Fixture(jdbcTemplate,
+				new OcpxEventFactService(XmlMapperTestSupport.mapper(OcpxEventFactSqlMapper.class, jdbcTemplate)));
 	}
 
 	private FeedbackReq feedback(EventTypeEnum event) {

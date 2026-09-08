@@ -1,8 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
 import com.yzytech.scx.ocpx.admin.mapper.OcpxAdvertiserMapper;
-import org.apache.ibatis.annotations.Delete;
-import org.apache.ibatis.annotations.Select;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +32,7 @@ class OcpxAdvertiserCascadeContractTest {
 		StringBuilder cascadeSql = new StringBuilder();
 		for (Map.Entry<String, String> target : deleteTargets.entrySet()) {
 			Method method = OcpxAdvertiserMapper.class.getMethod(target.getKey(), String.class);
-			String sql = String.join(" ", method.getAnnotation(Delete.class).value());
+			String sql = sql(method.getName());
 			assertThat(sql).contains(target.getValue());
 			cascadeSql.append(sql).append('\n');
 		}
@@ -42,13 +42,20 @@ class OcpxAdvertiserCascadeContractTest {
 	@Test
 	void deleteLocksAdvertiserAndCollectsAllBusinessRouteKeysBeforeCascade() throws Exception {
 		Method lock = OcpxAdvertiserMapper.class.getMethod("selectByIdForUpdate", String.class);
-		assertThat(String.join(" ", lock.getAnnotation(Select.class).value())).containsIgnoringCase("FOR UPDATE");
+		assertThat(sql(lock.getName())).containsIgnoringCase("FOR UPDATE");
 
 		Method routes = OcpxAdvertiserMapper.class.getMethod("selectCascadeRoutes", String.class);
-		assertThat(String.join(" ", routes.getAnnotation(Select.class).value()))
-			.contains("scx_ocpx_monitor_task", "scx_ocpx_deduction_rule", "scx_ocpx_promotion_link");
+		assertThat(sql(routes.getName())).contains("scx_ocpx_monitor_task", "scx_ocpx_deduction_rule",
+				"scx_ocpx_promotion_link");
 		assertThat(OcpxAdvertiserService.class.getMethod("delete", String.class).getAnnotation(Transactional.class))
 			.isNotNull();
+	}
+
+	private String sql(String method) {
+		return XmlMapperTestSupport.configuration(OcpxAdvertiserMapper.class)
+			.getMappedStatement(OcpxAdvertiserMapper.class.getName() + "." + method)
+			.getBoundSql(Map.of("id", "adv-1"))
+			.getSql();
 	}
 
 }

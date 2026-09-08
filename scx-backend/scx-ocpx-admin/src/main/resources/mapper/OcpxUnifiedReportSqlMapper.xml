@@ -1,0 +1,621 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper">
+    <sql id="summaryPeriod">
+        <choose>
+            <when test="q.dateType == 0">
+                r.time_hour
+            </when>
+            <when test="q.dateType == 1">
+                LEFT(r.time_hour,
+                8)
+            </when>
+            <when test="q.dateType == 2">
+                LEFT(r.time_hour,
+                6)
+            </when>
+            <otherwise>
+                LEFT(r.time_hour,
+                4)
+            </otherwise>
+        </choose>
+    </sql>
+    <sql id="summaryStat">
+        SELECT
+        <include refid="summaryPeriod"/>
+        AS reportTime,
+        r.media_id AS m_id,
+        r.advertiser_id AS a_id,
+        r.monitor_task_id AS t_id,
+        r.promotion_link_id AS l_id,
+        IFNULL(SUM(r.impression_count),
+        0) AS uni_show_smt,
+        IFNULL(SUM(r.click_count),
+        0) AS uni_clk_smt,
+        IFNULL(SUM(r.activate_count),
+        0) AS activate,
+        IFNULL(SUM(r.evoke_count),
+        0) AS evoke,
+        IFNULL(SUM(r.login_count),
+        0) AS login,
+        IFNULL(SUM(r.register_count),
+        0) AS register,
+        IFNULL(SUM(r.payment_count),
+        0) AS payment,
+        IFNULL(SUM(r.customer_acquisition_count),
+        0) AS customer_acquisition,
+        IFNULL(SUM(r.next_stay_count),
+        0) AS next_stay,
+        IFNULL(SUM(r.visits_count),
+        0) AS visits,
+        IFNULL(SUM(r.authentication_count),
+        0) AS authentication,
+        IFNULL(SUM(r.place_order_count),
+        0) AS place_order,
+        IFNULL(SUM(r.finish_the_order_count),
+        0) AS finish_the_order,
+        IFNULL(SUM(r.first_activation_count),
+        0) AS first_activation,
+        IFNULL(SUM(r.first_order_count),
+        0) AS first_order,
+        IFNULL(SUM(r.download_count),
+        0) AS download,
+        IFNULL(SUM(r.activity_count),
+        0) AS activity,
+        IFNULL(SUM(r.addiction_count),
+        0) AS addiction,
+        IFNULL(SUM(r.currency_amount),
+        0) AS currency_amount,
+        IFNULL(SUM(r.callback_count),
+        0) AS callback_count,
+        IFNULL(SUM(r.deduction_passed_count),
+        0) AS deduction_passed_count,
+        IFNULL(SUM(r.deduction_deducted_count),
+        0) AS deduction_deducted_count,
+        IFNULL(SUM(r.spend_amount),
+        0) AS base_price,
+        CASE WHEN SUM(r.impression_count)=0 THEN NULL ELSE ROUND(SUM(r.click_count)/SUM(r.impression_count)*100,
+        6) END AS clickRate
+        FROM scx_ocpx_hourly_metric r
+        WHERE r.time_hour BETWEEN #{startHour} AND #{endHour}
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND r.media_id=#{q.mediaId}
+        </if>
+        <if test="q.monitorTaskId != null and !q.monitorTaskId.isBlank()">
+            AND r.monitor_task_id=#{q.monitorTaskId}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND r.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.promotionLinkId != null and !q.promotionLinkId.isBlank()">
+            AND r.promotion_link_id=#{q.promotionLinkId}
+        </if>
+        GROUP BY r.media_id,
+        r.advertiser_id,
+        r.monitor_task_id,
+        r.promotion_link_id,
+        <include refid="summaryPeriod"/>
+    </sql>
+    <select id="countSummary" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM (
+        <include refid="summaryStat"/>
+        ) AS stat
+    </select>
+    <resultMap id="selectSummaryRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper$SelectSummaryRow">
+        <constructor>
+            <arg column="link_radio" javaType="java.lang.Object"/>
+            <arg column="reportTime" javaType="java.lang.String"/>
+            <arg column="m_id" javaType="java.lang.String"/>
+            <arg column="media_name" javaType="java.lang.String"/>
+            <arg column="t_id" javaType="java.lang.String"/>
+            <arg column="monitor_name" javaType="java.lang.String"/>
+            <arg column="a_id" javaType="java.lang.String"/>
+            <arg column="advertiser_name" javaType="java.lang.String"/>
+            <arg column="l_id" javaType="java.lang.String"/>
+            <arg column="link_name" javaType="java.lang.String"/>
+            <arg column="callback_count" javaType="_long"/>
+            <arg column="deduction_passed_count" javaType="_long"/>
+            <arg column="deduction_deducted_count" javaType="_long"/>
+            <arg column="uni_show_smt" javaType="_long"/>
+            <arg column="uni_clk_smt" javaType="_long"/>
+            <arg column="clickRate" javaType="java.lang.Double"/>
+            <arg column="base_price" javaType="java.math.BigDecimal"/>
+            <arg column="activate" javaType="_long"/>
+            <arg column="evoke" javaType="_long"/>
+            <arg column="login" javaType="_long"/>
+            <arg column="register" javaType="_long"/>
+            <arg column="payment" javaType="_long"/>
+            <arg column="customer_acquisition" javaType="_long"/>
+            <arg column="next_stay" javaType="_long"/>
+            <arg column="visits" javaType="_long"/>
+            <arg column="authentication" javaType="_long"/>
+            <arg column="place_order" javaType="_long"/>
+            <arg column="finish_the_order" javaType="_long"/>
+            <arg column="first_activation" javaType="_long"/>
+            <arg column="first_order" javaType="_long"/>
+            <arg column="download" javaType="_long"/>
+            <arg column="activity" javaType="_long"/>
+            <arg column="addiction" javaType="_long"/>
+            <arg column="currency_amount" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectSummary" resultMap="selectSummaryRow" useCache="false" flushCache="true">
+        SELECT m.media_name,
+        a.advertiser_name,
+        p.link_name,
+        t.monitor_name,
+        dr.ratio AS link_radio,
+        stat.*
+        FROM (
+        <include refid="summaryStat"/>
+        ) AS stat
+        JOIN scx_ocpx_media m ON m.id=stat.m_id
+        JOIN scx_ocpx_advertiser a ON a.id=stat.a_id
+        JOIN scx_ocpx_promotion_link p ON p.id=stat.l_id
+        JOIN scx_ocpx_monitor_task t ON t.id=stat.t_id
+        LEFT
+        JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND
+        dr.is_delete=0
+        <if test="paged">
+            ORDER BY
+            <choose>
+                <when test="q.asc == &#x27;report_time&#x27;">
+                    reportTime ASC
+                </when>
+                <when test="q.asc == &#x27;uni_show_smt&#x27;">
+                    uni_show_smt ASC
+                </when>
+                <when test="q.asc == &#x27;uni_clk_smt&#x27;">
+                    uni_clk_smt ASC
+                </when>
+                <when test="q.asc == &#x27;click_rate&#x27;">
+                    clickRate ASC
+                </when>
+                <when test="q.asc == &#x27;callback_count&#x27;">
+                    callback_count ASC
+                </when>
+                <when test="q.asc == &#x27;deduction_passed_count&#x27;">
+                    deduction_passed_count ASC
+                </when>
+                <when test="q.asc == &#x27;deduction_deducted_count&#x27;">
+                    deduction_deducted_count ASC
+                </when>
+                <when test="q.asc == &#x27;base_price&#x27;">
+                    base_price ASC
+                </when>
+                <when test="q.asc == &#x27;activate&#x27;">
+                    activate ASC
+                </when>
+                <when test="q.asc == &#x27;evoke&#x27;">
+                    evoke ASC
+                </when>
+                <when test="q.asc == &#x27;login&#x27;">
+                    login ASC
+                </when>
+                <when test="q.asc == &#x27;register&#x27;">
+                    register ASC
+                </when>
+                <when test="q.asc == &#x27;payment&#x27;">
+                    payment ASC
+                </when>
+                <when test="q.asc == &#x27;customer_acquisition&#x27;">
+                    customer_acquisition ASC
+                </when>
+                <when test="q.asc == &#x27;next_stay&#x27;">
+                    next_stay ASC
+                </when>
+                <when test="q.asc == &#x27;visits&#x27;">
+                    visits ASC
+                </when>
+                <when test="q.asc == &#x27;authentication&#x27;">
+                    authentication ASC
+                </when>
+                <when test="q.asc == &#x27;place_order&#x27;">
+                    place_order ASC
+                </when>
+                <when test="q.asc == &#x27;finish_the_order&#x27;">
+                    finish_the_order ASC
+                </when>
+                <when test="q.asc == &#x27;first_activation&#x27;">
+                    first_activation ASC
+                </when>
+                <when test="q.asc == &#x27;first_order&#x27;">
+                    first_order ASC
+                </when>
+                <when test="q.asc == &#x27;download&#x27;">
+                    download ASC
+                </when>
+                <when test="q.asc == &#x27;activity&#x27;">
+                    activity ASC
+                </when>
+                <when test="q.asc == &#x27;addiction&#x27;">
+                    addiction ASC
+                </when>
+                <when test="q.asc == &#x27;currency_amount&#x27;">
+                    currency_amount ASC
+                </when>
+                <when test="q.desc == &#x27;report_time&#x27;">
+                    reportTime DESC
+                </when>
+                <when test="q.desc == &#x27;uni_show_smt&#x27;">
+                    uni_show_smt DESC
+                </when>
+                <when test="q.desc == &#x27;uni_clk_smt&#x27;">
+                    uni_clk_smt DESC
+                </when>
+                <when test="q.desc == &#x27;click_rate&#x27;">
+                    clickRate DESC
+                </when>
+                <when test="q.desc == &#x27;callback_count&#x27;">
+                    callback_count DESC
+                </when>
+                <when test="q.desc == &#x27;deduction_passed_count&#x27;">
+                    deduction_passed_count DESC
+                </when>
+                <when test="q.desc == &#x27;deduction_deducted_count&#x27;">
+                    deduction_deducted_count DESC
+                </when>
+                <when test="q.desc == &#x27;base_price&#x27;">
+                    base_price DESC
+                </when>
+                <when test="q.desc == &#x27;activate&#x27;">
+                    activate DESC
+                </when>
+                <when test="q.desc == &#x27;evoke&#x27;">
+                    evoke DESC
+                </when>
+                <when test="q.desc == &#x27;login&#x27;">
+                    login DESC
+                </when>
+                <when test="q.desc == &#x27;register&#x27;">
+                    register DESC
+                </when>
+                <when test="q.desc == &#x27;payment&#x27;">
+                    payment DESC
+                </when>
+                <when test="q.desc == &#x27;customer_acquisition&#x27;">
+                    customer_acquisition DESC
+                </when>
+                <when test="q.desc == &#x27;next_stay&#x27;">
+                    next_stay DESC
+                </when>
+                <when test="q.desc == &#x27;visits&#x27;">
+                    visits DESC
+                </when>
+                <when test="q.desc == &#x27;authentication&#x27;">
+                    authentication DESC
+                </when>
+                <when test="q.desc == &#x27;place_order&#x27;">
+                    place_order DESC
+                </when>
+                <when test="q.desc == &#x27;finish_the_order&#x27;">
+                    finish_the_order DESC
+                </when>
+                <when test="q.desc == &#x27;first_activation&#x27;">
+                    first_activation DESC
+                </when>
+                <when test="q.desc == &#x27;first_order&#x27;">
+                    first_order DESC
+                </when>
+                <when test="q.desc == &#x27;download&#x27;">
+                    download DESC
+                </when>
+                <when test="q.desc == &#x27;activity&#x27;">
+                    activity DESC
+                </when>
+                <when test="q.desc == &#x27;addiction&#x27;">
+                    addiction DESC
+                </when>
+                <when test="q.desc == &#x27;currency_amount&#x27;">
+                    currency_amount DESC
+                </when>
+                <otherwise>
+                    reportTime DESC
+                </otherwise>
+            </choose>
+            LIMIT #{limit} OFFSET #{offset}
+        </if>
+    </select>
+    <select id="deductionCoverageStart" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT MIN(deduction_decided_at)
+        FROM scx_ocpx_event_fact
+        WHERE flow_type='CALLBACK' AND deduction_decision IN ('PASSED',
+        'DEDUCTED')
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND media_id=#{q.mediaId}
+        </if>
+        <if test="q.monitorTaskId != null and !q.monitorTaskId.isBlank()">
+            AND monitor_task_id=#{q.monitorTaskId}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.promotionLinkId != null and !q.promotionLinkId.isBlank()">
+            AND promotion_link_id=#{q.promotionLinkId}
+        </if>
+    </select>
+    <select id="selectAdvertiserOptions" resultType="com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        advertiser_name AS name
+        FROM scx_ocpx_advertiser
+        <where>
+            <if test="advertiserId != null and !advertiserId.isBlank()">
+                id=#{advertiserId}
+            </if>
+        </where>
+        ORDER BY advertiser_name
+    </select>
+    <select id="selectLinkOptions" resultType="com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        link_name AS name
+        FROM scx_ocpx_promotion_link
+        WHERE is_delete=0
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            AND advertiser_id=#{advertiserId}
+        </if>
+        ORDER BY link_name
+    </select>
+    <select id="selectMediaOptions" resultType="com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews$Option" useCache="false" flushCache="true">
+        SELECT DISTINCT m.id,
+        m.media_name AS name
+        FROM scx_ocpx_media m
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0
+            WHERE t.advertiser_id=#{advertiserId}
+        </if>
+        ORDER BY m.media_name
+    </select>
+    <select id="selectTaskOptions" resultType="com.yzytech.scx.ocpx.admin.dto.UnifiedReportViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        monitor_name AS name
+        FROM scx_ocpx_monitor_task
+        WHERE is_delete=0
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            AND advertiser_id=#{advertiserId}
+        </if>
+        <if test="mediaId != null and !mediaId.isBlank()">
+            AND media_id=#{mediaId}
+        </if>
+        ORDER BY monitor_name
+    </select>
+    <resultMap id="accountActivity" type="com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper$AccountActivity">
+        <constructor>
+            <arg column="todaySpend" javaType="java.math.BigDecimal"/>
+            <arg column="rejectedClickCount" javaType="_long"/>
+            <arg column="rejectedConversionCount" javaType="_long"/>
+        </constructor>
+    </resultMap>
+    <select id="accountActivity" resultMap="accountActivity" useCache="false" flushCache="true">
+        SELECT IFNULL(SUM(spend_amount),
+        0) AS todaySpend,
+        IFNULL(SUM(rejected_click_count),
+        0) AS rejectedClickCount,
+        IFNULL(SUM(rejected_conversion_count),
+        0) AS rejectedConversionCount
+        FROM scx_ocpx_hourly_metric
+        WHERE advertiser_id=#{advertiserId} AND time_hour BETWEEN #{start} AND #{end}
+    </select>
+    <select id="aggregateWatermark" resultType="java.time.LocalDateTime" useCache="false" flushCache="true">
+        SELECT MAX(update_time)
+        FROM scx_ocpx_hourly_metric r
+        WHERE time_hour BETWEEN #{start} AND #{end}
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND r.media_id=#{q.mediaId}
+        </if>
+        <if test="q.monitorTaskId != null and !q.monitorTaskId.isBlank()">
+            AND r.monitor_task_id=#{q.monitorTaskId}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND r.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.promotionLinkId != null and !q.promotionLinkId.isBlank()">
+            AND r.promotion_link_id=#{q.promotionLinkId}
+        </if>
+    </select>
+    <select id="countAdvertiser" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_advertiser
+        WHERE id=#{id}
+    </select>
+    <select id="countMedia" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_media
+        WHERE id=#{id}
+    </select>
+    <select id="countLink" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_promotion_link
+        WHERE id=#{q.promotionLinkId} AND is_delete=0
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND advertiser_id=#{q.advertiserId}
+        </if>
+    </select>
+    <select id="countTask" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_monitor_task r
+        WHERE is_delete=0
+        <if test="q.monitorTaskId != null and !q.monitorTaskId.isBlank()">
+            AND id=#{q.monitorTaskId}
+        </if>
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND r.media_id=#{q.mediaId}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND r.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.promotionLinkId != null and !q.promotionLinkId.isBlank()">
+            AND r.promotion_link_id=#{q.promotionLinkId}
+        </if>
+    </select>
+    <sql id="dimensionKey">
+        <choose>
+            <when test="q.groupBy == &#x27;ADVERTISER&#x27;">
+                r.advertiser_id
+            </when>
+            <when test="q.groupBy == &#x27;PROMOTION_LINK&#x27;">
+                r.promotion_link_id
+            </when>
+            <when test="q.groupBy == &#x27;MEDIA&#x27;">
+                r.media_id
+            </when>
+            <when test="q.groupBy == &#x27;MONITOR_TASK&#x27;">
+                r.monitor_task_id
+            </when>
+            <when test="q.groupBy == &#x27;TIME&#x27;">
+                r.time_hour
+            </when>
+        </choose>
+    </sql>
+    <sql id="dimensionName">
+        <choose>
+            <when test="q.groupBy == &#x27;ADVERTISER&#x27;">
+                a.advertiser_name
+            </when>
+            <when test="q.groupBy == &#x27;PROMOTION_LINK&#x27;">
+                p.link_name
+            </when>
+            <when test="q.groupBy == &#x27;MEDIA&#x27;">
+                m.media_name
+            </when>
+            <when test="q.groupBy == &#x27;MONITOR_TASK&#x27;">
+                t.monitor_name
+            </when>
+            <when test="q.groupBy == &#x27;TIME&#x27;">
+                DATE_FORMAT(STR_TO_DATE(CAST(r.time_hour AS CHAR),
+                '%Y%m%d%H'),
+                '%Y-%m-%d %H:00')
+            </when>
+        </choose>
+    </sql>
+    <sql id="dimensionJoins">
+        <choose>
+            <when test="q.groupBy == &#x27;ADVERTISER&#x27;">
+                JOIN scx_ocpx_advertiser a ON a.id=r.advertiser_id
+            </when>
+            <when test="q.groupBy == &#x27;PROMOTION_LINK&#x27;">
+                JOIN scx_ocpx_promotion_link p ON p.id=r.promotion_link_id
+            </when>
+            <when test="q.groupBy == &#x27;MEDIA&#x27;">
+                JOIN scx_ocpx_media m ON m.id=r.media_id
+            </when>
+            <when test="q.groupBy == &#x27;MONITOR_TASK&#x27;">
+                JOIN scx_ocpx_monitor_task t ON t.id=r.monitor_task_id
+            </when>
+            <when test="q.groupBy == &#x27;TIME&#x27;"/>
+        </choose>
+    </sql>
+    <resultMap id="aggregate" type="com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper$Aggregate">
+        <constructor>
+            <arg column="dimension_key" javaType="java.lang.String"/>
+            <arg column="dimension_name" javaType="java.lang.String"/>
+            <arg column="show" javaType="_long"/>
+            <arg column="unique_show" javaType="_long"/>
+            <arg column="click" javaType="_long"/>
+            <arg column="unique_click" javaType="_long"/>
+            <arg column="target_conversion" javaType="_long"/>
+            <arg column="callback" javaType="_long"/>
+            <arg column="deduction_passed" javaType="_long"/>
+            <arg column="deduction_deducted" javaType="_long"/>
+            <arg column="activate" javaType="_long"/>
+            <arg column="evoke" javaType="_long"/>
+            <arg column="login" javaType="_long"/>
+            <arg column="register" javaType="_long"/>
+            <arg column="payment" javaType="_long"/>
+            <arg column="customer_acquisition" javaType="_long"/>
+            <arg column="next_stay" javaType="_long"/>
+            <arg column="visits" javaType="_long"/>
+            <arg column="authentication" javaType="_long"/>
+            <arg column="place_order" javaType="_long"/>
+            <arg column="finish_the_order" javaType="_long"/>
+            <arg column="first_activation" javaType="_long"/>
+            <arg column="first_order" javaType="_long"/>
+            <arg column="download" javaType="_long"/>
+            <arg column="activity" javaType="_long"/>
+            <arg column="addiction" javaType="_long"/>
+            <arg column="rejected_click" javaType="_long"/>
+            <arg column="spend_amount" javaType="java.math.BigDecimal"/>
+            <arg column="currency_amount" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="aggregate" resultMap="aggregate" useCache="false" flushCache="true">
+        SELECT
+        <include refid="dimensionKey"/>
+        AS dimension_key,
+        <include refid="dimensionName"/>
+        AS dimension_name,
+        IFNULL(SUM(r.impression_count),
+        0) AS `show`,
+        IFNULL(SUM(r.impression_count),
+        0) AS unique_show,
+        IFNULL(SUM(r.click_count),
+        0) AS click,
+        IFNULL(SUM(r.click_count),
+        0) AS unique_click,
+        IFNULL(SUM(r.target_conversion_count),
+        0) AS target_conversion,
+        IFNULL(SUM(r.callback_count),
+        0) AS callback,
+        IFNULL(SUM(r.deduction_passed_count),
+        0) AS deduction_passed,
+        IFNULL(SUM(r.deduction_deducted_count),
+        0) AS deduction_deducted,
+        IFNULL(SUM(r.activate_count),
+        0) AS activate,
+        IFNULL(SUM(r.evoke_count),
+        0) AS evoke,
+        IFNULL(SUM(r.login_count),
+        0) AS login,
+        IFNULL(SUM(r.register_count),
+        0) AS register,
+        IFNULL(SUM(r.payment_count),
+        0) AS payment,
+        IFNULL(SUM(r.customer_acquisition_count),
+        0) AS customer_acquisition,
+        IFNULL(SUM(r.next_stay_count),
+        0) AS next_stay,
+        IFNULL(SUM(r.visits_count),
+        0) AS visits,
+        IFNULL(SUM(r.authentication_count),
+        0) AS authentication,
+        IFNULL(SUM(r.place_order_count),
+        0) AS place_order,
+        IFNULL(SUM(r.finish_the_order_count),
+        0) AS finish_the_order,
+        IFNULL(SUM(r.first_activation_count),
+        0) AS first_activation,
+        IFNULL(SUM(r.first_order_count),
+        0) AS first_order,
+        IFNULL(SUM(r.download_count),
+        0) AS download,
+        IFNULL(SUM(r.activity_count),
+        0) AS activity,
+        IFNULL(SUM(r.addiction_count),
+        0) AS addiction,
+        IFNULL(SUM(r.rejected_click_count),
+        0) AS rejected_click,
+        IFNULL(SUM(r.spend_amount),
+        0) AS spend_amount,
+        IFNULL(SUM(r.currency_amount),
+        0) AS currency_amount
+        FROM scx_ocpx_hourly_metric r
+        <include refid="dimensionJoins"/>
+        WHERE r.time_hour BETWEEN #{start} AND #{end}
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND r.media_id=#{q.mediaId}
+        </if>
+        <if test="q.monitorTaskId != null and !q.monitorTaskId.isBlank()">
+            AND r.monitor_task_id=#{q.monitorTaskId}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND r.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.promotionLinkId != null and !q.promotionLinkId.isBlank()">
+            AND r.promotion_link_id=#{q.promotionLinkId}
+        </if>
+        GROUP BY
+        <include refid="dimensionKey"/>
+        ,
+        <include refid="dimensionName"/>
+    </select>
+</mapper>

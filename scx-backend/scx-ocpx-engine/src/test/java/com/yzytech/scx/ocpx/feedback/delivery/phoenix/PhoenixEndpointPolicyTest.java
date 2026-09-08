@@ -22,7 +22,7 @@ class PhoenixEndpointPolicyTest {
 		hosts.replace(Map.of(OcpxUpstreamProtocol.PHOENIX, Set.of("api.feather.ifeng.com")));
 		ProtocolDnsResolver dns = mock(ProtocolDnsResolver.class);
 		when(dns.resolveAll("api.feather.ifeng.com"))
-				.thenReturn(new InetAddress[] { InetAddress.getByName("8.8.8.8") });
+			.thenReturn(new InetAddress[] { InetAddress.getByName("8.8.8.8") });
 		PhoenixEndpointPolicy policy = new PhoenixEndpointPolicy(hosts, dns);
 
 		for (String path : Set.of("/d/cli", "/ocpx/d/cli", "/custom/click")) {
@@ -37,15 +37,15 @@ class PhoenixEndpointPolicyTest {
 		ProtocolDnsResolver dns = mock(ProtocolDnsResolver.class);
 		PhoenixEndpointPolicy policy = new PhoenixEndpointPolicy(hosts, dns);
 		assertThatIllegalArgumentException()
-				.isThrownBy(() -> policy.requireAllowedHttpsUrl("https://api.feather.ifeng.com/ocpx/d/cli"))
-				.withMessage("PHOENIX_HOST_NOT_ALLOWED");
+			.isThrownBy(() -> policy.requireAllowedHttpsUrl("https://api.feather.ifeng.com/ocpx/d/cli"))
+			.withMessage("PHOENIX_HOST_NOT_ALLOWED");
 
 		hosts.replace(Map.of(OcpxUpstreamProtocol.PHOENIX, Set.of("api.feather.ifeng.com")));
 		when(dns.resolveAll("api.feather.ifeng.com"))
-				.thenReturn(new InetAddress[] { InetAddress.getByName("127.0.0.1") });
+			.thenReturn(new InetAddress[] { InetAddress.getByName("127.0.0.1") });
 		assertThatIllegalArgumentException()
-				.isThrownBy(() -> policy.requireAllowedHttpsUrl("https://api.feather.ifeng.com/ocpx/d/cli"))
-				.withMessage("PHOENIX_ADDRESS_NOT_PUBLIC");
+			.isThrownBy(() -> policy.requireAllowedHttpsUrl("https://api.feather.ifeng.com/ocpx/d/cli"))
+			.withMessage("PHOENIX_ADDRESS_NOT_PUBLIC");
 		for (String unsafe : Set.of("http://api.feather.ifeng.com/ocpx/d/cli",
 				"https://user@api.feather.ifeng.com/ocpx/d/cli", "https://api.feather.ifeng.com/ocpx/d/cli#x",
 				"https://api.feather.ifeng.com\\@evil/ocpx/d/cli", "https://other.example/ocpx/d/cli")) {

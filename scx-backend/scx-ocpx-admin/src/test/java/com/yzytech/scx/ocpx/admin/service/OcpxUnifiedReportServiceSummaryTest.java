@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxUnifiedReportSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.SummaryReportQuery;
 import com.yzytech.scx.ocpx.admin.dto.SummaryReportViews;
@@ -39,7 +42,9 @@ class OcpxUnifiedReportServiceSummaryTest {
 		jdbcTemplate = mock(JdbcTemplate.class);
 		advertiserScope = mock(AdvertiserScope.class);
 		when(advertiserScope.constrain(nullable(String.class))).thenAnswer(invocation -> invocation.getArgument(0));
-		service = new OcpxUnifiedReportService(jdbcTemplate, advertiserScope, mock(OcpxAdvertiserAccountService.class));
+		service = new OcpxUnifiedReportService(
+				XmlMapperTestSupport.mapper(OcpxUnifiedReportSqlMapper.class, jdbcTemplate), advertiserScope,
+				mock(OcpxAdvertiserAccountService.class));
 	}
 
 	@Test
@@ -54,7 +59,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate, times(4)).query(sql.capture(), any(RowMapper.class), any(Object[].class));
-		List<String> selects = sql.getAllValues();
+		List<String> selects = sql.getAllValues().stream().map(value -> value.replace(", ", ",")).toList();
 		assertThat(selects.get(0)).contains("r.time_hour AS reportTime")
 			.contains("GROUP BY r.media_id,r.advertiser_id,r.monitor_task_id,r.promotion_link_id,r.time_hour");
 		assertThat(selects.get(1)).contains("LEFT(r.time_hour,8) AS reportTime")
@@ -103,7 +108,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), any(Object[].class));
-		assertThat(sql.getValue()).contains(
+		assertThat(sql.getValue().replace(", ", ",")).contains(
 				"LEFT JOIN scx_ocpx_deduction_rule dr ON dr.media_id=stat.m_id AND dr.promotion_link_id=stat.l_id AND dr.is_delete=0");
 	}
 
@@ -152,7 +157,7 @@ class OcpxUnifiedReportServiceSummaryTest {
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), args.capture());
-		assertThat(sql.getValue()).contains("AND r.media_id=?")
+		assertThat(sql.getValue().replace(", ", ",")).contains("AND r.media_id=?")
 			.contains("AND r.monitor_task_id=?")
 			.contains("AND r.advertiser_id=?")
 			.contains("AND r.promotion_link_id=?")

@@ -11,7 +11,8 @@ import com.yzytech.scx.ocpx.model.OcpxConversionEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskIntegrationSqlMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,7 +26,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -52,7 +52,7 @@ public class OcpxMonitorTaskIntegrationService {
 
 	private final AdvertiserScope advertiserScope;
 
-	private final JdbcTemplate jdbcTemplate;
+	private final OcpxMonitorTaskIntegrationSqlMapper sqlMapper;
 
 	private final OcpxIntegrationCallbackHttpClient httpClient;
 
@@ -76,37 +76,18 @@ public class OcpxMonitorTaskIntegrationService {
 		}
 		long current = currentValue == null ? 1 : Math.max(1, currentValue);
 		long size = sizeValue == null ? 20 : Math.min(100, Math.max(1, sizeValue));
-		StringBuilder where = new StringBuilder(" WHERE t_id=? AND create_time>=? AND create_time<?");
-		List<Object> args = new ArrayList<>();
-		args.add(taskId);
-		args.add(start.atStartOfDay());
-		args.add(end.plusDays(1).atStartOfDay());
-		if (normalizedRequestId != null) {
-			where.append(" AND req_id=?");
-			args.add(normalizedRequestId);
-		}
-		Long totalValue = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM scx_ocpx_log_feedback" + where, Long.class,
-				args.toArray());
-		List<Object> pageArgs = new ArrayList<>(args);
-		pageArgs.add(size);
-		pageArgs.add((current - 1) * size);
-		String sql = """
-				SELECT id,create_time,req_id,clk_id,userid,user_type,device_os,device_did,device_oaid,
-				       device_dpid,device_mac,device_idfa,device_caid,device_caid1,ip,ua,callback_url,ts,ts_ms,
-				       adv_id,group_id,plan_id,creative_id,m_id,a_id,t_id,l_id
-				FROM scx_ocpx_log_feedback
-				""" + where + " ORDER BY create_time DESC,id DESC LIMIT ? OFFSET ?";
-		List<MonitorTaskIntegrationViews.FeedbackItem> records = jdbcTemplate.query(sql, (rs, rowNum) -> {
-			String callbackUrl = decodedCallbackUrl(rs.getString(17));
+		var query = new OcpxMonitorTaskIntegrationSqlMapper.Query(taskId, start.atStartOfDay(),
+				end.plusDays(1).atStartOfDay(), normalizedRequestId, size, (current - 1) * size);
+		Long totalValue = sqlMapper.countFeedback(query);
+		List<MonitorTaskIntegrationViews.FeedbackItem> records = sqlMapper.selectFeedback(query).stream().map(rs -> {
+			String callbackUrl = decodedCallbackUrl(rs.callbackUrl());
 			boolean callbackAvailable = StringUtils.hasText(callbackUrl);
-			return new MonitorTaskIntegrationViews.FeedbackItem(rs.getLong(1), time(rs.getTimestamp(2)),
-					rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7),
-					rs.getString(8), rs.getString(9), rs.getString(10), rs.getString(11), rs.getString(12),
-					rs.getString(13), rs.getString(14), rs.getString(15), rs.getString(16), callbackUrl,
-					rs.getString(18), rs.getString(19), rs.getString(20), rs.getString(21), rs.getString(22),
-					rs.getString(23), rs.getString(24), rs.getString(25), rs.getString(26), rs.getString(27),
-					callbackAvailable, callbackAvailable && !isInternalTestCallback(callbackUrl));
-		}, pageArgs.toArray());
+			return new MonitorTaskIntegrationViews.FeedbackItem(rs.id(), time(rs.createTime()), rs.reqId(), rs.clkId(),
+					rs.userid(), rs.userType(), rs.deviceOs(), rs.deviceDid(), rs.deviceOaid(), rs.deviceDpid(),
+					rs.deviceMac(), rs.deviceIdfa(), rs.deviceCaid(), rs.deviceCaid1(), rs.ip(), rs.ua(), callbackUrl,
+					rs.ts(), rs.tsMs(), rs.advId(), rs.groupId(), rs.planId(), rs.creativeId(), rs.mId(), rs.aId(),
+					rs.tId(), rs.lId(), callbackAvailable, callbackAvailable && !isInternalTestCallback(callbackUrl));
+		}).toList();
 		return new MonitorTaskIntegrationViews.Page(records, current, size, totalValue == null ? 0 : totalValue);
 	}
 
@@ -172,12 +153,10 @@ public class OcpxMonitorTaskIntegrationService {
 	}
 
 	private FeedbackSnapshot feedback(String taskId, Long feedbackLogId) {
-		List<FeedbackSnapshot> records = jdbcTemplate.query("""
-				SELECT req_id,callback_url,a_id,l_id,m_id,t_id
-				FROM scx_ocpx_log_feedback
-				WHERE id=? AND t_id=? LIMIT 1
-				""", (rs, rowNum) -> new FeedbackSnapshot(rs.getString(1), rs.getString(2), rs.getString(3),
-				rs.getString(4), rs.getString(5), rs.getString(6)), feedbackLogId, taskId);
+		List<FeedbackSnapshot> records = sqlMapper.selectFeedbackLogFeedback(feedbackLogId, taskId)
+			.stream()
+			.map(rs -> new FeedbackSnapshot(rs.reqId(), rs.callbackUrl(), rs.aId(), rs.lId(), rs.mId(), rs.tId()))
+			.toList();
 		if (records.isEmpty()) {
 			throw new BootBusinessException(HttpStatus.NOT_FOUND.value(), "下游请求明细不存在或已过期");
 		}
@@ -187,16 +166,11 @@ public class OcpxMonitorTaskIntegrationService {
 	private boolean writeAudit(String attemptId, FeedbackSnapshot feedback, String eventCode, BigDecimal amount,
 			String resultStatus, Integer httpStatus, String message, long durationMs, LocalDateTime eventTime) {
 		try {
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_flow_log
-					(id,flow_type,event_id,source_event_id,event_code,payload_hash,advertiser_id,
-					 promotion_link_id,media_id,monitor_task_id,result_status,partner_http_status,
-					 message,duration_ms,event_time)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", uuid(), "CALLBACK", attemptId, limit(feedback.requestId(), 128), eventCode,
+			sqlMapper.insertWriteAuditFlowLog(new OcpxMonitorTaskIntegrationSqlMapper.InsertWriteAuditFlowLogCommand(
+					uuid(), "CALLBACK", attemptId, limit(feedback.requestId(), 128), eventCode,
 					fingerprint(feedback, eventCode, amount), feedback.advertiserId(), feedback.promotionLinkId(),
 					feedback.mediaId(), feedback.monitorTaskId(), resultStatus, httpStatus, limit(message, 500),
-					durationMs, eventTime);
+					durationMs, eventTime));
 			return true;
 		}
 		catch (RuntimeException exception) {

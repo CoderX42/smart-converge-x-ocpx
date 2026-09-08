@@ -20,6 +20,10 @@ public class PartnerCredentialResolver {
 		return resolve(advertiser == null ? null : advertiser.getCredentialConfigKey(), properties.getAdvertisers());
 	}
 
+	public Optional<String> oppoSecret(String reference) {
+		return resolve(reference, properties.getOppo());
+	}
+
 	private Optional<String> resolve(String reference, java.util.Map<String, String> credentials) {
 		if (!StringUtils.hasText(reference)) {
 			return Optional.empty();

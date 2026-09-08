@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxCallbackRecordSqlMapper">
+    <sql id="filters">
+        WHERE f.flow_type='CALLBACK' AND f.received_at&gt;=#{q.start} AND f.received_at&lt;#{q.end}
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND f.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.linkId != null and !q.linkId.isBlank()">
+            AND f.promotion_link_id=#{q.linkId}
+        </if>
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND f.media_id=#{q.mediaId}
+        </if>
+        <if test="q.taskId != null and !q.taskId.isBlank()">
+            AND f.monitor_task_id=#{q.taskId}
+        </if>
+        <if test="q.eventCode != null and !q.eventCode.isBlank()">
+            AND f.event_code=#{q.eventCode}
+        </if>
+        <if test="q.requestId != null and !q.requestId.isBlank()">
+            AND f.request_id=#{q.requestId}
+        </if>
+        <choose>
+            <when test="q.decision == &#x27;UNAVAILABLE&#x27;">
+                AND f.deduction_decision IS NULL
+            </when>
+            <when test="q.decision != null">
+                AND f.deduction_decision=#{q.decision}
+            </when>
+        </choose>
+        <if test="q.targetConversion != null">
+            AND f.target_conversion=#{q.targetConversion}
+        </if>
+    </sql>
+    <select id="count" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_event_fact f FORCE INDEX (idx_ocpx_event_fact_callback_page)
+        <include refid="filters"/>
+    </select>
+    <resultMap id="selectPageRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxCallbackRecordSqlMapper$SelectPageRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="request_id" javaType="java.lang.String"/>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="target_conversion" javaType="_boolean"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="advertiser_name" javaType="java.lang.String"/>
+            <arg column="promotion_link_id" javaType="java.lang.String"/>
+            <arg column="link_name" javaType="java.lang.String"/>
+            <arg column="media_id" javaType="java.lang.String"/>
+            <arg column="media_name" javaType="java.lang.String"/>
+            <arg column="monitor_task_id" javaType="java.lang.String"/>
+            <arg column="monitor_name" javaType="java.lang.String"/>
+            <arg column="billing_status" javaType="java.lang.String"/>
+            <arg column="billing_reason_code" javaType="java.lang.String"/>
+            <arg column="spend_amount" javaType="java.math.BigDecimal"/>
+            <arg column="currency_amount" javaType="java.math.BigDecimal"/>
+            <arg column="deduction_decision" javaType="java.lang.String"/>
+            <arg column="deduction_ratio_snapshot" javaType="java.math.BigDecimal"/>
+            <arg column="deduction_decided_at" javaType="java.sql.Timestamp"/>
+            <arg column="received_at" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectPage" resultMap="selectPageRow" useCache="false" flushCache="true">
+        SELECT f.id,
+        f.request_id,
+        f.event_code,
+        f.target_conversion,
+        f.advertiser_id,
+        a.advertiser_name,
+        f.promotion_link_id,
+        p.link_name,
+        f.media_id,
+        m.media_name,
+        f.monitor_task_id,
+        t.monitor_name,
+        f.billing_status,
+        f.billing_reason_code,
+        f.spend_amount,
+        f.currency_amount,
+        f.deduction_decision,
+        f.deduction_ratio_snapshot,
+        f.deduction_decided_at,
+        f.received_at
+        FROM scx_ocpx_event_fact f FORCE INDEX (idx_ocpx_event_fact_callback_page)
+        LEFT
+        JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id
+        LEFT
+        JOIN scx_ocpx_promotion_link p ON p.id=f.promotion_link_id
+        LEFT
+        JOIN scx_ocpx_media m ON m.id=f.media_id
+        LEFT
+        JOIN scx_ocpx_monitor_task t ON t.id=f.monitor_task_id
+        <include refid="filters"/>
+        ORDER BY f.received_at DESC,
+        f.id DESC LIMIT #{q.limit} OFFSET #{q.offset}
+    </select>
+</mapper>

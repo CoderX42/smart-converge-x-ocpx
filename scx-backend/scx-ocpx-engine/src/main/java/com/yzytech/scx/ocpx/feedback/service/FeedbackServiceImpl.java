@@ -120,6 +120,9 @@ public class FeedbackServiceImpl implements FeedbackService {
 			LogData logData = JSON.parseObject(JSON.toJSONString(request), LogData.class);
 			// Callback 地址可能携带测试令牌或合作方签名；兼容报表不需要该值，禁止进入队列和旧明细表。
 			logData.setCallbackUrl("");
+			if (request.isRtaProtected()) {
+				redactRtaIdentifiers(logData);
+			}
 			// 兼容日志队列失败不回滚已经提交的事实、账务与汇总。
 			int index = (request.hashCode() & Integer.MAX_VALUE) % reportBucket;
 			redis.opsForList().rightPush(RedisConstants.DATA_REPORT + index, JSON.toJSONString(logData));
@@ -127,6 +130,22 @@ public class FeedbackServiceImpl implements FeedbackService {
 		catch (RuntimeException exception) {
 			impressionLog.warn("feedback compatibility queue failed reqId:{}", request.getReqId(), exception);
 		}
+	}
+
+	private void redactRtaIdentifiers(LogData logData) {
+		logData.setCaid(null);
+		logData.setCaidList(null);
+		logData.setCaid1(null);
+		logData.setCaid2(null);
+		logData.setLastCaid(null);
+		logData.setPrevCaid(null);
+		logData.setIdfa(null);
+		logData.setAaid(null);
+		logData.setImei(null);
+		logData.setOaid(null);
+		logData.setAndroidid(null);
+		logData.setMac(null);
+		logData.setUserId(null);
 	}
 
 }

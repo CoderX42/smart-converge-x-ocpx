@@ -83,9 +83,9 @@ public class TemplateGetProtocolAdapter implements CallbackRequestAdapter {
 	 */
 	@Override
 	public CallbackReq toCallback(UpstreamCallbackRequest request) {
-		String ext = Objects.requireNonNull(callbackCrypto == null
-				? AesUtil.decryptBase64(request.getExt(), callbackAesKey)
-				: callbackCrypto.decryptCallback(request.getKid(), request.getExt()));
+		String ext = Objects
+			.requireNonNull(callbackCrypto == null ? AesUtil.decryptBase64(request.getExt(), callbackAesKey)
+					: callbackCrypto.decryptCallback(request.getKid(), request.getExt()));
 		FeedbackReq feedback = JSON.parseObject(ext, FeedbackReq.class);
 		requireScxRouteIds(feedback);
 		return CallbackReq.builder()

@@ -138,6 +138,24 @@ class CallbackServiceImplTest {
 		verify(fixture.lists, never()).rightPush(anyString(), anyString());
 	}
 
+	@Test
+	void redactsRawIdentifiersFromRtaProtectedCompatibilityCallbackQueue() {
+		Fixture fixture = fixture(ActionTypeEnum.ACTIVATE);
+		fixture.request.getFeedback().setRtaProtected(true);
+		fixture.request.getFeedback().setIdfa("raw-idfa");
+		fixture.request.getFeedback().setImei("raw-imei");
+		fixture.request.getFeedback().setOaid("raw-oaid");
+
+		fixture.service.handleCallback(fixture.request);
+
+		var payload = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(fixture.lists).rightPush(anyString(), payload.capture());
+		LogData logData = JSON.parseObject(payload.getValue(), LogData.class);
+		assertThat(logData.getIdfa()).isEmpty();
+		assertThat(logData.getImei()).isEmpty();
+		assertThat(logData.getOaid()).isEmpty();
+	}
+
 	@SuppressWarnings("unchecked")
 	private Fixture fixture(ActionTypeEnum actionType) {
 		return fixture(actionType, true);

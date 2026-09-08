@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
@@ -69,7 +72,8 @@ class OcpxMonitorTaskServiceTest {
 		advertiserScope = mock(AdvertiserScope.class);
 		jdbcTemplate = mock(JdbcTemplate.class);
 		service = new OcpxMonitorTaskService(taskMapper, advertiserMapper, linkMapper, mediaMapper, trackingProperties,
-				configRefreshPublisher, advertiserScope, jdbcTemplate);
+				configRefreshPublisher, advertiserScope,
+				XmlMapperTestSupport.mapper(OcpxMonitorSqlMapper.class, jdbcTemplate));
 	}
 
 	@Test
@@ -104,8 +108,7 @@ class OcpxMonitorTaskServiceTest {
 		assertThat(item.getShowUrl()).isEqualTo(expectedShow);
 		assertThat(item.getClkUrl()).isEqualTo(expectedClk);
 		verify(advertiserScope).requireInternalPermission("ocpx:monitor-task:billing");
-		verify(jdbcTemplate).update(
-				org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_config_audit"),
+		verify(jdbcTemplate).update(org.mockito.ArgumentMatchers.contains("INSERT INTO scx_ocpx_billing_config_audit"),
 				any(Object[].class));
 		verify(configRefreshPublisher).mark();
 	}
@@ -158,8 +161,8 @@ class OcpxMonitorTaskServiceTest {
 		stubActiveRelations();
 		when(taskMapper.selectCount(any())).thenReturn(0L);
 		OcpxMedia media = media("media-1");
-		media.setMacroParams("imei=__IMEI__&request_id=fixed&callback_url=__CALLBACK_URL__"
-				+ "&request_id=__REQUEST_ID__");
+		media.setMacroParams(
+				"imei=__IMEI__&request_id=fixed&callback_url=__CALLBACK_URL__" + "&request_id=__REQUEST_ID__");
 		when(mediaMapper.selectById("media-1")).thenReturn(media);
 		doAnswer(invocation -> {
 			OcpxMonitorTask task = invocation.getArgument(0);
@@ -192,14 +195,12 @@ class OcpxMonitorTaskServiceTest {
 		ArgumentCaptor<OcpxMonitorTask> captor = ArgumentCaptor.forClass(OcpxMonitorTask.class);
 		verify(taskMapper).updateById(captor.capture());
 		OcpxMonitorTask update = captor.getValue();
-		assertThat(update.getShowUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?"
-						+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
-						+ "&event=IMP&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
-		assertThat(update.getClkUrl()).isEqualTo(
-				"http://127.0.0.1:10000/ocpx/feedback?"
-						+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
-						+ "&event=CLK&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
+		assertThat(update.getShowUrl()).isEqualTo("http://127.0.0.1:10000/ocpx/feedback?"
+				+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
+				+ "&event=IMP&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
+		assertThat(update.getClkUrl()).isEqualTo("http://127.0.0.1:10000/ocpx/feedback?"
+				+ "request_id=__REQUEST_ID__&imei=__IMEI__&callback_url=__CALLBACK_URL__"
+				+ "&event=CLK&mId=media-2&tId=task-1&aId=adv-1&lId=link-2");
 		assertThat(update.getUnitPrice()).isEqualByComparingTo("9.9");
 		assertThat(update.getBizId()).isEqualTo("biz-2");
 		verify(configRefreshPublisher).mark();

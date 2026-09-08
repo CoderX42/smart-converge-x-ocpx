@@ -54,7 +54,7 @@ function legacyCopy(text: string): boolean {
   textarea.setAttribute('readonly', '');
   textarea.style.position = 'fixed';
   textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
+  document.body.append(textarea);
   textarea.select();
   let ok = false;
   try {
@@ -62,7 +62,7 @@ function legacyCopy(text: string): boolean {
   } catch {
     ok = false;
   }
-  document.body.removeChild(textarea);
+  textarea.remove();
   return ok;
 }
 

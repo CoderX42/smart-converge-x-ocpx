@@ -70,7 +70,11 @@ bash scripts/bt-deploy/03-deploy_all.sh --no-restart
 
 管理前端 `ht` 站点使用 [templates/nginx-scx-baota-rewrite.conf](templates/nginx-scx-baota-rewrite.conf)。不要将 `/api/` 的 `proxy_pass` 改为带 `/boot/` 的路径，否则会产生 `/boot/boot/...`；该域名始终拒绝 `/ocpx/**`。
 
-独立 `ocpx` 站点使用 [templates/nginx-scx-ocpx-engine-rewrite.conf](templates/nginx-scx-ocpx-engine-rewrite.conf)。它转发 `/rta`（仅允许网关/内网 POST，反代到 Engine 的 `/ocpx/rta`）、`/ocpx/feedback`、`/ocpx/callback`、`/ocpx/aerim/callback`、`/ocpx/weifeng/callback`、`/ocpx/gravity/callback`、`/ocpx/renren-video/callback`、`/ocpx/phoenix/callback`、受签名保护的完整测试接收端 `/ocpx/test-callback` 和 `/ocpx/open-api/**`，其他路径（含 actuator/internal）返回 404。所有 Callback 路由仅允许 GET；模板保留完整 `/ocpx/...` 路径，除外部 `/rta` 别名外，`proxy_pass` 不得附加 URI。Phoenix 推广链接中的路径是 Engine 调用上游的出站路径，不应据此新增本服务的入站 location。`/rta` 只在正式 OCPX 站点开放，IP-UAT 和管理端站点不开放该别名。
+独立 `ocpx` 站点使用 [templates/nginx-scx-ocpx-engine-rewrite.conf](templates/nginx-scx-ocpx-engine-rewrite.conf)。RTA 仅开放 `/ocpx/rta/requests` 和 `/ocpx/rta/callbacks/{accessCode}` 两类 POST，保留完整路径参与 HMAC 签名；旧 `/rta` 别名退役。既有 `/ocpx/feedback` 和各合作方非 RTA Callback GET 路由保持不变。
+
+RTA 默认仅允许 loopback，部署时登记真实媒体、广告主或网关出口 CIDR。签名由 Engine 使用 `X-Rta-Key/Timestamp/Nonce/Sign` 验证，覆盖原始请求体。配置变更后先 nginx-test，再在授权窗口 reload。
+
+V131 发布前备份和预演前向 SQL；新接入默认停用，注册三个 XXL-JOB 后按媒体逐一启用。完整步骤、旧队列处置及回退边界见 [RTA 异步契约](../../docs/广告平台设计/contracts/rta-async.md)。生产切换和真实合作方验收单独执行。
 
 前端单独发布只需要 Node.js、pnpm 和站点目录写权限，不要求本机安装 Maven/JDK；脚本会优先使用 `rsync`，未安装时回退到 `cp`。如果宝塔站点根不是默认目录，请显式设置 `SCX_WEB_ROOT`，并确保宝塔网站根与该目录一致。
 

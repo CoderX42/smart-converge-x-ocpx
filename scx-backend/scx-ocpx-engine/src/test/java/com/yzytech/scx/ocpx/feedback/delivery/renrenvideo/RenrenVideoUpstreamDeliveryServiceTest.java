@@ -64,7 +64,8 @@ class RenrenVideoUpstreamDeliveryServiceTest {
 		assertThat(decoded(url, "passThrough")).isEqualTo("package-a");
 		assertThat(decoded(url, "callback"))
 			.startsWith("https://engine.example.com/ocpx/renren-video/callback?kid=v1&ext=");
-		assertThat(url).doesNotContain("%252F", "__");
+		// Base64url callback ciphertext may legitimately contain consecutive underscores.
+		assertThat(url).doesNotContain("%252F").doesNotContainPattern("__[A-Z][A-Z0-9_]*__");
 	}
 
 	@Test

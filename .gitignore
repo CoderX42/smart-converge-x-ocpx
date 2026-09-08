@@ -21,3 +21,7 @@ scx-fronted/test-results/
 
 # Local frontend compiler cache
 scx-fronted/v8-compile-cache-*/
+
+# RTA report page is source code, not a generated test report.
+!scx-fronted/apps/web-ele/src/views/ocpx/rta/reports/
+!scx-fronted/apps/web-ele/src/views/ocpx/rta/reports/**

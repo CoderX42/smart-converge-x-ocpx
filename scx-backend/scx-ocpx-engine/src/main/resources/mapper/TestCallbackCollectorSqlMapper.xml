@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.TestCallbackCollectorSqlMapper">
+    <insert id="insertArmFlowLog">
+        INSERT INTO scx_ocpx_flow_log (id,
+        flow_type,
+        event_id,
+        source_event_id,
+        event_code,
+        payload_hash,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        result_status,
+        partner_http_status,
+        message,
+        duration_ms,
+        event_time)
+        VALUES (#{command.id},
+        #{command.flowType},
+        #{command.eventId},
+        #{command.sourceEventId},
+        #{command.eventCode},
+        #{command.payloadHash},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.resultStatus},
+        #{command.partnerHttpStatus},
+        #{command.message},
+        #{command.durationMs},
+        #{command.eventTime})
+    </insert>
+    <select id="selectRecordFlowLog" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_flow_log
+        WHERE event_id=#{requestId} AND media_id=#{mediaId} AND monitor_task_id=#{monitorTaskId} AND
+        advertiser_id=#{advertiserId} AND promotion_link_id=#{promotionLinkId} AND flow_type='CALLBACK' AND
+        message='TEST_CALLBACK_ARMED' AND payload_hash=#{armedHash}
+    </select>
+    <select id="selectRecordEventFact" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_event_fact
+        WHERE request_id=#{requestId} AND media_id=#{mediaId} AND monitor_task_id=#{monitorTaskId} AND
+        advertiser_id=#{advertiserId} AND promotion_link_id=#{promotionLinkId} AND flow_type='CALLBACK' AND
+        event_code=#{name} AND deduction_decision='PASSED'
+    </select>
+    <insert id="insertRecordFlowLog">
+        INSERT INTO scx_ocpx_flow_log (id,
+        flow_type,
+        event_id,
+        source_event_id,
+        event_code,
+        payload_hash,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        result_status,
+        partner_http_status,
+        message,
+        duration_ms,
+        event_time)
+        VALUES (#{command.id},
+        #{command.flowType},
+        #{command.eventId},
+        #{command.sourceEventId},
+        #{command.eventCode},
+        #{command.payloadHash},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.resultStatus},
+        #{command.partnerHttpStatus},
+        #{command.message},
+        #{command.durationMs},
+        #{command.eventTime})
+    </insert>
+</mapper>

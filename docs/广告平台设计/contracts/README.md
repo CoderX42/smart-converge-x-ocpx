@@ -4,7 +4,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `openapi.yaml` | `/feedback`、通用/AERIM/微风/引力/人人视频/凤凰新闻 Callback、媒体回传、创意/素材、可配置计费、账务流水、监测点击测试、下游媒体联调和真实首页摘要 |
+| `openapi.yaml` | `/feedback`、通用/AERIM/微风/引力/人人视频/凤凰新闻 Callback、MOCK/WEIFENG_RTA 决策与 admission、媒体回传、创意/素材、可配置计费、账务流水、监测点击测试、下游媒体联调和真实首页摘要 |
 | `feedback-req-v2.schema.json` | Feedback Ingress Query 对象 |
 | `callback-req-v2.schema.json` | Upstream Callback Query 对象 |
 | `weifeng-callback-req-v1.schema.json` | 微风互动 Callback Query 对象 |
@@ -33,10 +33,7 @@
 | `management-v126.md` | 上游 Callback 转化记录检索索引与生产发布边界 |
 | `management-v127.md` | 凤凰新闻 CPA 曝光/点击模板、Callback 事件和宝塔生产路由边界 |
 | `management-v128.md` | Mock-only RTA 决策、admission 点击门禁、异步事实与管理端契约 |
-| `rta-request-v1.schema.json` | RTA 规范化请求 JSON Schema |
-| `rta-response-v1.schema.json` | RTA ALLOW/DENY 响应 JSON Schema |
-| `rta-decision-fact-v1.schema.json` | RTA Redis Stream 决策事实 JSON Schema |
-| `rta-mock-example.md` | 隔离环境 Mock 联调示例 |
+| `management-v130.md` | 微风 v1.3 RTA 适配器、设备/CAID 映射、Profile 校验、IMP/CLICK admission、网关签名与生产发布边界 |
 | `creative-save-v111.schema.json` | 创意创建/编辑请求 JSON Schema |
 | `monitor-task-billing-v111.schema.json` | 监测任务计费字段 JSON Schema |
 | `../OCPX首页真实数据与计费闭环V108.md` | V108 事实、账户、计费和首页统计口径 |
@@ -52,3 +49,5 @@
 ```bash
 make contract-check
 ```
+
+现行 RTA 入口见 [通用异步协议与切换说明](rta-async.md) 和 `rta-async-*.schema.json`。V130 文档仅为历史记录，不再代表当前实现。

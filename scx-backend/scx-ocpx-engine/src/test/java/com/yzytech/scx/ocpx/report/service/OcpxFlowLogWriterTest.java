@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.report.service;
 
+import com.yzytech.scx.ocpx.persistence.mapper.OcpxFlowLogWriterSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
 import com.yzytech.scx.ocpx.shared.enums.ActionTypeEnum;
@@ -22,7 +25,8 @@ class OcpxFlowLogWriterTest {
 	@Test
 	void rejectedAdvertiserAuditContainsOnlyRouteAndSanitizedMetadata() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(
+				XmlMapperTestSupport.mapper(OcpxFlowLogWriterSqlMapper.class, jdbcTemplate));
 		FeedbackReq feedback = FeedbackReq.builder()
 			.mId("media-id")
 			.tId("task-id")
@@ -48,7 +52,8 @@ class OcpxFlowLogWriterTest {
 	@Test
 	void upstreamResponsePreviewIsRedactedAndBounded() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(
+				XmlMapperTestSupport.mapper(OcpxFlowLogWriterSqlMapper.class, jdbcTemplate));
 		FeedbackReq feedback = FeedbackReq.builder()
 			.mId("media-id")
 			.tId("task-id")
@@ -74,7 +79,8 @@ class OcpxFlowLogWriterTest {
 	@Test
 	void callbackAuditUsesCallbackTypeAndContainsOnlySanitizedMetadata() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(
+				XmlMapperTestSupport.mapper(OcpxFlowLogWriterSqlMapper.class, jdbcTemplate));
 		FeedbackReq feedback = FeedbackReq.builder()
 			.mId("media-id")
 			.tId("task-id")
@@ -110,7 +116,8 @@ class OcpxFlowLogWriterTest {
 	@Test
 	void samplesSuccessfulAuditButAlwaysPersistsFailures() {
 		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(jdbcTemplate);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(
+				XmlMapperTestSupport.mapper(OcpxFlowLogWriterSqlMapper.class, jdbcTemplate));
 		ReflectionTestUtils.setField(writer, "successSampleRate", 0.0d);
 		FeedbackReq feedback = FeedbackReq.builder().reqId("request-id").event(EventTypeEnum.CLICK).build();
 
@@ -126,6 +133,33 @@ class OcpxFlowLogWriterTest {
 
 		writer.accounting(callback, false, "CALLBACK_ACCOUNTING_FAILED");
 		verify(jdbcTemplate, times(3)).update(anyString(), org.mockito.ArgumentMatchers.any(Object[].class));
+	}
+
+	@Test
+	void rtaProtectedMediaDetailOmitsRawDeviceIdentifiers() {
+		JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
+		OcpxFlowLogWriter writer = new OcpxFlowLogWriter(
+				XmlMapperTestSupport.mapper(OcpxFlowLogWriterSqlMapper.class, jdbcTemplate));
+		FeedbackReq feedback = FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.reqId("request-id")
+			.event(EventTypeEnum.IMP)
+			.imei("rta-raw-imei")
+			.idfa("rta-raw-idfa")
+			.androidid("rta-raw-android-id")
+			.mac("rta-raw-mac")
+			.rtaProtected(true)
+			.build();
+
+		writer.mediaIngress(feedback, true, "MEDIA_INGRESS_ACCEPTED");
+
+		ArgumentCaptor<Object[]> arguments = ArgumentCaptor.forClass(Object[].class);
+		verify(jdbcTemplate, times(2)).update(anyString(), arguments.capture());
+		assertThat(arguments.getAllValues().toString()).doesNotContain("rta-raw-imei", "rta-raw-idfa",
+				"rta-raw-android-id", "rta-raw-mac");
 	}
 
 }

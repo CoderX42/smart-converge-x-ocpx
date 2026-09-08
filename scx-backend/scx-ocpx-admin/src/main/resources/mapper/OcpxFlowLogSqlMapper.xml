@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxFlowLogSqlMapper">
+    <select id="selectAdvertiserOptions" resultType="com.yzytech.scx.ocpx.admin.dto.FlowLogViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        advertiser_name AS name
+        FROM scx_ocpx_advertiser
+        <where>
+            <if test="advertiserId != null and !advertiserId.isBlank()">
+                id=#{advertiserId}
+            </if>
+        </where>
+        ORDER BY advertiser_name
+    </select>
+    <select id="selectLinkOptions" resultType="com.yzytech.scx.ocpx.admin.dto.FlowLogViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        link_name AS name
+        FROM scx_ocpx_promotion_link
+        WHERE is_delete=0
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            AND advertiser_id=#{advertiserId}
+        </if>
+        ORDER BY link_name
+    </select>
+    <select id="selectMediaOptions" resultType="com.yzytech.scx.ocpx.admin.dto.FlowLogViews$Option" useCache="false" flushCache="true">
+        SELECT DISTINCT m.id,
+        m.media_name AS name
+        FROM scx_ocpx_media m
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            JOIN scx_ocpx_monitor_task t ON t.media_id=m.id AND t.is_delete=0
+            WHERE t.advertiser_id=#{advertiserId}
+        </if>
+        ORDER BY m.media_name
+    </select>
+    <select id="selectTaskOptions" resultType="com.yzytech.scx.ocpx.admin.dto.FlowLogViews$Option" useCache="false" flushCache="true">
+        SELECT id,
+        monitor_name AS name
+        FROM scx_ocpx_monitor_task
+        WHERE is_delete=0
+        <if test="advertiserId != null and !advertiserId.isBlank()">
+            AND advertiser_id=#{advertiserId}
+        </if>
+        <if test="mediaId != null and !mediaId.isBlank()">
+            AND media_id=#{mediaId}
+        </if>
+        ORDER BY monitor_name
+    </select>
+    <resultMap id="selectPageRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxFlowLogSqlMapper$SelectPageRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="flow_type" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="stage_code" javaType="java.lang.String"/>
+            <arg column="event_id" javaType="java.lang.String"/>
+            <arg column="source_event_id" javaType="java.lang.String"/>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="advertiser_name" javaType="java.lang.String"/>
+            <arg column="promotion_link_id" javaType="java.lang.String"/>
+            <arg column="link_name" javaType="java.lang.String"/>
+            <arg column="media_id" javaType="java.lang.String"/>
+            <arg column="media_name" javaType="java.lang.String"/>
+            <arg column="monitor_task_id" javaType="java.lang.String"/>
+            <arg column="monitor_name" javaType="java.lang.String"/>
+            <arg column="result_status" javaType="java.lang.String"/>
+            <arg column="partner_http_status" javaType="java.lang.Integer"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+            <arg column="create_time" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectPage" resultMap="selectPageRow" useCache="false" flushCache="true">
+        SELECT f.id,
+        f.flow_type,
+        f.trace_id,
+        f.stage_code,
+        f.event_id,
+        f.source_event_id,
+        f.event_code,
+        f.advertiser_id,
+        a.advertiser_name,
+        f.promotion_link_id,
+        p.link_name,
+        f.media_id,
+        m.media_name,
+        f.monitor_task_id,
+        t.monitor_name,
+        f.result_status,
+        f.partner_http_status,
+        f.message,
+        f.duration_ms,
+        f.event_time,
+        f.create_time
+        FROM scx_ocpx_flow_log f
+        <if test="q.timeline">
+            FORCE INDEX (idx_ocpx_flow_log_page)
+        </if>
+        JOIN scx_ocpx_advertiser a ON a.id=f.advertiser_id
+        JOIN scx_ocpx_promotion_link p ON p.id=f.promotion_link_id
+        JOIN scx_ocpx_media m ON m.id=f.media_id
+        JOIN scx_ocpx_monitor_task t ON t.id=f.monitor_task_id
+        WHERE f.event_time&gt;=#{q.start} AND f.event_time&lt;#{q.end}
+        <if test="q.flowType != null and !q.flowType.isBlank()">
+            AND f.flow_type=#{q.flowType}
+        </if>
+        <if test="q.status != null and !q.status.isBlank()">
+            AND f.result_status=#{q.status}
+        </if>
+        <if test="q.advertiserId != null and !q.advertiserId.isBlank()">
+            AND f.advertiser_id=#{q.advertiserId}
+        </if>
+        <if test="q.linkId != null and !q.linkId.isBlank()">
+            AND f.promotion_link_id=#{q.linkId}
+        </if>
+        <if test="q.mediaId != null and !q.mediaId.isBlank()">
+            AND f.media_id=#{q.mediaId}
+        </if>
+        <if test="q.taskId != null and !q.taskId.isBlank()">
+            AND f.monitor_task_id=#{q.taskId}
+        </if>
+        <if test="q.eventId != null and !q.eventId.isBlank()">
+            AND f.event_id=#{q.eventId}
+        </if>
+        <if test="q.stage != null and !q.stage.isBlank()">
+            AND f.stage_code=#{q.stage}
+        </if>
+        ORDER BY f.event_time DESC,
+        f.id DESC LIMIT #{q.limit} OFFSET #{q.offset}
+    </select>
+    <resultMap id="selectDetailRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxFlowLogSqlMapper$SelectDetailRow">
+        <constructor>
+            <arg column="flow_log_id" javaType="java.lang.String"/>
+            <arg column="flow_type" javaType="java.lang.String"/>
+            <arg column="trace_id" javaType="java.lang.String"/>
+            <arg column="event_id" javaType="java.lang.String"/>
+            <arg column="source_event_id" javaType="java.lang.String"/>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="result_status" javaType="java.lang.String"/>
+            <arg column="partner_http_status" javaType="java.lang.Integer"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="response_preview" javaType="java.lang.String"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+            <arg column="flow_created_at" javaType="java.sql.Timestamp"/>
+            <arg column="feedback_log_id" javaType="java.lang.Long"/>
+            <arg column="feedback_received_at" javaType="java.sql.Timestamp"/>
+            <arg column="req_id" javaType="java.lang.String"/>
+            <arg column="clk_id" javaType="java.lang.String"/>
+            <arg column="imp_id" javaType="java.lang.String"/>
+            <arg column="userid" javaType="java.lang.String"/>
+            <arg column="user_type" javaType="java.lang.String"/>
+            <arg column="device_os" javaType="java.lang.String"/>
+            <arg column="osv" javaType="java.lang.String"/>
+            <arg column="model" javaType="java.lang.String"/>
+            <arg column="device_did" javaType="java.lang.String"/>
+            <arg column="device_imei_md5" javaType="java.lang.String"/>
+            <arg column="device_oaid" javaType="java.lang.String"/>
+            <arg column="device_oaid_md5" javaType="java.lang.String"/>
+            <arg column="device_dpid" javaType="java.lang.String"/>
+            <arg column="device_androidid_md5" javaType="java.lang.String"/>
+            <arg column="device_idfa" javaType="java.lang.String"/>
+            <arg column="device_idfa_md5" javaType="java.lang.String"/>
+            <arg column="aaid" javaType="java.lang.String"/>
+            <arg column="device_caid" javaType="java.lang.String"/>
+            <arg column="device_caid1" javaType="java.lang.String"/>
+            <arg column="device_caid2" javaType="java.lang.String"/>
+            <arg column="device_caid_list" javaType="java.lang.String"/>
+            <arg column="last_caid" javaType="java.lang.String"/>
+            <arg column="prev_caid" javaType="java.lang.String"/>
+            <arg column="device_mac" javaType="java.lang.String"/>
+            <arg column="ip" javaType="java.lang.String"/>
+            <arg column="ipv6" javaType="java.lang.String"/>
+            <arg column="ua" javaType="java.lang.String"/>
+            <arg column="callback_url" javaType="java.lang.String"/>
+            <arg column="ts" javaType="java.lang.String"/>
+            <arg column="ts_ms" javaType="java.lang.String"/>
+            <arg column="adv_id" javaType="java.lang.String"/>
+            <arg column="group_id" javaType="java.lang.String"/>
+            <arg column="plan_id" javaType="java.lang.String"/>
+            <arg column="creative_id" javaType="java.lang.String"/>
+            <arg column="m_id" javaType="java.lang.String"/>
+            <arg column="a_id" javaType="java.lang.String"/>
+            <arg column="t_id" javaType="java.lang.String"/>
+            <arg column="l_id" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectDetail" resultMap="selectDetailRow" useCache="false" flushCache="true">
+        SELECT f.id AS flow_log_id,
+        f.flow_type,
+        f.trace_id,
+        f.event_id,
+        f.source_event_id,
+        f.event_code,
+        f.result_status,
+        f.partner_http_status,
+        f.message,
+        f.response_preview,
+        f.duration_ms,
+        f.event_time,
+        f.create_time AS flow_created_at,
+        d.id AS feedback_log_id,
+        d.create_time AS feedback_received_at,
+        d.req_id,
+        d.clk_id,
+        d.imp_id,
+        d.userid,
+        d.user_type,
+        d.device_os,
+        d.osv,
+        d.model,
+        d.device_did,
+        d.device_imei_md5,
+        d.device_oaid,
+        d.device_oaid_md5,
+        d.device_dpid,
+        d.device_androidid_md5,
+        d.device_idfa,
+        d.device_idfa_md5,
+        d.aaid,
+        d.device_caid,
+        d.device_caid1,
+        d.device_caid2,
+        d.device_caid_list,
+        d.last_caid,
+        d.prev_caid,
+        d.device_mac,
+        d.ip,
+        d.ipv6,
+        d.ua,
+        d.callback_url,
+        d.ts,
+        d.ts_ms,
+        d.adv_id,
+        d.group_id,
+        d.plan_id,
+        d.creative_id,
+        d.m_id,
+        d.a_id,
+        d.t_id,
+        d.l_id
+        FROM scx_ocpx_flow_log f
+        LEFT
+        JOIN scx_ocpx_log_feedback d ON d.req_id=CASE WHEN COALESCE(f.source_event_id,
+        '')&lt;&gt;'' THEN f.source_event_id ELSE f.event_id END AND d.m_id=f.media_id AND
+        d.a_id=f.advertiser_id AND d.t_id=f.monitor_task_id AND d.l_id=f.promotion_link_id AND
+        d.create_time&gt;=DATE_SUB(NOW(3),
+        INTERVAL 7 DAY)
+        WHERE f.id=#{id}
+        ORDER BY d.create_time DESC,
+        d.id DESC LIMIT 1
+    </select>
+    <resultMap id="selectStagesRow" type="com.yzytech.scx.ocpx.admin.mapper.OcpxFlowLogSqlMapper$SelectStagesRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="stage_code" javaType="java.lang.String"/>
+            <arg column="flow_type" javaType="java.lang.String"/>
+            <arg column="event_code" javaType="java.lang.String"/>
+            <arg column="result_status" javaType="java.lang.String"/>
+            <arg column="request_method" javaType="java.lang.String"/>
+            <arg column="request_endpoint" javaType="java.lang.String"/>
+            <arg column="partner_http_status" javaType="java.lang.Integer"/>
+            <arg column="duration_ms" javaType="_long"/>
+            <arg column="message" javaType="java.lang.String"/>
+            <arg column="request_params" javaType="java.lang.String"/>
+            <arg column="macro_audit" javaType="java.lang.String"/>
+            <arg column="response_preview" javaType="java.lang.String"/>
+            <arg column="request_truncated" javaType="_boolean"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectStages" resultMap="selectStagesRow" useCache="false" flushCache="true">
+        SELECT f.id,
+        f.stage_code,
+        f.flow_type,
+        f.event_code,
+        f.result_status,
+        f.request_method,
+        f.request_endpoint,
+        f.partner_http_status,
+        f.duration_ms,
+        f.message,
+        d.request_params,
+        f.macro_audit,
+        COALESCE(d.response_preview,
+        f.response_preview) AS response_preview,
+        COALESCE(d.request_truncated,
+        0) AS request_truncated,
+        f.event_time
+        FROM scx_ocpx_flow_log f
+        LEFT
+        JOIN scx_ocpx_flow_log_detail d ON d.flow_log_id=f.id
+        WHERE
+        <choose>
+            <when test="traceId != null and !traceId.isBlank()">
+                f.trace_id=#{traceId}
+            </when>
+            <otherwise>
+                f.id=#{id}
+            </otherwise>
+        </choose>
+        ORDER BY f.event_time,
+        f.create_time,
+        f.id
+    </select>
+</mapper>

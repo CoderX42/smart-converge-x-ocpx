@@ -22,9 +22,13 @@ domain:
   name: https://ocpx.zhongsenyuedong.cn/ocpx
 
 app:
-  rta:
+  rta-relay:
     enabled: false
-    mock-enabled: false
+    public-base-url: https://example.invalid/ocpx
+    callback-base-url: https://example.invalid/ocpx
+    allowed-hosts: rta.example.invalid
+    credentials: {}
+    payload-key: ''
   callback-crypto:
     active-key-id: v1
     keys:

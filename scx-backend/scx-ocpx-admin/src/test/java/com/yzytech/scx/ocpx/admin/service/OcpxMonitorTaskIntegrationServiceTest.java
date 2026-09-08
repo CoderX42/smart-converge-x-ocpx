@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorTaskIntegrationSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.config.OcpxTrackingProperties;
 import com.yzytech.scx.ocpx.admin.dto.MonitorTaskIntegrationRequests;
@@ -42,7 +45,8 @@ class OcpxMonitorTaskIntegrationServiceTest {
 		httpClient = mock(OcpxIntegrationCallbackHttpClient.class);
 		OcpxTrackingProperties trackingProperties = new OcpxTrackingProperties();
 		trackingProperties.setEngineBaseUrl("https://tracking.example/ocpx");
-		service = new OcpxMonitorTaskIntegrationService(taskMapper, advertiserScope, jdbcTemplate, httpClient,
+		service = new OcpxMonitorTaskIntegrationService(taskMapper, advertiserScope,
+				XmlMapperTestSupport.mapper(OcpxMonitorTaskIntegrationSqlMapper.class, jdbcTemplate), httpClient,
 				trackingProperties);
 
 		OcpxMonitorTask task = new OcpxMonitorTask();

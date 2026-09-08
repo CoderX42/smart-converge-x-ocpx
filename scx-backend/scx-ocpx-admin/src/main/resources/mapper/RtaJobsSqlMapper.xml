@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.RtaJobsSqlMapper">
+    <delete id="deleteCleanupLogsRtaLog">
+        DELETE
+        FROM scx_ocpx_rta_log
+        WHERE event_time&lt;DATE_SUB(NOW(3),
+        INTERVAL 24 HOUR)
+        ORDER BY event_time LIMIT 1000
+    </delete>
+    <insert id="insertLogs">
+        INSERT INTO scx_ocpx_rta_log(id,
+        relay_request_id,
+        request_id,
+        media_id,
+        advertiser_id,
+        upstream_id,
+        task_id,
+        stage,
+        status,
+        reason,
+        duration_ms,
+        event_time)
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.id},
+            #{row.relayRequestId},
+            #{row.requestId},
+            #{row.mediaId},
+            #{row.advertiserId},
+            #{row.upstreamId},
+            #{row.taskId},
+            #{row.stage},
+            #{row.status},
+            #{row.reason},
+            #{row.durationMs},
+            #{row.eventTime})
+        </foreach>
+        ON DUPLICATE KEY UPDATE id=id
+    </insert>
+    <insert id="upsertMetrics">
+        INSERT INTO scx_ocpx_rta_hour_stat(time_hour,
+        media_id,
+        advertiser_id,
+        task_id,
+        upstream_id,
+        request_count,
+        allow_count,
+        deny_count,
+        error_count,
+        timeout_count,
+        delivery_success_count,
+        delivery_failed_count,
+        version)
+        VALUES(#{values.timeHour},
+        #{values.mediaId},
+        #{values.advertiserId},
+        #{values.taskId},
+        #{values.upstreamId},
+        #{values.requestCount},
+        #{values.allowCount},
+        #{values.denyCount},
+        #{values.errorCount},
+        #{values.timeoutCount},
+        #{values.deliverySuccessCount},
+        #{values.deliveryFailedCount},
+        #{values.version})
+        ON DUPLICATE KEY UPDATE request_count=IF(VALUES(version)&gt;version,
+        VALUES(request_count),
+        request_count),
+        allow_count=IF(VALUES(version)&gt;version,
+        VALUES(allow_count),
+        allow_count),
+        deny_count=IF(VALUES(version)&gt;version,
+        VALUES(deny_count),
+        deny_count),
+        error_count=IF(VALUES(version)&gt;version,
+        VALUES(error_count),
+        error_count),
+        timeout_count=IF(VALUES(version)&gt;version,
+        VALUES(timeout_count),
+        timeout_count),
+        delivery_success_count=IF(VALUES(version)&gt;version,
+        VALUES(delivery_success_count),
+        delivery_success_count),
+        delivery_failed_count=IF(VALUES(version)&gt;version,
+        VALUES(delivery_failed_count),
+        delivery_failed_count),
+        update_time=IF(VALUES(version)&gt;version,
+        NOW(3),
+        update_time),
+        version=GREATEST(version,
+        VALUES(version))
+    </insert>
+</mapper>

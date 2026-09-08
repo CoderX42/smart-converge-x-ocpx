@@ -32,6 +32,7 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.lId(request.getLId())
 			.event(EventTypeEnum.getEventTypeEnum(request.getEvent()))
 			.reqId(request.getRequest_id())
+			.rtaRequestId(request.getRtaRequestId())
 			.tagId(request.resolvedTagId())
 			.callbackUrl(request.getCallback_url())
 			.caid(request.getCaid())
@@ -69,6 +70,7 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 		if (!StringUtils.hasText(data.getReqId())) {
 			// 旧协议允许不传 request_id，此时以完整请求 JSON 的 MD5 作为去重键。
 			data.setReqId(DigestUtils.md5DigestAsHex(json.getBytes()));
+			data.setRequestIdGenerated(true);
 		}
 		if (StringUtils.hasText(data.getCallbackUrl())) {
 			data.setCallbackUrl(NetUtil.strictUrlEncode(data.getCallbackUrl(), StandardCharsets.UTF_8));

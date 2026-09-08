@@ -161,7 +161,8 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		String callbackExt = callbackCrypto == null ? AesUtil.encryptBase64(JSON.toJSONString(feedback), callbackAesKey)
 				: callbackCrypto.encryptCallback(JSON.toJSONString(feedback));
 		String kid = callbackCrypto == null ? "" : "&kid=" + callbackCrypto.activeKeyId();
-		return callbackExt == null ? null : callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + kid + "&s=" + state;
+		return callbackExt == null ? null
+				: callbackBaseUrl + "/aerim/callback?ext=" + callbackExt + kid + "&s=" + state;
 	}
 
 	private Map<String, String> macros(FeedbackReq feedback, String callback) {

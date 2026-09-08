@@ -166,28 +166,10 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('buildSafeFlowLogText(requestDetail.value)');
   });
 
-  it('exposes the disabled-by-default Mock RTA workbench and async metric boundary', () => {
-    const source = page('rta');
-    for (const label of [
-      'RTA 管理',
-      'RTA Profile',
-      'Mock 配置',
-      'RTA 开关',
-      '外部任务绑定',
-      'RTA 决策记录',
-      'RTA 统计',
-      'RTA 命中率',
-      '数据截至',
-      'ocpx:rta:bind',
-      '暂无 RTA 决策记录',
-    ]) {
-      expect(source).toContain(label);
-    }
-    expect(source).toContain('当前仅支持 Mock 适配器；生产默认关闭');
-    const monitorTask = page('monitor-task');
-    expect(monitorTask).toContain('RTA Mock 配置');
-    expect(monitorTask).toContain('添加外部任务');
-    expect(monitorTask).toContain('updateRtaTaskConfig');
+  it('routes media and monitor tasks to dedicated async RTA configuration', () => {
+    expect(page('monitor-task')).toContain('/ocpx/rta/bindings');
+    expect(page('media')).toContain('/ocpx/rta/media');
+    expect(page('monitor-task')).not.toContain('updateRtaTaskConfig');
   });
 
   it('keeps advertiser credentials create-only and resets every core dialog', () => {
@@ -225,7 +207,7 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(advertiser).toContain('引力使用一条 Android+IOS 链接');
     expect(advertiser).toContain('人人视频');
     expect(advertiser).toContain('RENREN_VIDEO');
-    expect(page('promotion-link')).toContain('/ad-action/click 完整模板');
+    expect(page('promotion-link')).toContain('投放链接');
   });
 
   it('creates financial idempotency keys in browsers without randomUUID', () => {

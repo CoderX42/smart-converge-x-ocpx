@@ -20,7 +20,8 @@ import com.yzytech.scx.system.api.entity.SysMaterial;
 import com.yzytech.scx.system.api.service.StorageUploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
+
+import com.yzytech.scx.ocpx.admin.mapper.OcpxCreativeSqlMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -35,7 +36,6 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.Iterator;
@@ -65,23 +65,23 @@ public class OcpxCreativeService {
 
 	private final StorageUploadService storageUploadService;
 
-	private final JdbcTemplate jdbcTemplate;
+	private final OcpxCreativeSqlMapper sqlMapper;
 
 	private final AdvertiserScope advertiserScope;
 
-	public IPage<CreativeViews.Item> list(Page<OcpxCreative> page, String keyword, String advertiserId,
-			Integer status, String promotionLinkId) {
+	public IPage<CreativeViews.Item> list(Page<OcpxCreative> page, String keyword, String advertiserId, Integer status,
+			String promotionLinkId) {
 		String scopedAdvertiserId = advertiserScope.constrainSelfOwned(advertiserId);
 		Set<String> idsByLink = idsByLink(promotionLinkId, scopedAdvertiserId);
-		IPage<OcpxCreative> result = creativeMapper.selectPage(page, Wrappers.<OcpxCreative>lambdaQuery()
-			.eq(StringUtils.hasText(scopedAdvertiserId), OcpxCreative::getAdvertiserId, scopedAdvertiserId)
-			.eq(status != null, OcpxCreative::getStatus, status)
-			.and(StringUtils.hasText(keyword), q -> q.like(OcpxCreative::getId, keyword)
-				.or()
-				.like(OcpxCreative::getCreativeName, keyword))
-			.in(StringUtils.hasText(promotionLinkId), OcpxCreative::getId,
-				idsByLink.isEmpty() ? Set.of("__NONE__") : idsByLink)
-			.orderByDesc(OcpxCreative::getUpdateTime));
+		IPage<OcpxCreative> result = creativeMapper.selectPage(page,
+				Wrappers.<OcpxCreative>lambdaQuery()
+					.eq(StringUtils.hasText(scopedAdvertiserId), OcpxCreative::getAdvertiserId, scopedAdvertiserId)
+					.eq(status != null, OcpxCreative::getStatus, status)
+					.and(StringUtils.hasText(keyword),
+							q -> q.like(OcpxCreative::getId, keyword).or().like(OcpxCreative::getCreativeName, keyword))
+					.in(StringUtils.hasText(promotionLinkId), OcpxCreative::getId,
+							idsByLink.isEmpty() ? Set.of("__NONE__") : idsByLink)
+					.orderByDesc(OcpxCreative::getUpdateTime));
 		return result.convert(this::view);
 	}
 
@@ -93,12 +93,7 @@ public class OcpxCreativeService {
 
 	public List<CreativeViews.Asset> assets(String advertiserId, String keyword) {
 		String owner = requireAdvertiser(advertiserScope.constrainSelfOwned(advertiserId));
-		return materialMapper.selectList(Wrappers.<SysMaterial>lambdaQuery()
-			.eq(SysMaterial::getShopId, owner)
-			.eq(SysMaterial::getType, "1")
-			.like(StringUtils.hasText(keyword), SysMaterial::getName, keyword)
-			.orderByDesc(SysMaterial::getCreateTime)
-			.last("LIMIT 200"))
+		return sqlMapper.selectAssets(owner, keyword)
 			.stream()
 			.map(item -> new CreativeViews.Asset(item.getId(), item.getName(), item.getUrl(), item.getFileSize(),
 					item.getCreateTime()))
@@ -212,7 +207,7 @@ public class OcpxCreativeService {
 		OcpxCreative creative = require(id);
 		advertiserScope.requireSelfOwnedAdvertiser(creative.getAdvertiserId());
 		lockCreative(id);
-		jdbcTemplate.update("DELETE FROM scx_ocpx_creative_promotion_link WHERE creative_id=?", id);
+		sqlMapper.deleteDeleteCreativePromotionLink(id);
 		creativeMapper.deleteById(id);
 	}
 
@@ -332,68 +327,42 @@ public class OcpxCreativeService {
 	}
 
 	private void replaceBindings(OcpxCreative creative, List<String> targetIds) {
-		Set<String> currentIds = new HashSet<>(jdbcTemplate.queryForList(
-				"SELECT promotion_link_id FROM scx_ocpx_creative_promotion_link WHERE creative_id=?", String.class,
-				creative.getId()));
+		Set<String> currentIds = new HashSet<>(sqlMapper.selectReplaceBindingsCreativePromotionLink(creative.getId()));
 		Set<String> target = new LinkedHashSet<>(targetIds);
 		Set<String> removed = new HashSet<>(currentIds);
 		removed.removeAll(target);
 		if (!removed.isEmpty()) {
-			String placeholders = String.join(",", java.util.Collections.nCopies(removed.size(), "?"));
-			List<Object> args = new ArrayList<>();
-			args.add(creative.getId());
-			args.addAll(removed);
-			jdbcTemplate.update("DELETE FROM scx_ocpx_creative_promotion_link WHERE creative_id=? AND promotion_link_id IN ("
-					+ placeholders + ")", args.toArray());
+			sqlMapper.deleteBindings(creative.getId(), removed);
 		}
 		List<String> added = target.stream().filter(id -> !currentIds.contains(id)).toList();
 		if (!added.isEmpty()) {
 			String operator = operatorUserId();
-			jdbcTemplate.batchUpdate("""
-					INSERT INTO scx_ocpx_creative_promotion_link
-					(advertiser_id,creative_id,promotion_link_id,create_by,create_time)
-					VALUES (?,?,?,?,CURRENT_TIMESTAMP(3))
-					""", added, added.size(), (statement, linkId) -> {
-				statement.setString(1, creative.getAdvertiserId());
-				statement.setString(2, creative.getId());
-				statement.setString(3, linkId);
-				statement.setString(4, operator);
-			});
+			sqlMapper.insertBindings(creative.getAdvertiserId(), creative.getId(), added, operator);
 		}
 	}
 
 	private List<CreativeViews.LinkOption> bindingOptions(String creativeId) {
-		return jdbcTemplate.query("""
-				SELECT l.id,l.link_name
-				FROM scx_ocpx_creative_promotion_link b
-				JOIN scx_ocpx_promotion_link l ON l.id=b.promotion_link_id AND l.is_delete=0
-				WHERE b.creative_id=? ORDER BY l.link_name
-				""", (rs, rowNum) -> new CreativeViews.LinkOption(rs.getString(1), rs.getString(2)), creativeId);
+		return sqlMapper.selectBindingOptionsCreativePromotionLink(creativeId)
+			.stream()
+			.map(rs -> new CreativeViews.LinkOption(rs.id(), rs.linkName()))
+			.toList();
 	}
 
 	private Set<String> idsByLink(String promotionLinkId, String advertiserId) {
 		if (!StringUtils.hasText(promotionLinkId)) {
 			return Set.of();
 		}
-		StringBuilder sql = new StringBuilder(
-				"SELECT creative_id FROM scx_ocpx_creative_promotion_link WHERE promotion_link_id=?");
-		List<Object> args = new ArrayList<>();
-		args.add(promotionLinkId.trim());
-		if (StringUtils.hasText(advertiserId)) {
-			sql.append(" AND advertiser_id=?");
-			args.add(advertiserId);
-		}
-		return new HashSet<>(jdbcTemplate.queryForList(sql.toString(), String.class, args.toArray()));
+		return new HashSet<>(sqlMapper.selectIdsByLink(promotionLinkId.trim(), advertiserId));
 	}
 
 	private CreativeViews.Item view(OcpxCreative creative) {
 		OcpxAdvertiser advertiser = advertiserMapper.selectById(creative.getAdvertiserId());
 		return new CreativeViews.Item(creative.getId(), creative.getAdvertiserId(),
 				advertiser == null ? null : advertiser.getAdvertiserName(), creative.getCreativeName(),
-				creative.getCreativeType(), creative.getAssetUrl(), creative.getSourceMaterialId(), creative.getFileName(),
-				creative.getMimeType(), creative.getFileSize(), creative.getWidth(), creative.getHeight(),
-				creative.getChecksumSha256(), creative.getStatus(), creative.getRemark(), bindingOptions(creative.getId()),
-				creative.getCreateTime(), creative.getUpdateTime());
+				creative.getCreativeType(), creative.getAssetUrl(), creative.getSourceMaterialId(),
+				creative.getFileName(), creative.getMimeType(), creative.getFileSize(), creative.getWidth(),
+				creative.getHeight(), creative.getChecksumSha256(), creative.getStatus(), creative.getRemark(),
+				bindingOptions(creative.getId()), creative.getCreateTime(), creative.getUpdateTime());
 	}
 
 	private OcpxCreative require(String id) {
@@ -422,8 +391,7 @@ public class OcpxCreativeService {
 	}
 
 	private void lockCreative(String id) {
-		jdbcTemplate.queryForObject("SELECT id FROM scx_ocpx_creative WHERE id=? AND is_delete=0 FOR UPDATE",
-				String.class, id);
+		sqlMapper.selectLockCreativeCreative(id);
 	}
 
 	private List<String> normalizeLinks(List<String> values) {

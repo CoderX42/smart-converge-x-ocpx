@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.admin.mapper.OcpxMonitorSqlMapper">
+    <delete id="deleteDeleteRtaBinding">
+        DELETE
+        FROM scx_ocpx_rta_binding
+        WHERE monitor_task_id=#{id}
+    </delete>
+    <insert id="insertWriteBillingAuditBillingConfigAudit">
+        INSERT INTO scx_ocpx_billing_config_audit (id,
+        monitor_task_id,
+        advertiser_id,
+        action_type,
+        before_config,
+        after_config,
+        operator_user_id,
+        occurred_at)
+        VALUES (#{command.id},
+        #{command.monitorTaskId},
+        #{command.advertiserId},
+        #{command.actionType},
+        #{command.beforeConfig},
+        #{command.afterConfig},
+        #{command.operatorUserId},
+        #{command.occurredAt})
+    </insert>
+</mapper>

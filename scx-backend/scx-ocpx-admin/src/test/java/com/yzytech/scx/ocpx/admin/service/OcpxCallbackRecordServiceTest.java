@@ -1,5 +1,8 @@
 package com.yzytech.scx.ocpx.admin.service;
 
+import com.yzytech.scx.ocpx.admin.mapper.OcpxCallbackRecordSqlMapper;
+import com.yzytech.scx.ocpx.testing.XmlMapperTestSupport;
+
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.dto.CallbackRecordViews;
 import org.junit.jupiter.api.Test;
@@ -36,9 +39,10 @@ class OcpxCallbackRecordServiceTest {
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
 			.thenAnswer(invocation -> List.of(((RowMapper) invocation.getArgument(1)).mapRow(rs, 0)));
 
-		CallbackRecordViews.Page page = new OcpxCallbackRecordService(jdbcTemplate, advertiserScope).query(
-				LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "advertiser-other", "link-1", "media-1", "task-1",
-				"activate", true, "passed", "request-1", 2L, 10L);
+		CallbackRecordViews.Page page = new OcpxCallbackRecordService(
+				XmlMapperTestSupport.mapper(OcpxCallbackRecordSqlMapper.class, jdbcTemplate), advertiserScope)
+			.query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "advertiser-other", "link-1", "media-1",
+					"task-1", "activate", true, "passed", "request-1", 2L, 10L);
 
 		assertThat(page.getTotal()).isEqualTo(1);
 		assertThat(page.getRecords()).singleElement().satisfies(record -> {
@@ -58,13 +62,15 @@ class OcpxCallbackRecordServiceTest {
 		verify(jdbcTemplate).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
 		assertThat(countSql.getValue()).contains("FORCE INDEX (idx_ocpx_event_fact_callback_page)");
 		assertThat(args.getValue())
-			.contains("advertiser-own", "link-1", "media-1", "task-1", "ACTIVATE", "PASSED", "request-1", 1, 10L, 10L)
+			.contains("advertiser-own", "link-1", "media-1", "task-1", "ACTIVATE", "PASSED", "request-1", true, 10L,
+					10L)
 			.doesNotContain("advertiser-other");
 	}
 
 	@Test
 	void rejectsUnknownEventDecisionAndExcessiveDateRange() {
-		OcpxCallbackRecordService service = new OcpxCallbackRecordService(mock(JdbcTemplate.class),
+		OcpxCallbackRecordService service = new OcpxCallbackRecordService(
+				XmlMapperTestSupport.mapper(OcpxCallbackRecordSqlMapper.class, mock(JdbcTemplate.class)),
 				mock(AdvertiserScope.class));
 		assertThatThrownBy(() -> service.query(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 8, 1), null, null, null,
 				null, null, null, null, null, null, null))
@@ -89,8 +95,10 @@ class OcpxCallbackRecordServiceTest {
 		when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
 		when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
 
-		new OcpxCallbackRecordService(jdbcTemplate, advertiserScope).query(LocalDate.of(2026, 8, 1),
-				LocalDate.of(2026, 8, 2), null, null, null, null, null, null, "UNAVAILABLE", null, 1L, 10L);
+		new OcpxCallbackRecordService(XmlMapperTestSupport.mapper(OcpxCallbackRecordSqlMapper.class, jdbcTemplate),
+				advertiserScope)
+			.query(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), null, null, null, null, null, null,
+					"UNAVAILABLE", null, 1L, 10L);
 
 		ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
 		verify(jdbcTemplate).query(sql.capture(), any(RowMapper.class), any(Object[].class));

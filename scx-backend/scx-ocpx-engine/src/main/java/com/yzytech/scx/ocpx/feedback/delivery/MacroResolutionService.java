@@ -185,6 +185,9 @@ public class MacroResolutionService {
 	private Map<String, String> values(FeedbackReq f, String callback, String bizId) {
 		Map<String, String> m = new LinkedHashMap<>();
 		m.put("__REQUEST_ID__", f.getReqId());
+		// OPPO monitoring templates use the shorter request aliases.
+		m.put("__REQ__", f.getReqId());
+		m.put("__RID__", f.getReqId());
 		m.put("__CLICKID__", first(f.getClickId(), f.getReqId()));
 		m.put("__IMEI__", f.getImei());
 		m.put("__IMEI_MD5__", f.getImeiMd5());

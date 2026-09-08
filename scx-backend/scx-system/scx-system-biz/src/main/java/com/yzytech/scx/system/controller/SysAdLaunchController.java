@@ -3,7 +3,6 @@
 package com.yzytech.scx.system.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.yzytech.scx.common.core.util.Result;
 import com.yzytech.scx.common.log.annotation.SysLog;
 import com.yzytech.scx.system.api.entity.SysAdLaunch;
@@ -34,7 +33,7 @@ public class SysAdLaunchController {
 	@SaCheckPermission("system:ad-launch:get")
 	@GetMapping
 	public Result getConfig() {
-		SysAdLaunch sysAdLaunch = sysAdLaunchService.getOne(Wrappers.<SysAdLaunch>lambdaQuery().last("limit 1"));
+		SysAdLaunch sysAdLaunch = sysAdLaunchService.getConfig();
 		if (Objects.isNull(sysAdLaunch)) {
 			sysAdLaunch = new SysAdLaunch();
 			sysAdLaunch.setCountdownSeconds(3);

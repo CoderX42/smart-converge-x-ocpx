@@ -57,3 +57,16 @@ mvn -pl scx-boot -am -DskipTests compile
 ```
 
 接口健康检查：`GET http://localhost:9999/boot/actuator/health`。
+
+
+## 业务 SQL 编写规范
+
+基础 CRUD 使用 MyBatis-Plus `BaseMapper` 和普通条件构造器。全部手写业务 SQL 存放在所属模块 `src/main/resources/mapper/*Mapper.xml`；Mapper 接口声明方法和参数，服务层负责权限、业务规则和事务。不要使用 SQL 注解、JdbcTemplate 或 Wrapper 的 `last/apply/inSql/setSql` 等 SQL 片段接口。
+
+动态条件使用 XML `if/choose/foreach`，所有值使用 `#{}` 绑定；表名、列名、排序、索引提示必须是 XML 内的固定分支，不接收 Java 或客户端传入的 SQL。列表参数为空时查询/删除不匹配任何行；批量插入由调用者验证非空并限制批次大小。宽参数写操作使用明确的 command record，结果使用显式构造映射或已有实体映射。
+
+JDBC 迁移到 MyBatis 后必须保留原事务、锁顺序、受影响行数和异常处理。原 JDBC 查询对应的 XML 查询使用 `useCache="false" flushCache="true"`，确保事务中的重复读取与行锁查询重新访问数据库；不用关闭全局缓存或拦截器。新增 Engine Mapper 必须注册到其 `@MapperScan` 包中。
+
+`make business-sql-check` 已纳入后端和 Engine 测试入口。数据库初始化/迁移 SQL、测试夹具、数据源启动查询和框架 SQL 改写不属于业务迁移范围。SQL 回归测试加载实际 XML；真实数据库测试仅通过显式的隔离测试连接启用，不读取 dev/prod 连接配置。
+
+本次迁移范围、回归命令与验证限制见 [SQL XML 迁移验证记录](../docs/广告平台设计/SQL-XML迁移验证记录.md)。

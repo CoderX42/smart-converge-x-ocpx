@@ -9,10 +9,13 @@ scx:
       media: {}
 
 app:
-  rta:
-    enabled: true
-    mock-enabled: true
-    admission-ttl-seconds: 300
+  rta-relay:
+    enabled: false
+    public-base-url: https://example.invalid/ocpx
+    callback-base-url: https://example.invalid/ocpx
+    allowed-hosts: rta.example.invalid
+    credentials: {}
+    payload-key: ''
 
 # =============================================================================
 # 生产配置：直接写在本文件，不依赖环境变量 /etc/scx/scx.env

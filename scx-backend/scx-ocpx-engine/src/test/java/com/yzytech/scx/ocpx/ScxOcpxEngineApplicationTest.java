@@ -28,9 +28,7 @@ class ScxOcpxEngineApplicationTest {
 		assertThat(source.getProperty("ocpx.delivery.downstream.core-threads")).isEqualTo(32);
 		assertThat(source.getProperty("ocpx.delivery.downstream.max-threads")).isEqualTo(64);
 		assertThat(source.getProperty("ocpx.delivery.downstream.queue-capacity")).isEqualTo(200);
-		assertThat(source.getProperty("app.rta.enabled")).isEqualTo(false);
-		assertThat(source.getProperty("app.rta.mock-enabled")).isEqualTo(false);
-		assertThat(source.getProperty("app.rta.admission-ttl-seconds")).isEqualTo(300);
+		assertThat(source.getProperty("app.rta-relay.enabled")).isEqualTo(false);
 		assertThat(source.getProperty("spring.datasource.url")).isNull();
 	}
 
@@ -45,10 +43,8 @@ class ScxOcpxEngineApplicationTest {
 			.isNotEqualTo(production.getProperty("spring.data.redis.host"));
 		assertThat(development.getProperty("domain.name")).isEqualTo("http://127.0.0.1:10000/ocpx");
 		assertThat(production.getProperty("domain.name")).isEqualTo("https://ocpx.zhongsenyuedong.cn/ocpx");
-		assertThat(development.getProperty("app.rta.enabled")).isEqualTo(true);
-		assertThat(development.getProperty("app.rta.mock-enabled")).isEqualTo(true);
-		assertThat(production.getProperty("app.rta.enabled")).isEqualTo(false);
-		assertThat(production.getProperty("app.rta.mock-enabled")).isEqualTo(false);
+		assertThat(development.getProperty("app.rta-relay.enabled")).isEqualTo(false);
+		assertThat(production.getProperty("app.rta-relay.enabled")).isEqualTo(false);
 		assertThat(development.getProperty("ocpx.aerim.callback-base-url")).isNull();
 		assertThat(production.getProperty("ocpx.aerim.callback-base-url")).isNull();
 	}

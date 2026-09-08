@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.FlowLogRetentionSqlMapper">
+    <select id="selectPreviewRetentionReadyInformationSchema" resultType="java.lang.Integer" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM information_schema.statistics
+        WHERE table_schema=DATABASE() AND table_name='scx_ocpx_flow_log' AND index_name='idx_ocpx_flow_log_preview_retention' AND seq_in_index IN
+        (1,
+        2,
+        3)
+    </select>
+    <delete id="deleteExpiredDetails">
+        DELETE
+        FROM scx_ocpx_flow_log_detail
+        WHERE expires_at&lt;NOW(3) LIMIT #{limit}
+    </delete>
+    <delete id="deleteExpiredFeedback">
+        DELETE
+        FROM scx_ocpx_log_feedback
+        WHERE create_time&lt;DATE_SUB(NOW(3),
+        INTERVAL 7 DAY)
+        ORDER BY create_time LIMIT #{limit}
+    </delete>
+    <delete id="deleteExpiredCallbacks">
+        DELETE
+        FROM scx_ocpx_log_callback
+        WHERE create_time&lt;DATE_SUB(NOW(3),
+        INTERVAL 7 DAY)
+        ORDER BY create_time LIMIT #{limit}
+    </delete>
+    <delete id="deleteExpiredMetadata">
+        DELETE
+        FROM scx_ocpx_flow_log
+        WHERE event_time&lt;DATE_SUB(NOW(3),
+        INTERVAL 90 DAY)
+        ORDER BY event_time LIMIT #{limit}
+    </delete>
+    <resultMap id="selectExpiredPreviewsRow" type="com.yzytech.scx.ocpx.persistence.mapper.FlowLogRetentionSqlMapper$SelectExpiredPreviewsRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="event_time" javaType="java.sql.Timestamp"/>
+        </constructor>
+    </resultMap>
+    <select id="selectExpiredPreviews" resultMap="selectExpiredPreviewsRow" useCache="false" flushCache="true">
+        SELECT id,
+        event_time
+        FROM scx_ocpx_flow_log FORCE INDEX (idx_ocpx_flow_log_preview_retention)
+        WHERE response_preview_present=1 AND response_preview IS NOT NULL AND event_time&lt;DATE_SUB(NOW(3),
+        INTERVAL 7 DAY)
+        <if test="eventTime != null">
+            AND (event_time&gt;#{eventTime} OR (event_time=#{eventTime} AND id&gt;#{id}))
+        </if>
+        ORDER BY event_time,
+        id LIMIT #{limit}
+    </select>
+    <update id="clearPreviews">
+        UPDATE scx_ocpx_flow_log SET response_preview=NULL
+        WHERE
+        <choose>
+            <when test="ids != null and !ids.isEmpty()">
+                id IN
+                <foreach collection="ids" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </when>
+            <otherwise>
+                1=0
+            </otherwise>
+        </choose>
+    </update>
+</mapper>

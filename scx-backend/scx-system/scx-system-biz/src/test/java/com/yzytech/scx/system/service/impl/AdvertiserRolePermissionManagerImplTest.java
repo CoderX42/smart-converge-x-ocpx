@@ -52,7 +52,8 @@ class AdvertiserRolePermissionManagerImplTest {
 		roleMenuMapper = mock(SysRoleMenuMapper.class);
 		userMapper = mock(SysUserMapper.class);
 		manager = new AdvertiserRolePermissionManagerImpl(roleMapper, menuMapper, roleMenuMapper, userMapper);
-		when(roleMapper.selectOne(any())).thenReturn(fixedRole());
+		when(roleMapper.selectById(org.mockito.ArgumentMatchers.anyString())).thenReturn(fixedRole());
+		when(roleMapper.selectByIdForUpdate(any())).thenReturn(fixedRole());
 		when(menuMapper.selectList(any())).thenReturn(menus());
 		when(userMapper.selectList(any())).thenReturn(List.of());
 		when(roleMenuMapper.selectList(any())).thenReturn(List.of());
@@ -69,9 +70,10 @@ class AdvertiserRolePermissionManagerImplTest {
 		assertThat(result.isAllDataScope()).isTrue();
 		assertThat(result.getSelectedMenuIds()).containsExactly("menu-adv", "perm-adv-edit");
 		assertThat(flatten(result.getMenuTree())).containsExactlyInAnyOrder("menu-adv", "menu-media", "perm-adv-edit")
-			.doesNotContain("perm-manage", "perm-recharge", "perm-deduct", "perm-billing", "perm-scope",
-					"perm-test", "perm-integration", "menu-system", "menu-system-ocpx");
-		assertThat(result.getMenuTree()).filteredOn(node -> "menu-media".equals(node.getId())).singleElement()
+			.doesNotContain("perm-manage", "perm-recharge", "perm-deduct", "perm-billing", "perm-scope", "perm-test",
+					"perm-integration", "menu-system", "menu-system-ocpx");
+		assertThat(result.getMenuTree()).filteredOn(node -> "menu-media".equals(node.getId()))
+			.singleElement()
 			.extracting(AdvertiserRolePermissionManager.MenuNode::isRequiresAllDataScope)
 			.isEqualTo(true);
 	}
@@ -81,12 +83,11 @@ class AdvertiserRolePermissionManagerImplTest {
 		SysUser account = new SysUser();
 		account.setId("advertiser-user-1");
 		when(userMapper.selectList(any())).thenReturn(List.of(account));
-		when(roleMenuMapper.selectList(any()))
-			.thenReturn(List.of(relation("menu-media"), relation("perm-scope")));
+		when(roleMenuMapper.selectList(any())).thenReturn(List.of(relation("menu-media"), relation("perm-scope")));
 
 		try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
-			AdvertiserRolePermissionManager.Configuration result = manager
-				.updateConfiguration(List.of("perm-adv-edit"), true);
+			AdvertiserRolePermissionManager.Configuration result = manager.updateConfiguration(List.of("perm-adv-edit"),
+					true);
 
 			@SuppressWarnings("unchecked")
 			ArgumentCaptor<List<SysRoleMenu>> captor = ArgumentCaptor.forClass(List.class);
@@ -174,14 +175,13 @@ class AdvertiserRolePermissionManagerImplTest {
 		try (MockedStatic<SecurityUtils> security = mockStatic(SecurityUtils.class)) {
 			security.when(SecurityUtils::getUser).thenReturn(user);
 
-			assertThatThrownBy(manager::getConfiguration)
-				.isInstanceOfSatisfying(BootBusinessException.class,
-						error -> assertThat(error.getCode()).isEqualTo(403));
-			assertThatThrownBy(() -> manager.updateConfiguration(List.of(), false))
-				.isInstanceOfSatisfying(BootBusinessException.class,
-						error -> assertThat(error.getCode()).isEqualTo(403));
+			assertThatThrownBy(manager::getConfiguration).isInstanceOfSatisfying(BootBusinessException.class,
+					error -> assertThat(error.getCode()).isEqualTo(403));
+			assertThatThrownBy(() -> manager.updateConfiguration(List.of(), false)).isInstanceOfSatisfying(
+					BootBusinessException.class, error -> assertThat(error.getCode()).isEqualTo(403));
 		}
-		verify(roleMapper, never()).selectOne(any());
+		verify(roleMapper, never()).selectById(any(java.io.Serializable.class));
+		verify(roleMapper, never()).selectByIdForUpdate(any());
 	}
 
 	private List<String> flatten(List<AdvertiserRolePermissionManager.MenuNode> nodes) {
@@ -203,8 +203,7 @@ class AdvertiserRolePermissionManagerImplTest {
 	private List<SysMenu> menus() {
 		return List.of(menu("menu-adv", "0", "广告主管理", "/ocpx/advertiser", "ocpx:advertiser:view", 10),
 				menu("perm-adv-edit", "menu-adv", "编辑广告主", "", "ocpx:advertiser:edit", 20),
-				menu("perm-recharge", "menu-adv", "充值", "", SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION,
-						30),
+				menu("perm-recharge", "menu-adv", "充值", "", SystemAccountConstants.ADVERTISER_RECHARGE_PERMISSION, 30),
 				menu("perm-deduct", "menu-adv", "扣减", "", SystemAccountConstants.ADVERTISER_DEDUCT_PERMISSION, 35),
 				menu("menu-media", "0", "媒体管理", "/ocpx/media", "ocpx:media:view", 30),
 				menu("perm-billing", "menu-media", "计费", "", SystemAccountConstants.MONITOR_TASK_BILLING_PERMISSION,
@@ -212,10 +211,9 @@ class AdvertiserRolePermissionManagerImplTest {
 				menu("perm-test", "menu-media", "测试", "", SystemAccountConstants.MONITOR_TASK_TEST_PERMISSION, 50),
 				menu("perm-integration", "menu-media", "联调", "",
 						SystemAccountConstants.MONITOR_TASK_INTEGRATION_PERMISSION, 60),
-				menu("perm-manage", "menu-adv", "角色权限", "",
-						SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION, 80),
-				menu("perm-scope", "menu-adv", "全量范围", "",
-						SystemAccountConstants.ADVERTISER_ALL_SCOPE_PERMISSION, 90),
+				menu("perm-manage", "menu-adv", "角色权限", "", SystemAccountConstants.ADVERTISER_ROLE_MANAGE_PERMISSION,
+						80),
+				menu("perm-scope", "menu-adv", "全量范围", "", SystemAccountConstants.ADVERTISER_ALL_SCOPE_PERMISSION, 90),
 				menu("menu-system", "0", "系统管理", "/system", "system:menu:view", 100),
 				menu("menu-system-ocpx", "0", "伪装系统权限", "/ocpx/system", "system:menu:view", 110));
 	}

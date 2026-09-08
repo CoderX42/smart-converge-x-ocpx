@@ -178,15 +178,13 @@ async function mockManagementApi(
       return;
     }
     if (url.pathname.endsWith('/ocpx/dashboard/summary')) {
-      if (dashboardSummary === null) {
-        await route.fulfill({
-          body: JSON.stringify({ code: 1, msg: '真实数据读取失败' }),
-          contentType: 'application/json',
-          status: 503,
-        });
-      } else {
-        await fulfill(route, dashboardSummary);
-      }
+      dashboardSummary === null
+        ? await route.fulfill({
+            body: JSON.stringify({ code: 1, msg: '真实数据读取失败' }),
+            contentType: 'application/json',
+            status: 503,
+          })
+        : await fulfill(route, dashboardSummary);
       return;
     }
     if (url.pathname.endsWith('/ocpx/promotion-links/advertiser-options')) {
@@ -366,7 +364,8 @@ test('dashboard presets derive their ranges from the server business date', asyn
     new URL(request.url()).pathname.endsWith('/ocpx/dashboard/summary'),
   );
   await page.goto('/#/ocpx/dashboard');
-  const bootstrapUrl = new URL((await bootstrapRequest).url());
+  const bootstrap = await bootstrapRequest;
+  const bootstrapUrl = new URL(bootstrap.url());
   expect(bootstrapUrl.searchParams.has('startDate')).toBe(false);
   expect(bootstrapUrl.searchParams.has('endDate')).toBe(false);
   await expect(page.getByText('2026-08-14', { exact: true })).toBeVisible();
@@ -381,7 +380,8 @@ test('dashboard presets derive their ranges from the server business date', asyn
       new URL(request.url()).pathname.endsWith('/ocpx/dashboard/summary'),
     );
     await page.getByRole('button', { exact: true, name: label }).click();
-    const requestUrl = new URL((await requestPromise).url());
+    const request = await requestPromise;
+    const requestUrl = new URL(request.url());
     expect(requestUrl.searchParams.get('startDate')).toBe(startDate);
     expect(requestUrl.searchParams.get('endDate')).toBe(endDate);
   }
@@ -411,7 +411,8 @@ test('dashboard custom date range is sent to the truthful summary API', async ({
     .filter({ hasText: /^2$/ })
     .click();
 
-  const requestUrl = new URL((await requestPromise).url());
+  const request = await requestPromise;
+  const requestUrl = new URL(request.url());
   expect(requestUrl.searchParams.get('startDate')).toBe('2026-08-01');
   expect(requestUrl.searchParams.get('endDate')).toBe('2026-08-02');
 });

@@ -3,11 +3,9 @@ package com.yzytech.scx.ocpx.report.service;
 import com.alibaba.fastjson2.JSON;
 import com.yzytech.scx.ocpx.callback.model.CallbackReq;
 import com.yzytech.scx.ocpx.feedback.model.FeedbackReq;
-import com.yzytech.scx.ocpx.rta.model.RtaDecisionEvent;
-import com.yzytech.scx.ocpx.shared.enums.EventTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.yzytech.scx.ocpx.persistence.mapper.OcpxFlowLogWriterSqlMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -48,7 +46,7 @@ public class OcpxFlowLogWriter {
 	@Value("${ocpx.flow-log.success-sample-rate:1.0}")
 	private double successSampleRate = 1.0;
 
-	private final JdbcTemplate jdbcTemplate;
+	private final OcpxFlowLogWriterSqlMapper sqlMapper;
 
 	public void mediaIngress(FeedbackReq request, boolean success, String message) {
 		write(request, "FEEDBACK", "MEDIA_INGRESS", event(request), feedbackFingerprint(request), success, null,
@@ -101,25 +99,6 @@ public class OcpxFlowLogWriter {
 		}
 	}
 
-	/** 记录 RTA 点击门禁结果；只保存路由、requestId 哈希和固定原因码。 */
-	public void rtaGate(FeedbackReq request, boolean success, String reasonCode) {
-		write(request, "FEEDBACK", "RTA_GATE", event(request), feedbackFingerprint(request), success,
-				success ? 200 : 403, reasonCode, null, 0L, "GET", "/rta", null, null);
-	}
-
-	/** 记录 RTA 决策摘要；设备标识、完整请求体和适配器配置均不进入日志。 */
-	public void rtaDecision(RtaDecisionEvent event) {
-		if (event == null) {
-			return;
-		}
-		FeedbackReq request = FeedbackReq.builder().mId(event.getMediaId()).tId(event.getMonitorTaskId())
-				.aId(event.getAdvertiserId()).lId(event.getPromotionLinkId()).reqId(event.getRequestId())
-				.event(EventTypeEnum.CLICK).build();
-		write(request, "FEEDBACK", "RTA_DECISION", event.getDecision().name(), event.getRequestHash(),
-				event.getDecision().name().equals("ALLOW"), 200, event.getReasonCode(), null, event.getLatencyMs(),
-				"POST", "/rta", null, null);
-	}
-
 	private void internal(CallbackReq request, String stage, boolean success, String message) {
 		if (hasFeedback(request)) {
 			write(request.getFeedback(), "CALLBACK", stage, action(request), callbackFingerprint(request), success,
@@ -138,16 +117,11 @@ public class OcpxFlowLogWriter {
 			String id = uuid();
 			String eventId = StringUtils.hasText(request.getReqId()) ? limit(request.getReqId(), 128)
 					: UUID.randomUUID().toString();
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_flow_log
-					(id,trace_id,flow_type,stage_code,event_id,source_event_id,event_code,request_method,
-					 request_endpoint,macro_audit,payload_hash,advertiser_id,promotion_link_id,media_id,
-					 monitor_task_id,result_status,partner_http_status,message,response_preview,duration_ms,event_time)
-					VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-					""", id, traceId(request), type, stage, eventId, null, eventCode, method, endpoint,
-					json(macroAudit), payloadHash, request.getAId(), request.getLId(), request.getMId(),
-					request.getTId(), success ? "SUCCESS" : "FAILED", status, limit(message, 500), response, duration,
-					LocalDateTime.now());
+			sqlMapper.insertWriteFlowLog(
+					new OcpxFlowLogWriterSqlMapper.InsertWriteFlowLogCommand(id, traceId(request), type, stage, eventId,
+							null, eventCode, method, endpoint, json(macroAudit), payloadHash, request.getAId(),
+							request.getLId(), request.getMId(), request.getTId(), success ? "SUCCESS" : "FAILED",
+							status, limit(message, 500), response, duration, LocalDateTime.now()));
 			writeDetail(id, requestParams, response);
 		}
 		catch (RuntimeException error) {
@@ -186,11 +160,9 @@ public class OcpxFlowLogWriter {
 			requestJson = JSON.toJSONString(Map.of("_truncated", true));
 		}
 		if (requestJson != null || response != null) {
-			jdbcTemplate.update("""
-					INSERT INTO scx_ocpx_flow_log_detail
-					(id,flow_log_id,request_params,response_preview,request_truncated,expires_at)
-					VALUES (?,?,?,?,?,?)
-					""", uuid(), flowId, requestJson, response, truncated, LocalDateTime.now().plusDays(7));
+			sqlMapper.insertWriteDetailFlowLogDetail(
+					new OcpxFlowLogWriterSqlMapper.InsertWriteDetailFlowLogDetailCommand(uuid(), flowId, requestJson,
+							response, truncated, LocalDateTime.now().plusDays(7)));
 		}
 	}
 
@@ -198,23 +170,34 @@ public class OcpxFlowLogWriter {
 		Map<String, Object> m = new LinkedHashMap<>();
 		put(m, "request_id", v.getReqId());
 		put(m, "event", event(v));
-		put(m, "caid", v.getCaid());
-		put(m, "caid_list", v.getCaidList());
-		put(m, "caid1", v.getCaid1());
-		put(m, "caid2", v.getCaid2());
-		put(m, "last_caid", v.getLastCaid());
-		put(m, "prev_caid", v.getPrevCaid());
-		put(m, "idfa", v.getIdfa());
-		put(m, "idfa_md5", v.getIdfaMd5());
-		put(m, "aaid", v.getAaid());
-		put(m, "imei", v.getImei());
-		put(m, "imei_md5", v.getImeiMd5());
-		put(m, "oaid", v.getOaid());
-		put(m, "oaid_md5", v.getOaidMd5());
-		put(m, "androidid", v.getAndroidid());
-		put(m, "androidid_md5", v.getAndroididMd5());
-		put(m, "mac", v.getMac());
-		put(m, "mac_md5", v.getMacMd5());
+		if (v.isRtaProtected()) {
+			// RTA-enabled feedback can still be diagnosed by its supplied hashes, but
+			// no raw identifier may enter flow_log_detail.
+			put(m, "idfa_md5", v.getIdfaMd5());
+			put(m, "imei_md5", v.getImeiMd5());
+			put(m, "oaid_md5", v.getOaidMd5());
+			put(m, "androidid_md5", v.getAndroididMd5());
+			put(m, "mac_md5", v.getMacMd5());
+		}
+		else {
+			put(m, "caid", v.getCaid());
+			put(m, "caid_list", v.getCaidList());
+			put(m, "caid1", v.getCaid1());
+			put(m, "caid2", v.getCaid2());
+			put(m, "last_caid", v.getLastCaid());
+			put(m, "prev_caid", v.getPrevCaid());
+			put(m, "idfa", v.getIdfa());
+			put(m, "idfa_md5", v.getIdfaMd5());
+			put(m, "aaid", v.getAaid());
+			put(m, "imei", v.getImei());
+			put(m, "imei_md5", v.getImeiMd5());
+			put(m, "oaid", v.getOaid());
+			put(m, "oaid_md5", v.getOaidMd5());
+			put(m, "androidid", v.getAndroidid());
+			put(m, "androidid_md5", v.getAndroididMd5());
+			put(m, "mac", v.getMac());
+			put(m, "mac_md5", v.getMacMd5());
+		}
 		put(m, "ip", v.getIp());
 		put(m, "ipv6", v.getIpv6());
 		put(m, "os", v.getOs());

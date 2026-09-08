@@ -1,11 +1,7 @@
 
-
 package com.yzytech.scx.system.controller.app;
 
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.yzytech.scx.common.core.constant.CommonConstants;
 import com.yzytech.scx.common.core.util.Result;
-import com.yzytech.scx.system.api.entity.SysAdLaunch;
 import com.yzytech.scx.system.service.ISysAdLaunchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,9 +28,7 @@ public class AppSysAdLaunchController {
 	@Operation(summary = "启动广告配置查询")
 	@GetMapping("/get")
 	public Result get() {
-		return Result.success(sysAdLaunchService.getOne(Wrappers.<SysAdLaunch>lambdaQuery()
-			.eq(SysAdLaunch::getStatus, CommonConstants.NORMAL_STATUS)
-			.last("limit 1")));
+		return Result.success(sysAdLaunchService.getActiveConfig());
 	}
 
 }

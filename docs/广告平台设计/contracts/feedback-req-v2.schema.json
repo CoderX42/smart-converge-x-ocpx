@@ -3,48 +3,167 @@
   "$id": "feedback-req-v2.schema.json",
   "title": "Feedback ingress GET query parameters",
   "type": "object",
-  "required": ["mId", "tId", "aId", "lId", "event"],
+  "required": [
+    "mId",
+    "tId",
+    "aId",
+    "lId",
+    "event"
+  ],
   "properties": {
-    "mId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMedia.id" },
-    "tId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxMonitorTask.id" },
-    "aId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxAdvertiser.id; distinct from advertiser-side adv_id" },
-    "lId": { "type": "string", "minLength": 1, "maxLength": 32, "description": "OcpxPromotionLink.id" },
-    "event": { "type": "string", "enum": ["IMP", "CLK"] },
-    "request_id": { "type": "string", "maxLength": 128 },
-    "tagid": { "type": "string", "maxLength": 128, "description": "PHOENIX optional TAGID" },
-    "tagId": { "type": "string", "maxLength": 128, "description": "PHOENIX optional TAGID alias" },
-    "callback_url": { "type": "string", "maxLength": 2000 },
-    "caid": { "type": "string" },
-    "caid_list": { "type": "string" },
-    "caid1": { "type": "string" },
-    "caid2": { "type": "string" },
-    "last_caid": { "type": "string" },
-    "prev_caid": { "type": "string" },
-    "idfa": { "type": "string" },
-    "idfa_md5": { "type": "string" },
-    "aaid": { "type": "string" },
-    "imei": { "type": "string" },
-    "imei_md5": { "type": "string" },
-    "oaid": { "type": "string" },
-    "oaid_md5": { "type": "string" },
-    "androidid": { "type": "string" },
-    "androidid_md5": { "type": "string" },
-    "mac": { "type": "string" },
-    "mac_md5": { "type": "string" },
-    "ip": { "type": "string" },
-    "ipv6": { "type": "string" },
-    "model": { "type": "string" },
-    "osv": { "type": "string" },
-    "os": { "type": "string", "enum": ["0", "1", "ANDROID", "IOS"] },
-    "ts": { "type": "string" },
-    "mts": { "type": "string" },
-    "ua": { "type": "string" },
-    "adv_id": { "type": "string" },
-    "group_id": { "type": "string" },
-    "plan_id": { "type": "string" },
-    "creative_id": { "type": "string" },
-    "impresss_id": { "type": "string" },
-    "clickid": { "type": "string" }
+    "mId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "OcpxMedia.id"
+    },
+    "tId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "OcpxMonitorTask.id"
+    },
+    "aId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "OcpxAdvertiser.id; distinct from advertiser-side adv_id"
+    },
+    "lId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "OcpxPromotionLink.id"
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "IMP",
+        "CLK"
+      ]
+    },
+    "request_id": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "tagid": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "PHOENIX optional TAGID"
+    },
+    "tagId": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "PHOENIX optional TAGID alias"
+    },
+    "callback_url": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "caid": {
+      "type": "string"
+    },
+    "caid_list": {
+      "type": "string"
+    },
+    "caid1": {
+      "type": "string"
+    },
+    "caid2": {
+      "type": "string"
+    },
+    "last_caid": {
+      "type": "string"
+    },
+    "prev_caid": {
+      "type": "string"
+    },
+    "idfa": {
+      "type": "string"
+    },
+    "idfa_md5": {
+      "type": "string"
+    },
+    "aaid": {
+      "type": "string"
+    },
+    "imei": {
+      "type": "string"
+    },
+    "imei_md5": {
+      "type": "string"
+    },
+    "oaid": {
+      "type": "string"
+    },
+    "oaid_md5": {
+      "type": "string"
+    },
+    "androidid": {
+      "type": "string"
+    },
+    "androidid_md5": {
+      "type": "string"
+    },
+    "mac": {
+      "type": "string"
+    },
+    "mac_md5": {
+      "type": "string"
+    },
+    "ip": {
+      "type": "string"
+    },
+    "ipv6": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "osv": {
+      "type": "string"
+    },
+    "os": {
+      "type": "string",
+      "enum": [
+        "0",
+        "1",
+        "ANDROID",
+        "IOS"
+      ]
+    },
+    "ts": {
+      "type": "string"
+    },
+    "mts": {
+      "type": "string"
+    },
+    "ua": {
+      "type": "string"
+    },
+    "adv_id": {
+      "type": "string"
+    },
+    "group_id": {
+      "type": "string"
+    },
+    "plan_id": {
+      "type": "string"
+    },
+    "creative_id": {
+      "type": "string"
+    },
+    "impresss_id": {
+      "type": "string"
+    },
+    "clickid": {
+      "type": "string"
+    },
+    "rtaRequestId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$",
+      "description": "SCX relayRequestId，独立于曝光/点击事件 requestId"
+    }
   },
   "additionalProperties": false
 }

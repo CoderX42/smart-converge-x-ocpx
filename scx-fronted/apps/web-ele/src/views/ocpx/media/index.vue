@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { EntityOption, Media } from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
@@ -31,6 +32,7 @@ import {
 import '../table.scss';
 
 defineOptions({ name: 'OcpxMediaManagement' });
+const router = useRouter();
 
 const MACRO_GROUPS = ref([
   {
@@ -368,6 +370,18 @@ onMounted(async () => {
           width="130"
         >
           <template #default="{ row }">
+            <el-button
+              v-if="hasAccessByCodes(['ocpx:rta:media:view'])"
+              link
+              type="primary"
+              @click="
+                router.push({
+                  path: '/ocpx/rta/media',
+                  query: { mediaId: row.id },
+                })
+              "
+              >RTA 配置</el-button
+            >
             <el-button
               v-access:code="'ocpx:media:edit'"
               :disabled="saving || Boolean(deletingId)"

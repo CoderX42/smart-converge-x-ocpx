@@ -1,5 +1,4 @@
 
-
 package com.yzytech.scx.system.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -15,5 +14,15 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class SysAdLaunchServiceImpl extends ServiceImpl<SysAdLaunchMapper, SysAdLaunch> implements ISysAdLaunchService {
+
+	@Override
+	public SysAdLaunch getConfig() {
+		return baseMapper.selectConfig();
+	}
+
+	@Override
+	public SysAdLaunch getActiveConfig() {
+		return baseMapper.selectActiveConfig();
+	}
 
 }

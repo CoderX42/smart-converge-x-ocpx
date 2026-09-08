@@ -7,4 +7,5 @@
 <mapper namespace="com.yzytech.scx.system.mapper.SysAdLaunchMapper">
 
 
+<select id="selectConfig" resultType="com.yzytech.scx.system.api.entity.SysAdLaunch" useCache="false" flushCache="true">SELECT * FROM sys_ad_launch WHERE del_flag='0' LIMIT 1</select>
 </mapper>

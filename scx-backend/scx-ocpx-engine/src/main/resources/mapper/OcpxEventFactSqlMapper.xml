@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper">
+    <update id="updateRecordFeedbackAdvertiserAccount">
+        UPDATE scx_ocpx_advertiser_account SET available_balance=#{balanceAfter},
+        update_time=CURRENT_TIMESTAMP(3)
+        WHERE advertiser_id=#{advertiserId}
+    </update>
+    <update id="updateRecordCallbackAdvertiserAccount">
+        UPDATE scx_ocpx_advertiser_account SET available_balance=#{balanceAfter},
+        update_time=CURRENT_TIMESTAMP(3)
+        WHERE advertiser_id=#{advertiserId}
+    </update>
+    <update id="updateFinalizeDeductionEventFact">
+        UPDATE scx_ocpx_event_fact SET deduction_decision=#{name},
+        deduction_ratio_snapshot=#{normalizedRatio},
+        deduction_decided_at=#{decidedAt}
+        WHERE id=#{factId} AND flow_type='CALLBACK' AND deduction_decision='PENDING'
+    </update>
+    <insert id="insertFinalizeDeductionHourlyMetric">
+        INSERT INTO scx_ocpx_hourly_metric ( time_hour,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        callback_count,
+        deduction_passed_count,
+        deduction_deducted_count ) SELECT CAST(DATE_FORMAT(received_at,
+        '%Y%m%d%H') AS UNSIGNED),
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        1,
+        #{passed},
+        #{deducted}
+        FROM scx_ocpx_event_fact
+        WHERE id=#{factId}
+        ON DUPLICATE KEY UPDATE deduction_passed_count=deduction_passed_count+VALUES(deduction_passed_count),
+        deduction_deducted_count=deduction_deducted_count+VALUES(deduction_deducted_count),
+        update_time=CURRENT_TIMESTAMP(3)
+    </insert>
+    <resultMap id="selectExistingCallbackEventFactRow" type="com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper$SelectExistingCallbackEventFactRow">
+        <constructor>
+            <arg column="target_conversion" javaType="_boolean"/>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="deduction_decision" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectExistingCallbackEventFact" resultMap="selectExistingCallbackEventFactRow" useCache="false" flushCache="true">
+        SELECT id,
+        target_conversion,
+        deduction_decision
+        FROM scx_ocpx_event_fact
+        WHERE fact_key=#{factKey} AND flow_type='CALLBACK'
+    </select>
+    <insert id="insertInsertFactEventFact">
+        INSERT INTO scx_ocpx_event_fact ( id,
+        fact_key,
+        flow_type,
+        event_code,
+        request_id,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        target_conversion,
+        billing_enabled_snapshot,
+        billing_type_snapshot,
+        billing_unit_price_snapshot,
+        conversion_event_snapshot,
+        deduction_decision,
+        spend_amount,
+        currency_amount,
+        billing_status,
+        billing_reason_code,
+        received_at )
+        VALUES (#{command.id},
+        #{command.factKey},
+        #{command.flowType},
+        #{command.eventCode},
+        #{command.requestId},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.targetConversion},
+        #{command.billingEnabledSnapshot},
+        #{command.billingTypeSnapshot},
+        #{command.billingUnitPriceSnapshot},
+        #{command.conversionEventSnapshot},
+        #{command.deductionDecision},
+        #{command.spendAmount},
+        #{command.currencyAmount},
+        #{command.billingStatus},
+        #{command.billingReasonCode},
+        #{command.receivedAt})
+    </insert>
+    <resultMap id="selectRequireTaskMonitorTaskRow" type="com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper$SelectRequireTaskMonitorTaskRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="advertiser_id" javaType="java.lang.String"/>
+            <arg column="promotion_link_id" javaType="java.lang.String"/>
+            <arg column="media_id" javaType="java.lang.String"/>
+            <arg column="billing_enabled" javaType="_boolean"/>
+            <arg column="billing_type" javaType="_int"/>
+            <arg column="unit_price" javaType="java.math.BigDecimal"/>
+            <arg column="conversion_event" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+    <select id="selectRequireTaskMonitorTask" resultMap="selectRequireTaskMonitorTaskRow" useCache="false" flushCache="true">
+        SELECT id,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        billing_enabled,
+        billing_type,
+        unit_price,
+        conversion_event
+        FROM scx_ocpx_monitor_task
+        WHERE id=#{taskId} AND advertiser_id=#{advertiserId} AND promotion_link_id=#{linkId} AND
+        media_id=#{mediaId} AND is_delete=0
+    </select>
+    <resultMap id="selectLockBalanceAdvertiserAccountRow" type="com.yzytech.scx.ocpx.persistence.mapper.OcpxEventFactSqlMapper$SelectLockBalanceAdvertiserAccountRow">
+        <constructor>
+            <arg column="available_balance" javaType="java.math.BigDecimal"/>
+        </constructor>
+    </resultMap>
+    <select id="selectLockBalanceAdvertiserAccount" resultMap="selectLockBalanceAdvertiserAccountRow" useCache="false" flushCache="true">
+        SELECT available_balance
+        FROM scx_ocpx_advertiser_account
+        WHERE advertiser_id=#{advertiserId} FOR UPDATE
+    </select>
+    <insert id="insertInsertChargeEntryBillingEntry">
+        INSERT INTO scx_ocpx_billing_entry ( id,
+        advertiser_id,
+        monitor_task_id,
+        event_fact_id,
+        entry_type,
+        status,
+        amount,
+        balance_before,
+        balance_after,
+        business_key,
+        reason_code,
+        occurred_at )
+        VALUES (#{command.id},
+        #{command.advertiserId},
+        #{command.monitorTaskId},
+        #{command.eventFactId},
+        #{command.entryType},
+        #{command.status},
+        #{command.amount},
+        #{command.balanceBefore},
+        #{command.balanceAfter},
+        #{command.businessKey},
+        #{command.reasonCode},
+        #{command.occurredAt})
+    </insert>
+    <update id="updateUpdateFactBillingEventFact">
+        UPDATE scx_ocpx_event_fact SET spend_amount=#{spendAmount},
+        billing_status=#{billingStatus},
+        billing_reason_code=#{reasonCode}
+        WHERE id=#{factId}
+    </update>
+    <insert id="insertUpsertMetricHourlyMetric">
+        INSERT INTO scx_ocpx_hourly_metric ( time_hour,
+        advertiser_id,
+        promotion_link_id,
+        media_id,
+        monitor_task_id,
+        impression_count,
+        click_count,
+        target_conversion_count,
+        callback_count,
+        activate_count,
+        evoke_count,
+        login_count,
+        register_count,
+        payment_count,
+        customer_acquisition_count,
+        next_stay_count,
+        visits_count,
+        authentication_count,
+        place_order_count,
+        finish_the_order_count,
+        first_activation_count,
+        first_order_count,
+        download_count,
+        activity_count,
+        addiction_count,
+        spend_amount,
+        currency_amount,
+        rejected_click_count,
+        rejected_conversion_count )
+        VALUES (#{command.timeHour},
+        #{command.advertiserId},
+        #{command.promotionLinkId},
+        #{command.mediaId},
+        #{command.monitorTaskId},
+        #{command.impressionCount},
+        #{command.clickCount},
+        #{command.targetConversionCount},
+        #{command.callbackCount},
+        #{command.activateCount},
+        #{command.evokeCount},
+        #{command.loginCount},
+        #{command.registerCount},
+        #{command.paymentCount},
+        #{command.customerAcquisitionCount},
+        #{command.nextStayCount},
+        #{command.visitsCount},
+        #{command.authenticationCount},
+        #{command.placeOrderCount},
+        #{command.finishTheOrderCount},
+        #{command.firstActivationCount},
+        #{command.firstOrderCount},
+        #{command.downloadCount},
+        #{command.activityCount},
+        #{command.addictionCount},
+        #{command.spendAmount},
+        #{command.currencyAmount},
+        #{command.rejectedClickCount},
+        #{command.rejectedConversionCount})
+        ON DUPLICATE KEY UPDATE impression_count=impression_count+VALUES(impression_count),
+        click_count=click_count+VALUES(click_count),
+        target_conversion_count=target_conversion_count+VALUES(target_conversion_count),
+        callback_count=callback_count+VALUES(callback_count),
+        activate_count=activate_count+VALUES(activate_count),
+        evoke_count=evoke_count+VALUES(evoke_count),
+        login_count=login_count+VALUES(login_count),
+        register_count=register_count+VALUES(register_count),
+        payment_count=payment_count+VALUES(payment_count),
+        customer_acquisition_count=customer_acquisition_count+VALUES(customer_acquisition_count),
+        next_stay_count=next_stay_count+VALUES(next_stay_count),
+        visits_count=visits_count+VALUES(visits_count),
+        authentication_count=authentication_count+VALUES(authentication_count),
+        place_order_count=place_order_count+VALUES(place_order_count),
+        finish_the_order_count=finish_the_order_count+VALUES(finish_the_order_count),
+        first_activation_count=first_activation_count+VALUES(first_activation_count),
+        first_order_count=first_order_count+VALUES(first_order_count),
+        download_count=download_count+VALUES(download_count),
+        activity_count=activity_count+VALUES(activity_count),
+        addiction_count=addiction_count+VALUES(addiction_count),
+        spend_amount=spend_amount+VALUES(spend_amount),
+        currency_amount=currency_amount+VALUES(currency_amount),
+        rejected_click_count=rejected_click_count+VALUES(rejected_click_count),
+        rejected_conversion_count=rejected_conversion_count+VALUES(rejected_conversion_count),
+        update_time=CURRENT_TIMESTAMP(3)
+    </insert>
+</mapper>
