@@ -41,6 +41,7 @@ public class DownstreamDeliveryDispatcher {
 		this(deliveryService, null, coreThreads, maxThreads, queueCapacity);
 	}
 
+	@Autowired
 	public DownstreamDeliveryDispatcher(CallbackUrlDownstreamDeliveryService deliveryService,
 			OppoUploadActiveDataDeliveryService oppoDeliveryService,
 			@Value("${ocpx.delivery.downstream.core-threads:32}") int coreThreads,
