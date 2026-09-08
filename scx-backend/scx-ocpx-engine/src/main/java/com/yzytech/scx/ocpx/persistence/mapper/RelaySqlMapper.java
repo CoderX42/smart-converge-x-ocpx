@@ -27,9 +27,12 @@ public interface RelaySqlMapper {
 	}
 
 	record SelectUpstreamRow(String id, String advertiserId, String accessCode, String endpoint, String credentialRef,
-			long version, int timeoutMs, int admissionSeconds) {
+			long version, int timeoutMs, int admissionSeconds, String protocol, int configSchemaVersion,
+			String protocolConfig) {
 	}
 
 	java.util.List<SelectUpstreamRow> selectUpstream(@Param("column") String column, @Param("value") String value);
+
+	String selectLink(@Param("id") String id);
 
 }

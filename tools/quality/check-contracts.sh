@@ -90,7 +90,7 @@ v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
 v116_paths = {"/flow-logs/{id}/request-detail"}
 v118_paths = {"/callback-records"}
 v119_paths = {"/media-macros"}
-rta_paths = {"/rta/options/{kind}", "/rta/requests", "/rta/callbacks/{accessCode}", "/rta/upstreams", "/rta/media", "/rta/bindings", "/rta/records", "/rta/logs", "/rta/reports"}
+rta_paths = {"/rta/protocols", "/rta/options/{kind}", "/rta/requests", "/rta/callbacks/{accessCode}", "/rta/upstreams", "/rta/media", "/rta/bindings", "/rta/records", "/rta/logs", "/rta/reports"}
 assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | rta_paths
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters

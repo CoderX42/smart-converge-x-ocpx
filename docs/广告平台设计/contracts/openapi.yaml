@@ -142,6 +142,14 @@ paths:
           description: 请求超过64KiB
         '503':
           description: 暂不可用
+  /rta/protocols:
+    get:
+      tags: [RTA]
+      summary: 已安装 RTA 协议与配置字段（广告主接入和任务绑定权限）
+      security: [{saToken: []}]
+      responses:
+        '200':
+          description: Result 包装的协议定义数组；包括 code/name/mode/maxCandidates/retrySafe/credentialRequired/fixedEndpoint/configFields/bindingFields，不含密钥。
   /rta/upstreams:
     get:
       parameters:
@@ -1418,110 +1426,11 @@ components:
       name: satoken
   schemas:
     RtaUpstreamConfig:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-          maxLength: 32
-        version:
-          type: integer
-          minimum: 0
-        advertiserId:
-          type: string
-          minLength: 1
-          maxLength: 32
-        name:
-          type: string
-          minLength: 1
-          maxLength: 128
-        accessCode:
-          type: string
-          pattern: ^[A-Za-z0-9_-]{1,64}$
-        endpoint:
-          type: string
-          format: uri
-          pattern: ^https://
-          maxLength: 2048
-        credentialRef:
-          type: string
-          pattern: ^[A-Za-z0-9_-]{1,64}$
-        timeoutMs:
-          type: integer
-          minimum: 100
-          maximum: 30000
-          default: 5000
-        admissionSeconds:
-          type: integer
-          minimum: 1
-          maximum: 86400
-          default: 300
-        enabled:
-          type: boolean
-          default: false
-      required:
-      - advertiserId
-      - name
-      - accessCode
-      - endpoint
-      - credentialRef
+      $ref: ./rta-async-management.schema.json#/$defs/RtaUpstreamConfig
     RtaMediaConfig:
-      type: object
-      additionalProperties: false
-      properties:
-        mediaId:
-          type: string
-          minLength: 1
-          maxLength: 32
-        version:
-          type: integer
-          minimum: 0
-        notifyUrl:
-          type: string
-          format: uri
-          pattern: ^https://
-          maxLength: 2048
-        credentialRef:
-          type: string
-          pattern: ^[A-Za-z0-9_-]{1,64}$
-        enabled:
-          type: boolean
-          default: false
-      required:
-      - mediaId
-      - notifyUrl
-      - credentialRef
+      $ref: ./rta-async-management.schema.json#/$defs/RtaMediaConfig
     RtaBindingConfig:
-      type: object
-      additionalProperties: false
-      properties:
-        monitorTaskId:
-          type: string
-          minLength: 1
-          maxLength: 32
-        version:
-          type: integer
-          minimum: 0
-        upstreamId:
-          type: string
-          minLength: 1
-          maxLength: 32
-        productId:
-          type: string
-          minLength: 1
-          maxLength: 128
-        externalTaskId:
-          type: string
-          minLength: 1
-          maxLength: 128
-        enabled:
-          type: boolean
-          default: false
-      required:
-      - monitorTaskId
-      - upstreamId
-      - productId
-      - externalTaskId
+      $ref: ./rta-async-management.schema.json#/$defs/RtaBindingConfig
     RtaAsyncRequest:
       type: object
       additionalProperties: false

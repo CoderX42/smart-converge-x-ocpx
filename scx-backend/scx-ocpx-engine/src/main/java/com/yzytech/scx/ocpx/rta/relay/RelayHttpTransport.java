@@ -33,10 +33,17 @@ public class RelayHttpTransport implements RelayTransport {
 
 	@Override
 	public int post(String endpoint, String credentialRef, String body, long timeoutMillis) {
+		return exchange(new RtaUpstreamAdapter.Outbound(endpoint, credentialRef, body), timeoutMillis).status();
+	}
+
+	@Override
+	public RtaUpstreamAdapter.HttpResult exchange(RtaUpstreamAdapter.Outbound outbound, long timeoutMillis) {
+		String endpoint = outbound.endpoint(), credentialRef = outbound.credentialRef(), body = outbound.body();
 		long start = System.nanoTime();
 		URI uri = URI.create(endpoint);
 		if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null
-				|| uri.getFragment() != null || uri.getRawQuery() != null || uri.getPort() != -1 && uri.getPort() != 443
+				|| uri.getFragment() != null || !validQuery(uri, outbound.queryKeys())
+				|| uri.getPort() != -1 && uri.getPort() != 443
 				|| !properties.getAllowedHosts().contains(uri.getHost().toLowerCase(Locale.ROOT)))
 			throw new RelayException(400, "RTA_ENDPOINT_REJECTED");
 		Future<InetAddress[]> lookup = null;
@@ -63,10 +70,17 @@ public class RelayHttpTransport implements RelayTransport {
 				.build();
 			Request.Builder request = new Request.Builder().url(endpoint)
 				.post(RequestBody.create(body, MediaType.get("application/json; charset=utf-8")));
-			security.headers(credentialRef, uri.getRawPath().isEmpty() ? "/" : uri.getRawPath(), body)
-				.forEach(request::header);
+			if (credentialRef != null && !credentialRef.isEmpty())
+				security.headers(credentialRef, uri.getRawPath().isEmpty() ? "/" : uri.getRawPath(), body)
+					.forEach(request::header);
 			try (Response response = client.newCall(request.build()).execute()) {
-				return response.code();
+				byte[] bytes = response.body() == null ? new byte[0] : response.body().byteStream().readNBytes(65537);
+				if (bytes.length > 65536)
+					throw new RelayException(502, "RTA_RESPONSE_TOO_LARGE");
+				String content = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+					.decode(java.nio.ByteBuffer.wrap(bytes))
+					.toString();
+				return new RtaUpstreamAdapter.HttpResult(response.code(), content);
 			}
 			finally {
 				client.connectionPool().evictAll();
@@ -83,6 +97,18 @@ public class RelayHttpTransport implements RelayTransport {
 			if (lookup != null)
 				lookup.cancel(true);
 		}
+	}
+
+	static boolean validQuery(URI uri, java.util.Set<String> allowed) {
+		if (uri.getRawQuery() == null)
+			return allowed.isEmpty();
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (String pair : uri.getRawQuery().split("&", -1)) {
+			String[] parts = pair.split("=", 2);
+			if (parts.length != 2 || parts[1].isEmpty() || !allowed.contains(parts[0]) || !seen.add(parts[0]))
+				return false;
+		}
+		return seen.equals(allowed);
 	}
 
 	@jakarta.annotation.PreDestroy

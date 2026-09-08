@@ -17,7 +17,11 @@ public class RelayController {
 
 	private final RelaySecurity security;
 
-	public RelayController(RelayService service, RelayRepository repository, RelaySecurity security) {
+	private final RtaAdapterRegistry adapters;
+
+	public RelayController(RelayService service, RelayRepository repository, RelaySecurity security,
+			RtaAdapterRegistry adapters) {
+		this.adapters = adapters;
 		this.service = service;
 		this.repository = repository;
 		this.security = security;
@@ -43,8 +47,9 @@ public class RelayController {
 		headers = normalized;
 		String body = body(request);
 		Upstream upstream = repository.upstream("access_code", accessCode);
-		security.verify(upstream.credentialRef(), request.getRequestURI(), body, headers, System.currentTimeMillis());
-		var result = service.decide(RelayJson.read(body, Decision.class), accessCode);
+		var decision = adapters.require(upstream.protocol())
+			.callback(upstream, request.getRequestURI(), body, headers, security);
+		var result = service.decide(decision, accessCode);
 		return ResponseEntity.ok(Map.of("relayRequestId", result.getRelayRequestId(), "status", result.getStatus()));
 	}
 

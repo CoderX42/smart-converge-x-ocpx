@@ -31,7 +31,7 @@ import java.util.Set;
 public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	private static final Set<String> DEVICE_QUERY_PARAMETERS = Set.of("caid1", "caid2", "idfa", "oaid", "imei",
-			"androidid", "ip", "ipv6", "ua", "ts", "osv", "model", "callback");
+			"androidid", "ip", "ipv6", "ua", "ts", "osv", "model", "callback", "requestid");
 
 	@Value("${ocpx.weifeng.callback-base-url:${domain.name}}")
 	private String callbackBaseUrl;
@@ -136,7 +136,20 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			return RequestBuildResult.rejected("WEIFENG_REQUEST_IDENTITY_MISSING");
 		}
 
+		if (feedback.isRtaProtected()) {
+			if (feedback.getProviderRtaRequestId() == null)
+				return RequestBuildResult.rejected("WEIFENG_RTA_CONTEXT_MISSING");
+			try {
+				if (feedback.getRtaRouteConfig() != null)
+					com.yzytech.scx.ocpx.rta.contract.RtaProtocols.requireWeifengRoute(promotionLink.getLinkUrl(),
+							feedback.getRtaRouteConfig());
+			}
+			catch (IllegalArgumentException e) {
+				return RequestBuildResult.rejected("WEIFENG_RTA_PLAN_MISMATCH");
+			}
+		}
 		Map<String, String> macros = new LinkedHashMap<>();
+		macros.put("__RID__", feedback.getProviderRtaRequestId());
 		macros.put("__CAID1__", firstText(feedback.getCaid1(), feedback.getCaid()));
 		macros.put("__CAID2__", firstText(feedback.getCaid2(), feedback.getLastCaid(), feedback.getPrevCaid()));
 		macros.put("__IDFA__", feedback.getIdfa());
@@ -152,10 +165,12 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		macros.put("__OSV__", feedback.getOsv());
 		macros.put("__MODEL__", feedback.getModel());
 		macros.put("__CALLBACK__", callback);
-		return expandPromotionLink(promotionLink.getLinkUrl(), macros, feedback.getOs());
+		return expandPromotionLink(promotionLink.getLinkUrl(), macros, feedback.getOs(),
+				feedback.getProviderRtaRequestId());
 	}
 
-	private RequestBuildResult expandPromotionLink(String template, Map<String, String> macros, OsTypeEnum os) {
+	private RequestBuildResult expandPromotionLink(String template, Map<String, String> macros, OsTypeEnum os,
+			String providerRtaId) {
 		String allowedTemplate = endpointPolicy.requireAllowedClickUrl(template);
 		try {
 			URI uri = URI.create(allowedTemplate);
@@ -199,6 +214,12 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 				}
 			}
 
+			if (providerRtaId != null) {
+				String configured = expandedParameters.get("requestid");
+				if (configured != null && !configured.equals(providerRtaId))
+					return RequestBuildResult.rejected("WEIFENG_RTA_ID_MISMATCH");
+				expandedParameters.put("requestid", providerRtaId);
+			}
 			if (!StringUtils.hasText(expandedParameters.get("aid"))) {
 				return RequestBuildResult.rejected("WEIFENG_TEMPLATE_AID_MISSING");
 			}
@@ -225,7 +246,8 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 			String separator = "?";
 			for (Map.Entry<String, String> entry : expandedParameters.entrySet()) {
 				requestUrl.append(separator)
-					.append(NetUtil.strictUrlEncode(entry.getKey(), StandardCharsets.UTF_8))
+					.append(NetUtil.strictUrlEncode(entry.getKey().equals("requestid") ? "requestId" : entry.getKey(),
+							StandardCharsets.UTF_8))
 					.append('=')
 					.append(NetUtil.strictUrlEncode(entry.getValue(), StandardCharsets.UTF_8));
 				separator = "&";

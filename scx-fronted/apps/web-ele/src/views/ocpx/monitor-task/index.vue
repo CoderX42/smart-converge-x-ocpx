@@ -48,6 +48,7 @@ import {
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
+import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
 import {
   allColumnKeys,
   copyLongText,
@@ -887,8 +888,7 @@ onBeforeUnmount(clearTestPolling);
               type="primary"
               @click="
                 router.push({
-                  path: '/ocpx/rta/bindings',
-                  query: { monitorTaskId: row.id },
+                  query: { rtaTaskId: row.id },
                 })
               "
               >配置</el-button
@@ -1767,13 +1767,12 @@ onBeforeUnmount(clearTestPolling);
             type="primary"
             @click="
               router.push({
-                path: '/ocpx/rta/bindings',
-                query: { monitorTaskId: editing.id },
+                query: { rtaTaskId: editing.id },
               })
             "
-            >前往任务绑定</el-button
+            >配置 RTA</el-button
           >
-          <span v-else>任务保存后，在 RTA 管理 / 任务绑定中配置</span>
+          <span v-else>任务保存后可配置 RTA</span>
         </el-form-item>
         <el-form-item label="备注" prop="remark"
           ><el-input
@@ -1806,6 +1805,7 @@ onBeforeUnmount(clearTestPolling);
         ></template
       >
     </el-dialog>
+    <RtaConfigurationDrawer kind="bindings" @saved="load" />
   </Page>
 </template>
 

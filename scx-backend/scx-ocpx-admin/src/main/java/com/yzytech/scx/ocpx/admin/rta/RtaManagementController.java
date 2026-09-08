@@ -15,6 +15,13 @@ public class RtaManagementController {
 		this.service = service;
 	}
 
+	@GetMapping("/protocols")
+	@SaCheckPermission(value = { "ocpx:rta:upstreams:view", "ocpx:rta:bindings:view" },
+			mode = cn.dev33.satoken.annotation.SaMode.OR)
+	public Result<java.util.List<com.yzytech.scx.ocpx.rta.contract.RtaProtocols.Definition>> protocols() {
+		return Result.success(com.yzytech.scx.ocpx.rta.contract.RtaProtocols.ALL);
+	}
+
 	@GetMapping("/options/{kind}")
 	@SaCheckPermission(
 			value = { "ocpx:rta:upstreams:view", "ocpx:rta:media:view", "ocpx:rta:bindings:view",

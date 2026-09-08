@@ -146,12 +146,20 @@ public class FeedbackReq {
 
 	private String rtaRequestId;
 
+	@JSONField(serialize = false, deserialize = false)
+	@JsonIgnore
+	private String providerRtaRequestId;
+
+	@JSONField(serialize = false, deserialize = false)
+	@JsonIgnore
+	private java.util.Map<String, String> rtaRouteConfig;
+
 	/**
-	 * Authenticated callback-context marker.  The process-local {@link #rtaProtected}
-	 * bit deliberately stays out of ordinary JSON, while a detached RTA dispatch
-	 * snapshot carries this non-sensitive marker inside the encrypted callback
-	 * context so a later Callback can apply the same redaction policy.  Jackson keeps
-	 * the marker hidden from management/API responses.
+	 * Authenticated callback-context marker. The process-local {@link #rtaProtected} bit
+	 * deliberately stays out of ordinary JSON, while a detached RTA dispatch snapshot
+	 * carries this non-sensitive marker inside the encrypted callback context so a later
+	 * Callback can apply the same redaction policy. Jackson keeps the marker hidden from
+	 * management/API responses.
 	 */
 	@JSONField(name = "rta_protected", serialize = true, deserialize = true)
 	private Boolean callbackRtaProtected;
@@ -180,9 +188,9 @@ public class FeedbackReq {
 	 * delivery worker. The original object is never mutated: the raw identifiers are
 	 * cleared on the copy, while their already-supplied hashes remain available to
 	 * protocols that can operate on hashed IDs. The callback URL is retained only when
-	 * its decoded representation contains none of the inbound raw identifiers; an
-	 * unsafe or malformed URL is dropped. The opaque callback envelope is always
-	 * rebuilt by the protocol adapter.
+	 * its decoded representation contains none of the inbound raw identifiers; an unsafe
+	 * or malformed URL is dropped. The opaque callback envelope is always rebuilt by the
+	 * protocol adapter.
 	 *
 	 * <p>
 	 * The Weifeng RTA adapter receives the original object before this method is called.
@@ -223,6 +231,8 @@ public class FeedbackReq {
 		copy.clickId = clickId;
 		copy.reqId = reqId;
 		copy.rtaRequestId = rtaRequestId;
+		copy.providerRtaRequestId = providerRtaRequestId;
+		copy.rtaRouteConfig = rtaRouteConfig;
 		copy.requestIdGenerated = requestIdGenerated;
 		copy.rtaProtected = true;
 		copy.callbackRtaProtected = true;
@@ -232,17 +242,17 @@ public class FeedbackReq {
 		copy.osv = osv;
 		copy.flagLog = flagLog;
 		copy.userType = userType;
-		// ext and every raw identifier intentionally remain null.  A callback URL is
+		// ext and every raw identifier intentionally remain null. A callback URL is
 		// retained only when its decoded form contains none of the inbound raw device
 		// values; otherwise the whole URL is dropped rather than risking a leak.
 		return copy;
 	}
 
 	/**
-	 * Returns whether this object was marked as RTA protected either in-process or by
-	 * the authenticated callback context.  The latter is intentionally fail-safe:
-	 * callers only use the bit to redact/withhold data, never to permit an otherwise
-	 * forbidden operation.
+	 * Returns whether this object was marked as RTA protected either in-process or by the
+	 * authenticated callback context. The latter is intentionally fail-safe: callers only
+	 * use the bit to redact/withhold data, never to permit an otherwise forbidden
+	 * operation.
 	 */
 	public boolean isRtaProtected() {
 		return rtaProtected || Boolean.TRUE.equals(callbackRtaProtected);
@@ -255,7 +265,7 @@ public class FeedbackReq {
 		String decoded = callbackUrl;
 		try {
 			// Ingress normally encodes once; decode a bounded number of times so a
-			// doubly-encoded device value cannot evade the scan.  A malformed escape
+			// doubly-encoded device value cannot evade the scan. A malformed escape
 			// fails closed by dropping the callback destination.
 			for (int i = 0; i < 3; i++) {
 				String next = URLDecoder.decode(decoded, StandardCharsets.UTF_8);
@@ -270,8 +280,8 @@ public class FeedbackReq {
 		}
 		try {
 			URI uri = URI.create(decoded);
-			if (uri.getUserInfo() != null || uri.getFragment() != null || uri.getQuery() == null
-					&& decoded.contains("?")) {
+			if (uri.getUserInfo() != null || uri.getFragment() != null
+					|| uri.getQuery() == null && decoded.contains("?")) {
 				return null;
 			}
 			String query = uri.getRawQuery();
@@ -283,7 +293,8 @@ public class FeedbackReq {
 						name = parameter.substring(0, equals);
 					}
 					name = URLDecoder.decode(name, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT).trim();
-					if (name.matches("(?:idfa|imei|oaid|androidid|android_id|aaid|caid|caid_new|mac|device|userid|user_id|device_id|advertising_id|idfa_md5sum|imei_md5sum|oaid_md5sum|android_id_md5sum|mac_md5sum)")) {
+					if (name.matches(
+							"(?:idfa|imei|oaid|androidid|android_id|aaid|caid|caid_new|mac|device|userid|user_id|device_id|advertising_id|idfa_md5sum|imei_md5sum|oaid_md5sum|android_id_md5sum|mac_md5sum)")) {
 						return null;
 					}
 				}
@@ -294,8 +305,7 @@ public class FeedbackReq {
 		}
 		String haystack = decoded.toLowerCase(Locale.ROOT);
 		for (String raw : rawDeviceValues()) {
-			if (StringUtils.hasText(raw) && !isMacro(raw)
-					&& haystack.contains(raw.toLowerCase(Locale.ROOT))) {
+			if (StringUtils.hasText(raw) && !isMacro(raw) && haystack.contains(raw.toLowerCase(Locale.ROOT))) {
 				return null;
 			}
 		}

@@ -34,7 +34,8 @@ public class RelayRepository {
 		List<Upstream> rows = sqlMapper.selectUpstream(column, value)
 			.stream()
 			.map(rs -> new Upstream(rs.id(), rs.advertiserId(), rs.accessCode(), rs.endpoint(), rs.credentialRef(),
-					rs.version(), rs.timeoutMs(), rs.admissionSeconds(), true))
+					rs.version(), rs.timeoutMs(), rs.admissionSeconds(), true, rs.protocol(), rs.configSchemaVersion(),
+					config(rs.protocolConfig())))
 			.toList();
 		if (rows.size() != 1)
 			throw new RelayException(400, "RTA_UPSTREAM_UNAVAILABLE");
@@ -60,10 +61,31 @@ public class RelayRepository {
 		return rows.size() == 1 && rows.get(0);
 	}
 
+	@SuppressWarnings("unchecked")
+	private java.util.Map<String, String> config(String json) {
+		return json == null ? java.util.Map.of() : RelayJson.read(json, java.util.Map.class);
+	}
+
+	public void validateRoute(Upstream upstream, List<Binding> bindings) {
+		if (!com.yzytech.scx.ocpx.rta.contract.RtaProtocols.require(upstream.protocol())
+			.routeIdentityFields()
+			.isEmpty())
+			for (var b : bindings) {
+				try {
+					com.yzytech.scx.ocpx.rta.contract.RtaProtocols.require(upstream.protocol())
+						.validateRoute(sqlMapper.selectLink(b.linkId()), upstream.protocolConfig());
+				}
+				catch (IllegalArgumentException e) {
+					throw new RelayException(403, "RTA_PLAN_MISMATCH");
+				}
+			}
+	}
+
 	public void current(RtaState state, Binding snapshot) {
 		Media media = mediaByCredential(state.getMedia().credentialRef());
 		Upstream upstream = upstream("id", state.getUpstream().id());
 		Binding binding = binding(snapshot.taskId(), state.getMediaId());
+		validateRoute(upstream, List.of(binding));
 		if (!media.equals(state.getMedia()) || !upstream.equals(state.getUpstream()) || !binding.equals(snapshot))
 			throw new RelayException(403, "RTA_BINDING_CHANGED");
 	}

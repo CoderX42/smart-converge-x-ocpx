@@ -60,7 +60,19 @@ public class OcpxAdvertiserService {
 				? result.getRecords().stream().map(OcpxAdvertiser::getId).toList()
 				: result.getRecords().stream().map(OcpxAdvertiser::getId).filter(accountOnlyId::equals).toList();
 		Map<String, BigDecimal> balances = advertiserAccountService.balancesByIds(visibleAccountIds);
-		return result.convert(value -> view(value, usernames.get(value.getId()), balances.get(value.getId())));
+		Map<String, long[]> rtaSummary = new java.util.HashMap<>();
+		if (!result.getRecords().isEmpty())
+			for (var row : advertiserMapper
+				.selectRtaSummary(result.getRecords().stream().map(OcpxAdvertiser::getId).toList()))
+				rtaSummary.put(row.get("advertiser_id").toString(), new long[] {
+						((Number) row.get("total")).longValue(), ((Number) row.get("enabled_count")).longValue() });
+		return result.convert(value -> {
+			var item = view(value, usernames.get(value.getId()), balances.get(value.getId()));
+			var summary = rtaSummary.getOrDefault(value.getId(), new long[] { 0, 0 });
+			item.setRtaAccessCount(summary[0]);
+			item.setRtaEnabledCount(summary[1]);
+			return item;
+		});
 	}
 
 	/** 对齐 SGYZ getDspName：下拉只返回编号和名称。 */
@@ -264,7 +276,7 @@ public class OcpxAdvertiserService {
 	private AdvertiserViews.Item view(OcpxAdvertiser value, String username, BigDecimal balance) {
 		return new AdvertiserViews.Item(value.getId(), value.getAdvertiserName(), value.getUpstreamProtocol(), username,
 				value.getCredentialConfigKey(), value.getBidUrl(), value.getMacroParams(), balance,
-				value.getCreateTime(), value.getUpdateTime());
+				value.getCreateTime(), value.getUpdateTime(), 0, 0);
 	}
 
 }

@@ -4,7 +4,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `openapi.yaml` | `/feedback`、通用/AERIM/微风/引力/人人视频/凤凰新闻 Callback、MOCK/WEIFENG_RTA 决策与 admission、媒体回传、创意/素材、可配置计费、账务流水、监测点击测试、下游媒体联调和真实首页摘要 |
+| `openapi.yaml` | `/feedback`、通用/AERIM/微风/引力/人人视频/凤凰新闻 Callback、GENERIC_ASYNC/WEIFENG_RTA 决策与放行校验、媒体回传、创意/素材、可配置计费、账务流水、监测点击测试、下游媒体联调和真实首页摘要 |
 | `feedback-req-v2.schema.json` | Feedback Ingress Query 对象 |
 | `callback-req-v2.schema.json` | Upstream Callback Query 对象 |
 | `weifeng-callback-req-v1.schema.json` | 微风互动 Callback Query 对象 |
@@ -51,3 +51,5 @@ make contract-check
 ```
 
 现行 RTA 入口见 [通用异步协议与切换说明](rta-async.md) 和 `rta-async-*.schema.json`。V130 文档仅为历史记录，不再代表当前实现。
+
+V132：RTA 配置归属与协议能力见 [使用与交付说明](../RTA配置归属与多协议接入V132.md)。`GET /rta/protocols` 为管理 API；当前媒体协议保持异步，上游同步与回调分别适配。

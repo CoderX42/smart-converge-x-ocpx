@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.yzytech.scx.common.security.handler.BootBusinessException;
 import com.yzytech.scx.ocpx.admin.service.AdvertiserScope;
 import com.yzytech.scx.ocpx.rta.contract.RtaContract;
+import com.yzytech.scx.ocpx.rta.contract.RtaProtocols;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -59,8 +60,13 @@ public class RtaManagement {
 		String asOf = kind.equals("logs") || kind.equals("reports") ? sqlMapper.dataAsOf(criteria) : null;
 		List<Map<String, Object>> rows = sqlMapper.selectPage(criteria).stream().map(this::camel).toList();
 		for (var row : rows) {
-			if (kind.equals("upstreams"))
-				row.put("callbackUrl", publicBaseUrl + "/rta/callbacks/" + row.get("accessCode"));
+			if (kind.equals("upstreams")) {
+				var protocol = RtaProtocols.require(row.get("protocol").toString());
+				row.put("protocolConfig", parseConfig(row.get("protocolConfig")));
+				row.put("decisionMode", protocol.mode());
+				if (protocol.mode().equals("ASYNC_CALLBACK"))
+					row.put("callbackUrl", publicBaseUrl + "/rta/callbacks/" + row.get("accessCode"));
+			}
 			if (kind.equals("media"))
 				row.put("requestUrl", publicBaseUrl + "/rta/requests");
 			if (kind.equals("reports")) {
@@ -85,16 +91,54 @@ public class RtaManagement {
 
 	@Transactional
 	public void save(String kind, Map<String, Object> body) {
+		var allowed = Map.of("upstreams",
+				Set.of("id", "advertiserId", "name", "protocol", "protocolConfig", "accessCode", "endpoint",
+						"credentialRef", "timeoutMs", "admissionSeconds", "enabled", "version"),
+				"media", Set.of("mediaId", "notifyUrl", "credentialRef", "enabled", "version"), "bindings",
+				Set.of("monitorTaskId", "upstreamId", "productId", "externalTaskId", "enabled", "version"));
+		if (!allowed.containsKey(kind) || !allowed.get(kind).containsAll(body.keySet()))
+			throw new BootBusinessException("未知 RTA 配置字段");
+		if (body.containsKey("enabled") && !(body.get("enabled") instanceof Boolean))
+			throw new BootBusinessException("状态字段无效");
 		String id = text(body, "id", 32, false);
 		boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
 		long version = number(Objects.toString(body.get("version"), null), 0, 0, Long.MAX_VALUE);
 		if (kind.equals("upstreams")) {
 			scope.requireSystemAdministrator();
 			String advertiser = text(body, "advertiserId", 32, true), name = text(body, "name", 128, true),
-					code = text(body, "accessCode", 64, true), endpoint = text(body, "endpoint", 2048, true),
-					ref = text(body, "credentialRef", 64, true);
+					code = text(body, "accessCode", 64, false), endpoint = text(body, "endpoint", 2048, false),
+					ref = text(body, "credentialRef", 64, false);
+			String protocolCode = Objects.toString(body.get("protocol"), "GENERIC_ASYNC");
+			RtaProtocols.Definition protocol;
+			Map<String, String> config;
+			try {
+				protocol = RtaProtocols.require(protocolCode);
+				config = protocol.validateConfig(parseConfig(body.get("protocolConfig")));
+			}
+			catch (IllegalArgumentException e) {
+				throw new BootBusinessException(e.getMessage());
+			}
+			if (code.isEmpty()) {
+				if (!id.isEmpty())
+					throw new BootBusinessException("接入编号不可修改");
+				code = UUID.randomUUID().toString().replace("-", "");
+			}
+			if (!protocol.fixedEndpoint().isEmpty()) {
+				if (!endpoint.isEmpty() && !endpoint.equals(protocol.fixedEndpoint()))
+					throw new BootBusinessException("协议地址不可修改");
+				endpoint = protocol.fixedEndpoint();
+			}
+			if (!id.isEmpty()) {
+				var old = sqlMapper.findUpstream(id);
+				if (old == null || !advertiser.equals(old.get("advertiser_id"))
+						|| !protocolCode.equals(old.get("protocol")))
+					throw new BootBusinessException("接入不可用或协议不可修改");
+			}
 			identifier(code);
-			identifier(ref);
+			if (protocol.credentialRequired())
+				identifier(ref);
+			else if (!ref.isEmpty())
+				throw new BootBusinessException("当前协议不使用认证凭据");
 			exists(sqlMapper.countAdvertiser(advertiser));
 			url(endpoint);
 			int timeout = (int) number(Objects.toString(body.get("timeoutMs"), null), 5000, 100, 30000),
@@ -102,10 +146,11 @@ public class RtaManagement {
 			if (id.isEmpty())
 				sqlMapper.insertSaveRtaUpstream(new RtaManagementSqlMapper.InsertSaveRtaUpstreamCommand(
 						UUID.randomUUID().toString().replace("-", ""), advertiser, name, code, endpoint, ref, timeout,
-						ttl, enabled));
+						ttl, enabled, protocolCode, JSON.toJSONString(config)));
 			else
-				changed(sqlMapper.updateSaveRtaUpstream(new RtaManagementSqlMapper.UpdateSaveRtaUpstreamCommand(name,
-						endpoint, ref, timeout, ttl, enabled, id, advertiser, code, version)));
+				changed(sqlMapper.updateSaveRtaUpstream(
+						new RtaManagementSqlMapper.UpdateSaveRtaUpstreamCommand(name, endpoint, ref, timeout, ttl,
+								enabled, id, advertiser, code, version, protocolCode, JSON.toJSONString(config))));
 		}
 		else if (kind.equals("media")) {
 			scope.requireSystemAdministrator();
@@ -121,17 +166,35 @@ public class RtaManagement {
 		}
 		else if (kind.equals("bindings")) {
 			String task = text(body, "monitorTaskId", 32, true), upstream = text(body, "upstreamId", 32, true),
-					product = text(body, "productId", 128, true), external = text(body, "externalTaskId", 128, true);
+					product = text(body, "productId", 128, false), external = text(body, "externalTaskId", 128, false);
 			List<Map<String, Object>> tasks = sqlMapper.lockTask(task);
 			if (tasks.size() != 1)
 				throw new BootBusinessException("任务不可用");
 			var t = tasks.get(0);
 			scope.requireOwner(t.get("advertiser_id").toString());
 			sqlMapper.selectSaveRtaMediaAccess(t.get("media_id"));
+			var access = sqlMapper.findUpstream(upstream);
+			if (access == null || !Objects.equals(access.get("advertiser_id"), t.get("advertiser_id")))
+				throw new BootBusinessException("广告主接入不可用");
+			var protocol = RtaProtocols.require(access.get("protocol").toString());
+			if (protocol.bindingFields().isEmpty()) {
+				product = null;
+				external = null;
+				try {
+					protocol.validateRoute(sqlMapper.selectLink(t.get("promotion_link_id")),
+							parseConfig(access.get("protocol_config")));
+				}
+				catch (IllegalArgumentException e) {
+					throw new BootBusinessException(e.getMessage());
+				}
+			}
+			else if (product.isBlank() || external.isBlank())
+				throw new BootBusinessException("请填写上游产品和任务标识");
 			Long valid = sqlMapper.countValidRoute(t.get("media_id"), upstream, t.get("advertiser_id"), enabled);
 			if (valid == null || valid != 1)
 				throw new BootBusinessException("广告主接入或媒体配置不可用");
-			Long duplicate = sqlMapper.selectSaveRtaBinding(t.get("media_id"), upstream, product, external, task);
+			Long duplicate = protocol.bindingFields().isEmpty() ? 0L
+					: sqlMapper.selectSaveRtaBinding(t.get("media_id"), upstream, product, external, task);
 			if (enabled && duplicate != null && duplicate > 0)
 				throw new BootBusinessException("同一媒体的产品/任务映射存在歧义");
 			if (version == 0)
@@ -191,6 +254,16 @@ public class RtaManagement {
 						row.put(field, state.get(field));
 					if (!(row.get("matchedTaskIds") instanceof List))
 						row.put("matchedTaskIds", List.of());
+					var upstream = state.getJSONObject("upstream");
+					if (upstream != null) {
+						String protocol = upstream.getString("protocol");
+						if (protocol == null)
+							protocol = "GENERIC_ASYNC";
+						row.put("protocol", protocol);
+						row.put("decisionMode", RtaProtocols.require(protocol).mode());
+					}
+					row.put("providerRequestId", state.getOrDefault("providerRequestId", state.get("relayRequestId")));
+					row.put("dispatchStatus", state.get("dispatchStatus"));
 					rows.add(row);
 				}
 			if (ids.size() < 500)
@@ -206,6 +279,21 @@ public class RtaManagement {
 		for (var row : rows)
 			row.put("mediaName", names.getOrDefault(row.get("mediaId"), Objects.toString(row.get("mediaId"))));
 		return new Page(rows, matched, current, size, null);
+	}
+
+	private Map<String, String> parseConfig(Object input) {
+		if (input == null)
+			return Map.of();
+		Object value = input instanceof String ? JSON.parse(input.toString()) : input;
+		if (!(value instanceof Map<?, ?> map))
+			throw new BootBusinessException("协议配置必须是对象");
+		Map<String, String> result = new LinkedHashMap<>();
+		map.forEach((k, v) -> {
+			if (!(k instanceof String) || !(v instanceof String))
+				throw new BootBusinessException("协议参数必须是字符串");
+			result.put((String) k, (String) v);
+		});
+		return result;
 	}
 
 	private void exists(Long count) {

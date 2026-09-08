@@ -24,8 +24,11 @@ public class RelayService {
 
 	private final RelayAudit audit;
 
+	private final RtaAdapterRegistry adapters;
+
 	public RelayService(RelayRepository repository, RelayStore store, RelaySecurity security,
-			RelayProperties properties, RelayAudit audit) {
+			RelayProperties properties, RelayAudit audit, RtaAdapterRegistry adapters) {
+		this.adapters = adapters;
 		this.repository = repository;
 		this.store = store;
 		this.security = security;
@@ -64,11 +67,16 @@ public class RelayService {
 			if (!tuples.add(new Candidate(b.productId(), b.externalTaskId())))
 				throw new RelayException(400, "RTA_BINDING_AMBIGUOUS");
 		}
-		security.secret(upstream.credentialRef());
+		var adapter = adapters.require(upstream.protocol());
+		adapter.validate(canonical, upstream);
+		if (adapter.definition().credentialRequired())
+			security.secret(upstream.credentialRef());
+		repository.validateRoute(upstream, bindings);
 
 		RtaState state = new RtaState();
 		state.setRequestId(request.requestId());
 		state.setRelayRequestId(UUID.randomUUID().toString().replace("-", ""));
+		state.setProviderRequestId(state.getRelayRequestId());
 		state.setRequestHash(requestHash);
 		state.setMediaId(media.mediaId());
 		state.setAdvertiserId(upstream.advertiserId());

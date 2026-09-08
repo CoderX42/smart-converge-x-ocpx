@@ -27,6 +27,10 @@ public class RelayWorker {
 
 	private final MeterRegistry metrics;
 
+	private final RtaAdapterRegistry adapters;
+
+	private final RelayService service;
+
 	private final ThreadPoolExecutor executor = new ThreadPoolExecutor(16, 16, 0, TimeUnit.SECONDS,
 			new ArrayBlockingQueue<>(32), r -> {
 				Thread t = new Thread(r, "rta-delivery");
@@ -35,7 +39,10 @@ public class RelayWorker {
 			}, new ThreadPoolExecutor.AbortPolicy());
 
 	public RelayWorker(RelayStore store, RelaySecurity security, RelayProperties properties, RelayTransport transport,
-			RelayRepository repository, RelayAudit audit, MeterRegistry metrics) {
+			RelayRepository repository, RelayAudit audit, MeterRegistry metrics, RtaAdapterRegistry adapters,
+			RelayService service) {
+		this.adapters = adapters;
+		this.service = service;
 		this.store = store;
 		this.security = security;
 		this.properties = properties;
@@ -99,37 +106,42 @@ public class RelayWorker {
 			store.mutate("SUBMITTED", now, id);
 			return;
 		}
+		var adapter = adapters.require(s.getUpstream().protocol());
 		try {
 			for (var b : s.getBindings())
 				repository.current(s, b);
 			Request original = RelayJson.read(security.decrypt(id, s.getEncryptedPayload()), Request.class);
-			String base = properties.getCallbackBaseUrl();
-			URI callback = URI.create(base + "/rta/callbacks/" + s.getUpstream().accessCode());
-			if (!"https".equals(callback.getScheme()) || callback.getHost() == null)
-				throw new RelayException(503, "RTA_CALLBACK_BASE_UNAVAILABLE");
-			var candidates = s.getBindings()
-				.stream()
-				.map(b -> new Candidate(b.productId(), b.externalTaskId()))
-				.toList();
-			String payload = RelayJson
-				.write(Map.of("requestId", s.getRequestId(), "relayRequestId", id, "candidates", candidates, "device",
-						original.device(), "context", original.context(), "callbackUrl", callback.toString()));
+			var outbound = adapter.build(s, original, properties.getCallbackBaseUrl());
 			long remaining = s.getDeadline() - System.currentTimeMillis();
 			if (remaining <= 0) {
 				store.finish(id, "TIMEOUT", "RTA_TIMEOUT", List.of(), "TIMEOUT", System.currentTimeMillis());
 				return;
 			}
-			int status = transport.post(s.getUpstream().endpoint(), s.getUpstream().credentialRef(), payload,
-					Math.min(1000, remaining));
-			if (status == 202)
+			if (!adapter.definition().retrySafe())
+				store.mutate("DISPATCH_ONCE", System.currentTimeMillis(), id);
+			var response = transport.exchange(outbound,
+					Math.min(adapter.definition().retrySafe() ? 1000 : 30000, remaining));
+			var decision = adapter.submitted(s, response);
+			if (decision == null)
 				store.mutate("SUBMITTED", System.currentTimeMillis(), id);
 			else
-				store.mutate("SEND_RETRY", System.currentTimeMillis(), id);
-			audit.write(s, "UPSTREAM_SUBMIT", status == 202, "HTTP_" + status, System.currentTimeMillis() - now);
+				service.decide(decision, s.getUpstream().accessCode());
+			audit.write(s, decision == null ? "UPSTREAM_SUBMIT" : "UPSTREAM_SYNC_DECISION", true,
+					"HTTP_" + response.status(), System.currentTimeMillis() - now);
 		}
 		catch (RuntimeException e) {
-			store.mutate("SEND_RETRY", System.currentTimeMillis(), id);
-			audit.write(s, "UPSTREAM_SUBMIT", false, "SUBMIT_FAILED", System.currentTimeMillis() - now);
+			if (e instanceof RelayException re && "RTA_DISPATCH_ALREADY_STARTED".equals(re.getMessage()))
+				return;
+			var current = store.get(id);
+			if (!current.getStatus().equals("PENDING"))
+				return;
+			if (adapter.definition().retrySafe())
+				store.mutate("SEND_RETRY", System.currentTimeMillis(), id);
+			else
+				store.finish(id, "ERROR", e instanceof RelayException ? e.getMessage() : "RTA_SUBMIT_FAILED", List.of(),
+						"SUBMIT_FAILED", System.currentTimeMillis());
+			audit.write(s, "UPSTREAM_SUBMIT", false, e instanceof RelayException ? e.getMessage() : "SUBMIT_FAILED",
+					System.currentTimeMillis() - now);
 		}
 	}
 

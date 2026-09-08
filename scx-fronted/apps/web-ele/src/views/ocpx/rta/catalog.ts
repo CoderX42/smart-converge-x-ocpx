@@ -12,14 +12,13 @@ export const descriptions: Record<RtaKind, string> = {
   bindings:
     '媒体和广告主取自监测任务。每个任务配置一个上游产品与任务映射，修改绑定后原放行结果失效。',
   logs: '仅展示脱敏阶段摘要；成功请求按关联 ID 稳定采样 10%，失败全量记录。XXL-JOB 异步落库，保留 24 小时。',
-  media:
-    '选择媒体管理中已有媒体，配置 RTA 请求认证及决策通知地址。每个媒体最多一份配置。',
+  media: '配置当前媒体的 RTA 请求认证及决策通知地址。每个媒体最多一份配置。',
   records:
     '近 24 小时实时请求状态。202 仅代表已受理，投放须等待 ALLOW 通知并在有效期内使用命中任务。',
   reports:
     '候选任务各计一次受理；RTA 命中率 = 允许数 / 受理数，与转化率无关。报表由 XXL-JOB 异步更新。',
   upstreams:
-    '通用异步协议：发送候选任务后，由广告主另发 HTTP 请求回调决策。服务端配置凭据，页面仅保存引用。',
+    '当前广告主可维护多份 RTA 接入。选择协议后配置对应参数；点击/转化协议独立维护。',
 };
 type Column = { key: keyof RtaRow; label: string; width?: number };
 export const columns: Record<RtaKind, Column[]> = {
@@ -53,6 +52,7 @@ export const columns: Record<RtaKind, Column[]> = {
   ],
   records: [
     { key: 'requestId', label: '媒体请求 ID', width: 220 },
+    { key: 'protocol', label: 'RTA 协议' },
     { key: 'mediaName', label: '媒体' },
     { key: 'status', label: '决策状态' },
     { key: 'matchedTaskIds', label: '命中任务' },

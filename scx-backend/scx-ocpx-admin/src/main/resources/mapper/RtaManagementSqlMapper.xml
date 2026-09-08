@@ -4,6 +4,7 @@
     <insert id="insertSaveRtaUpstream">
         INSERT INTO scx_ocpx_rta_upstream(id,
         advertiser_id,
+        protocol, protocol_config, config_schema_version,
         name,
         access_code,
         endpoint,
@@ -14,6 +15,7 @@
         version)
         VALUES(#{command.id},
         #{command.advertiserId},
+        #{command.protocol}, #{command.protocolConfig}, 1,
         #{command.name},
         #{command.accessCode},
         #{command.endpoint},
@@ -26,13 +28,14 @@
     <update id="updateSaveRtaUpstream">
         UPDATE scx_ocpx_rta_upstream SET name=#{command.name},
         endpoint=#{command.endpoint},
+        protocol_config=#{command.protocolConfig},
         credential_ref=#{command.credentialRef},
         timeout_ms=#{command.timeoutMs},
         admission_seconds=#{command.admissionSeconds},
         enabled=#{command.enabled},
         version=version+1
         WHERE id=#{command.id} AND advertiser_id=#{command.advertiserId} AND access_code=#{command.accessCode} AND
-        version=#{command.version}
+        version=#{command.version} AND protocol=#{command.protocol}
     </update>
     <insert id="insertSaveRtaMediaAccess">
         INSERT INTO scx_ocpx_rta_media_access(media_id,
@@ -163,6 +166,7 @@
                 r.upstream_id,
                 r.product_id,
                 r.external_task_id,
+                u.protocol,
                 COALESCE(r.version,
                 0) AS version,
                 COALESCE(r.enabled,
@@ -170,6 +174,7 @@
                 FROM scx_ocpx_monitor_task t
                 LEFT
                 JOIN scx_ocpx_rta_binding r ON r.monitor_task_id=t.id
+                LEFT JOIN scx_ocpx_rta_upstream u ON u.id=r.upstream_id
                 JOIN scx_ocpx_media m ON m.id=t.media_id
                 JOIN scx_ocpx_advertiser a ON a.id=t.advertiser_id
                 WHERE 1=1 AND t.is_delete=0
@@ -385,7 +390,7 @@
             </when>
             <when test="q.kind == &#x27;upstreams&#x27;">
                 SELECT r.id,
-                r.name AS name
+                r.name AS name, r.protocol
                 FROM scx_ocpx_rta_upstream r
                 WHERE 1=1
                 <if test="q.advertiserId != null">
@@ -442,4 +447,6 @@
         FROM scx_ocpx_media
         WHERE id=#{id}
     </select>
+<select id="findUpstream" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">SELECT * FROM scx_ocpx_rta_upstream WHERE id=#{id} FOR UPDATE</select>
+    <select id="selectLink" resultType="java.lang.String">SELECT link_url FROM scx_ocpx_promotion_link WHERE id=#{id} AND is_delete=0</select>
 </mapper>

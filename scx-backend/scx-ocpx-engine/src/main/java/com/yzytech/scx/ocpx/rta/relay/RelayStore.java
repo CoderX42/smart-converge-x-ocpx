@@ -56,6 +56,8 @@ public class RelayStore {
 		String result = redis.execute(state, List.of(RtaContract.PREFIX), args.toArray());
 		if (result == null)
 			throw new RelayException(503, "RTA_STORAGE_UNAVAILABLE");
+		if (result.equals("DISPATCHED"))
+			throw new RelayException(409, "RTA_DISPATCH_ALREADY_STARTED");
 		if (result.equals("CONFLICT"))
 			throw new RelayException(409, "RTA_REQUEST_CONFLICT");
 		if (result.equals("EXPIRED"))

@@ -12,6 +12,7 @@ import type {
 } from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import { useAccess } from '@boot/access';
 import { Page } from '@boot/common-ui';
@@ -41,6 +42,7 @@ import {
 import { createClientRequestId } from '#/utils/request-id';
 
 import LongText from '../long-text.vue';
+import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
 import {
   allColumnKeys,
   createLatestRequestGuard,
@@ -51,6 +53,7 @@ import {
 import '../table.scss';
 
 defineOptions({ name: 'OcpxAdvertiserManagement' });
+const router = useRouter();
 
 const columns = [
   { key: 'id', label: '广告主编号' },
@@ -832,13 +835,26 @@ onMounted(async () => {
           min-width="170"
           prop="updateTime"
         />
+        <el-table-column label="RTA 接入" width="150"
+          ><template #default="{ row }"
+            >{{ row.rtaEnabledCount || 0 }} 已启用 /
+            {{ row.rtaAccessCount || 0 }} 份</template
+          ></el-table-column
+        >
         <el-table-column
-          v-if="canOperate"
+          v-if="canOperate || hasAccessByCodes(['ocpx:rta:upstreams:view'])"
           fixed="right"
           label="操作"
-          width="285"
+          width="360"
         >
           <template #default="{ row }">
+            <el-button
+              v-if="hasAccessByCodes(['ocpx:rta:upstreams:view'])"
+              link
+              type="primary"
+              @click="router.push({ query: { rtaAdvertiserId: row.id } })"
+              >RTA 配置</el-button
+            >
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
               :disabled="saving || accountActionLoading || Boolean(deletingId)"
@@ -1377,6 +1393,7 @@ onMounted(async () => {
         @change="loadLedger"
       />
     </el-drawer>
+    <RtaConfigurationDrawer kind="upstreams" @saved="load" />
   </Page>
 </template>
 

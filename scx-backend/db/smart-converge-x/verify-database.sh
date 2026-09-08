@@ -99,7 +99,13 @@ invalid_rta_bindings="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_binding b
 invalid_rta_media="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_media_access r LEFT JOIN scx_ocpx_media m ON m.id=r.media_id WHERE m.id IS NULL")"
 [[ "$invalid_rta_media" -eq 0 ]] || fail "RTA media configuration references missing media"
 rta_menu_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE parent_id='menu_ocpx_rta' AND type='0' AND del_flag='0'")"
-[[ "$rta_menu_count" -eq 6 ]] || fail "RTA management requires six child pages"
+[[ "$rta_menu_count" -eq 3 ]] || fail "RTA management requires three operational pages"
+rta_config_permission_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE type='1' AND del_flag='0' AND
+ ((id='menu_ocpx_rta_upstreams' AND parent_id='menu_ocpx_advertiser') OR
+  (id='menu_ocpx_rta_media' AND parent_id='menu_ocpx_media') OR
+  (id='menu_ocpx_rta_bindings' AND parent_id='menu_ocpx_monitor_task'))")"
+[[ "$rta_config_permission_count" -eq 3 ]] || fail "RTA configuration permissions must belong to their business objects"
+
 
 deduction_ratio_contract="$(scalar "SELECT COUNT(*) FROM information_schema.columns
  WHERE table_schema=DATABASE() AND table_name='scx_ocpx_deduction_rule'
@@ -401,7 +407,7 @@ dangling_role_menu="$(scalar "SELECT COUNT(*) FROM sys_role_menu rm LEFT JOIN sy
 
 echo "Database verification passed: OCPX management, truthful fact, account, ledger, hourly metric and system tables are valid."
 
-assert_exact_columns scx_ocpx_rta_upstream 'id,advertiser_id,name,protocol,access_code,endpoint,credential_ref,timeout_ms,admission_seconds,enabled,version,update_time'
+assert_exact_columns scx_ocpx_rta_upstream 'id,advertiser_id,name,protocol,protocol_config,config_schema_version,access_code,endpoint,credential_ref,timeout_ms,admission_seconds,enabled,version,update_time'
 
 assert_exact_columns scx_ocpx_rta_media_access 'media_id,notify_url,credential_ref,enabled,version,update_time'
 

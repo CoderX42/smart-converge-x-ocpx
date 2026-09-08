@@ -147,6 +147,47 @@ class RtaPersistenceIntegrationTest {
 			.hasMessage("forbidden");
 	}
 
+	@Test
+	void multipleAdvertiserAccessesProtocolFieldsAndPlanBinding() {
+		ReflectionTestUtils.setField(management, "allowedHosts", List.of("a.test", "m.test", "rta.adapi.cn"));
+		save("media", Map.of("mediaId", "media", "notifyUrl", "https://m.test/notify", "credentialRef", "media-key",
+				"enabled", true));
+		for (String aid : List.of("5103", "5104"))
+			save("upstreams", Map.of("advertiserId", "adv", "name", "Weifeng " + aid, "protocol", "WEIFENG_RTA",
+					"protocolConfig", Map.of("aid", aid, "did", "zsyd"), "enabled", true));
+		var accesses = management.list("upstreams", Map.of("advertiserId", "adv")).records();
+		assertThat(accesses).hasSize(2);
+		var access = accesses.stream().filter(r -> r.get("name").equals("Weifeng 5103")).findFirst().orElseThrow();
+		assertThat(access).doesNotContainKey("callbackUrl");
+		assertThat(access.get("credentialRef")).isEqualTo("");
+		String id = access.get("id").toString();
+		assertThatThrownBy(() -> save("bindings", Map.of("monitorTaskId", "A", "upstreamId", id, "enabled", true)))
+			.hasMessageContaining("计划参数");
+        jdbc.update("UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5104&did=zsyd' WHERE id='link'");
+        assertThatThrownBy(()->save("bindings",Map.of("monitorTaskId","A","upstreamId",id,"enabled",true))).hasMessageContaining("不一致");
+		jdbc.update(
+				"UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5103&did=zsyd' WHERE id='link'");
+		save("bindings", Map.of("monitorTaskId", "A", "upstreamId", id, "enabled", true));
+		var binding = management.list("bindings", Map.of("monitorTaskId", "A")).records().get(0);
+		assertThat(binding.get("productId")).isNull();
+		assertThat(binding.get("externalTaskId")).isNull();
+		assertThat(binding.get("protocol")).isEqualTo("WEIFENG_RTA");
+		assertThat(management.options("upstreams", Map.of("advertiserId", "other"))).isEmpty();
+		assertThatThrownBy(() -> save("upstreams",
+				Map.of("id", id, "advertiserId", "adv", "accessCode", access.get("accessCode"), "name", "Wrong",
+						"protocol", "GENERIC_ASYNC", "endpoint", "https://a.test/request", "credentialRef", "ref",
+						"version", 1)))
+			.hasMessageContaining("协议不可修改");
+		assertThatThrownBy(
+				() -> save("upstreams",
+						Map.of("advertiserId", "adv", "name", "Bad", "protocol", "WEIFENG_RTA", "protocolConfig",
+								Map.of("aid", "5103", "did", "zsyd", "secret", "never-store"))))
+			.hasMessageContaining("字段");
+		assertThatThrownBy(() -> save("media", Map.of("mediaId", "media", "notifyUrl", "https://m.test/notify",
+				"credentialRef", "ref", "secret", "never-store")))
+			.hasMessageContaining("未知");
+	}
+
 	String stream = RtaContract.PREFIX + "logs";
 
 	String payload(String id, long time) {

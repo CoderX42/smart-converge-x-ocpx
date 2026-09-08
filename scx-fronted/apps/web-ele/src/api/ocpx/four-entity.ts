@@ -15,6 +15,8 @@ export type AdvertiserV2 = {
   credentialConfigKey?: string;
   id: string;
   macroParams?: string;
+  rtaAccessCount?: number;
+  rtaEnabledCount?: number;
   updateTime: string;
   upstreamProtocol?: OcpxUpstreamProtocol;
   username?: null | string;

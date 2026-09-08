@@ -38,6 +38,10 @@ public final class AdvertiserViews {
 
 		private LocalDateTime updateTime;
 
+		private long rtaAccessCount;
+
+		private long rtaEnabledCount;
+
 	}
 
 	@Data

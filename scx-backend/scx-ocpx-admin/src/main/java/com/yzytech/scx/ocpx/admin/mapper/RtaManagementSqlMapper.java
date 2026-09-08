@@ -52,16 +52,21 @@ public interface RtaManagementSqlMapper {
 	Long countMedia(@Param("id") String id);
 
 	record InsertSaveRtaUpstreamCommand(String id, String advertiserId, String name, String accessCode, String endpoint,
-			String credentialRef, int timeoutMs, Integer admissionSeconds, boolean enabled) {
+			String credentialRef, int timeoutMs, Integer admissionSeconds, boolean enabled, String protocol,
+			String protocolConfig) {
 	}
 
 	record UpdateSaveRtaUpstreamCommand(String name, String endpoint, String credentialRef, int timeoutMs,
-			Integer admissionSeconds, boolean enabled, String id, String advertiserId, String accessCode,
-			long version) {
+			Integer admissionSeconds, boolean enabled, String id, String advertiserId, String accessCode, long version,
+			String protocol, String protocolConfig) {
 	}
 
 	record UpdateSaveRtaBindingCommand(String upstreamId, String productId, String externalTaskId, boolean enabled,
 			String monitorTaskId, long version) {
 	}
+
+	java.util.Map<String, Object> findUpstream(@Param("id") String id);
+
+	String selectLink(@Param("id") Object id);
 
 }

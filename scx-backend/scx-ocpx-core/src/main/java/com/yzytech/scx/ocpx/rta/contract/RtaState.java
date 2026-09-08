@@ -14,6 +14,10 @@ public class RtaState {
 
 	private String requestHash;
 
+	private String providerRequestId;
+
+	private String dispatchStatus = "QUEUED";
+
 	private String mediaId;
 
 	private String advertiserId;

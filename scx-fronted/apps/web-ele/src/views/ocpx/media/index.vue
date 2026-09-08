@@ -22,6 +22,7 @@ import {
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
+import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
 import {
   allColumnKeys,
   createLatestRequestGuard,
@@ -364,7 +365,7 @@ onMounted(async () => {
           prop="updateTime"
         />
         <el-table-column
-          v-if="canOperate"
+          v-if="canOperate || hasAccessByCodes(['ocpx:rta:media:view'])"
           fixed="right"
           label="操作"
           width="130"
@@ -376,8 +377,7 @@ onMounted(async () => {
               type="primary"
               @click="
                 router.push({
-                  path: '/ocpx/rta/media',
-                  query: { mediaId: row.id },
+                  query: { rtaMediaId: row.id },
                 })
               "
               >RTA 配置</el-button
@@ -479,6 +479,7 @@ onMounted(async () => {
         ></template
       >
     </el-dialog>
+    <RtaConfigurationDrawer kind="media" @saved="load" />
   </Page>
 </template>
 

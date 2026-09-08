@@ -44,4 +44,6 @@ public interface OcpxAdvertiserMapper extends BaseMapper<OcpxAdvertiser> {
 
 	int deletePromotionLinks(@Param("id") String id);
 
+	List<java.util.Map<String, Object>> selectRtaSummary(@Param("ids") Collection<String> ids);
+
 }

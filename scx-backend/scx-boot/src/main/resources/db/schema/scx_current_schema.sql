@@ -190,6 +190,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_rta_upstream (
   advertiser_id VARCHAR(32) NOT NULL,
   name VARCHAR(128) NOT NULL,
   protocol VARCHAR(32) NOT NULL DEFAULT 'GENERIC_ASYNC',
+  protocol_config JSON NULL,
+  config_schema_version INT NOT NULL DEFAULT 1,
   access_code VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   endpoint VARCHAR(2048) NOT NULL,
   credential_ref VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -201,7 +203,7 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_rta_upstream (
   UNIQUE KEY uk_rta_upstream_code(access_code),
   KEY idx_rta_upstream_advertiser(advertiser_id),
   CONSTRAINT fk_rta_async_upstream_advertiser FOREIGN KEY(advertiser_id) REFERENCES scx_ocpx_advertiser(id),
-  CHECK(protocol='GENERIC_ASYNC'), CHECK(enabled IN (0,1)), CHECK(version>0),
+  CHECK(config_schema_version>0), CHECK(enabled IN (0,1)), CHECK(version>0),
   CHECK(timeout_ms BETWEEN 100 AND 30000), CHECK(admission_seconds BETWEEN 1 AND 86400)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -220,8 +222,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_rta_media_access (
 CREATE TABLE IF NOT EXISTS scx_ocpx_rta_binding (
   monitor_task_id VARCHAR(32) NOT NULL PRIMARY KEY,
   upstream_id VARCHAR(32) NOT NULL,
-  product_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
-  external_task_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+  product_id VARCHAR(128) COLLATE utf8mb4_bin NULL,
+  external_task_id VARCHAR(128) COLLATE utf8mb4_bin NULL,
   enabled TINYINT NOT NULL DEFAULT 0,
   version BIGINT NOT NULL DEFAULT 1,
   update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -863,3 +865,11 @@ INSERT INTO sys_menu(id,name,path,parent_id,icon,component,permission,sort,type,
 ('menu_ocpx_rta_reports','统计报表','/ocpx/rta/reports','menu_ocpx_rta','lucide:list','ocpx/rta/reports/index','ocpx:rta:reports:view',6,'0','app_base',NOW(),NOW(),'0')
 ON DUPLICATE KEY UPDATE name=VALUES(name),path=VALUES(path),parent_id=VALUES(parent_id),component=VALUES(component),permission=VALUES(permission),sort=VALUES(sort),del_flag='0';
 INSERT IGNORE INTO sys_role_menu(id,role_id,menu_id) SELECT CONCAT('rta131_',LEFT(SHA2(CONCAT(r.id,'|',m.id),256),55)),r.id,m.id FROM sys_role r JOIN sys_menu m ON (m.id='menu_ocpx_rta' OR m.id LIKE 'menu_ocpx_rta_%' OR m.id LIKE 'perm_ocpx_rta_%') WHERE r.role_code='ROLE_ADMIN' AND r.del_flag='0' AND m.del_flag='0';
+
+-- RTA configuration belongs to advertiser/media/task; preserve permission IDs and grants.
+UPDATE sys_menu SET name='查看 RTA 接入',path='',component='',icon='',type='1',parent_id='menu_ocpx_advertiser' WHERE id='menu_ocpx_rta_upstreams';
+UPDATE sys_menu SET parent_id='menu_ocpx_advertiser' WHERE id='perm_ocpx_rta_upstreams_edit';
+UPDATE sys_menu SET name='查看 RTA 配置',path='',component='',icon='',type='1',parent_id='menu_ocpx_media' WHERE id='menu_ocpx_rta_media';
+UPDATE sys_menu SET parent_id='menu_ocpx_media' WHERE id='perm_ocpx_rta_media_edit';
+UPDATE sys_menu SET name='查看 RTA 绑定',path='',component='',icon='',type='1',parent_id='menu_ocpx_monitor_task' WHERE id='menu_ocpx_rta_bindings';
+UPDATE sys_menu SET parent_id='menu_ocpx_monitor_task' WHERE id='perm_ocpx_rta_bindings_edit';

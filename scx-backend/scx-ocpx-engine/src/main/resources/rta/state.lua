@@ -77,8 +77,14 @@ if op=='FINISH' then
   redis.call('ZREM',p..'deadline',id)
   redis.call('ZADD',p..'notify',now,id)
   persist(s)
+elseif op=='DISPATCH_ONCE' then
+  if s.status~='PENDING' or s.dispatchStatus=='SENT' then return 'DISPATCHED' end
+  s.dispatchStatus='SENT'
+  s.upstreamAttempts=s.upstreamAttempts+1
+  redis.call('ZREM',p..'send',id)
+  persist(s)
 elseif op=='SUBMITTED' then
-  if s.status=='PENDING' then s.encryptedPayload=nil; persist(s) end
+  if s.status=='PENDING' then s.encryptedPayload=nil; s.dispatchStatus='AWAITING_CALLBACK'; persist(s) end
   redis.call('ZREM',p..'send',id)
 elseif op=='SEND_RETRY' then
   if s.status=='PENDING' then

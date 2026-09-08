@@ -2,6 +2,20 @@ import { requestClient } from '#/api/request';
 
 export type RtaKind =
   'bindings' | 'logs' | 'media' | 'records' | 'reports' | 'upstreams';
+export type RtaProtocol = {
+  bindingFields: Array<{ key: string; label: string; pattern: string }>;
+  code: string;
+  configFields: Array<{ key: string; label: string; pattern: string }>;
+  credentialRequired: boolean;
+  fixedEndpoint: string;
+  maxCandidates: number;
+  mode: string;
+  name: string;
+  retrySafe: boolean;
+};
+export function rtaProtocols() {
+  return requestClient.get<RtaProtocol[]>('/ocpx/rta/protocols');
+}
 export type RtaRow = {
   accessCode?: string;
   admissionSeconds?: number;
@@ -13,11 +27,13 @@ export type RtaRow = {
   completedAt?: number;
   credentialRef?: string;
   deadline?: number;
+  decisionMode?: string;
   deliveryAttempts?: number;
   deliveryFailedCount?: number;
   deliveryStatus?: string;
   deliverySuccessCount?: number;
   denyCount?: number;
+  dispatchStatus?: string;
   durationMs?: number;
   enabled?: boolean | number;
   endpoint?: string;
@@ -35,6 +51,8 @@ export type RtaRow = {
   pendingCount?: number;
   productId?: string;
   protocol?: string;
+  protocolConfig?: Record<string, string>;
+  providerRequestId?: string;
   reason?: string;
   reasonCode?: string;
   receivedAt?: number;
@@ -86,6 +104,8 @@ export function saveRta(
     upstreams: [
       'id',
       'advertiserId',
+      'protocol',
+      'protocolConfig',
       'name',
       'accessCode',
       'endpoint',
@@ -109,8 +129,7 @@ export function rtaOptions(
   kind: 'advertisers' | 'media' | 'tasks' | 'upstreams',
   params: Record<string, string> = {},
 ) {
-  return requestClient.get<Array<{ id: string; name: string }>>(
-    `/ocpx/rta/options/${kind}`,
-    { params },
-  );
+  return requestClient.get<
+    Array<{ id: string; name: string; protocol?: string }>
+  >(`/ocpx/rta/options/${kind}`, { params });
 }

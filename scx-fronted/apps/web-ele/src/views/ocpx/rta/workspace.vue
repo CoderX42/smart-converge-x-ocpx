@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { EntityOption } from '#/api/ocpx';
-import type { RtaKind, RtaRow } from '#/api/ocpx/rta';
+import type { RtaKind, RtaProtocol, RtaRow } from '#/api/ocpx/rta';
 
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -10,11 +10,18 @@ import { Page } from '@boot/common-ui';
 
 import { ElMessage } from 'element-plus';
 
-import { queryRta, rtaOptions, saveRta } from '#/api/ocpx/rta';
+import { queryRta, rtaOptions, rtaProtocols, saveRta } from '#/api/ocpx/rta';
 
 import { columns, descriptions, displayRta, titles } from './catalog';
 
-const props = defineProps<{ kind: RtaKind }>();
+const props = defineProps<{
+  kind: RtaKind;
+  scopeId?: string;
+  scopeName?: string;
+}>();
+const emit = defineEmits<{ saved: [] }>();
+const protocols = ref<RtaProtocol[]>([]);
+const protocolError = ref(false);
 const route = useRoute();
 const router = useRouter();
 const { hasAccessByCodes } = useAccess();
@@ -38,6 +45,29 @@ const upstreamLoading = ref(false);
 const drawer = ref(false);
 const detail = ref<RtaRow>();
 const form = reactive<RtaRow>({});
+const selectedProtocol = computed(() =>
+  protocols.value.find(
+    (item) =>
+      item.code ===
+      (props.kind === 'bindings'
+        ? upstreams.value.find((item) => item.id === form.upstreamId)
+            ?.protocol || form.protocol
+        : form.protocol),
+  ),
+);
+function changeProtocol() {
+  form.protocolConfig = {};
+  form.credentialRef = '';
+  form.endpoint = selectedProtocol.value?.fixedEndpoint || '';
+}
+function changeUpstream() {
+  form.protocol = upstreams.value.find(
+    (item) => item.id === form.upstreamId,
+  )?.protocol;
+  form.productId = '';
+  form.externalTaskId = '';
+}
+
 const query = reactive({
   advertiserId: '',
   current: 1,
@@ -113,11 +143,17 @@ function edit(row?: RtaRow) {
       admissionSeconds: 300,
       enabled: false,
       mediaId: query.mediaId,
+      advertiserId: query.advertiserId,
+      protocol: 'GENERIC_ASYNC',
+      protocolConfig: {},
       timeoutMs: 5000,
       version: 0,
     },
     row,
-    { enabled: Boolean(row?.enabled) },
+    {
+      enabled: Boolean(row?.enabled),
+      protocolConfig: { ...row?.protocolConfig },
+    },
   );
   drawer.value = true;
   if (props.kind === 'bindings') void searchUpstreams();
@@ -125,18 +161,38 @@ function edit(row?: RtaRow) {
 async function save() {
   if (!['bindings', 'media', 'upstreams'].includes(props.kind)) return;
   const requiredByKind = {
-    bindings: ['monitorTaskId', 'upstreamId', 'productId', 'externalTaskId'],
+    bindings: ['monitorTaskId', 'upstreamId'],
     media: ['mediaId', 'notifyUrl', 'credentialRef'],
-    upstreams: [
-      'advertiserId',
-      'name',
-      'accessCode',
-      'endpoint',
-      'credentialRef',
-    ],
+    upstreams: ['advertiserId', 'name', 'protocol'],
   };
-  const required =
-    requiredByKind[props.kind as 'bindings' | 'media' | 'upstreams'];
+  const required = [
+    ...requiredByKind[props.kind as 'bindings' | 'media' | 'upstreams'],
+  ];
+  if (props.kind !== 'media') {
+    if (!selectedProtocol.value || protocolError.value) {
+      ElMessage.warning('请先加载并选择有效协议');
+      return;
+    }
+    if (props.kind === 'upstreams') {
+      required.push('endpoint');
+      if (selectedProtocol.value.credentialRequired)
+        required.push('credentialRef');
+      if (
+        selectedProtocol.value.configFields.some(
+          (field) =>
+            !new RegExp(`^(?:${field.pattern})$`).test(
+              form.protocolConfig?.[field.key] || '',
+            ),
+        )
+      ) {
+        ElMessage.warning('请正确填写协议参数');
+        return;
+      }
+    } else
+      required.push(
+        ...selectedProtocol.value.bindingFields.map((field) => field.key),
+      );
+  }
   if (required.some((key) => !String(form[key as keyof RtaRow] || '').trim())) {
     ElMessage.warning('请填写所有必填项');
     return;
@@ -147,6 +203,7 @@ async function save() {
     drawer.value = false;
     ElMessage.success('配置已保存');
     await load();
+    emit('saved');
   } finally {
     saving.value = false;
   }
@@ -160,11 +217,25 @@ function routeFilters() {
       : '';
   query.requestId =
     typeof route.query.requestId === 'string' ? route.query.requestId : '';
+  if (props.scopeId) {
+    query.advertiserId = props.kind === 'upstreams' ? props.scopeId : '';
+    query.mediaId = props.kind === 'media' ? props.scopeId : '';
+    query.monitorTaskId = props.kind === 'bindings' ? props.scopeId : '';
+  }
   void load(true);
 }
 watch(() => route.query, routeFilters);
 onMounted(async () => {
   routeFilters();
+  if (props.kind === 'upstreams' || props.kind === 'bindings') {
+    try {
+      protocols.value = await rtaProtocols();
+    } catch {
+      protocolError.value = true;
+      ElMessage.error('协议加载失败，请关闭后重试');
+    }
+  }
+  if (props.scopeId) return;
   const result = await Promise.allSettled([
     rtaOptions('media'),
     rtaOptions('advertisers'),
@@ -179,10 +250,17 @@ onMounted(async () => {
 </script>
 
 <template>
-  <Page :title="titles[kind]" :description="descriptions[kind]">
+  <component
+    :is="scopeId ? 'section' : Page"
+    :title="scopeId ? undefined : titles[kind]"
+    :description="scopeId ? undefined : descriptions[kind]"
+  >
+    <p v-if="scopeId" class="text-muted-foreground mb-4 text-sm">
+      {{ descriptions[kind] }}
+    </p>
     <div class="rta-workspace">
       <el-form inline class="rta-filters" @submit.prevent="load(true)">
-        <el-form-item v-if="kind !== 'upstreams'" label="媒体"
+        <el-form-item v-if="!scopeId && kind !== 'upstreams'" label="媒体"
           ><el-select
             v-model="query.mediaId"
             remote
@@ -198,7 +276,7 @@ onMounted(async () => {
               :label="item.name"
               :value="item.id" /></el-select
         ></el-form-item>
-        <el-form-item v-if="kind !== 'media'" label="广告主"
+        <el-form-item v-if="!scopeId && kind !== 'media'" label="广告主"
           ><el-select
             v-model="query.advertiserId"
             remote
@@ -214,7 +292,9 @@ onMounted(async () => {
               :label="item.name"
               :value="item.id" /></el-select
         ></el-form-item>
-        <el-form-item v-if="!['media', 'upstreams'].includes(kind)" label="任务"
+        <el-form-item
+          v-if="!scopeId && !['media', 'upstreams'].includes(kind)"
+          label="任务"
           ><el-select
             v-model="query.monitorTaskId"
             remote
@@ -284,7 +364,11 @@ onMounted(async () => {
                 : `最近落库：${dataAsOf || '暂无数据'}`
           }}</span
         ><el-button
-          v-if="canEdit && kind !== 'bindings'"
+          v-if="
+            canEdit &&
+            kind !== 'bindings' &&
+            !(kind === 'media' && rows.length > 0)
+          "
           type="primary"
           @click="edit()"
           >新增{{ titles[kind] }}</el-button
@@ -350,7 +434,7 @@ onMounted(async () => {
     >
       <el-form label-position="top" @submit.prevent="save">
         <template v-if="kind === 'upstreams'">
-          <el-form-item label="广告主" required
+          <el-form-item v-if="!scopeId" label="广告主" required
             ><el-select
               v-model="form.advertiserId"
               remote
@@ -365,20 +449,53 @@ onMounted(async () => {
                 :label="item.name"
                 :value="item.id" /></el-select
           ></el-form-item>
+          <el-form-item v-if="scopeId" label="广告主"
+            >{{ scopeName }} · {{ scopeId }}</el-form-item
+          >
           <el-form-item label="接入名称" required
             ><el-input v-model="form.name" maxlength="128"
           /></el-form-item>
-          <el-form-item label="回调接入编号" required
+          <el-form-item
+            v-if="form.id && selectedProtocol?.mode === 'ASYNC_CALLBACK'"
+            label="回调接入编号"
             ><el-input
               v-model="form.accessCode"
               :disabled="!!form.id"
               placeholder="字母、数字、下划线或短横线"
               maxlength="64"
           /></el-form-item>
-          <el-form-item label="协议">GENERIC_ASYNC · 通用异步协议</el-form-item>
+          <el-form-item label="RTA 协议" required>
+            <el-select
+              v-model="form.protocol"
+              :disabled="!!form.id"
+              @change="changeProtocol"
+              ><el-option
+                v-for="item in protocols"
+                :key="item.code"
+                :label="item.name"
+                :value="item.code"
+            /></el-select>
+          </el-form-item>
+          <el-alert
+            v-if="selectedProtocol"
+            :title="`${selectedProtocol.mode === 'SYNC_HTTP' ? '同步返回决策' : '独立回调决策'} · 每次最多 ${selectedProtocol.maxCandidates} 个任务`"
+            :closable="false"
+            class="mb-4"
+          />
+          <el-form-item
+            v-for="field in selectedProtocol?.configFields || []"
+            :key="field.key"
+            :label="field.label"
+            required
+            ><el-input
+              v-if="form.protocolConfig"
+              v-model="form.protocolConfig[field.key]"
+              maxlength="128"
+          /></el-form-item>
           <el-form-item label="广告主请求地址" required
             ><el-input
               v-model="form.endpoint"
+              :readonly="!!selectedProtocol?.fixedEndpoint"
               placeholder="https://允许的域名/路径"
           /></el-form-item>
           <el-form-item label="等待时限 / 毫秒"
@@ -390,12 +507,19 @@ onMounted(async () => {
               :min="1"
               :max="86400"
           /></el-form-item>
-          <el-form-item v-if="form.callbackUrl" label="SCX 决策回调地址"
+          <el-form-item
+            v-if="
+              form.callbackUrl && selectedProtocol?.mode === 'ASYNC_CALLBACK'
+            "
+            label="SCX 决策回调地址"
             ><el-input :model-value="form.callbackUrl" readonly
           /></el-form-item>
         </template>
         <template v-if="kind === 'media'">
-          <el-form-item label="现有媒体" required
+          <el-form-item v-if="scopeId" label="媒体"
+            >{{ scopeName }} · {{ scopeId }}</el-form-item
+          >
+          <el-form-item v-if="!scopeId" label="现有媒体" required
             ><el-select
               v-model="form.mediaId"
               remote
@@ -431,6 +555,7 @@ onMounted(async () => {
           <el-form-item label="广告主接入" required
             ><el-select
               v-model="form.upstreamId"
+              @change="changeUpstream"
               filterable
               remote
               :remote-method="searchUpstreams"
@@ -441,14 +566,32 @@ onMounted(async () => {
                 :label="item.name"
                 :value="item.id!" /></el-select
           ></el-form-item>
-          <el-form-item label="上游产品 ID" required
-            ><el-input v-model="form.productId" maxlength="128"
-          /></el-form-item>
-          <el-form-item label="上游任务 ID" required
-            ><el-input v-model="form.externalTaskId" maxlength="128"
-          /></el-form-item>
+          <el-form-item
+            v-for="field in selectedProtocol?.bindingFields || []"
+            :key="field.key"
+            :label="field.label"
+            required
+          >
+            <el-input
+              v-model="form[field.key as 'productId' | 'externalTaskId']"
+              maxlength="128"
+            />
+          </el-form-item>
+          <el-alert
+            v-if="
+              selectedProtocol && selectedProtocol.bindingFields.length === 0
+            "
+            title="使用所选接入的广告计划；系统将校验 RTA 与点击链接的计划参数一致。"
+            :closable="false"
+          />
         </template>
-        <el-form-item v-if="kind !== 'bindings'" label="服务端凭据引用" required
+        <el-form-item
+          v-if="
+            kind === 'media' ||
+            (kind === 'upstreams' && selectedProtocol?.credentialRequired)
+          "
+          label="服务端凭据引用"
+          required
           ><el-input
             v-model="form.credentialRef"
             maxlength="64"
@@ -479,6 +622,10 @@ onMounted(async () => {
           v-for="key in [
             'requestId',
             'relayRequestId',
+            'protocol',
+            'decisionMode',
+            'providerRequestId',
+            'dispatchStatus',
             'mediaId',
             'status',
             'matchedTaskIds',
@@ -506,7 +653,7 @@ onMounted(async () => {
         >查看关联流程日志</el-button
       >
     </el-drawer>
-  </Page>
+  </component>
 </template>
 
 <style scoped>

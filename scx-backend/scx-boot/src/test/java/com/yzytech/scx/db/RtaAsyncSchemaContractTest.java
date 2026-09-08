@@ -19,8 +19,17 @@ class RtaAsyncSchemaContractTest {
 			var forward = pattern.matcher(migration);
 			assertThat(current.find()).isTrue();
 			assertThat(forward.find()).isTrue();
-			assertThat(forward.group()).isEqualTo(current.group());
+			if (!List.of("upstream", "binding").contains(table))
+				assertThat(forward.group()).isEqualTo(current.group());
 		}
+		String extension = Files.readString(
+				Path.of("src/main/resources/db/migration/V132__extend_rta_protocols_and_embed_configuration.sql"));
+		assertThat(extension).contains("ADD COLUMN protocol_config", "config_schema_version", "MODIFY product_id",
+				"menu_ocpx_advertiser", "menu_ocpx_monitor_task");
+		assertThat(extension).doesNotContain("DROP TABLE", "scx_schema_migration");
+		assertThat(schema).contains("protocol_config JSON", "config_schema_version INT",
+				"parent_id='menu_ocpx_advertiser' WHERE id='menu_ocpx_rta_upstreams'");
+		assertThat(schema).doesNotContain("CHECK(protocol='GENERIC_ASYNC')");
 		for (String table : List.of("profile", "task_binding", "decision_fact", "hourly_metric"))
 			assertThat(schema).doesNotContain("CREATE TABLE IF NOT EXISTS scx_ocpx_rta_" + table + " (");
 		for (String child : List.of("upstreams", "media", "bindings", "records", "logs", "reports"))

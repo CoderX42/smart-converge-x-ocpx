@@ -26,6 +26,8 @@ public class RtaGate {
 				|| !java.util.Set.of("IMP", "CLICK").contains(request.getEvent().name()))
 			return;
 		request.setRtaProtected(false);
+		request.setProviderRtaRequestId(null);
+		request.setRtaRouteConfig(null);
 		try {
 			if (!repository.taskRequiresRta(request.getTId()))
 				return;
@@ -47,6 +49,13 @@ public class RtaGate {
 						|| !binding.linkId().equals(request.getLId()))
 					throw new RelayException(403, "RTA_ROUTE_MISMATCH");
 				repository.current(state, binding);
+				request.setProviderRtaRequestId(state.getProviderRequestId() == null ? state.getRelayRequestId()
+						: state.getProviderRequestId());
+				if (!com.yzytech.scx.ocpx.rta.contract.RtaProtocols.require(state.getUpstream().protocol())
+					.routeIdentityFields()
+					.isEmpty()) {
+					request.setRtaRouteConfig(state.getUpstream().protocolConfig());
+				}
 				audit.write(state, "EVENT_GATE", true, "ALLOW", 0);
 			}
 			catch (RuntimeException e) {

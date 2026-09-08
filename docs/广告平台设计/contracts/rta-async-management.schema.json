@@ -25,7 +25,7 @@
         },
         "accessCode": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          "pattern": "^[A-Za-z0-9_-]{0,64}$"
         },
         "endpoint": {
           "type": "string",
@@ -35,7 +35,7 @@
         },
         "credentialRef": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          "pattern": "^[A-Za-z0-9_-]{0,64}$"
         },
         "timeoutMs": {
           "type": "integer",
@@ -52,14 +52,86 @@
         "enabled": {
           "type": "boolean",
           "default": false
+        },
+        "protocol": {
+          "type": "string",
+          "enum": [
+            "GENERIC_ASYNC",
+            "WEIFENG_RTA"
+          ],
+          "default": "GENERIC_ASYNC"
+        },
+        "protocolConfig": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "required": [
         "advertiserId",
-        "name",
-        "accessCode",
-        "endpoint",
-        "credentialRef"
+        "name"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "WEIFENG_RTA"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "required": [
+              "protocolConfig"
+            ],
+            "properties": {
+              "endpoint": {
+                "const": "https://rta.adapi.cn/rtaCommon/sendRta"
+              },
+              "credentialRef": {
+                "const": ""
+              },
+              "protocolConfig": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "aid",
+                  "did"
+                ],
+                "properties": {
+                  "aid": {
+                    "type": "string",
+                    "pattern": "^[0-9]{1,32}$"
+                  },
+                  "did": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._-]{1,64}$"
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "endpoint",
+              "credentialRef"
+            ],
+            "properties": {
+              "credentialRef": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "protocolConfig": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          }
+        }
       ]
     },
     "RtaMediaConfig": {
@@ -115,13 +187,17 @@
           "maxLength": 32
         },
         "productId": {
-          "type": "string",
-          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ],
           "maxLength": 128
         },
         "externalTaskId": {
-          "type": "string",
-          "minLength": 1,
+          "type": [
+            "string",
+            "null"
+          ],
           "maxLength": 128
         },
         "enabled": {
@@ -131,10 +207,9 @@
       },
       "required": [
         "monitorTaskId",
-        "upstreamId",
-        "productId",
-        "externalTaskId"
-      ]
+        "upstreamId"
+      ],
+      "description": "Binding fields are validated against the selected upstream protocol. GENERIC_ASYNC requires productId/externalTaskId; WEIFENG_RTA derives its plan from access config."
     }
   },
   "oneOf": [

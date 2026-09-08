@@ -174,6 +174,30 @@ class WeifengUpstreamDeliveryServiceTest {
 		verify(httpClient, never()).get(anyString());
 	}
 
+	@Test
+	void forwardsValidatedRtaIdSeparatelyFromClickIdAndRejectsAnotherPlan() {
+		var event = androidFeedback();
+		event.setRtaProtected(true);
+		event.setRtaRequestId("a".repeat(32));
+		event.setProviderRtaRequestId("a".repeat(32));
+		event.setRtaRouteConfig(java.util.Map.of("aid", "4946", "did", "yz"));
+		String url = service.buildRequestUrl(event);
+		assertThat(decodedQueryValue(url, "requestId")).isEqualTo("a".repeat(32));
+		assertThat(event.getReqId()).isEqualTo("request-id");
+		var template = promotionLink();
+		template.setLinkUrl(template.getLinkUrl() + "&requestId=__RID__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(template);
+		assertThat(decodedQueryValue(service.buildRequestUrl(event), "requestId")).isEqualTo("a".repeat(32));
+		event.setRtaRouteConfig(java.util.Map.of("aid", "5103", "did", "zsyd"));
+		assertThat(service.buildRequestUrl(event)).isNull();
+		event.setProviderRtaRequestId(null);
+		assertThat(service.buildRequestUrl(event)).isNull();
+		var inbound = com.alibaba.fastjson2.JSON.parseObject(
+				"{\"providerRtaRequestId\":\"forged\",\"rtaRouteConfig\":{\"aid\":\"5103\"}}", FeedbackReq.class);
+		assertThat(inbound.getProviderRtaRequestId()).isNull();
+		assertThat(inbound.getRtaRouteConfig()).isNull();
+	}
+
 	private FeedbackReq androidFeedback() {
 		FeedbackReq feedback = baseFeedback(OsTypeEnum.ANDROID);
 		feedback.setOaid("oaid-value");

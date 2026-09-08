@@ -166,9 +166,10 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('buildSafeFlowLogText(requestDetail.value)');
   });
 
-  it('routes media and monitor tasks to dedicated async RTA configuration', () => {
-    expect(page('monitor-task')).toContain('/ocpx/rta/bindings');
-    expect(page('media')).toContain('/ocpx/rta/media');
+  it('embeds RTA configuration in its owning business objects', () => {
+    expect(page('monitor-task')).toContain('rtaTaskId');
+    expect(page('advertiser')).toContain('rtaAdvertiserId');
+    expect(page('media')).toContain('rtaMediaId');
     expect(page('monitor-task')).not.toContain('updateRtaTaskConfig');
   });
 
@@ -351,6 +352,10 @@ describe('vientiane-aligned OCPX page contracts', () => {
       if (name === 'monitor-task') {
         expect(source).toMatch(
           /v-if="canOperate \|\| canTest \|\| canIntegrate"[\s\S]*label="操作"/,
+        );
+      } else if (name === 'advertiser' || name === 'media') {
+        expect(source).toMatch(
+          /v-if="canOperate \|\| hasAccessByCodes\([^\n]+\)"[\s\S]*label="操作"/,
         );
       } else {
         expect(source).toMatch(/v-if="canOperate"[\s\S]*label="操作"/);

@@ -39,6 +39,9 @@ class RelayIntegrationTest {
 
 	RelayService service;
 
+	RtaAdapterRegistry adapters = new RtaAdapterRegistry(
+			List.of(new GenericAsyncRtaAdapter(), new WeifengRtaAdapter()));
+
 	RelayProperties properties;
 
 	RelayAudit audit;
@@ -100,7 +103,7 @@ class RelayIntegrationTest {
 		repository = mock(RelayRepository.class);
 		security = new RelaySecurity(properties, redis);
 		audit = new RelayAudit(redis, new SimpleMeterRegistry());
-		service = new RelayService(repository, store, security, properties, audit);
+		service = new RelayService(repository, store, security, properties, audit, adapters);
 		when(repository.mediaByCredential("media-key")).thenReturn(media);
 		when(repository.upstream("id", "upstream-a")).thenReturn(upstream);
 		when(repository.upstream("access_code", "advertiser-code")).thenReturn(upstream);
@@ -269,7 +272,8 @@ class RelayIntegrationTest {
 
 	@Test
 	void advertiserCallsBackOverSeparateHttpBeforeAcceptanceResponseAndMediaReceivesOnlyAC() throws Exception {
-		MockMvc mvc = MockMvcBuilders.standaloneSetup(new RelayController(service, repository, security)).build();
+		MockMvc mvc = MockMvcBuilders.standaloneSetup(new RelayController(service, repository, security, adapters))
+			.build();
 		var server = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
 		var executor = Executors.newCachedThreadPool();
 		server.setExecutor(executor);
@@ -336,7 +340,7 @@ class RelayIntegrationTest {
 			}
 		};
 		RelayWorker worker = new RelayWorker(store, security, properties, simulatorTransport, repository, audit,
-				new SimpleMeterRegistry());
+				new SimpleMeterRegistry(), adapters, service);
 		try {
 			String body = RelayJson.write(request("http-roundtrip"));
 			String path = "/ocpx/rta/requests";
@@ -361,6 +365,123 @@ class RelayIntegrationTest {
 			server.stop(0);
 			executor.shutdownNow();
 		}
+	}
+
+	void useWeifeng() {
+		upstream = new WeifengRtaAdapterTest().upstream();
+		upstream = new Upstream("upstream-a", "advertiser-a", "advertiser-code", upstream.endpoint(), "", 1, 5000, 300,
+				true, "WEIFENG_RTA", 1, upstream.protocolConfig());
+		when(repository.upstream("id", "upstream-a")).thenReturn(upstream);
+		when(repository.upstream("access_code", "advertiser-code")).thenReturn(upstream);
+	}
+
+	Request single(String id) {
+		return new Request(id, List.of("A"), Map.of("oaid", "test"), Map.of("os", "android"));
+	}
+
+	@Test
+	void weifengSyncHttpDecisionThenMediaNotificationAndGate() throws Exception {
+		useWeifeng();
+		var server = com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+		var notified = new AtomicReference<String>();
+		var received = new AtomicReference<String>();
+		server.createContext("/rtaCommon/sendRta", exchange -> {
+			received.set(exchange.getRequestURI().getRawQuery());
+			var input = RelayJson.read(
+					new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8),
+					com.fasterxml.jackson.databind.JsonNode.class);
+			byte[] response = RelayJson.write(Map.of("id", input.path("id").textValue(), "code", 0))
+				.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+			exchange.sendResponseHeaders(200, response.length);
+			exchange.getResponseBody().write(response);
+			exchange.close();
+		});
+		server.createContext("/notify", exchange -> {
+			notified.set(new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+			exchange.sendResponseHeaders(204, -1);
+			exchange.close();
+		});
+		server.start();
+		String origin = "http://127.0.0.1:" + server.getAddress().getPort();
+		RelayTransport transport = new RelayTransport() {
+			public int post(String url, String ref, String body, long timeout) {
+				return exchange(new RtaUpstreamAdapter.Outbound(url, ref, body), timeout).status();
+			}
+
+			public RtaUpstreamAdapter.HttpResult exchange(RtaUpstreamAdapter.Outbound outbound, long timeout) {
+				try {
+					URI uri = URI.create(outbound.endpoint());
+					var request = HttpRequest
+						.newBuilder(URI.create(
+								origin + uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())))
+						.timeout(java.time.Duration.ofMillis(timeout))
+						.POST(HttpRequest.BodyPublishers.ofString(outbound.body()))
+						.build();
+					var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+					return new RtaUpstreamAdapter.HttpResult(response.statusCode(), response.body());
+				}
+				catch (Exception e) {
+					throw new RuntimeException(e);
+				}
+			}
+		};
+		var worker = new RelayWorker(store, security, properties, transport, repository, audit,
+				new SimpleMeterRegistry(), adapters, service);
+		try {
+			var accepted = service.accept(single("wf-roundtrip"), media);
+			worker.run("send", accepted.relayRequestId());
+			assertThat(received.get()).isEqualTo("aid=5103&did=zsyd");
+			var result = store.get(accepted.relayRequestId());
+			assertThat(result.getStatus()).isEqualTo("ALLOW");
+			assertThat(result.getMatchedTaskIds()).containsExactly("A");
+			assertThat(result.getEncryptedPayload()).isNull();
+			worker.run("notify", accepted.relayRequestId());
+			assertThat(store.get(accepted.relayRequestId()).getDeliveryStatus()).isEqualTo("DELIVERED");
+			assertThat(notified.get()).contains("wf-roundtrip", "ALLOW");
+			var event = FeedbackReq.builder()
+				.mId("media-a")
+				.aId("advertiser-a")
+				.lId("link-a")
+				.tId("A")
+				.event(EventTypeEnum.CLICK)
+				.reqId("event-id")
+				.rtaRequestId(accepted.relayRequestId())
+				.build();
+			new RtaGate(repository, store, audit).requireAllowed(event);
+			assertThat(event.getProviderRtaRequestId()).isEqualTo(accepted.relayRequestId());
+			assertThat(event.getReqId()).isEqualTo("event-id");
+			event.setTId("B");
+			assertThatThrownBy(() -> new RtaGate(repository, store, audit).requireAllowed(event))
+				.isInstanceOf(RtaAdmissionDeniedException.class);
+		}
+		finally {
+			worker.close();
+			server.stop(0);
+		}
+	}
+
+	@Test
+	void weifengUnknownDispatchIsNotRepeatedAfterRestart() throws Exception {
+		useWeifeng();
+		var accepted = service.accept(single("wf-crash"), media);
+		store.mutate("DISPATCH_ONCE", System.currentTimeMillis(), accepted.relayRequestId());
+		var transport = mock(RelayTransport.class);
+		var worker = new RelayWorker(new RelayStore(redis), security, properties, transport, repository, audit,
+				new SimpleMeterRegistry(), adapters, service);
+		try {
+			worker.run("send", accepted.relayRequestId());
+			verifyNoInteractions(transport);
+			var pending = store.get(accepted.relayRequestId());
+			assertThat(pending.getUpstreamAttempts()).isEqualTo(1);
+			assertThat(store
+				.finish(accepted.relayRequestId(), "TIMEOUT", "RTA_TIMEOUT", List.of(), "TIMEOUT",
+						pending.getDeadline() + 1)
+				.getStatus()).isEqualTo("TIMEOUT");
+		}
+		finally {
+			worker.close();
+		}
+		assertThatThrownBy(() -> service.accept(request("wf-batch"), media)).hasMessage("RTA_SINGLE_TASK_REQUIRED");
 	}
 
 }

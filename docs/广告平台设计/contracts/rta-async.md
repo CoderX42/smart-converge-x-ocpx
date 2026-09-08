@@ -1,10 +1,12 @@
 # SCX 通用异步 RTA 契约与切换说明
 
-对应 ADR-016。媒体就是现有 OcpxMedia；凭据解析 mediaId，报文不得声明另一媒体。此协议是首版通用协议，真实合作方需另行验收。
+对应 ADR-016 与 ADR-017。V132 起支持通用异步及微风同步决策，上游接入配置归广告主管理、媒体配置归媒体管理、绑定归监测任务，RTA 目录仅保留请求记录、流程日志和统计报表。详见 [V132 使用与交付说明](../RTA配置归属与多协议接入V132.md)。
+
+本文下述上游 202、HMAC、独立回调及批量候选约定适用于 `GENERIC_ASYNC`，不适用于 `WEIFENG_RTA`；媒体侧仍使用统一异步协议。媒体就是现有 OcpxMedia；凭据解析 mediaId，报文不得声明另一媒体。此协议是首版通用协议，真实合作方需另行验收。
 
 ## HTTP 与签名
 
-数据面 Engine 前缀 `/ocpx`：`POST /ocpx/rta/requests`、`POST /ocpx/rta/callbacks/{accessCode}`。管理面 Boot 前缀 `/boot`，前台经 `/api` 代理访问 `/ocpx/rta/{upstreams,media,bindings,records,logs,reports}`。所有 RTA 路径不带版本号，旧 `/rta` 和 Profile 入口停止受理。
+数据面 Engine 前缀 `/ocpx`：`POST /ocpx/rta/requests`、`POST /ocpx/rta/callbacks/{accessCode}`。管理面 Boot 前缀 `/boot`，前台经 `/api` 代理访问管理 API `/ocpx/rta/{upstreams,media,bindings,records,logs,reports}`，前三项是对象配置接口，不再是独立菜单页面。所有 RTA 路径不带版本号，旧 `/rta` 和 Profile 入口停止受理。
 
 UTF-8 JSON，最大 64 KiB。未知字段、重复 JSON 键、字段类型错误均拒绝。请求、受理、决策与通知结构见 `rta-async-*.schema.json`。设备与上下文的业务值保持不变；SCX 将候选任务映射为上游产品/任务组合。
 
