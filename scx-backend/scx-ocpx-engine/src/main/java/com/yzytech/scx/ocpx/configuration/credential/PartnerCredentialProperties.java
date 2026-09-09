@@ -17,4 +17,21 @@ public class PartnerCredentialProperties {
 
 	private Map<String, String> oppo = new HashMap<>();
 
+	private Map<String, OppoUpload> oppoUpload = new HashMap<>();
+
+	@Data
+	public static class OppoUpload {
+
+		private String salt;
+
+		private String aesKey;
+
+		private String ownerId;
+
+		private String apiId;
+
+		private String apiKey;
+
+	}
+
 }

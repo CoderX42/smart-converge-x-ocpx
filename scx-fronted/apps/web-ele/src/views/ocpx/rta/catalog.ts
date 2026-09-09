@@ -12,9 +12,9 @@ export const descriptions: Record<RtaKind, string> = {
   bindings:
     '媒体和广告主取自监测任务。每个任务配置一个上游产品与任务映射，修改绑定后原放行结果失效。',
   logs: '仅展示脱敏阶段摘要；成功请求按关联 ID 稳定采样 10%，失败全量记录。XXL-JOB 异步落库，保留 24 小时。',
-  media: '配置当前媒体的 RTA 请求认证及决策通知地址。每个媒体最多一份配置。',
+  media: '每个媒体维护一份 RTA 配置。OPPO 同步返回策略，通用协议异步通知决策。',
   records:
-    '近 24 小时实时请求状态。202 仅代表已受理，投放须等待 ALLOW 通知并在有效期内使用命中任务。',
+    '近 24 小时实时状态。OPPO 同步返回命中策略；通用协议的 202 只代表受理，须等待决策通知。',
   reports:
     '候选任务各计一次受理；RTA 命中率 = 允许数 / 受理数，与转化率无关。报表由 XXL-JOB 异步更新。',
   upstreams:
@@ -35,6 +35,7 @@ export const columns: Record<RtaKind, Column[]> = {
   media: [
     { key: 'mediaName', label: '媒体' },
     { key: 'mediaId', label: '媒体 ID' },
+    { key: 'protocol', label: '媒体协议' },
     { key: 'requestUrl', label: 'SCX 请求地址', width: 260 },
     { key: 'notifyUrl', label: '决策通知地址', width: 260 },
     { key: 'credentialRef', label: '凭据引用' },
@@ -42,6 +43,7 @@ export const columns: Record<RtaKind, Column[]> = {
   ],
   bindings: [
     { key: 'taskName', label: '监测任务' },
+    { key: 'strategyId', label: '对外策略 ID' },
     { key: 'advertiserName', label: '广告主' },
     { key: 'mediaName', label: '媒体' },
     { key: 'upstreamId', label: '上游接入 ID' },

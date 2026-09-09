@@ -16,6 +16,10 @@ root = pathlib.Path(sys.argv[1])
 required = [
     "openapi.yaml",
     "rta-async.md",
+    "oppo-rta-request.schema.json",
+    "oppo-rta-response.schema.json",
+    "oppo-media-v133.md",
+    "rta-test-console.md",
     "rta-async-request.schema.json",
     "rta-async-decision.schema.json",
     "rta-async-accepted.schema.json",
@@ -90,8 +94,24 @@ v115_paths = {"/protocol-configs", "/protocol-configs/{protocol}/allowed-hosts"}
 v116_paths = {"/flow-logs/{id}/request-detail"}
 v118_paths = {"/callback-records"}
 v119_paths = {"/media-macros"}
-rta_paths = {"/rta/protocols", "/rta/options/{kind}", "/rta/requests", "/rta/callbacks/{accessCode}", "/rta/upstreams", "/rta/media", "/rta/bindings", "/rta/records", "/rta/logs", "/rta/reports"}
-assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | rta_paths
+rta_paths = {"/rta/oppo/{code}", "/oppo/click/{code}/{strategy}", "/rta/protocols", "/rta/options/{kind}", "/rta/requests", "/rta/callbacks/{accessCode}", "/rta/upstreams", "/rta/media", "/rta/bindings", "/rta/records", "/rta/logs", "/rta/reports"}
+rta_test_paths = {"/monitor-tasks/{taskId}/rta-test", "/monitor-tasks/{taskId}/rta-test/{requestId}"}
+assert set(paths) == data_plane_paths | {management_path, recharge_path, deduction_path, dashboard_path} | v111_paths | v112_paths | v113_paths | v114_paths | v115_paths | v116_paths | v118_paths | v119_paths | rta_paths | rta_test_paths
+for path in rta_test_paths:
+    assert paths[path]["get"]["security"] == [{"saToken": []}]
+assert paths["/monitor-tasks/{taskId}/rta-test"]["post"]["security"] == [{"saToken": []}]
+test_input = paths["/monitor-tasks/{taskId}/rta-test"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+assert set(test_input["properties"]) == {"requestId", "oaid"}
+jsonschema.Draft202012Validator.check_schema(test_input)
+assert "200" in paths["/rta/oppo/{code}"]["post"]["responses"]
+assert "202" not in paths["/rta/oppo/{code}"]["post"]["responses"]
+oppo_schema=json.loads((root/"oppo-rta-request.schema.json").read_text())
+jsonschema.Draft202012Validator.check_schema(oppo_schema)
+jsonschema.Draft202012Validator.check_schema(json.loads((root/"oppo-rta-response.schema.json").read_text()))
+valid_oppo={"request_id":"oppo-test","request_time":1788912000000,"channel_name":"OPPO","ad_type_list":[452],"sign":"0"*32}
+jsonschema.validate(valid_oppo,oppo_schema)
+for invalid in ([452,452], [2147483648], [], ["452"]):
+    assert not jsonschema.Draft202012Validator(oppo_schema).is_valid({**valid_oppo,"ad_type_list":invalid})
 feedback_parameters = {item["name"] for item in paths["/feedback"]["get"]["parameters"]}
 assert {"mId", "tId", "aId", "lId"} <= feedback_parameters
 assert not ({"chid", "mid", "dspid", "linkid"} & feedback_parameters)

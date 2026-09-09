@@ -37,6 +37,14 @@ public class RelayService {
 	}
 
 	public Accepted accept(Request request, Media media) {
+		return accept(request, media, Long.MAX_VALUE);
+	}
+
+	public Accepted accept(Request request, Media media, long deadline) {
+		return accept(request, media, deadline, request.requestId());
+	}
+
+	public Accepted accept(Request request, Media media, long deadline, String originalRequestId) {
 		if (!properties.isEnabled())
 			throw new RelayException(503, "RTA_DISABLED");
 		validate(request);
@@ -75,16 +83,19 @@ public class RelayService {
 
 		RtaState state = new RtaState();
 		state.setRequestId(request.requestId());
+		state.setOriginalRequestId(originalRequestId);
 		state.setRelayRequestId(UUID.randomUUID().toString().replace("-", ""));
 		state.setProviderRequestId(state.getRelayRequestId());
 		state.setRequestHash(requestHash);
+		if ("OPPO".equals(media.protocol()))
+			state.setDeviceHash(RelaySecurity.hash(canonical.device().getOrDefault("oaid", "")));
 		state.setMediaId(media.mediaId());
 		state.setAdvertiserId(upstream.advertiserId());
 		state.setMedia(media);
 		state.setUpstream(upstream);
 		state.setBindings(bindings);
 		state.setReceivedAt(System.currentTimeMillis());
-		state.setDeadline(state.getReceivedAt() + upstream.timeoutMs());
+		state.setDeadline(Math.min(deadline, state.getReceivedAt() + upstream.timeoutMs()));
 		state.setEncryptedPayload(security.encrypt(state.getRelayRequestId(), RelayJson.write(canonical)));
 		RtaState saved = store.init(state);
 		if (saved.getRelayRequestId().equals(state.getRelayRequestId()))

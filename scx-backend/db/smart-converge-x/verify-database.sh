@@ -409,9 +409,9 @@ echo "Database verification passed: OCPX management, truthful fact, account, led
 
 assert_exact_columns scx_ocpx_rta_upstream 'id,advertiser_id,name,protocol,protocol_config,config_schema_version,access_code,endpoint,credential_ref,timeout_ms,admission_seconds,enabled,version,update_time'
 
-assert_exact_columns scx_ocpx_rta_media_access 'media_id,notify_url,credential_ref,enabled,version,update_time'
+assert_exact_columns scx_ocpx_rta_media_access 'media_id,notify_url,credential_ref,enabled,version,update_time,protocol,protocol_config'
 
-assert_exact_columns scx_ocpx_rta_binding 'monitor_task_id,upstream_id,product_id,external_task_id,enabled,version,update_time'
+assert_exact_columns scx_ocpx_rta_binding 'monitor_task_id,upstream_id,product_id,external_task_id,enabled,version,update_time,strategy_id,oppo_pkg'
 
 assert_exact_columns scx_ocpx_rta_log 'id,relay_request_id,request_id,media_id,advertiser_id,upstream_id,task_id,stage,status,reason,duration_ms,event_time,update_time'
 

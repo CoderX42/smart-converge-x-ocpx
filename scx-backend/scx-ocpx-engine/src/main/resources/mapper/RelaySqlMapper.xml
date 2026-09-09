@@ -8,6 +8,8 @@
             <arg column="credential_ref" javaType="java.lang.String"/>
             <arg column="version" javaType="_long"/>
             <arg column="enabled" javaType="_boolean"/>
+            <arg column="protocol" javaType="java.lang.String"/>
+            <arg column="protocol_config" javaType="java.lang.String"/>
         </constructor>
     </resultMap>
     <select id="selectMediaByCredentialRtaMediaAccess" resultMap="selectMediaByCredentialRtaMediaAccessRow" useCache="false" flushCache="true">
@@ -88,4 +90,12 @@
         AND u.enabled=1
     </select>
 <select id="selectLink" resultType="java.lang.String" useCache="false" flushCache="true">SELECT link_url FROM scx_ocpx_promotion_link WHERE id=#{id} AND is_delete=0</select>
+    <select id="selectTaskByStrategy" resultType="java.lang.String">
+        SELECT t.id FROM scx_ocpx_monitor_task t
+        JOIN scx_ocpx_rta_binding b ON b.monitor_task_id=t.id AND b.enabled=1
+        WHERE t.media_id=#{mediaId} AND t.is_delete=0 AND t.rta_enabled=1 AND b.strategy_id=#{strategy}
+    </select>
+    <select id="selectOppoPkg" resultType="java.lang.String">
+        SELECT oppo_pkg FROM scx_ocpx_rta_binding WHERE monitor_task_id=#{taskId}
+    </select>
 </mapper>

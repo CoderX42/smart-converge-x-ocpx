@@ -146,6 +146,26 @@ public class FeedbackReq {
 
 	private String rtaRequestId;
 
+	/**
+	 * Server-selected media protocol; only carried through the encrypted callback
+	 * context.
+	 */
+	@JSONField(serialize = true, deserialize = true)
+	private String downstreamProtocol;
+
+	@JSONField(serialize = true, deserialize = true)
+	private String downstreamCredentialRef;
+
+	@JSONField(serialize = true, deserialize = true)
+	private String oppoPkg;
+
+	/**
+	 * Encrypted transient click identifier; never enters the callback envelope or JSON.
+	 */
+	@JsonIgnore
+	@JSONField(serialize = false, deserialize = false)
+	private String oppoClickDevice;
+
 	@JSONField(serialize = false, deserialize = false)
 	@JsonIgnore
 	private String providerRtaRequestId;
@@ -231,6 +251,10 @@ public class FeedbackReq {
 		copy.clickId = clickId;
 		copy.reqId = reqId;
 		copy.rtaRequestId = rtaRequestId;
+		copy.downstreamProtocol = downstreamProtocol;
+		copy.downstreamCredentialRef = downstreamCredentialRef;
+		copy.oppoPkg = oppoPkg;
+		copy.oppoClickDevice = oppoClickDevice;
 		copy.providerRtaRequestId = providerRtaRequestId;
 		copy.rtaRouteConfig = rtaRouteConfig;
 		copy.requestIdGenerated = requestIdGenerated;

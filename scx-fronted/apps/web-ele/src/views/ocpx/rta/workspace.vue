@@ -55,6 +55,24 @@ const selectedProtocol = computed(() =>
         : form.protocol),
   ),
 );
+function changeMediaProtocol() {
+  form.protocolConfig =
+    form.protocol === 'OPPO'
+      ? { ownerMode: 'EMPTY', timeoutMs: '1000', uploadCredentialRef: '' }
+      : {};
+  form.notifyUrl = '';
+}
+async function copyAccess(row: RtaRow) {
+  const lines = [`RTA地址：${row.requestUrl || ''}`];
+  if (row.strategyId) lines.push(`策略id：${row.strategyId}`);
+  if (row.clickUrl) lines.push(`点击监测链接：${row.clickUrl}`);
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'));
+    ElMessage.success('接入资料已复制，密钥请通过约定渠道单独交付');
+  } catch {
+    ElMessage.error('复制失败，请从配置中手动复制');
+  }
+}
 function changeProtocol() {
   form.protocolConfig = {};
   form.credentialRef = '';
@@ -162,12 +180,14 @@ async function save() {
   if (!['bindings', 'media', 'upstreams'].includes(props.kind)) return;
   const requiredByKind = {
     bindings: ['monitorTaskId', 'upstreamId'],
-    media: ['mediaId', 'notifyUrl', 'credentialRef'],
+    media: ['mediaId', 'credentialRef'],
     upstreams: ['advertiserId', 'name', 'protocol'],
   };
   const required = [
     ...requiredByKind[props.kind as 'bindings' | 'media' | 'upstreams'],
   ];
+  if (props.kind === 'media' && form.protocol !== 'OPPO')
+    required.push('notifyUrl');
   if (props.kind !== 'media') {
     if (!selectedProtocol.value || protocolError.value) {
       ElMessage.warning('请先加载并选择有效协议');
@@ -399,13 +419,24 @@ onMounted(async () => {
           }}</template></el-table-column
         >
         <el-table-column
-          v-if="canEdit || kind === 'records'"
+          v-if="
+            canEdit ||
+            kind === 'records' ||
+            kind === 'media' ||
+            kind === 'bindings'
+          "
           label="操作"
           fixed="right"
-          width="130"
+          width="210"
           ><template #default="{ row }"
             ><el-button v-if="canEdit" link type="primary" @click="edit(row)"
               >配置</el-button
+            ><el-button
+              v-if="row.requestUrl && (kind === 'media' || kind === 'bindings')"
+              link
+              type="primary"
+              @click="copyAccess(row)"
+              >复制接入资料</el-button
             ><el-button
               v-if="kind === 'records'"
               link
@@ -534,18 +565,88 @@ onMounted(async () => {
                 :label="item.name"
                 :value="item.id" /></el-select
           ></el-form-item>
-          <el-form-item label="决策通知地址" required
+          <el-form-item label="媒体 RTA 协议" required>
+            <el-select v-model="form.protocol" @change="changeMediaProtocol">
+              <el-option label="通用异步 RTA" value="GENERIC_ASYNC" />
+              <el-option label="OPPO 策略 ID 协议" value="OPPO" />
+            </el-select>
+          </el-form-item>
+          <template v-if="form.protocol === 'OPPO' && form.protocolConfig">
+            <el-form-item label="owner_id 签名约定">
+              <el-select v-model="form.protocolConfig.ownerMode">
+                <el-option label="为空（签名拼空字符串）" value="EMPTY" />
+                <el-option label="指定 OPPO owner_id" value="VALUE" />
+              </el-select>
+            </el-form-item>
+            <el-form-item
+              v-if="form.protocolConfig.ownerMode === 'VALUE'"
+              label="OPPO owner_id"
+              required
+            >
+              <el-input v-model="form.protocolConfig.ownerId" maxlength="18" />
+            </el-form-item>
+            <el-form-item label="同步等待时限 / 毫秒" required>
+              <el-input
+                v-model="form.protocolConfig.timeoutMs"
+                placeholder="100–5000，按 OPPO 约定填写"
+              />
+            </el-form-item>
+            <el-form-item label="转化回传凭据引用">
+              <el-input
+                v-model="form.protocolConfig.uploadCredentialRef"
+                maxlength="64"
+                placeholder="服务端配置中的 OPPO 上传凭据名称"
+              />
+            </el-form-item>
+            <el-alert
+              title="本次请求直接返回允许投放的策略。签名密钥由服务端配置，通过约定渠道单独交付。"
+              :closable="false"
+            />
+          </template>
+          <el-form-item v-if="form.requestUrl" label="RTA 地址">
+            <el-input :model-value="form.requestUrl" readonly />
+          </el-form-item>
+          <el-form-item
+            v-if="form.protocol !== 'OPPO'"
+            label="决策通知地址"
+            required
             ><el-input
               v-model="form.notifyUrl"
               placeholder="https://允许的域名/路径"
           /></el-form-item>
           <el-alert
+            v-if="form.protocol !== 'OPPO'"
             title="HMAC-SHA256：X-Rta-Key、X-Rta-Timestamp、X-Rta-Nonce、X-Rta-Sign。请求体参与签名，凭据绑定当前媒体。"
             :closable="false"
             type="info"
           />
         </template>
         <template v-if="kind === 'bindings'">
+          <template v-if="form.mediaProtocol === 'OPPO'">
+            <el-form-item label="OPPO 策略 ID">
+              <el-input
+                :model-value="
+                  form.strategyId ? String(form.strategyId) : '首次保存后生成'
+                "
+                readonly
+              />
+            </el-form-item>
+            <el-form-item label="投放应用包名">
+              <el-input
+                v-model="form.oppoPkg"
+                maxlength="128"
+                placeholder="转化回传时必填，如 com.example.app"
+              />
+            </el-form-item>
+            <el-form-item v-if="form.clickUrl" label="OPPO 点击监测链接">
+              <el-input
+                :model-value="form.clickUrl"
+                type="textarea"
+                :rows="4"
+                readonly
+              />
+            </el-form-item>
+          </template>
           <el-form-item label="监测任务"
             >{{ form.taskName }} · {{ form.monitorTaskId }}</el-form-item
           >

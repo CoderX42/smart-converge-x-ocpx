@@ -38,6 +38,17 @@ public class RelayHttpTransport implements RelayTransport {
 
 	@Override
 	public RtaUpstreamAdapter.HttpResult exchange(RtaUpstreamAdapter.Outbound outbound, long timeoutMillis) {
+		return exchange(outbound, timeoutMillis, java.util.Map.of());
+	}
+
+	public RtaUpstreamAdapter.HttpResult uploadOppo(String body, java.util.Map<String, String> headers) {
+		return exchange(
+				new RtaUpstreamAdapter.Outbound("https://api.ads.heytapmobi.com/api/uploadActiveData", "", body), 5000,
+				headers);
+	}
+
+	private RtaUpstreamAdapter.HttpResult exchange(RtaUpstreamAdapter.Outbound outbound, long timeoutMillis,
+			java.util.Map<String, String> extraHeaders) {
 		String endpoint = outbound.endpoint(), credentialRef = outbound.credentialRef(), body = outbound.body();
 		long start = System.nanoTime();
 		URI uri = URI.create(endpoint);
@@ -70,6 +81,7 @@ public class RelayHttpTransport implements RelayTransport {
 				.build();
 			Request.Builder request = new Request.Builder().url(endpoint)
 				.post(RequestBody.create(body, MediaType.get("application/json; charset=utf-8")));
+			extraHeaders.forEach(request::header);
 			if (credentialRef != null && !credentialRef.isEmpty())
 				security.headers(credentialRef, uri.getRawPath().isEmpty() ? "/" : uri.getRawPath(), body)
 					.forEach(request::header);

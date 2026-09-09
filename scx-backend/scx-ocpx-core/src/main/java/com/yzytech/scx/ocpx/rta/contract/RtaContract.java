@@ -51,7 +51,16 @@ public final class RtaContract {
 		}
 	}
 
-	public record Media(String mediaId, String notifyUrl, String credentialRef, long version, boolean enabled) {
+	public record Media(String mediaId, String notifyUrl, String credentialRef, long version, boolean enabled,
+			String protocol, Map<String, String> protocolConfig) {
+		public Media {
+			protocol = protocol == null ? "GENERIC_ASYNC" : protocol;
+			protocolConfig = protocolConfig == null ? Map.of() : Map.copyOf(protocolConfig);
+		}
+
+		public Media(String mediaId, String notifyUrl, String credentialRef, long version, boolean enabled) {
+			this(mediaId, notifyUrl, credentialRef, version, enabled, "GENERIC_ASYNC", Map.of());
+		}
 	}
 
 	public record Log(String id, String relayRequestId, String requestId, String mediaId, String advertiserId,

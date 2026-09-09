@@ -28,6 +28,17 @@ public class RelayStore {
 				new ClassPathResource("rta/state.lua").getContentAsString(StandardCharsets.UTF_8), String.class);
 	}
 
+	public void fingerprint(String mediaId, String requestId, String hash) {
+		String key = RtaContract.PREFIX + "oppo-request:" + RelaySecurity.hash(mediaId + ":" + requestId);
+		String result = redis.execute(new DefaultRedisScript<String>(
+				"local old=redis.call('GET',KEYS[1]); if old then return old end; redis.call('SET',KEYS[1],ARGV[1],'PX',86400000); return ARGV[1]",
+				String.class), List.of(key), hash);
+		if (result == null)
+			throw new RelayException(503, "RTA_STORAGE_UNAVAILABLE");
+		if (!result.equals(hash))
+			throw new RelayException(409, "RTA_REQUEST_CONFLICT");
+	}
+
 	public RtaState init(RtaState value) {
 		return mutate("INIT", value.getReceivedAt(), value.getRelayRequestId(), RelayJson.write(value));
 	}

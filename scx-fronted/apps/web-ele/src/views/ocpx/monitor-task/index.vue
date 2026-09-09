@@ -49,6 +49,7 @@ import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
 import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
+import RtaTestDialog from '../rta/test-dialog.vue';
 import {
   allColumnKeys,
   copyLongText,
@@ -91,6 +92,7 @@ const loading = ref(false);
 const saving = ref(false);
 const deletingId = ref('');
 const testDialogOpen = ref(false);
+const rtaTestTaskId = ref('');
 const testGenerating = ref(false);
 const testExecuting = ref(false);
 const testPolling = ref(false);
@@ -877,7 +879,7 @@ onBeforeUnmount(clearTestPolling);
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column label="RTA" width="155">
+        <el-table-column label="RTA" width="210">
           <template #default="{ row }">
             <el-tag :type="row.rtaEnabled ? 'success' : 'info'">{{
               row.rtaEnabled ? '已启用' : '已停用'
@@ -892,6 +894,13 @@ onBeforeUnmount(clearTestPolling);
                 })
               "
               >配置</el-button
+            >
+            <el-button
+              v-if="canTest"
+              link
+              type="success"
+              @click="rtaTestTaskId = row.id"
+              >RTA 测试</el-button
             >
           </template>
         </el-table-column>
@@ -1806,6 +1815,7 @@ onBeforeUnmount(clearTestPolling);
       >
     </el-dialog>
     <RtaConfigurationDrawer kind="bindings" @saved="load" />
+    <RtaTestDialog :task-id="rtaTestTaskId" @close="rtaTestTaskId = ''" />
   </Page>
 </template>
 

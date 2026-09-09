@@ -149,8 +149,6 @@
         },
         "notifyUrl": {
           "type": "string",
-          "format": "uri",
-          "pattern": "^https://",
           "maxLength": 2048
         },
         "credentialRef": {
@@ -160,12 +158,56 @@
         "enabled": {
           "type": "boolean",
           "default": false
+        },
+        "protocol": {
+          "enum": [
+            "GENERIC_ASYNC",
+            "OPPO"
+          ],
+          "default": "GENERIC_ASYNC"
+        },
+        "protocolConfig": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "required": [
         "mediaId",
-        "notifyUrl",
         "credentialRef"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "protocol": {
+                "const": "OPPO"
+              }
+            },
+            "required": [
+              "protocol"
+            ]
+          },
+          "then": {
+            "properties": {
+              "notifyUrl": {
+                "const": ""
+              }
+            }
+          },
+          "else": {
+            "required": [
+              "notifyUrl"
+            ],
+            "properties": {
+              "notifyUrl": {
+                "pattern": "^https://",
+                "format": "uri"
+              }
+            }
+          }
+        }
       ]
     },
     "RtaBindingConfig": {
@@ -203,6 +245,10 @@
         "enabled": {
           "type": "boolean",
           "default": false
+        },
+        "oppoPkg": {
+          "type": "string",
+          "maxLength": 128
         }
       },
       "required": [

@@ -208,6 +208,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_rta_upstream (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_rta_media_access (
+  protocol VARCHAR(32) NOT NULL DEFAULT 'GENERIC_ASYNC',
+  protocol_config JSON NULL,
   media_id VARCHAR(32) NOT NULL PRIMARY KEY,
   notify_url VARCHAR(2048) NOT NULL,
   credential_ref VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -220,6 +222,8 @@ CREATE TABLE IF NOT EXISTS scx_ocpx_rta_media_access (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS scx_ocpx_rta_binding (
+  strategy_id INT NOT NULL AUTO_INCREMENT UNIQUE,
+  oppo_pkg VARCHAR(128) NOT NULL DEFAULT '',
   monitor_task_id VARCHAR(32) NOT NULL PRIMARY KEY,
   upstream_id VARCHAR(32) NOT NULL,
   product_id VARCHAR(128) COLLATE utf8mb4_bin NULL,

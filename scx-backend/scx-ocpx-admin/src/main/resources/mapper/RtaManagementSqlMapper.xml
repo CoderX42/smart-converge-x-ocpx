@@ -158,6 +158,7 @@
             </when>
             <when test="q.kind == &#x27;bindings&#x27;">
                 SELECT t.id AS monitor_task_id,
+                r.strategy_id, r.oppo_pkg, ma.protocol AS media_protocol, ma.credential_ref AS media_access_code,
                 t.monitor_name AS task_name,
                 t.media_id,
                 t.advertiser_id,
@@ -175,6 +176,7 @@
                 LEFT
                 JOIN scx_ocpx_rta_binding r ON r.monitor_task_id=t.id
                 LEFT JOIN scx_ocpx_rta_upstream u ON u.id=r.upstream_id
+                LEFT JOIN scx_ocpx_rta_media_access ma ON ma.media_id=t.media_id
                 JOIN scx_ocpx_media m ON m.id=t.media_id
                 JOIN scx_ocpx_advertiser a ON a.id=t.advertiser_id
                 WHERE 1=1 AND t.is_delete=0
@@ -449,4 +451,22 @@
     </select>
 <select id="findUpstream" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">SELECT * FROM scx_ocpx_rta_upstream WHERE id=#{id} FOR UPDATE</select>
     <select id="selectLink" resultType="java.lang.String">SELECT link_url FROM scx_ocpx_promotion_link WHERE id=#{id} AND is_delete=0</select>
+<update id="updateMediaProtocol">UPDATE scx_ocpx_rta_media_access SET protocol=#{protocol}, protocol_config=#{config} WHERE media_id=#{media}</update>
+<update id="updateOppoPkg">UPDATE scx_ocpx_rta_binding SET oppo_pkg=#{pkg} WHERE monitor_task_id=#{task}</update>
+    <select id="selectRtaTestRoute" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">
+        SELECT t.id, t.monitor_name AS task_name, t.media_id, t.rta_enabled, l.link_url,
+        b.enabled AS binding_enabled, b.strategy_id,
+        m.media_name, ma.enabled AS media_enabled, ma.protocol AS media_protocol,
+        ma.protocol_config AS media_config, ma.credential_ref,
+        u.name AS upstream_name, u.enabled AS upstream_enabled, u.protocol AS upstream_protocol,
+        u.protocol_config AS upstream_config
+        FROM scx_ocpx_monitor_task t
+        JOIN scx_ocpx_media m ON m.id=t.media_id
+        JOIN scx_ocpx_advertiser a ON a.id=t.advertiser_id
+        JOIN scx_ocpx_promotion_link l ON l.id=t.promotion_link_id AND l.advertiser_id=t.advertiser_id AND l.is_delete=0
+        LEFT JOIN scx_ocpx_rta_binding b ON b.monitor_task_id=t.id
+        LEFT JOIN scx_ocpx_rta_media_access ma ON ma.media_id=t.media_id
+        LEFT JOIN scx_ocpx_rta_upstream u ON u.id=b.upstream_id AND u.advertiser_id=t.advertiser_id
+        WHERE t.id=#{id} AND t.is_delete=0
+    </select>
 </mapper>

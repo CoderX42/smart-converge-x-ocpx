@@ -35,6 +35,8 @@ public class RelayController {
 		headers = normalized;
 		String body = body(request);
 		Media media = repository.mediaByCredential(headers.get("x-rta-key"));
+		if (!"GENERIC_ASYNC".equals(media.protocol()))
+			throw new RelayException(400, "RTA_MEDIA_PROTOCOL_MISMATCH");
 		security.verify(media.credentialRef(), request.getRequestURI(), body, headers, System.currentTimeMillis());
 		return ResponseEntity.accepted().body(service.accept(RelayJson.read(body, Request.class), media));
 	}

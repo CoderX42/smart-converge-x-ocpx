@@ -26,8 +26,9 @@ public class RelayAudit {
 			return;
 		for (var binding : s.getBindings()) {
 			var value = new RtaContract.Log(UUID.randomUUID().toString().replace("-", ""), s.getRelayRequestId(),
-					s.getRequestId(), s.getMediaId(), s.getAdvertiserId(), s.getUpstream().id(), binding.taskId(),
-					stage, success ? "SUCCESS" : "FAILED", reason, duration, System.currentTimeMillis());
+					s.getOriginalRequestId() == null ? s.getRequestId() : s.getOriginalRequestId(), s.getMediaId(),
+					s.getAdvertiserId(), s.getUpstream().id(), binding.taskId(), stage, success ? "SUCCESS" : "FAILED",
+					reason, duration, System.currentTimeMillis());
 			try {
 				redis.opsForStream().add(RtaContract.PREFIX + "logs", Map.of("payload", RelayJson.write(value)));
 			}

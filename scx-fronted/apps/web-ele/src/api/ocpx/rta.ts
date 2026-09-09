@@ -24,6 +24,7 @@ export type RtaRow = {
   allowCount?: number;
   allowRate?: number;
   callbackUrl?: string;
+  clickUrl?: string;
   completedAt?: number;
   credentialRef?: string;
   deadline?: number;
@@ -45,9 +46,11 @@ export type RtaRow = {
   matchedTaskIds?: string[];
   mediaId?: string;
   mediaName?: string;
+  mediaProtocol?: string;
   monitorTaskId?: string;
   name?: string;
   notifyUrl?: string;
+  oppoPkg?: string;
   pendingCount?: number;
   productId?: string;
   protocol?: string;
@@ -62,6 +65,7 @@ export type RtaRow = {
   requestUrl?: string;
   stage?: string;
   status?: string;
+  strategyId?: number;
   taskId?: string;
   taskName?: string;
   timeHour?: string;
@@ -97,10 +101,19 @@ export function saveRta(
       'upstreamId',
       'productId',
       'externalTaskId',
+      'oppoPkg',
       'enabled',
       'version',
     ],
-    media: ['mediaId', 'notifyUrl', 'credentialRef', 'enabled', 'version'],
+    media: [
+      'mediaId',
+      'notifyUrl',
+      'credentialRef',
+      'enabled',
+      'version',
+      'protocol',
+      'protocolConfig',
+    ],
     upstreams: [
       'id',
       'advertiserId',

@@ -14,6 +14,10 @@ public class RtaState {
 
 	private String requestHash;
 
+	private String deviceHash;
+
+	private String originalRequestId;
+
 	private String providerRequestId;
 
 	private String dispatchStatus = "QUEUED";

@@ -75,8 +75,14 @@ if op=='FINISH' then
   end
   redis.call('ZREM',p..'send',id)
   redis.call('ZREM',p..'deadline',id)
-  redis.call('ZADD',p..'notify',now,id)
+  if s.media.protocol=='OPPO' then
+    s.deliveryStatus='SYNC_READY'
+  else
+    redis.call('ZADD',p..'notify',now,id)
+  end
   persist(s)
+elseif op=='SYNC_RESPONSE' then
+  if s.media.protocol=='OPPO' and s.status~='PENDING' then s.deliveryStatus='SYNC_RETURNED'; persist(s) end
 elseif op=='DISPATCH_ONCE' then
   if s.status~='PENDING' or s.dispatchStatus=='SENT' then return 'DISPATCHED' end
   s.dispatchStatus='SENT'

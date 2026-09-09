@@ -30,3 +30,18 @@ app:
       v1: local-dev-key-01
     legacy-order:
       - v1
+
+# OPPO 回传凭据仅在部署服务器填写；不得使用文档中的示例密钥。
+ocpx:
+  partner-credentials:
+    oppo-upload: {}
+    # 实际配置结构：
+    # oppo-upload:
+    #   media-oppo:
+    #     salt: '由 OPPO 提供'
+    #     aes-key: '由 OPPO 提供的 Base64 AES-128 Key'
+    #     owner-id: 'OPPO 广告主账户 ID'
+    #     api-id: 'OPPO API ID'
+    #     api-key: 'OPPO API Key'
+# app.rta-relay.allowed-hosts 必须同时允许微风 RTA 域名及 api.ads.heytapmobi.com。
+# 媒体 RTA 密钥在 app.rta-relay.credentials 中按凭据引用配置，重新打包重启生效。

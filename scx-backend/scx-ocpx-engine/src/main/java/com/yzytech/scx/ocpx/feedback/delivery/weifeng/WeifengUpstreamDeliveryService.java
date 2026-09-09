@@ -42,6 +42,9 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 	@Autowired(required = false)
 	private OcpxKeyRingCrypto callbackCrypto;
 
+	@Autowired(required = false)
+	private com.yzytech.scx.ocpx.rta.relay.RelaySecurity relaySecurity;
+
 	private final OcpxPromotionLinkIndex promotionLinkIndex;
 
 	private final WeifengEndpointPolicy endpointPolicy;
@@ -153,7 +156,12 @@ public class WeifengUpstreamDeliveryService extends UpstreamDeliveryService {
 		macros.put("__CAID1__", firstText(feedback.getCaid1(), feedback.getCaid()));
 		macros.put("__CAID2__", firstText(feedback.getCaid2(), feedback.getLastCaid(), feedback.getPrevCaid()));
 		macros.put("__IDFA__", feedback.getIdfa());
-		macros.put("__OAID__", feedback.getOaid());
+		String oaid = feedback.getOaid();
+		if ("OPPO".equals(feedback.getDownstreamProtocol()) && feedback.getOppoClickDevice() != null
+				&& feedback.isRtaProtected() && relaySecurity != null) {
+			oaid = relaySecurity.decrypt(feedback.getRtaRequestId() + ":oppo-click", feedback.getOppoClickDevice());
+		}
+		macros.put("__OAID__", oaid);
 		macros.put("__IMEI__", feedback.getImei());
 		macros.put("__ANDROID_ID__", feedback.getAndroidid());
 		macros.put("__ANDROIDID__", feedback.getAndroidid());

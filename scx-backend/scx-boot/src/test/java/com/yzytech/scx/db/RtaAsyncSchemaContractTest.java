@@ -19,7 +19,7 @@ class RtaAsyncSchemaContractTest {
 			var forward = pattern.matcher(migration);
 			assertThat(current.find()).isTrue();
 			assertThat(forward.find()).isTrue();
-			if (!List.of("upstream", "binding").contains(table))
+			if (!List.of("upstream", "binding", "media_access").contains(table))
 				assertThat(forward.group()).isEqualTo(current.group());
 		}
 		String extension = Files.readString(

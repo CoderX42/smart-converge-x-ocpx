@@ -67,6 +67,13 @@ public interface RtaManagementSqlMapper {
 
 	java.util.Map<String, Object> findUpstream(@Param("id") String id);
 
+	int updateMediaProtocol(@Param("media") String media, @Param("protocol") String protocol,
+			@Param("config") String config);
+
+	int updateOppoPkg(@Param("task") String task, @Param("pkg") String pkg);
+
 	String selectLink(@Param("id") Object id);
+
+	java.util.Map<String, Object> selectRtaTestRoute(@Param("id") String id);
 
 }

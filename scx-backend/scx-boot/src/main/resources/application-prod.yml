@@ -14,6 +14,7 @@ app:
     public-base-url: https://example.invalid/ocpx
     callback-base-url: https://example.invalid/ocpx
     allowed-hosts: rta.example.invalid
+    # RTA测试签名：按媒体凭据引用填入与Engine相同的密钥，仅服务端使用。
     credentials: {}
     payload-key: ''
 

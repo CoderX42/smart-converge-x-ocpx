@@ -864,9 +864,12 @@ if "com.yzytech.scx.ocpx.dao.mapper" in entrypoint:
 for file in java_root.rglob("*Controller.java"):
     source = file.read_text(encoding="utf-8")
     mutating = ["@PostMapping", "@PutMapping", "@PatchMapping", "@DeleteMapping"]
-    if any(annotation in source for annotation in mutating) and file.name != "RelayController.java":
+    if any(annotation in source for annotation in mutating) and file.name not in {"RelayController.java", "OppoRtaController.java"}:
         raise SystemExit(f"GET-only gate failed: mutating mapping found in {file}")
 
+oppo_controller = (java_root / "oppo/OppoRtaController.java").read_text(encoding="utf-8")
+assert oppo_controller.count("@PostMapping") == 1 and '"/rta/oppo/{code}"' in oppo_controller
+assert not any(a in oppo_controller for a in ("@PutMapping", "@DeleteMapping", "@PatchMapping"))
 rta_controller = (java_root / "rta/relay/RelayController.java").read_text(encoding="utf-8")
 if '@RequestMapping("/rta")' not in rta_controller or not re.search(r'value\s*=\s*"/requests"', rta_controller):
     raise SystemExit("RTA gate failed: the internal RTA POST entry is missing")

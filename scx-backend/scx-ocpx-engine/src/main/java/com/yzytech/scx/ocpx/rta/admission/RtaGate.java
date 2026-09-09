@@ -35,6 +35,8 @@ public class RtaGate {
 			if (request.getRtaRequestId() == null || !request.getRtaRequestId().matches("[a-f0-9]{32}"))
 				throw new RelayException(403, "RTA_ADMISSION_MISSING");
 			var state = store.get(request.getRtaRequestId());
+			if ("OPPO".equals(state.getMedia().protocol()) && !"OPPO".equals(request.getDownstreamProtocol()))
+				throw new RelayException(403, "OPPO_CLICK_ENDPOINT_REQUIRED");
 			try {
 				if (!state.getMediaId().equals(request.getMId()) || !state.getStatus().equals("ALLOW")
 						|| state.getExpiresAt() <= System.currentTimeMillis()

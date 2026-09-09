@@ -16,7 +16,11 @@ public interface RelaySqlMapper {
 			@Param("taskId") String taskId);
 
 	record SelectMediaByCredentialRtaMediaAccessRow(String mediaId, String notifyUrl, String credentialRef,
-			long version, boolean enabled) {
+			long version, boolean enabled, String protocol, String protocolConfig) {
+		public SelectMediaByCredentialRtaMediaAccessRow(String mediaId, String notifyUrl, String credentialRef,
+				long version, boolean enabled) {
+			this(mediaId, notifyUrl, credentialRef, version, enabled, "GENERIC_ASYNC", null);
+		}
 	}
 
 	record SelectBindingMonitorTaskRow(String id, String advertiserId, String mediaId, String promotionLinkId,
@@ -32,6 +36,10 @@ public interface RelaySqlMapper {
 	}
 
 	java.util.List<SelectUpstreamRow> selectUpstream(@Param("column") String column, @Param("value") String value);
+
+	String selectTaskByStrategy(@Param("mediaId") String mediaId, @Param("strategy") int strategy);
+
+	String selectOppoPkg(@Param("taskId") String taskId);
 
 	String selectLink(@Param("id") String id);
 

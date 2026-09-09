@@ -1,6 +1,6 @@
 # Smart Converge X 广告平台文档中心
 
-> 当前源码基线：2026-09-07 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力、V124 人人视频、V127 凤凰新闻上游协议、V132 对象内 RTA 配置与多上游协议、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计、V123 流程日志检索优化、V125 MySQL IOPS 治理及 V126 Callback 记录检索索引优化。源码变更不代表目标数据库、UAT 或生产发布已验收。
+> 当前源码基线：2026-09-09 最小 OCPX + vientiane 管理端、广告主开户、共享广告主角色权限、创意与推广链接多对多，以及 MySQL 真实事件、可配置点击/转化计费、人工余额扣减、监测任务点击测试、下游媒体联调、上游 Callback 转化记录、V119 六阶段脱敏链路日志、V120 引力、V124 人人视频、V127 凤凰新闻上游协议、V132 对象内 RTA 配置与多上游协议、V133 OPPO 媒体同步 RTA/点击/回传、Callback 密钥环兼容、V122 退役 V121 全量原始请求审计、V123 流程日志检索优化、V125 MySQL IOPS 治理及 V126 Callback 记录检索索引优化。源码变更不代表目标数据库、UAT 或生产发布已验收。
 
 ## 当前广告业务
 
@@ -16,7 +16,7 @@ SCX 当前只保留连接上游广告主/DSP 与下游媒体/渠道所需的最�
 
 管理端页面字段和交互以 `/Users/karl/code/sgyz-ocpx/vientiane-frontend/src/views` 为参考；`/manage/channel/channel` 映射为 SCX“媒体管理”。管理 API 始终使用 `advertiserId/mediaId/promotionLinkId/monitorTaskId`，不提供参考系统旧字段别名。
 
-`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback`、凤凰新闻 `/phoenix/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY`、`RENREN_VIDEO` 或 `PHOENIX`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频和凤凰新闻按推广链接保存完整点击模板，不保存合作方令牌；凤凰新闻点击按模板路径投递、曝光使用 `/d/imp`，支持 Android、iOS 及混合平台。下游媒体统一使用 Feedback 携带的 Callback URL 走通用回传。KIMI 与小米 MI 协议已于 2026-08-17 移除。
+`scx-ocpx-engine` 默认监听 `10000/ocpx`，实现通用 `/feedback`、`/callback` GET 闭环，以及 AERIM `/aerim/callback`、微风互动 `/weifeng/callback`、引力 `/gravity/callback`、人人视频 `/renren-video/callback`、凤凰新闻 `/phoenix/callback` GET。`mId/tId/aId/lId` 分别是媒体、任务、广告主和链接的 SCX 主键。广告主在管理端选择 `TEMPLATE_GET`、`AERIM`、`WEIFENG`、`GRAVITY`、`RENREN_VIDEO` 或 `PHOENIX`，协议允许域名由后台维护并热刷新；协议为空或白名单为空时拒绝上游转发。人人视频和凤凰新闻按推广链接保存完整点击模板，不保存合作方令牌；凤凰新闻点击按模板路径投递、曝光使用 `/d/imp`，支持 Android、iOS 及混合平台。通用下游媒体使用 Feedback 携带的 Callback URL 回传；OPPO 使用 V133 专用媒体协议。KIMI 与小米 MI 协议已于 2026-08-17 移除。
 
 六个共享实体位于 `scx-ocpx-core`。V108 由 MySQL 唯一事件事实、不可变账务流水、广告主账户和小时汇总统一驱动 Dashboard 与报表；V110 增加仅真实系统管理员可用的幂等人工余额扣减；V111 增加广告主自有图片创意、多链接绑定、关闭/点击/目标转化三种计费模式和全量账务流水查询。V111 不引入 `cId`、创意级监测地址、创意事实或创意报表维度，外部 `creative_id` 语义不变。Redis 余额和旧报表队列不再是数据真相。Dashboard 默认展示今天，支持今天、昨天、过去 7 天、过去 30 天和自定义日期；过去 7/30 天采用不含今天的完整历史日口径。广告主只能查看自己的可用余额和今日消费；业务指标可按授权数据范围查询。浏览器只传输服务端凭据引用；广告主开户时一次性提交登录用户名和原始密码，密码只用于服务端 BCrypt，不进入业务表、响应或日志。Secret、AES Key 和解析后的合作方凭据始终不进入浏览器。
 
@@ -54,6 +54,8 @@ V131 重建 RTA：媒体请求 → 广告主独立 HTTP 回调 → SCX 通知媒
 
 V132 调整配置归属：广告主管理维护一对多 RTA 接入，媒体管理维护通知配置，监测任务维护绑定，RTA 目录只保留请求记录、流程日志及统计报表。上游通过独立适配器支持 GENERIC_ASYNC 和 WEIFENG_RTA；微风同步结果进入统一的媒体异步通知流程。配置方法和验证边界见 [V132 使用与交付说明](RTA配置归属与多协议接入V132.md)。V131 以上描述保留为历史基线。
 
+V133 增加 OPPO 媒体协议：复用媒体配置和监测任务绑定，生成稳定 Integer 对外策略 ID，按任务映射上游接入。OPPO 专用同步 RTA 入口返回允许策略，首接 WEIFENG_RTA；OPPO 决策不进入通用异步通知队列。新增受 RTA 决策保护的点击入口，以及按媒体凭据执行的 OPPO v3.23 激活、注册、应用付费回传。管理端可复制 RTA 地址、策略 ID、点击链接；服务端密钥不返回浏览器。配置、验证证据及联调边界见 [OPPO 媒体接入 V133](contracts/oppo-media-v133.md)。目标库迁移、生产发布和真实合作方 UAT 未执行。
+
 ## 推荐阅读顺序
 
 1. 仓库根目录 `AGENTS.md`。
@@ -75,6 +77,8 @@ V132 调整配置归属：广告主管理维护一对多 RTA 接入，媒体管�
 
 ## 待评审实现方案
 
+- [监测任务 RTA 决策测试](contracts/rta-test-console.md)：独立“RTA 测试”入口，首版支持 OPPO → SCX → 微风单任务询量、阻塞预检及结果查询；不自动发送点击/转化，真实联调仍须独立验收。
+- [RTA 链路优化方案 v1（Proposed）](RFC-RTA链路优化方案v1.md)：保持 V132/V133 三条业务链路和外部契约，分阶段优化多策略汇总、超时与并发、批量读取及连接复用，定义回归、灰度和回滚门槛；尚未实施。
 - [V111 创意管理与可配置计费实现方案（Accepted）](OCPX创意管理与可配置计费实现方案V111.md)：上游客户自有图片创意、创意与推广链接多对多、运营点击/转化计费和全量账务流水的实现基线；目标库迁移、部署和真实合作方 UAT 仍需独立证据。
 - [V112 监测任务完整点击测试契约](contracts/management-v112.md)：管理员生成并执行真实 CLK 测试，查询点击、广告主 Callback、转化计费、媒体扣量和受控最后一跳；目标库迁移、部署和真实合作方 UAT 仍需独立证据。
 - [V113 广告主计费与媒体回传扣量契约](contracts/management-v113.md)：保留监测任务广告主计费，将扣量限定为媒体回传数量控制，并从首条新口径事实开始提供可审计报表；目标库迁移、Redis 切换、部署和合作方 UAT 仍需独立证据。

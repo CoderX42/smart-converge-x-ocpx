@@ -251,4 +251,35 @@ class WeifengUpstreamDeliveryServiceTest {
 		throw new AssertionError("missing query parameter " + key);
 	}
 
+	@Test
+	void oppoClickPreservesDeviceForWeifengButCallbackOnlyCarriesHashAndMediaContext() {
+		var properties = new com.yzytech.scx.ocpx.rta.relay.RelayProperties();
+		properties.setPayloadKey(java.util.Base64.getEncoder().encodeToString(new byte[32]));
+		var crypto = new com.yzytech.scx.ocpx.rta.relay.RelaySecurity(properties, null);
+		ReflectionTestUtils.setField(service, "relaySecurity", crypto);
+		var f = androidFeedback();
+		f.setRtaProtected(true);
+		f.setDownstreamProtocol("OPPO");
+		f.setDownstreamCredentialRef("upload");
+		f.setOppoPkg("com.example.app");
+		f.setRtaRequestId("relay-1");
+		f.setProviderRtaRequestId("provider-1");
+		f.setOaidMd5(com.yzytech.scx.ocpx.oppo.OppoRtaService.md5(f.getOaid()));
+		f.setOppoClickDevice(crypto.encrypt("relay-1:oppo-click", f.getOaid()));
+		var snapshot = f.copyForRtaDownstream();
+		String url = service.buildRequestUrl(snapshot);
+		assertThat(url).isNotNull();
+		assertThat(decodedQueryValue(url, "oaid")).isEqualTo("oaid-value");
+		assertThat(decodedQueryValue(url, "requestId")).isEqualTo("provider-1");
+		String callback = decodedQueryValue(url, "callback");
+		String ext = decodedQueryValue(callback, "ext");
+		String clear = com.yzytech.scx.ocpx.shared.util.AesUtil.decryptBase64(ext, AES_KEY);
+		assertThat(clear).doesNotContain("oaid-value", f.getOppoClickDevice());
+		var restored = com.alibaba.fastjson2.JSON.parseObject(clear, FeedbackReq.class);
+		assertThat(restored.getDownstreamProtocol()).isEqualTo("OPPO");
+		assertThat(restored.getDownstreamCredentialRef()).isEqualTo("upload");
+		assertThat(restored.getOppoPkg()).isEqualTo("com.example.app");
+		assertThat(restored.getOaidMd5()).isEqualTo(f.getOaidMd5());
+	}
+
 }

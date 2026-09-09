@@ -484,4 +484,85 @@ class RelayIntegrationTest {
 		assertThatThrownBy(() -> service.accept(request("wf-batch"), media)).hasMessage("RTA_SINGLE_TASK_REQUIRED");
 	}
 
+	@Test
+	void oppoMultiStrategySyncClickAndNoAsyncNotification() throws Exception {
+		var m = new Media("media-a", "", "media-key", 1, true, "OPPO",
+				Map.of("timeoutMs", "1000", "uploadCredentialRef", "upload"));
+		when(repository.mediaByCredential("media-key")).thenReturn(m);
+		var u = new Upstream("upstream-a", "advertiser-a", "advertiser-code", "https://rta.adapi.cn/rtaCommon/sendRta",
+				"", 1, 1000, 300, true, "WEIFENG_RTA", 1, Map.of("aid", "5103", "did", "zsyd"));
+		when(repository.upstream("id", "upstream-a")).thenReturn(u);
+		when(repository.taskByStrategy("media-a", 452)).thenReturn("A");
+		when(repository.taskByStrategy("media-a", 453)).thenReturn("B");
+		when(repository.oppoPkg("A")).thenReturn("com.example.app");
+		var transport = mock(RelayTransport.class);
+		when(transport.exchange(any(), anyLong())).thenAnswer(invocation -> {
+			RtaUpstreamAdapter.Outbound outbound = invocation.getArgument(0);
+			String id = RelayJson.read(outbound.body(), com.fasterxml.jackson.databind.JsonNode.class)
+				.get("id")
+				.asText();
+			boolean allow = store.get(id).getBindings().get(0).taskId().equals("A");
+			return new RtaUpstreamAdapter.HttpResult(200, RelayJson.write(Map.of("id", id, "code", allow ? 0 : 1)));
+		});
+		var worker = new RelayWorker(store, security, properties, transport, repository, audit,
+				new SimpleMeterRegistry(), adapters, service);
+		var scheduler = Executors.newSingleThreadScheduledExecutor();
+		scheduler.scheduleWithFixedDelay(worker::tick, 0, 5, TimeUnit.MILLISECONDS);
+		try {
+			var oppo = new com.yzytech.scx.ocpx.oppo.OppoRtaService(repository, service, store, security, audit);
+			var input = new com.yzytech.scx.ocpx.oppo.OppoRtaService.Input("oppo-request", "device-a", "127.0.0.1",
+					System.currentTimeMillis(), List.of(452, 453), "", "");
+			var response = oppo.decide(m, input, System.currentTimeMillis());
+			assertThat(response.ret()).isZero();
+			assertThat(response.data().agree_type_list()).containsExactly(452);
+			assertThat(redis.opsForZSet().zCard(RtaContract.PREFIX + "notify")).isZero();
+			assertThat(oppo.decide(m, input, System.currentTimeMillis()).data().agree_type_list()).containsExactly(452);
+			verify(transport, times(2)).exchange(any(), anyLong());
+			var state = store.find("media-a", com.yzytech.scx.ocpx.oppo.OppoRtaService.internalId("oppo-request", 452));
+			assertThat(state.getDeliveryStatus()).isEqualTo("SYNC_RETURNED");
+			var feedback = mock(com.yzytech.scx.ocpx.feedback.service.FeedbackService.class);
+			var logs = mock(com.yzytech.scx.ocpx.report.service.OcpxFlowLogWriter.class);
+			var controller = new com.yzytech.scx.ocpx.oppo.OppoClickController(oppo, repository, store, feedback, logs,
+					security);
+			var http = new org.springframework.mock.web.MockHttpServletRequest();
+			http.addParameter("request_id", "oppo-request");
+			http.addParameter("oaid", "device-a");
+			http.addParameter("ad_id", "1234");
+			http.addParameter("model", "test-device");
+			http.addParameter("ts", Long.toString(System.currentTimeMillis()));
+			assertThat(controller.click("media-key", 452, http).getStatusCode().value()).isEqualTo(200);
+			var capture = org.mockito.ArgumentCaptor.forClass(FeedbackReq.class);
+			verify(feedback).handleFeedback(capture.capture());
+			assertThat(capture.getValue().getReqId()).isEqualTo("oppo-request");
+			assertThat(capture.getValue().getCreativeId()).isEqualTo("1234");
+			assertThat(capture.getValue().getRtaRequestId()).isEqualTo(state.getRelayRequestId());
+			http.setParameter("oaid", "other-device");
+			assertThatThrownBy(() -> controller.click("media-key", 452, http)).hasMessage("OPPO_CLICK_NOT_ALLOWED");
+			assertThatThrownBy(() -> controller.click("media-key", 453, http)).hasMessage("OPPO_CLICK_NOT_ALLOWED");
+		}
+		finally {
+			scheduler.shutdownNow();
+			worker.close();
+		}
+	}
+
+	@Test
+	void oppoDeadlineDoesNotAuthorizeLateDecisionOrNotifyMedia() throws Exception {
+		useWeifeng();
+		var m = new Media("media-a", "", "media-key", 1, true, "OPPO", Map.of("timeoutMs", "100"));
+		when(repository.taskByStrategy("media-a", 452)).thenReturn("A");
+		var oppo = new com.yzytech.scx.ocpx.oppo.OppoRtaService(repository, service, store, security, audit);
+		var input = new com.yzytech.scx.ocpx.oppo.OppoRtaService.Input("oppo-timeout", "device-a", "",
+				System.currentTimeMillis(), List.of(452), "", "");
+		var response = oppo.decide(m, input, System.currentTimeMillis());
+		assertThat(response.ret()).isEqualTo(1);
+		assertThat(response.data().agree_type_list()).isEmpty();
+		var state = store.find("media-a", com.yzytech.scx.ocpx.oppo.OppoRtaService.internalId("oppo-timeout", 452));
+		var late = store.finish(state.getRelayRequestId(), "ALLOW", "ALLOW", List.of("A"), "UPSTREAM",
+				state.getDeadline() + 1);
+		assertThat(late.getStatus()).isEqualTo("TIMEOUT");
+		assertThat(late.getDeliveryStatus()).isNotEqualTo("SYNC_RETURNED");
+		assertThat(redis.opsForZSet().zCard(RtaContract.PREFIX + "notify")).isZero();
+	}
+
 }

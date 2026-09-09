@@ -163,8 +163,10 @@ class RtaPersistenceIntegrationTest {
 		String id = access.get("id").toString();
 		assertThatThrownBy(() -> save("bindings", Map.of("monitorTaskId", "A", "upstreamId", id, "enabled", true)))
 			.hasMessageContaining("计划参数");
-        jdbc.update("UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5104&did=zsyd' WHERE id='link'");
-        assertThatThrownBy(()->save("bindings",Map.of("monitorTaskId","A","upstreamId",id,"enabled",true))).hasMessageContaining("不一致");
+		jdbc.update(
+				"UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5104&did=zsyd' WHERE id='link'");
+		assertThatThrownBy(() -> save("bindings", Map.of("monitorTaskId", "A", "upstreamId", id, "enabled", true)))
+			.hasMessageContaining("不一致");
 		jdbc.update(
 				"UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5103&did=zsyd' WHERE id='link'");
 		save("bindings", Map.of("monitorTaskId", "A", "upstreamId", id, "enabled", true));
@@ -252,6 +254,47 @@ class RtaPersistenceIntegrationTest {
 		redis.opsForSet().add(RtaContract.PREFIX + "metric-dirty", key);
 		jobs.flushMetrics();
 		assertThat(jdbc.queryForObject("SELECT request_count FROM scx_ocpx_rta_hour_stat", Long.class)).isEqualTo(3);
+	}
+
+	@Test
+	void oppoMediaHasStableStrategyIdsAndScopedConnectionDetails() {
+		ReflectionTestUtils.setField(management, "allowedHosts", List.of("rta.adapi.cn"));
+		save("media",
+				Map.of("mediaId", "media", "protocol", "OPPO", "credentialRef", "oppo-code", "enabled", true,
+						"protocolConfig",
+						Map.of("ownerMode", "EMPTY", "timeoutMs", "1000", "uploadCredentialRef", "oppo-upload")));
+		save("upstreams", Map.of("advertiserId", "adv", "name", "Weifeng", "protocol", "WEIFENG_RTA", "protocolConfig",
+				Map.of("aid", "5103", "did", "zsyd"), "enabled", true));
+		String upstream = jdbc.queryForObject("SELECT id FROM scx_ocpx_rta_upstream", String.class);
+		jdbc.update(
+				"UPDATE scx_ocpx_promotion_link SET link_url='https://ad.adapi.cn/click?aid=5103&did=zsyd' WHERE id='link'");
+		save("bindings",
+				Map.of("monitorTaskId", "A", "upstreamId", upstream, "enabled", true, "oppoPkg", "com.example.app"));
+		save("bindings", Map.of("monitorTaskId", "B", "upstreamId", upstream, "enabled", true));
+		var row = management.list("bindings", Map.of("monitorTaskId", "A")).records().get(0);
+		assertThat(((Number) row.get("strategyId")).intValue()).isPositive();
+		assertThat(row.get("clickUrl").toString()).contains("/oppo/click/oppo-code/", "__REQ__", "__OAID__",
+				"__ADID__");
+		assertThat(row.get("oppoPkg")).isEqualTo("com.example.app");
+		var testRoute = XmlMapperTestSupport.mapper(RtaManagementSqlMapper.class, jdbc).selectRtaTestRoute("A");
+		assertThat(testRoute).containsEntry("task_name", "Task A")
+			.containsEntry("media_protocol", "OPPO")
+			.containsEntry("upstream_protocol", "WEIFENG_RTA");
+		assertThat(((Number) testRoute.get("strategy_id")).intValue())
+			.isEqualTo(((Number) row.get("strategyId")).intValue());
+		var media = management.list("media", Map.of("mediaId", "media")).records().get(0);
+		assertThat(media).containsEntry("requestUrl", "https://scx.test/ocpx/rta/oppo/oppo-code")
+			.containsEntry("notifyUrl", "");
+		assertThat(media).doesNotContainKey("secret");
+		save("bindings", Map.of("monitorTaskId", "A", "upstreamId", upstream, "enabled", true, "oppoPkg",
+				"com.example.updated", "version", 1));
+		assertThat(management.list("bindings", Map.of("monitorTaskId", "A")).records().get(0).get("strategyId"))
+			.isEqualTo(row.get("strategyId"));
+		assertThatThrownBy(() -> save("media", Map.of("mediaId", "media", "protocol", "OPPO", "credentialRef",
+				"oppo-code", "version", 1, "protocolConfig", Map.of("secret", "forbidden"))))
+			.hasMessageContaining("字段");
+		when(scope.constrain(any())).thenReturn("other");
+		assertThat(management.list("bindings", Map.of("monitorTaskId", "A")).records()).isEmpty();
 	}
 
 }

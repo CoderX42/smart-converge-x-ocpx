@@ -21,7 +21,8 @@ public class RelayRepository {
 			throw new RelayException(401, "RTA_MEDIA_UNAVAILABLE");
 		List<Media> rows = sqlMapper.selectMediaByCredentialRtaMediaAccess(ref)
 			.stream()
-			.map(rs -> new Media(rs.mediaId(), rs.notifyUrl(), rs.credentialRef(), rs.version(), rs.enabled()))
+			.map(rs -> new Media(rs.mediaId(), rs.notifyUrl(), rs.credentialRef(), rs.version(), rs.enabled(),
+					rs.protocol(), config(rs.protocolConfig())))
 			.toList();
 		if (rows.size() != 1)
 			throw new RelayException(401, "RTA_MEDIA_UNAVAILABLE");
@@ -51,6 +52,17 @@ public class RelayRepository {
 		if (rows.size() != 1)
 			throw new RelayException(400, "RTA_TASK_UNAVAILABLE");
 		return rows.get(0);
+	}
+
+	public String taskByStrategy(String mediaId, int strategy) {
+		String task = sqlMapper.selectTaskByStrategy(mediaId, strategy);
+		if (task == null)
+			throw new RelayException(400, "OPPO_STRATEGY_UNAVAILABLE");
+		return task;
+	}
+
+	public String oppoPkg(String taskId) {
+		return sqlMapper.selectOppoPkg(taskId);
 	}
 
 	public boolean taskRequiresRta(String taskId) {

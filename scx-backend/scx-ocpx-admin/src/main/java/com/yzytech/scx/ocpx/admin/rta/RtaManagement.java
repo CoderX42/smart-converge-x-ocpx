@@ -67,8 +67,17 @@ public class RtaManagement {
 				if (protocol.mode().equals("ASYNC_CALLBACK"))
 					row.put("callbackUrl", publicBaseUrl + "/rta/callbacks/" + row.get("accessCode"));
 			}
-			if (kind.equals("media"))
-				row.put("requestUrl", publicBaseUrl + "/rta/requests");
+			if (kind.equals("media")) {
+				row.put("protocolConfig", parseConfig(row.get("protocolConfig")));
+				row.put("requestUrl", publicBaseUrl + ("OPPO".equals(row.get("protocol"))
+						? "/rta/oppo/" + row.get("credentialRef") : "/rta/requests"));
+			}
+			if (kind.equals("bindings") && "OPPO".equals(row.get("mediaProtocol")) && row.get("strategyId") != null) {
+				row.put("requestUrl", publicBaseUrl + "/rta/oppo/" + row.get("mediaAccessCode"));
+				row.put("clickUrl", publicBaseUrl + "/oppo/click/" + row.get("mediaAccessCode") + "/"
+						+ row.get("strategyId")
+						+ "?request_id=__REQ__&oaid=__OAID__&ad_id=__ADID__&ts=__TS__&model=__MODEL__&ip=__IP__&ua=__UA__&osv=__OSV__");
+			}
 			if (kind.equals("reports")) {
 				long count = ((Number) row.get("requestCount")).longValue();
 				long done = 0;
@@ -94,8 +103,10 @@ public class RtaManagement {
 		var allowed = Map.of("upstreams",
 				Set.of("id", "advertiserId", "name", "protocol", "protocolConfig", "accessCode", "endpoint",
 						"credentialRef", "timeoutMs", "admissionSeconds", "enabled", "version"),
-				"media", Set.of("mediaId", "notifyUrl", "credentialRef", "enabled", "version"), "bindings",
-				Set.of("monitorTaskId", "upstreamId", "productId", "externalTaskId", "enabled", "version"));
+				"media",
+				Set.of("mediaId", "notifyUrl", "credentialRef", "enabled", "version", "protocol", "protocolConfig"),
+				"bindings",
+				Set.of("monitorTaskId", "upstreamId", "productId", "externalTaskId", "enabled", "version", "oppoPkg"));
 		if (!allowed.containsKey(kind) || !allowed.get(kind).containsAll(body.keySet()))
 			throw new BootBusinessException("未知 RTA 配置字段");
 		if (body.containsKey("enabled") && !(body.get("enabled") instanceof Boolean))
@@ -154,15 +165,34 @@ public class RtaManagement {
 		}
 		else if (kind.equals("media")) {
 			scope.requireSystemAdministrator();
-			String media = text(body, "mediaId", 32, true), notify = text(body, "notifyUrl", 2048, true),
+			String protocol = Objects.toString(body.get("protocol"), "GENERIC_ASYNC");
+			if (!Set.of("GENERIC_ASYNC", "OPPO").contains(protocol))
+				throw new BootBusinessException("媒体协议无效");
+			Map<String, String> config = parseConfig(body.get("protocolConfig"));
+			if (protocol.equals("OPPO")) {
+				try {
+					config = com.yzytech.scx.ocpx.rta.contract.OppoMediaConfig.validate(config);
+				}
+				catch (IllegalArgumentException e) {
+					throw new BootBusinessException(e.getMessage());
+				}
+			}
+			else if (!config.isEmpty())
+				throw new BootBusinessException("通用媒体不支持协议参数");
+			String media = text(body, "mediaId", 32, true),
+					notify = text(body, "notifyUrl", 2048, protocol.equals("GENERIC_ASYNC")),
 					ref = text(body, "credentialRef", 64, true);
 			exists(sqlMapper.countMedia(media));
 			identifier(ref);
-			url(notify);
+			if (protocol.equals("GENERIC_ASYNC"))
+				url(notify);
+			else
+				notify = "";
 			if (version == 0)
 				sqlMapper.insertSaveRtaMediaAccess(media, notify, ref, enabled);
 			else
 				changed(sqlMapper.updateSaveRtaMediaAccess(notify, ref, enabled, media, version));
+			sqlMapper.updateMediaProtocol(media, protocol, JSON.toJSONString(config));
 		}
 		else if (kind.equals("bindings")) {
 			String task = text(body, "monitorTaskId", 32, true), upstream = text(body, "upstreamId", 32, true),
@@ -202,6 +232,10 @@ public class RtaManagement {
 			else
 				changed(sqlMapper.updateSaveRtaBinding(new RtaManagementSqlMapper.UpdateSaveRtaBindingCommand(upstream,
 						product, external, enabled, task, version)));
+			String pkg = text(body, "oppoPkg", 128, false);
+			if (!pkg.isEmpty() && !pkg.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+"))
+				throw new BootBusinessException("OPPO 应用包名无效");
+			sqlMapper.updateOppoPkg(task, pkg);
 			sqlMapper.updateSaveMonitorTask(enabled, task);
 		}
 		else
@@ -228,6 +262,8 @@ public class RtaManagement {
 					if (value == null)
 						continue;
 					JSONObject state = JSON.parseObject(value);
+					if (state.getString("originalRequestId") != null)
+						state.put("requestId", state.getString("originalRequestId"));
 					if (advertiser != null && !advertiser.equals(state.getString("advertiserId")))
 						continue;
 					if (media != null && !media.isBlank() && !media.equals(state.getString("mediaId")))

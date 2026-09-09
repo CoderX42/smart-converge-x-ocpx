@@ -10,6 +10,94 @@ servers:
         default: sandbox.example.invalid
   - url: http://localhost:10000/ocpx
 paths:
+  /monitor-tasks/{taskId}/rta-test:
+    servers:
+      - url: http://localhost:9999/boot/ocpx
+    parameters:
+      - { name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }
+    get:
+      operationId: previewMonitorTaskRtaTest
+      summary: 查询单任务 OPPO 至微风 RTA 测试配置与阻塞原因
+      description: 仅真实系统管理员且具备 ocpx:monitor-task:test；目标与策略由服务端读取，秘密不返回浏览器。
+      security: [{ saToken: [] }]
+      responses:
+        '200': { description: 固定地址、任务策略、非秘密计划参数、随机测试ID及阻塞原因 }
+        '403': { description: 无测试权限或非真实系统管理员 }
+    post:
+      operationId: executeMonitorTaskRtaTest
+      summary: 服务端签名并通过正式 OPPO HTTP 入口执行一次真实 RTA 询量
+      description: 不发送点击或转化；计入 RTA 统计。同一测试ID不自动重发，结果不明时只查询状态。需在Boot配置与Engine一致的媒体签名密钥。
+      security: [{ saToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [requestId, oaid]
+              properties:
+                requestId: { type: string, pattern: '^SCX-RTA-[a-f0-9]{32}$' }
+                oaid: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '200': { description: 安全白名单结果，包括同步响应是否确认及可用的Redis决策状态；执行失败可能通过业务错误码返回 }
+        '403': { description: 无测试权限或非真实系统管理员 }
+  /monitor-tasks/{taskId}/rta-test/{requestId}:
+    servers:
+      - url: http://localhost:9999/boot/ocpx
+    get:
+      operationId: getMonitorTaskRtaTestResult
+      summary: 查询已有 RTA 测试结果，不重发询量
+      security: [{ saToken: [] }]
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { type: string, maxLength: 32 } }
+        - { name: requestId, in: path, required: true, schema: { type: string, pattern: '^SCX-RTA-[a-f0-9]{32}$' } }
+      responses:
+        '200': { description: 24小时内的测试结果与已关联的脱敏RTA状态，不含设备原文或凭据 }
+        '403': { description: 无测试权限或非真实系统管理员 }
+  /rta/oppo/{code}:
+    post:
+      summary: OPPO 同步 RTA 决策（媒体专属接入码，JSON MD5 验签）
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema: {type: string, pattern: '^[A-Za-z0-9_-]{1,64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './oppo-rta-request.schema.json'}
+      responses:
+        '200':
+          description: 同步策略结果；仅 agree_type_list 中的策略允许投放
+          content:
+            application/json:
+              schema: {$ref: './oppo-rta-response.schema.json'}
+        '400': {description: 参数或协议无效}
+        '401': {description: 签名、时间或账户不匹配}
+        '403': {description: 媒体不可用}
+        '409': {description: 请求 ID 内容冲突}
+        '503': {description: 过载或系统不可用，不允许投放}
+  /oppo/click/{code}/{strategy}:
+    get:
+      summary: OPPO 点击监测，校验策略及关联 RTA 后转发微风
+      parameters:
+      - {name: code, in: path, required: true, schema: {type: string}}
+      - {name: strategy, in: path, required: true, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+      - {name: request_id, in: query, required: true, schema: {type: string, maxLength: 128}}
+      - {name: rta_request_id, in: query, schema: {type: string, maxLength: 128}, description: '缺省按 request_id 关联，须由 OPPO 确认相同 ID 语义'}
+      - {name: oaid, in: query, required: true, schema: {type: string, maxLength: 256}}
+      - {name: ad_id, in: query, required: true, schema: {type: string, pattern: '^[1-9][0-9]{0,18}$'}}
+      - {name: ts, in: query, required: true, schema: {type: string, pattern: '^[0-9]{13}$'}}
+      - {name: model, in: query, required: true, schema: {type: string, maxLength: 128}}
+      - {name: ip, in: query, schema: {type: string}}
+      - {name: ua, in: query, schema: {type: string}}
+      - {name: osv, in: query, schema: {type: string}}
+      responses:
+        '200': {description: 点击处理成功；不表示微风已经入库}
+        '400': {description: 参数无效或宏未替换}
+        '403': {description: 无可用决策、设备不符或策略不匹配}
+        '503': {description: 处理失败}
   /rta/options/{kind}:
     get:
       summary: RTA 独立远程下拉选项，最多100条；支持 keyword/advertiserId/mediaId。

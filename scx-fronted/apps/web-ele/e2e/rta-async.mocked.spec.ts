@@ -63,6 +63,7 @@ async function setup(
         roles: ['ROLE_ADMIN'],
         homePath: '/ocpx/rta',
         permissions: [
+          ...(configPermissions ? ['ocpx:monitor-task:test'] : []),
           ...visible.map((kind) => `ocpx:rta:${kind}:view`),
           ...['advertiser', 'media', 'monitor-task'].map(
             (kind) => `ocpx:${kind}:view`,
@@ -200,6 +201,123 @@ async function setup(
   });
   return { seen, saved };
 }
+
+test('RTA test sends a single decision request and shows result without a click', async ({
+  page,
+}) => {
+  await setup(page);
+  let sends = 0;
+  const id = `SCX-RTA-${'a'.repeat(32)}`;
+  await page.route(
+    '**/api/boot/ocpx/monitor-tasks/A/rta-test**',
+    async (route) => {
+      const isPost = route.request().method() === 'POST';
+      const isResult = new URL(route.request().url()).pathname.endsWith(id);
+      if (isPost) {
+        sends++;
+        expect(route.request().postDataJSON()).toEqual({
+          requestId: id,
+          oaid: 'device-test',
+        });
+      }
+      const data =
+        isPost || isResult
+          ? {
+              requestId: id,
+              submission: 'RECEIVED',
+              agreed: true,
+              ret: 0,
+              status: 'ALLOW',
+              httpStatus: 200,
+              durationMs: 25,
+              relayRequestId: 'b'.repeat(32),
+              reasonCode: 'UPSTREAM_ALLOW',
+              deliveryStatus: 'SYNC_RETURNED',
+              upstreamAttempts: 1,
+            }
+          : {
+              taskId: 'A',
+              monitorName: '任务 A',
+              mediaName: 'OPPO',
+              mediaProtocol: 'OPPO',
+              upstreamName: '微风计划',
+              upstreamProtocol: 'WEIFENG_RTA',
+              strategyId: 452,
+              endpoint: 'https://engine.test/ocpx/rta/oppo/test',
+              plan: { aid: '5103', did: 'zsyd' },
+              requestId: id,
+              blockers: [],
+            };
+      await route.fulfill({ json: { code: 0, data } });
+    },
+  );
+  await page.goto('/#/ocpx/monitor-task');
+  await page.getByRole('button', { name: 'RTA 测试', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'RTA 决策测试' });
+  await expect(dialog.getByText('452', { exact: true })).toBeVisible();
+  await dialog
+    .getByPlaceholder('填写联调设备 OAID', { exact: false })
+    .fill('device-test');
+  await dialog
+    .getByRole('button', { name: '发送 RTA 测试', exact: true })
+    .click();
+  await expect(dialog.getByText('允许投放', { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByRole('button', { name: '发送 RTA 测试', exact: true }),
+  ).toBeDisabled();
+  await dialog.getByRole('button', { name: '刷新结果', exact: true }).click();
+  expect(sends).toBe(1);
+});
+
+test('RTA test explains missing configuration and blocks sending', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.route('**/api/boot/ocpx/monitor-tasks/A/rta-test', (route) =>
+    route.fulfill({
+      json: {
+        code: 0,
+        data: {
+          taskId: 'A',
+          monitorName: '任务 A',
+          mediaName: 'OPPO',
+          mediaProtocol: 'OPPO',
+          upstreamName: '微风',
+          upstreamProtocol: 'WEIFENG_RTA',
+          strategyId: 452,
+          endpoint: '',
+          plan: {},
+          requestId: `SCX-RTA-${'a'.repeat(32)}`,
+          blockers: [
+            'Boot 未配置同名媒体 RTA 测试签名密钥（须与 Engine 一致）',
+          ],
+        },
+      },
+    }),
+  );
+  await page.goto('/#/ocpx/monitor-task');
+  await page.getByRole('button', { name: 'RTA 测试', exact: true }).click();
+  await expect(
+    page.getByText('Boot 未配置同名媒体 RTA 测试签名密钥（须与 Engine 一致）'),
+  ).toBeVisible();
+  await page
+    .getByPlaceholder('填写联调设备 OAID', { exact: false })
+    .fill('device-test');
+  await expect(
+    page.getByRole('button', { name: '发送 RTA 测试', exact: true }),
+  ).toBeDisabled();
+});
+
+test('RTA test entry is hidden without monitor test permission', async ({
+  page,
+}) => {
+  await setup(page, resources, false);
+  await page.goto('/#/ocpx/monitor-task');
+  await expect(page.getByRole('button', { name: '复制：A', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'RTA 测试', exact: true }),
+  ).toHaveCount(0);
+});
 test('three operational pages refresh directly and root selects first permitted page', async ({
   page,
 }) => {
@@ -340,4 +458,45 @@ test('request details link to scoped logs', async ({ page }) => {
       ),
     )
     .toBe(true);
+});
+
+test('OPPO media uses synchronous protocol without a notification address', async ({
+  page,
+}) => {
+  const { saved } = await setup(page);
+  await page.goto('/#/ocpx/media?rtaMediaId=media-a');
+  await page.getByRole('button', { name: '新增媒体接入' }).click();
+  const drawer = page.getByRole('dialog', { name: '配置媒体接入' });
+  await drawer
+    .locator('.el-form-item')
+    .filter({ hasText: '媒体 RTA 协议' })
+    .locator('.el-select')
+    .click();
+  await page
+    .getByRole('option', { name: 'OPPO 策略 ID 协议', exact: true })
+    .click();
+  await expect(drawer.getByText('决策通知地址', { exact: true })).toHaveCount(
+    0,
+  );
+  await drawer
+    .getByPlaceholder('配置文件中的凭据名称，不填写密钥')
+    .fill('oppo-media');
+  await drawer
+    .getByPlaceholder('服务端配置中的 OPPO 上传凭据名称')
+    .fill('oppo-upload');
+  await drawer.getByRole('button', { name: '保存配置' }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0]).toMatchObject({
+    mediaId: 'media-a',
+    protocol: 'OPPO',
+    notifyUrl: '',
+    credentialRef: 'oppo-media',
+    enabled: false,
+    protocolConfig: {
+      ownerMode: 'EMPTY',
+      timeoutMs: '1000',
+      uploadCredentialRef: 'oppo-upload',
+    },
+  });
+  expect(saved[0]).not.toHaveProperty('secret');
 });
