@@ -15,6 +15,7 @@ describe('monitor-task test link preflight', () => {
       callbackDisplayUrl: 'https://media.example.test/callback',
       callbackMode: 'REAL_MEDIA',
       callbackToken: 'test-token',
+      mediaCallbackMode: 'REAL_MEDIA',
       event: 'CLK',
       executable: true,
       expectedCharge: 0,

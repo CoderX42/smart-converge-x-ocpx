@@ -56,6 +56,7 @@ function preview(requestId = 'SCX-UAT-first'): MonitorTaskTestPreview {
     callbackDisplayUrl: 'https://media.example.test/callback',
     callbackMode: 'REAL_MEDIA',
     callbackToken: 'test-token',
+    mediaCallbackMode: 'SIMULATED_MEDIA',
     event: 'CLK',
     executable: true,
     expectedCharge: 0,
@@ -132,6 +133,7 @@ describe('monitor-task test actions', () => {
     expect(copyLongText).toHaveBeenCalledWith(generated.testUrl);
     expect(api.executeMonitorTaskTestLink).toHaveBeenCalledWith('task-1', {
       callbackToken: generated.callbackToken,
+      mediaCallbackMode: 'SIMULATED_MEDIA',
       os: 'ANDROID',
       parameters: { oaid: 'device-value' },
       requestId: generated.requestId,
@@ -171,6 +173,7 @@ describe('monitor-task test actions', () => {
     );
     await view.validateSelected();
     expect(api.generateMonitorTaskTestLink).toHaveBeenLastCalledWith('task-1', {
+      mediaCallbackMode: 'SIMULATED_MEDIA',
       os: 'ANDROID',
       parameters: ['oaid'],
       parameterValues: { oaid: '' },

@@ -71,6 +71,8 @@ public final class MonitorTaskTestViews {
 
 		private String callbackMode;
 
+		private String mediaCallbackMode;
+
 		private String callbackDisplayUrl;
 
 		private BigDecimal expectedCharge;

@@ -57,6 +57,10 @@ public class OcpxMonitorTaskTestService {
 
 	private static final Pattern CALLBACK_TOKEN = Pattern.compile("[0-9a-f]{32}");
 
+	private static final String REAL_MEDIA = "REAL_MEDIA";
+
+	private static final String SIMULATED_MEDIA = "SIMULATED_MEDIA";
+
 	private static final Pattern MD5 = Pattern.compile("[0-9a-fA-F]{32}");
 
 	private static final Pattern HEX_16 = Pattern.compile("[0-9a-fA-F]{16}");
@@ -132,6 +136,8 @@ public class OcpxMonitorTaskTestService {
 		requireSystemAdministrator();
 		Context context = context(taskId);
 		String os = normalizeOs(request.getOs());
+		String mediaCallbackMode = normalizeMediaCallbackMode(request.getMediaCallbackMode());
+		validateMediaCallbackRequest(mediaCallbackMode, request.getFeedbackLogId());
 		Map<String, String> values;
 		Set<String> selected;
 		if (request.getParameterValues() == null) {
@@ -148,19 +154,22 @@ public class OcpxMonitorTaskTestService {
 		}
 		String requestId = nextRequestId();
 		String callbackToken = randomHex(16);
-		return preview(context, requestId, callbackToken, request.getFeedbackLogId(), os, selected, values);
+		return preview(context, requestId, callbackToken, mediaCallbackMode, request.getFeedbackLogId(), os, selected,
+				values);
 	}
 
 	public MonitorTaskTestViews.Execution execute(String taskId, MonitorTaskTestRequests.Execute request) {
 		requireSystemAdministrator();
 		Context context = context(taskId);
 		String os = normalizeOs(request.getOs());
+		String mediaCallbackMode = normalizeMediaCallbackMode(request.getMediaCallbackMode());
+		validateMediaCallbackRequest(mediaCallbackMode, request.getFeedbackLogId());
 		validateRequestId(request.getRequestId());
 		validateCallbackToken(request.getCallbackToken());
 		Map<String, String> values = normalizeValues(request.getParameters(), os);
 		Set<String> selected = new LinkedHashSet<>(values.keySet());
 		MonitorTaskTestViews.Preview validation = preview(context, request.getRequestId(), request.getCallbackToken(),
-				request.getFeedbackLogId(), os, selected, values);
+				mediaCallbackMode, request.getFeedbackLogId(), os, selected, values);
 		if (!validation.isExecutable()) {
 			throw new BootBusinessException(String.join("；", validation.getBlockers()));
 		}
@@ -307,7 +316,8 @@ public class OcpxMonitorTaskTestService {
 	}
 
 	private MonitorTaskTestViews.Preview preview(Context context, String requestId, String callbackToken,
-			Long feedbackLogId, String os, Set<String> selected, Map<String, String> values) {
+			String mediaCallbackMode, Long feedbackLogId, String os, Set<String> selected,
+			Map<String, String> values) {
 		List<String> blockers = new ArrayList<>();
 		List<String> warnings = new ArrayList<>();
 		validatePlatform(context.link().getPlatform(), os, blockers);
@@ -315,9 +325,14 @@ public class OcpxMonitorTaskTestService {
 		Set<String> upstreamMacros = upstreamMacros(context);
 		validateUpstreamConfiguration(context, selected, blockers);
 		boolean formalUpstreamCallback = isFormalUpstreamCallback(context);
-		CallbackResolution callback = resolveCallback(context, feedbackLogId);
+		CallbackResolution callback = SIMULATED_MEDIA.equals(mediaCallbackMode)
+				? new CallbackResolution(null, buildCallbackUrl(context, requestId, callbackToken), null)
+				: resolveCallback(context, feedbackLogId);
 		if (callback.error() != null) {
 			blockers.add(callback.error());
+		}
+		if (SIMULATED_MEDIA.equals(mediaCallbackMode)) {
+			warnings.add("当前为模拟媒体模式：仅模拟最后一跳 Callback；点击、上游投递、广告主回传和计费仍按真实链路执行");
 		}
 		validateFormalProtocolSelection(context, os, selected, blockers);
 		if (context.advertiser().getUpstreamProtocol() == OcpxUpstreamProtocol.PHOENIX && selected.contains("oaid")
@@ -346,7 +361,9 @@ public class OcpxMonitorTaskTestService {
 			warnings.add("广告主模板未配置 OS，合作方将无法直接识别测试平台");
 		}
 		if (!mediaMacros.contains("__CALLBACK_URL__")) {
-			warnings.add("媒体宏未配置 CALLBACK_URL；本次请求仍会显式携带选中的真实媒体 callback_url");
+			String callbackDescription = SIMULATED_MEDIA.equals(mediaCallbackMode) ? "模拟媒体 callback_url"
+					: "选中的真实媒体 callback_url";
+			warnings.add("媒体宏未配置 CALLBACK_URL；本次请求仍会显式携带" + callbackDescription);
 		}
 		BigDecimal expectedCharge = expectedCharge(context.task());
 		BigDecimal availableBalance = availableBalance(context.task().getAdvertiserId());
@@ -361,15 +378,15 @@ public class OcpxMonitorTaskTestService {
 		String upstreamCallbackDisplayUrl = formalUpstreamCallback ? formalCallbackDisplayUrl(context) : callbackUrl;
 		List<MonitorTaskTestViews.Parameter> parameters = parameterViews(requestId, callbackUrl, os, selected, values,
 				mediaMacros, upstreamMacros, formalUpstreamCallback, context.advertiser().getUpstreamProtocol(),
-				upstreamCallbackDisplayUrl);
+				upstreamCallbackDisplayUrl, mediaCallbackMode);
 		String testUrl = blockers.isEmpty()
 				? buildUri(context, requestId, callbackUrl, os, selected, values).toASCIIString() : "";
 		return new MonitorTaskTestViews.Preview(requestId, "CLK", os, context.task().getId(),
 				context.task().getMonitorName(), context.advertiser().getAdvertiserName(),
 				context.media().getMediaName(), context.link().getLinkName(), context.link().getPlatform(), testUrl,
-				callback.id(), callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "REAL_MEDIA", callbackDisplayUrl,
-				expectedCharge, availableBalance, blockers.isEmpty(), List.copyOf(blockers), List.copyOf(warnings),
-				parameters);
+				callback.id(), callbackToken, formalUpstreamCallback ? "FORMAL_UPSTREAM" : "REAL_MEDIA",
+				mediaCallbackMode, callbackDisplayUrl, expectedCharge, availableBalance, blockers.isEmpty(),
+				List.copyOf(blockers), List.copyOf(warnings), parameters);
 	}
 
 	private String formalCallbackDisplayUrl(Context context) {
@@ -381,7 +398,8 @@ public class OcpxMonitorTaskTestService {
 
 	private List<MonitorTaskTestViews.Parameter> parameterViews(String requestId, String callbackUrl, String os,
 			Set<String> selected, Map<String, String> values, Set<String> mediaMacros, Set<String> upstreamMacros,
-			boolean formalUpstreamCallback, OcpxUpstreamProtocol protocol, String callbackDisplayUrl) {
+			boolean formalUpstreamCallback, OcpxUpstreamProtocol protocol, String callbackDisplayUrl,
+			String mediaCallbackMode) {
 		List<MonitorTaskTestViews.Parameter> result = new ArrayList<>();
 		result.add(new MonitorTaskTestViews.Parameter("request_id", "请求/测试 ID", "固定参数", "__REQUEST_ID__", true, false,
 				true, true, false, requestId));
@@ -396,8 +414,10 @@ public class OcpxMonitorTaskTestService {
 			result.add(new MonitorTaskTestViews.Parameter("callback", label, "上游回调", "__CALLBACK__", true, true, true,
 					true, false, callbackDisplayUrl));
 		}
-		result.add(new MonitorTaskTestViews.Parameter("callback_url", "真实媒体 Callback", "回调闭环", "__CALLBACK_URL__",
-			mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
+		String callbackLabel = SIMULATED_MEDIA.equals(mediaCallbackMode) ? "模拟媒体 Callback（仅最后一跳）"
+				: "真实媒体 Callback";
+		result.add(new MonitorTaskTestViews.Parameter("callback_url", callbackLabel, "回调闭环", "__CALLBACK_URL__",
+				mediaMacros.contains("__CALLBACK_URL__"), true, true, true, false, callbackUrl));
 		for (ParameterSpec spec : PARAMETER_SPECS) {
 			if (!spec.os().supports(os)) {
 				continue;
@@ -578,6 +598,30 @@ public class OcpxMonitorTaskTestService {
 		}
 	}
 
+	private String buildCallbackUrl(Context context, String requestId, String callbackToken) {
+		validateRequestId(requestId);
+		validateCallbackToken(callbackToken);
+		try {
+			URI base = engineBase();
+			Map<String, String> parameters = new LinkedHashMap<>();
+			parameters.put("request_id", requestId);
+			parameters.put("token", callbackToken);
+			parameters.put("mId", context.task().getMediaId());
+			parameters.put("tId", context.task().getId());
+			parameters.put("aId", context.task().getAdvertiserId());
+			parameters.put("lId", context.task().getPromotionLinkId());
+			String query = parameters.entrySet()
+				.stream()
+				.map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
+				.reduce((left, right) -> left + "&" + right)
+				.orElse("");
+			return URI.create(base + "/test-callback?" + query).toASCIIString();
+		}
+		catch (RuntimeException exception) {
+			throw new BootBusinessException("Engine 测试回调地址配置无效");
+		}
+	}
+
 	private CallbackResolution resolveCallback(Context context, Long feedbackLogId) {
 		List<OcpxMonitorTaskTestSqlMapper.SelectCallbackFeedbackRow> rows = feedbackLogId == null || feedbackLogId <= 0
 				? sqlMapper.selectLatestCallbackFeedback(context.task().getId())
@@ -657,6 +701,23 @@ public class OcpxMonitorTaskTestService {
 
 	private String normalizeOs(String os) {
 		return os.trim().toUpperCase(Locale.ROOT);
+	}
+
+	private String normalizeMediaCallbackMode(String mode) {
+		if (!StringUtils.hasText(mode)) {
+			return REAL_MEDIA;
+		}
+		String normalized = mode.trim().toUpperCase(Locale.ROOT);
+		if (!Set.of(REAL_MEDIA, SIMULATED_MEDIA).contains(normalized)) {
+			throw new BootBusinessException("媒体 Callback 模式无效");
+		}
+		return normalized;
+	}
+
+	private void validateMediaCallbackRequest(String mediaCallbackMode, Long feedbackLogId) {
+		if (SIMULATED_MEDIA.equals(mediaCallbackMode) && feedbackLogId != null) {
+			throw new BootBusinessException("模拟媒体模式不能指定 feedbackLogId");
+		}
 	}
 
 	private void validatePlatform(Integer platform, String os, List<String> blockers) {

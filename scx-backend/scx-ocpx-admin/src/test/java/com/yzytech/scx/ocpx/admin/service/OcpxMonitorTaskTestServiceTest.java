@@ -95,6 +95,7 @@ class OcpxMonitorTaskTestServiceTest {
 				new MonitorTaskTestRequests.Generate("ANDROID", null));
 
 		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getMediaCallbackMode()).isEqualTo("REAL_MEDIA");
 		assertThat(preview.getRequestId()).matches("SCX-UAT-\\d{14}-[0-9a-f]{12}");
 		assertThat(preview.getTestUrl())
 			.contains("request_id=" + preview.getRequestId(), "clickid=" + preview.getRequestId(), "os=0", "event=CLK",
@@ -131,6 +132,66 @@ class OcpxMonitorTaskTestServiceTest {
 		assertThat(preview.isExecutable()).isFalse();
 		assertThat(preview.getTestUrl()).isEmpty();
 		assertThat(preview.getBlockers()).anyMatch(message -> message.contains("没有真实媒体 callback_url"));
+		verify(httpClient, never()).get(any());
+	}
+
+	@Test
+	void simulatedMediaModeUsesFixedEngineCallbackWithoutRealMediaSnapshot() {
+		when(jdbcTemplate.query(contains("callback_url"), any(RowMapper.class), any(Object[].class)))
+			.thenReturn(List.of());
+
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null, "SIMULATED_MEDIA"));
+
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getMediaCallbackMode()).isEqualTo("SIMULATED_MEDIA");
+		assertThat(preview.getCallbackFeedbackLogId()).isNull();
+		assertThat(preview.getCallbackDisplayUrl())
+			.startsWith("http://127.0.0.1:10000/ocpx/test-callback?")
+			.contains("request_id=" + preview.getRequestId(), "token=" + preview.getCallbackToken(),
+					"mId=media-1", "tId=task-1", "aId=adv-1", "lId=link-1");
+		assertThat(preview.getWarnings())
+			.anyMatch(message -> message.contains("模拟媒体模式") && message.contains("仅模拟最后一跳"));
+		assertThat(preview.getParameters()).anySatisfy(parameter -> {
+			assertThat(parameter.getKey()).isEqualTo("callback_url");
+			assertThat(parameter.getLabel()).isEqualTo("模拟媒体 Callback（仅最后一跳）");
+			assertThat(parameter.getValue()).startsWith("http://127.0.0.1:10000/ocpx/test-callback?");
+		});
+	}
+
+	@Test
+	void simulatedMediaModeExecutesWithFixedEngineCallbackWithoutSnapshot() {
+		when(jdbcTemplate.query(contains("callback_url"), any(RowMapper.class), any(Object[].class)))
+			.thenReturn(List.of());
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid"), "SIMULATED_MEDIA"));
+		when(jdbcTemplate.queryForObject(contains("COUNT(*)"), eq(Long.class), eq("task-1"),
+				eq(preview.getRequestId())))
+			.thenReturn(0L);
+		when(httpClient.get(any())).thenReturn(new OcpxMonitorTaskTestHttpClient.Response(200, "{}", null, 1L));
+
+		MonitorTaskTestViews.Execution execution = service.execute("task-1",
+				new MonitorTaskTestRequests.Execute(preview.getRequestId(), "ANDROID", preview.getCallbackToken(),
+						"SIMULATED_MEDIA", editableValues(preview)));
+
+		assertThat(execution.getTestUrl()).isEqualTo(preview.getTestUrl());
+		assertThat(execution.getTestUrl()).contains("test-callback");
+		verify(httpClient).get(any());
+	}
+
+	@Test
+	void simulatedMediaModeRejectsFeedbackSnapshotSelection() {
+		assertThatThrownBy(() -> service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null, null, 101L, "SIMULATED_MEDIA")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不能指定 feedbackLogId");
+
+		assertThatThrownBy(() -> service.execute("task-1",
+				new MonitorTaskTestRequests.Execute("SCX-UAT-20260817183000-abcdef123456", "ANDROID",
+						"0123456789abcdef0123456789abcdef", 101L, "SIMULATED_MEDIA",
+						Map.of("oaid", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"))))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不能指定 feedbackLogId");
 		verify(httpClient, never()).get(any());
 	}
 

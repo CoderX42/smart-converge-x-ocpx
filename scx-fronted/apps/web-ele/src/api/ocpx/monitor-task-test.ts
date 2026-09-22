@@ -2,6 +2,8 @@ import { requestClient } from '#/api/request';
 
 export type MonitorTaskTestOs = 'ANDROID' | 'IOS';
 
+export type MonitorTaskTestMediaCallbackMode = 'REAL_MEDIA' | 'SIMULATED_MEDIA';
+
 export type MonitorTaskTestParameter = {
   configuredByMedia: boolean;
   editable: boolean;
@@ -26,6 +28,7 @@ export type MonitorTaskTestPreview = {
   event: 'CLK';
   executable: boolean;
   expectedCharge: number;
+  mediaCallbackMode: MonitorTaskTestMediaCallbackMode;
   mediaName: string;
   monitorName: string;
   os: MonitorTaskTestOs;
@@ -119,6 +122,7 @@ export function generateMonitorTaskTestLink(
   taskId: string,
   data: {
     feedbackLogId?: number;
+    mediaCallbackMode?: MonitorTaskTestMediaCallbackMode;
     os: MonitorTaskTestOs;
     parameters?: string[];
     parameterValues?: Record<string, string>;
@@ -135,6 +139,7 @@ export function executeMonitorTaskTestLink(
   data: {
     callbackToken: string;
     feedbackLogId?: number;
+    mediaCallbackMode?: MonitorTaskTestMediaCallbackMode;
     os: MonitorTaskTestOs;
     parameters: Record<string, string>;
     requestId: string;

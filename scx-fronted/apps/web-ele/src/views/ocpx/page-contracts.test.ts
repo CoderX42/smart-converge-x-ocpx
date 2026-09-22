@@ -115,7 +115,8 @@ describe('vientiane-aligned OCPX page contracts', () => {
     expect(source).toContain('确认开始完整测试');
     expect(source).toContain('会产生真实点击、上游流量和后续转化处理');
     expect(source).toContain('同任务最近一次真实媒体 Feedback 的 callback_url');
-    expect(source).toContain('人人视频投递时由 Engine 生成正式');
+    expect(source).toContain('正式上游回调由 Engine 生成');
+    expect(source).toContain('模拟媒体接收器');
     expect(source).toContain("callbackMode === 'FORMAL_UPSTREAM'");
     expect(source).toContain('同时验证真实媒体 callback_url 最后一跳');
     expect(source).toContain('真实媒体已收到');

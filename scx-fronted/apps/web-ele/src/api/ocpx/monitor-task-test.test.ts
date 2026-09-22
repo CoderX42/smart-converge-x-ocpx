@@ -18,19 +18,25 @@ describe('monitor-task click test API', () => {
 
   it('generates only from a task, OS and selected parameter names', async () => {
     await generateMonitorTaskTestLink('task-1', {
+      mediaCallbackMode: 'SIMULATED_MEDIA',
       os: 'ANDROID',
       parameters: ['oaid', 'ip'],
     });
 
     expect(requestClient.post).toHaveBeenCalledWith(
       '/ocpx/monitor-tasks/task-1/test-links:generate',
-      { os: 'ANDROID', parameters: ['oaid', 'ip'] },
+      {
+        mediaCallbackMode: 'SIMULATED_MEDIA',
+        os: 'ANDROID',
+        parameters: ['oaid', 'ip'],
+      },
     );
   });
 
   it('executes without accepting an arbitrary target URL', async () => {
     await executeMonitorTaskTestLink('task-1', {
       callbackToken: '0123456789abcdef0123456789abcdef',
+      mediaCallbackMode: 'SIMULATED_MEDIA',
       os: 'ANDROID',
       parameters: { oaid: 'device-value' },
       requestId: 'SCX-UAT-20260817183000-abcdef123456',
@@ -40,6 +46,7 @@ describe('monitor-task click test API', () => {
       '/ocpx/monitor-tasks/task-1/test-links:execute',
       {
         callbackToken: '0123456789abcdef0123456789abcdef',
+        mediaCallbackMode: 'SIMULATED_MEDIA',
         os: 'ANDROID',
         parameters: { oaid: 'device-value' },
         requestId: 'SCX-UAT-20260817183000-abcdef123456',

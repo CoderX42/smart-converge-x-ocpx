@@ -8,6 +8,7 @@ import type {
   MonitorTaskIntegrationCallbackResult,
   MonitorTaskIntegrationFeedback,
   MonitorTaskTestExecution,
+  MonitorTaskTestMediaCallbackMode,
   MonitorTaskTestOs,
   MonitorTaskTestPreview,
   MonitorTaskTestResult,
@@ -99,6 +100,8 @@ const testExecuting = ref(false);
 const testPolling = ref(false);
 const testTarget = ref<MonitorTask>();
 const testOs = ref<MonitorTaskTestOs>('ANDROID');
+const testMediaCallbackMode =
+  ref<MonitorTaskTestMediaCallbackMode>('SIMULATED_MEDIA');
 const testPreview = ref<MonitorTaskTestPreview>();
 const validatedTestParameters = ref('');
 const testValidationError = ref('');
@@ -180,7 +183,7 @@ const testTimelineStageLabel = {
   ADVERTISER_CALLBACK: '广告主 Callback',
   BILLING: '点击计费',
   CALLBACK_BILLING: '转化计费',
-  DOWNSTREAM_CALLBACK: '真实媒体 Callback',
+  DOWNSTREAM_CALLBACK: '媒体 Callback',
   ENGINE_INGRESS: 'Engine 入站',
   MEDIA_DEDUCTION: '媒体扣量',
   UPSTREAM: '上游点击投递',
@@ -250,6 +253,9 @@ const canUseTestLink = computed(
 );
 const formalUpstreamTest = computed(
   () => testPreview.value?.callbackMode === 'FORMAL_UPSTREAM',
+);
+const simulatedMediaTest = computed(
+  () => testPreview.value?.mediaCallbackMode === 'SIMULATED_MEDIA',
 );
 const loadGuard = createLatestRequestGuard();
 const monitorOptionGuard = createLatestRequestGuard();
@@ -465,12 +471,15 @@ async function generateTest(
   clearTestPolling();
   try {
     const preview = await generateMonitorTaskTestLink(targetId, {
+      mediaCallbackMode: testMediaCallbackMode.value,
       os: testOs.value,
       ...(parameters === undefined ? {} : { parameters }),
       ...(parameterValues === undefined ? {} : { parameterValues }),
     });
     if (!testGenerationGuard.isLatest(requestSequence)) return;
     testPreview.value = preview;
+    testMediaCallbackMode.value =
+      preview.mediaCallbackMode ?? testMediaCallbackMode.value;
     validatedTestParameters.value = testParameterSnapshot(
       preview.os,
       preview.parameters,
@@ -489,6 +498,7 @@ async function generateTest(
 async function openTest(row: MonitorTask) {
   testTarget.value = row;
   testOs.value = row.platform === 2 ? 'IOS' : 'ANDROID';
+  testMediaCallbackMode.value = 'SIMULATED_MEDIA';
   testPreview.value = undefined;
   testExecution.value = undefined;
   testResult.value = undefined;
@@ -497,6 +507,10 @@ async function openTest(row: MonitorTask) {
 }
 
 async function handleTestOsChange() {
+  await generateTest();
+}
+
+async function handleTestMediaCallbackModeChange() {
   await generateTest();
 }
 
@@ -566,9 +580,15 @@ async function executeTest() {
   const targetId = testTarget.value.id;
   const preview = testPreview.value;
   const charge = Number(preview.expectedCharge || 0);
-  const callbackDescription = formalUpstreamTest.value
-    ? '人人视频回传时将进入正式 Callback；本次仍会把真实媒体 callback_url 带入点击请求并验证最后一跳'
-    : '广告主回传后会执行真实媒体扣量，并向媒体真实 callback_url 发送最后一跳';
+  let callbackDescription =
+    '广告主回传后会执行真实媒体扣量，并向媒体真实 callback_url 发送最后一跳';
+  if (simulatedMediaTest.value) {
+    callbackDescription =
+      '最后一跳由 Engine 模拟媒体接收器接收；点击、上游流量和计费仍按真实链路执行';
+  } else if (formalUpstreamTest.value) {
+    callbackDescription =
+      '正式上游回传时将进入正式 Callback；本次仍会把真实媒体 callback_url 带入点击请求并验证最后一跳';
+  }
   testExecuting.value = true;
   try {
     await ElMessageBox.confirm(
@@ -593,6 +613,7 @@ async function executeTest() {
       ...(preview.callbackFeedbackLogId === undefined
         ? {}
         : { feedbackLogId: preview.callbackFeedbackLogId }),
+      mediaCallbackMode: testMediaCallbackMode.value,
       os: testOs.value,
       parameters: selectedTestValues(),
       requestId: preview.requestId,
@@ -1023,9 +1044,11 @@ onBeforeUnmount(closeTestDialog);
           :closable="false"
           show-icon
           :title="
-            formalUpstreamTest
-              ? '本功能会发送真实 CLK 点击；人人视频投递时由 Engine 生成正式 /ocpx/renren-video/callback，同时验证真实媒体 callback_url 最后一跳。'
-              : '本功能会发送真实 CLK 点击，并携带同任务最近一次真实媒体 Feedback 的 callback_url。广告主回传后将执行真实转化计费、媒体扣量和真实媒体最后一跳。'
+            simulatedMediaTest
+              ? '本功能会发送真实 CLK 点击；仅将最后一跳交给 Engine 模拟媒体接收器，点击、上游流量和计费仍按真实链路执行。'
+              : formalUpstreamTest
+                ? '本功能会发送真实 CLK 点击；正式上游回调由 Engine 生成，同时验证真实媒体 callback_url 最后一跳。'
+                : '本功能会发送真实 CLK 点击，并携带同任务最近一次真实媒体 Feedback 的 callback_url。广告主回传后将执行真实转化计费、媒体扣量和真实媒体最后一跳。'
           "
           type="warning"
         />
@@ -1089,11 +1112,26 @@ onBeforeUnmount(closeTestDialog);
               <el-radio-button value="IOS">iOS</el-radio-button>
             </el-radio-group>
           </el-descriptions-item>
+          <el-descriptions-item label="媒体回调模式">
+            <el-radio-group
+              v-model="testMediaCallbackMode"
+              :disabled="testExecuting || testGenerating"
+              size="small"
+              @change="handleTestMediaCallbackModeChange"
+            >
+              <el-radio-button value="SIMULATED_MEDIA"
+                >模拟媒体</el-radio-button
+              >
+              <el-radio-button value="REAL_MEDIA">真实媒体</el-radio-button>
+            </el-radio-group>
+          </el-descriptions-item>
           <el-descriptions-item label="Callback 模式">
             {{
-              formalUpstreamTest
-                ? '正式上游回调 + 真实媒体 Callback'
-                : '真实媒体 Callback'
+              simulatedMediaTest
+                ? '模拟媒体 Callback（仅最后一跳）'
+                : formalUpstreamTest
+                  ? '正式上游回调 + 真实媒体 Callback'
+                  : '真实媒体 Callback'
             }}
           </el-descriptions-item>
           <el-descriptions-item label="Callback 地址" :span="2">
@@ -1269,11 +1307,15 @@ onBeforeUnmount(closeTestDialog);
             </el-descriptions-item>
             <el-descriptions-item label="最后一跳">
               {{
-                formalUpstreamTest
-                  ? '本次不验证'
-                  : testResult?.downstreamFlow
-                    ? '真实媒体已收到'
-                    : '等待中'
+                simulatedMediaTest
+                  ? testResult?.downstreamFlow
+                    ? '模拟媒体已收到'
+                    : '等待模拟媒体'
+                  : formalUpstreamTest
+                    ? '本次不验证'
+                    : testResult?.downstreamFlow
+                      ? '真实媒体已收到'
+                      : '等待中'
               }}
             </el-descriptions-item>
             <el-descriptions-item label="稳定结论码" :span="2">
