@@ -292,7 +292,7 @@ pnpm check:type
 
 ## 联系方式
 
-- 项目仓库：`ssh://git@117.72.57.4:2222/SmartConvergeX/smart-converge-x.git`
+- 项目仓库：`https://gitlab.smartcute.cn/karl419/scx.git`
 - 研发文档中心：[docs/广告平台设计/README.md](docs/广告平台设计/README.md)
 - 问题与需求：请在内部项目管理工具中提交 Issue 或联系产品负责人。
 

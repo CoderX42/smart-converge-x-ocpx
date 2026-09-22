@@ -31,7 +31,7 @@ bt_require_command git
 if [[ ! -d "${SCX_HOME}/.git" ]]; then
   [[ ! -e "${SCX_HOME}" || -z "$(find "${SCX_HOME}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] \
     || bt_die "${SCX_HOME} 非空且不是 Git 仓库，拒绝覆盖。"
-  SCX_GIT_URL="${SCX_GIT_URL:-git@gitea.smartcute.cn:karl419/smart-converge-x.git}"
+  SCX_GIT_URL="${SCX_GIT_URL:-https://gitlab.smartcute.cn/karl419/scx.git}"
   mkdir -p "$(dirname "${SCX_HOME}")"
   bt_log "克隆 ${SCX_GIT_URL} (${SCX_BRANCH}) -> ${SCX_HOME}"
   git clone --branch "${SCX_BRANCH}" --single-branch "${SCX_GIT_URL}" "${SCX_HOME}"

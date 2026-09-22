@@ -16,7 +16,7 @@
   ],
   "homepage": "https://example.com/repository",
   "bugs": "https://example.com/issues",
-  "repository": "example/smart-converge-x.git",
+  "repository": "https://gitlab.smartcute.cn/karl419/scx.git",
   "license": "MIT",
   "type": "module",
   "scripts": {

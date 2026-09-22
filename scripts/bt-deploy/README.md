@@ -84,4 +84,4 @@ V131 发布前备份和预演前向 SQL；新接入默认停用，注册三个 X
 - 自动重启要求宝塔内置 `restart_project.py` 与 `btpython`（或面板 Python）可用；脚本会确认目标 JAR 对应的新 PID 已出现，再等待健康检查，项目名错误、双进程或超时都会令发布失败。
 - `scx-ocpx-engine` 以独立 Java 项目运行。发布脚本只接受带 `exec` classifier 的可执行 JAR，并固定发布为 `build/backend/scx-ocpx-engine.jar`；生产 profile 将端口绑定在 `127.0.0.1:10000`，公网必须经专用 Nginx 站点进入。
 - 数据库迁移、备份、真实渠道 UAT、容量和回滚演练必须按发布 Runbook 在授权窗口执行，构建成功不代表生产验收通过。
-- `04-push_to_gitea.sh` 仅用于受控构建机或本地已审查提交的推送，不是服务器发布步骤。
+- `04-push_to_gitlab.sh` 仅用于受控构建机或本地已审查提交的推送，不是服务器发布步骤。

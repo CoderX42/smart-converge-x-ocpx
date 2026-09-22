@@ -10,7 +10,7 @@ bt_init_paths
 
 usage() {
   cat <<'EOF'
-用法：bash scripts/bt-deploy/04-push_to_gitea.sh [--branch <branch>]
+用法：bash scripts/bt-deploy/04-push_to_gitlab.sh [--branch <branch>]
 
 仅推送当前已提交的分支；工作区有未提交改动时拒绝执行。该脚本不适用于服务器部署流程。
 EOF
