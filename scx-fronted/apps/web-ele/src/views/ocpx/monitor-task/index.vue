@@ -58,6 +58,7 @@ import {
   platformLabel,
   resetPage,
 } from '../table';
+import { testLinkAvailability, testParameterSnapshot } from './test-preview';
 
 import '../table.scss';
 
@@ -99,6 +100,8 @@ const testPolling = ref(false);
 const testTarget = ref<MonitorTask>();
 const testOs = ref<MonitorTaskTestOs>('ANDROID');
 const testPreview = ref<MonitorTaskTestPreview>();
+const validatedTestParameters = ref('');
+const testValidationError = ref('');
 const testExecution = ref<MonitorTaskTestExecution>();
 const testResult = ref<MonitorTaskTestResult>();
 const integrationDialogOpen = ref(false);
@@ -177,7 +180,7 @@ const testTimelineStageLabel = {
   ADVERTISER_CALLBACK: '广告主 Callback',
   BILLING: '点击计费',
   CALLBACK_BILLING: '转化计费',
-  DOWNSTREAM_CALLBACK: '测试回调接收',
+  DOWNSTREAM_CALLBACK: '真实媒体 Callback',
   ENGINE_INGRESS: 'Engine 入站',
   MEDIA_DEDUCTION: '媒体扣量',
   UPSTREAM: '上游点击投递',
@@ -232,29 +235,26 @@ const canTest = computed(() => hasAccessByCodes(['ocpx:monitor-task:test']));
 const canIntegrate = computed(() =>
   hasAccessByCodes(['ocpx:monitor-task:integration']),
 );
-const currentTestUrl = computed(() => {
-  const preview = testPreview.value;
-  if (!preview) return '';
-  try {
-    const url = new URL(preview.testUrl);
-    for (const parameter of preview.parameters) {
-      if (parameter.required) continue;
-      url.searchParams.delete(parameter.key);
-      if (parameter.selected && parameter.value) {
-        url.searchParams.set(parameter.key, parameter.value);
-      }
-    }
-    return url.toString();
-  } catch {
-    return preview.testUrl;
-  }
-});
+const testLinkState = computed(() =>
+  testLinkAvailability({
+    error: testValidationError.value,
+    os: testOs.value,
+    preview: testPreview.value,
+    validatedParameters: validatedTestParameters.value,
+    validating: testGenerating.value,
+  }),
+);
+const currentTestUrl = computed(() => testLinkState.value.url);
+const canUseTestLink = computed(
+  () => Boolean(currentTestUrl.value) && !testExecuting.value,
+);
 const formalUpstreamTest = computed(
   () => testPreview.value?.callbackMode === 'FORMAL_UPSTREAM',
 );
 const loadGuard = createLatestRequestGuard();
 const monitorOptionGuard = createLatestRequestGuard();
 const promotionOptionGuard = createLatestRequestGuard();
+const testGenerationGuard = createLatestRequestGuard();
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
@@ -428,11 +428,8 @@ function selectedTestParameters() {
 function selectedTestValues() {
   return Object.fromEntries(
     (testPreview.value?.parameters || [])
-      .filter(
-        (parameter) =>
-          !parameter.required && parameter.selected && parameter.value,
-      )
-      .map((parameter) => [parameter.key, parameter.value as string]),
+      .filter((parameter) => !parameter.required && parameter.selected)
+      .map((parameter) => [parameter.key, parameter.value ?? '']),
   );
 }
 
@@ -453,19 +450,39 @@ function syncRelatedMd5(
   if (digest) digest.value = CryptoJS.MD5(parameter.value).toString();
 }
 
-async function generateTest(parameters?: string[]) {
-  if (!testTarget.value) return;
+async function generateTest(
+  parameters?: string[],
+  parameterValues?: Record<string, string>,
+) {
+  if (!testTarget.value || testExecuting.value) return;
+  const targetId = testTarget.value.id;
+  const requestSequence = testGenerationGuard.begin();
+  validatedTestParameters.value = '';
+  testValidationError.value = '';
   testGenerating.value = true;
+  testExecution.value = undefined;
+  testResult.value = undefined;
+  clearTestPolling();
   try {
-    testPreview.value = await generateMonitorTaskTestLink(testTarget.value.id, {
+    const preview = await generateMonitorTaskTestLink(targetId, {
       os: testOs.value,
       ...(parameters === undefined ? {} : { parameters }),
+      ...(parameterValues === undefined ? {} : { parameterValues }),
     });
-    testExecution.value = undefined;
-    testResult.value = undefined;
-    clearTestPolling();
+    if (!testGenerationGuard.isLatest(requestSequence)) return;
+    testPreview.value = preview;
+    validatedTestParameters.value = testParameterSnapshot(
+      preview.os,
+      preview.parameters,
+    );
+  } catch {
+    if (testGenerationGuard.isLatest(requestSequence)) {
+      testValidationError.value = '参数校验失败，请修正参数或配置后重新校验';
+    }
   } finally {
-    testGenerating.value = false;
+    if (testGenerationGuard.isLatest(requestSequence)) {
+      testGenerating.value = false;
+    }
   }
 }
 
@@ -487,21 +504,44 @@ async function regenerateSelected() {
   await generateTest(selectedTestParameters());
 }
 
+async function validateSelected() {
+  await generateTest(selectedTestParameters(), selectedTestValues());
+}
+
+async function copyTestLink() {
+  if (!canUseTestLink.value) {
+    ElMessage.warning(testLinkState.value.message || '测试执行中，请稍候');
+    return;
+  }
+  await copyLongText(currentTestUrl.value);
+}
+
 async function refreshTestResult(schedule = false) {
   if (!(testTarget.value && testPreview.value)) return;
+  const preview = testPreview.value;
   try {
-    testResult.value = await getMonitorTaskTestResult(
+    const result = await getMonitorTaskTestResult(
       testTarget.value.id,
-      testPreview.value.requestId,
+      preview.requestId,
     );
+    if (testPreview.value !== preview || testGenerating.value) return;
+    testResult.value = result;
   } catch {
-    if (!schedule) ElMessage.error('测试详情查询失败，请稍后重试');
+    if (!schedule && testPreview.value === preview) {
+      ElMessage.error('测试详情查询失败，请稍后重试');
+    }
   } finally {
-    if (testDialogOpen.value && testTarget.value && testPreview.value) {
+    if (
+      testDialogOpen.value &&
+      testTarget.value &&
+      testPreview.value === preview &&
+      !testGenerating.value
+    ) {
       const terminal = [
         'CALLBACK_DEDUCTED',
         'CALLBACK_FAILED',
         'COMPLETED',
+        'DOWNSTREAM_FAILED',
         'REJECTED',
         'UPSTREAM_FAILED',
       ].includes(testResult.value?.state || '');
@@ -515,39 +555,50 @@ async function refreshTestResult(schedule = false) {
           ElMessage.warning('自动查询已结束，可继续手动刷新测试详情');
         }
       }
-    } else {
+    } else if (testPreview.value === preview) {
       clearTestPolling();
     }
   }
 }
 
 async function executeTest() {
-  if (!(testTarget.value && testPreview.value)) return;
-  const charge = Number(testPreview.value.expectedCharge || 0);
+  if (!(testTarget.value && testPreview.value && canUseTestLink.value)) return;
+  const targetId = testTarget.value.id;
+  const preview = testPreview.value;
+  const charge = Number(preview.expectedCharge || 0);
   const callbackDescription = formalUpstreamTest.value
-    ? '人人视频回传时将进入正式 Callback，测试请求不会携带 /test-callback，也不验证下游媒体最后一跳'
-    : '广告主回传后会执行真实媒体扣量，并向 SCX 测试接收器发送最后一跳';
-  await ElMessageBox.confirm(
-    `该操作会产生真实点击、上游流量和后续转化处理${charge > 0 ? `，全链路预计最多真实扣费 ${charge}` : ''}。${callbackDescription}，确认开始？`,
-    '确认执行完整测试',
-    {
-      confirmButtonText: '确认发送',
-      type: 'warning',
-    },
-  );
+    ? '人人视频回传时将进入正式 Callback；本次仍会把真实媒体 callback_url 带入点击请求并验证最后一跳'
+    : '广告主回传后会执行真实媒体扣量，并向媒体真实 callback_url 发送最后一跳';
   testExecuting.value = true;
-  clearTestPolling();
   try {
-    testExecution.value = await executeMonitorTaskTestLink(
-      testTarget.value.id,
+    await ElMessageBox.confirm(
+      `该操作会产生真实点击、上游流量和后续转化处理${charge > 0 ? `，全链路预计最多真实扣费 ${charge}` : ''}。${callbackDescription}，确认开始？`,
+      '确认执行完整测试',
       {
-        callbackToken: testPreview.value.callbackToken,
-        os: testOs.value,
-        parameters: selectedTestValues(),
-        requestId: testPreview.value.requestId,
+        confirmButtonText: '确认发送',
+        type: 'warning',
       },
     );
-    testPreview.value.testUrl = testExecution.value.testUrl;
+    if (
+      !testDialogOpen.value ||
+      testPreview.value !== preview ||
+      testTarget.value?.id !== targetId ||
+      !currentTestUrl.value
+    ) {
+      return;
+    }
+    clearTestPolling();
+    const execution = await executeMonitorTaskTestLink(targetId, {
+      callbackToken: preview.callbackToken,
+      ...(preview.callbackFeedbackLogId === undefined
+        ? {}
+        : { feedbackLogId: preview.callbackFeedbackLogId }),
+      os: testOs.value,
+      parameters: selectedTestValues(),
+      requestId: preview.requestId,
+    });
+    if (testPreview.value !== preview) return;
+    testExecution.value = execution;
     ElMessage.success(
       testExecution.value.alreadyExecuted
         ? '该测试 ID 已执行，未重复发送'
@@ -561,6 +612,10 @@ async function executeTest() {
 }
 
 function closeTestDialog() {
+  testGenerationGuard.begin();
+  testGenerating.value = false;
+  validatedTestParameters.value = '';
+  testValidationError.value = '';
   clearTestPolling();
   testTarget.value = undefined;
   testPreview.value = undefined;
@@ -709,7 +764,7 @@ onMounted(async () => {
   await load();
 });
 
-onBeforeUnmount(clearTestPolling);
+onBeforeUnmount(closeTestDialog);
 </script>
 
 <template>
@@ -969,11 +1024,26 @@ onBeforeUnmount(clearTestPolling);
           show-icon
           :title="
             formalUpstreamTest
-              ? '本功能会发送真实 CLK 点击；人人视频投递时由 Engine 生成正式 /ocpx/renren-video/callback，不注入 /test-callback，也不验证下游媒体最后一跳。'
-              : '本功能会发送真实 CLK 点击，并携带不可编辑的 SCX 测试 callback_url。广告主回传后将执行真实转化计费、媒体扣量和最后一跳；测试接收成功不代表真实媒体已经入库。'
+              ? '本功能会发送真实 CLK 点击；人人视频投递时由 Engine 生成正式 /ocpx/renren-video/callback，同时验证真实媒体 callback_url 最后一跳。'
+              : '本功能会发送真实 CLK 点击，并携带同任务最近一次真实媒体 Feedback 的 callback_url。广告主回传后将执行真实转化计费、媒体扣量和真实媒体最后一跳。'
           "
           type="warning"
         />
+
+        <el-alert
+          v-if="testLinkState.message"
+          :closable="false"
+          class="ocpx-test-alert"
+          show-icon
+          :title="testLinkState.message"
+          type="warning"
+        />
+        <el-button
+          v-if="!testPreview && !testGenerating"
+          class="ocpx-test-alert"
+          @click="generateTest()"
+          >重新生成测试参数</el-button
+        >
 
         <el-descriptions
           v-if="testPreview"
@@ -1009,7 +1079,9 @@ onBeforeUnmount(clearTestPolling);
           <el-descriptions-item label="操作系统">
             <el-radio-group
               v-model="testOs"
-              :disabled="testTarget?.platform !== 3 || testExecuting"
+              :disabled="
+                testTarget?.platform !== 3 || testExecuting || testGenerating
+              "
               size="small"
               @change="handleTestOsChange"
             >
@@ -1018,10 +1090,14 @@ onBeforeUnmount(clearTestPolling);
             </el-radio-group>
           </el-descriptions-item>
           <el-descriptions-item label="Callback 模式">
-            {{ formalUpstreamTest ? '人人视频正式回调' : 'SCX 测试接收器' }}
+            {{
+              formalUpstreamTest
+                ? '正式上游回调 + 真实媒体 Callback'
+                : '真实媒体 Callback'
+            }}
           </el-descriptions-item>
           <el-descriptions-item label="Callback 地址" :span="2">
-            <LongText :value="testPreview.callbackDisplayUrl" wrap />
+            <LongText :value="testPreview.callbackDisplayUrl || ''" wrap />
           </el-descriptions-item>
         </el-descriptions>
 
@@ -1029,7 +1105,7 @@ onBeforeUnmount(clearTestPolling);
           <div class="ocpx-test-section-title">
             <span>测试参数</span>
             <el-button
-              :disabled="testExecuting"
+              :disabled="testExecuting || testGenerating"
               :loading="testGenerating"
               link
               type="primary"
@@ -1047,8 +1123,7 @@ onBeforeUnmount(clearTestPolling);
               <template #default="{ row }">
                 <el-checkbox
                   v-model="row.selected"
-                  :disabled="row.required || testExecuting"
-                  @change="regenerateSelected"
+                  :disabled="row.required || testExecuting || testGenerating"
                 />
               </template>
             </el-table-column>
@@ -1082,7 +1157,7 @@ onBeforeUnmount(clearTestPolling);
                 <el-input
                   v-if="row.selected"
                   v-model="row.value"
-                  :disabled="!row.editable || testExecuting"
+                  :disabled="!row.editable || testExecuting || testGenerating"
                   size="small"
                   @input="syncRelatedMd5(row)"
                 />
@@ -1091,15 +1166,6 @@ onBeforeUnmount(clearTestPolling);
             </el-table-column>
           </el-table>
 
-          <el-alert
-            v-for="message in testPreview.blockers"
-            :key="`blocker-${message}`"
-            :closable="false"
-            class="ocpx-test-alert"
-            show-icon
-            :title="message"
-            type="error"
-          />
           <el-alert
             v-for="message in testPreview.warnings"
             :key="`warning-${message}`"
@@ -1112,17 +1178,25 @@ onBeforeUnmount(clearTestPolling);
 
           <div class="ocpx-test-section-title">完整测试链接</div>
           <el-input
+            v-if="currentTestUrl"
             :model-value="currentTestUrl"
             :rows="4"
             readonly
             type="textarea"
           />
           <div class="ocpx-test-link-actions">
-            <el-button @click="copyLongText(currentTestUrl)"
+            <el-button
+              :disabled="testExecuting || testGenerating"
+              :loading="testGenerating"
+              type="primary"
+              @click="validateSelected"
+              >校验当前参数</el-button
+            >
+            <el-button :disabled="!canUseTestLink" @click="copyTestLink"
               >复制链接</el-button
             >
             <el-button
-              :disabled="!testPreview.executable || testExecuting"
+              :disabled="!canUseTestLink"
               :loading="testExecuting"
               type="danger"
               @click="executeTest"
@@ -1198,7 +1272,7 @@ onBeforeUnmount(clearTestPolling);
                 formalUpstreamTest
                   ? '本次不验证'
                   : testResult?.downstreamFlow
-                    ? '测试接收器已收到'
+                    ? '真实媒体已收到'
                     : '等待中'
               }}
             </el-descriptions-item>
@@ -1226,7 +1300,8 @@ onBeforeUnmount(clearTestPolling);
                   ? 'warning'
                   : testResult.state === 'UPSTREAM_FAILED' ||
                       testResult.state === 'REJECTED' ||
-                      testResult.state === 'CALLBACK_FAILED'
+                      testResult.state === 'CALLBACK_FAILED' ||
+                      testResult.state === 'DOWNSTREAM_FAILED'
                     ? 'error'
                     : 'info'
             "
@@ -1264,8 +1339,8 @@ onBeforeUnmount(clearTestPolling);
               200、唯一转化事实和扣量结果均正常，才能确认本次人人视频回调闭环。
             </template>
             <template v-else>
-              上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；SCX
-              测试接收器成功只证明系统最后一跳可达，不代表真实媒体已经业务入库。
+              上游 HTTP 200 只表示接口已响应，不代表合作方已经入库；真实媒体
+              HTTP 2xx 只证明网络接口响应，业务入库仍需媒体侧核对。
             </template>
           </div>
           <el-input

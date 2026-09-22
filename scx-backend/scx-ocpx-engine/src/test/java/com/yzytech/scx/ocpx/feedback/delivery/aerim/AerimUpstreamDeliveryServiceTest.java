@@ -13,6 +13,9 @@ import com.yzytech.scx.ocpx.shared.enums.OsTypeEnum;
 import com.yzytech.scx.ocpx.shared.util.NetUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -24,8 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AerimUpstreamDeliveryServiceTest {
@@ -203,6 +208,88 @@ class AerimUpstreamDeliveryServiceTest {
 
 		org.assertj.core.api.Assertions.assertThatIllegalArgumentException()
 			.isThrownBy(() -> service.buildRequestUrl(feedback(OsTypeEnum.ANDROID)));
+	}
+
+	@ParameterizedTest
+	@CsvSource({ "ANDROID,oaid_md5,__OAID_MD5__", "ANDROID,imei_md5,__IMEI_MD5__",
+			"ANDROID,android_id_md5,__ANDROIDID_MD5__", "IOS,idfa_md5,__IDFA_MD5__" })
+	void deliversHashOnlyIdentityWithoutRawDeviceOrIpUaFallback(OsTypeEnum os, String parameter, String macro) {
+		String hash = "0123456789abcdef0123456789abcdef";
+		FeedbackReq feedback = feedbackWithoutIdentity(os);
+		switch (parameter) {
+			case "oaid_md5" -> feedback.setOaidMd5(hash);
+			case "imei_md5" -> feedback.setImeiMd5(hash);
+			case "android_id_md5" -> feedback.setAndroididMd5(hash);
+			case "idfa_md5" -> feedback.setIdfaMd5(hash);
+			default -> throw new AssertionError("unexpected test parameter");
+		}
+		OcpxPromotionLink link = promotionLink();
+		link.setLinkUrl("https://track.example.com/ocpx/c?" + parameter + "=" + macro + "&callback=__CALLBACK__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(link);
+		when(httpClient.get(anyString())).thenReturn(new NetUtil.HttpGetResult(200, "", null, 1L));
+
+		service.deliver(feedback);
+
+		var url = org.mockito.ArgumentCaptor.forClass(String.class);
+		verify(httpClient).get(url.capture());
+		assertThat(decodedQueryValue(url.getValue(), parameter)).isEqualTo(hash);
+		assertThat(url.getValue()).doesNotContain("&ip=", "&ua=", "__");
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(true), eq(200), eq("AERIM_DELIVERED"), eq(1L), eq(""),
+				anyString(), anyMap());
+	}
+
+	@ParameterizedTest
+	@EnumSource(OsTypeEnum.class)
+	void recordsMissingInboundIdentityWithoutAttemptingHttpOrLoggingDeviceValues(OsTypeEnum os) {
+		FeedbackReq feedback = feedbackWithoutIdentity(os);
+
+		service.deliver(feedback);
+
+		verifyNoInteractions(httpClient, endpointPolicy);
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), isNull(),
+				eq("AERIM_ATTRIBUTION_IDENTITY_MISSING"), eq(0L), isNull(), isNull(), anyMap());
+	}
+
+	@Test
+	void rejectsTemplateThatDropsTheOnlyInboundIdentityWithoutHttp() {
+		FeedbackReq feedback = feedbackWithoutIdentity(OsTypeEnum.ANDROID);
+		feedback.setImeiMd5("0123456789abcdef0123456789abcdef");
+		OcpxPromotionLink link = promotionLink();
+		link.setLinkUrl("https://track.example.com/ocpx/c?oaid=__OAID__&callback=__CALLBACK__");
+		when(promotionLinkIndex.get("link-id")).thenReturn(link);
+
+		service.deliver(feedback);
+
+		verifyNoInteractions(httpClient, endpointPolicy);
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), isNull(),
+				eq("AERIM_ATTRIBUTION_IDENTITY_MISSING"), eq(0L), isNull(), isNull(), anyMap());
+	}
+
+	@Test
+	void rejectsEmptyOrUnexpandedIdentityWithoutHttp() {
+		FeedbackReq feedback = feedbackWithoutIdentity(OsTypeEnum.ANDROID);
+		feedback.setOaidMd5("__OAID_MD5__");
+		feedback.setImei(" ");
+		feedback.setIp("203.0.113.1");
+		feedback.setUa("__UA__");
+
+		service.deliver(feedback);
+
+		verifyNoInteractions(httpClient, endpointPolicy);
+		verify(flowLogWriter).upstreamDelivery(eq(feedback), eq(false), isNull(),
+				eq("AERIM_ATTRIBUTION_IDENTITY_MISSING"), eq(0L), isNull(), isNull(), anyMap());
+	}
+
+	private FeedbackReq feedbackWithoutIdentity(OsTypeEnum os) {
+		return FeedbackReq.builder()
+			.mId("media-id")
+			.tId("task-id")
+			.aId("advertiser-id")
+			.lId("link-id")
+			.event(EventTypeEnum.CLICK)
+			.reqId("request-id")
+			.os(os)
+			.build();
 	}
 
 	private OcpxPromotionLink promotionLink() {

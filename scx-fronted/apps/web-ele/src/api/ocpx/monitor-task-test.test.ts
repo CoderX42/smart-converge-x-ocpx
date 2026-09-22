@@ -48,6 +48,24 @@ describe('monitor-task click test API', () => {
     expect(requestClient.post.mock.calls[0]?.[1]).not.toHaveProperty('url');
   });
 
+  it('preflights edited values without dropping empty selected parameters', async () => {
+    await generateMonitorTaskTestLink('task-1', {
+      os: 'ANDROID',
+      parameters: ['oaid', 'ip'],
+      parameterValues: { ip: '', oaid: 'edited-device-value' },
+    });
+
+    expect(requestClient.post).toHaveBeenCalledWith(
+      '/ocpx/monitor-tasks/task-1/test-links:generate',
+      {
+        os: 'ANDROID',
+        parameters: ['oaid', 'ip'],
+        parameterValues: { ip: '', oaid: 'edited-device-value' },
+      },
+    );
+    expect(requestClient.post).toHaveBeenCalledTimes(1);
+  });
+
   it('encodes the request ID while querying reusable fact details', async () => {
     await getMonitorTaskTestResult('task-1', 'SCX UAT/1');
 

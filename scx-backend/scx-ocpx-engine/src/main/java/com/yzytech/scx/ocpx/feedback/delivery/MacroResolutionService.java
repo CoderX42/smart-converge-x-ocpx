@@ -31,6 +31,13 @@ public class MacroResolutionService {
 	private static final Set<String> ANDROID_IDS = Set.of("__OAID__", "__OAID_MD5__", "__IMEI__", "__IMEI_MD5__",
 			"__ANDROIDID__", "__ANDROID_ID__", "__ANDROIDID_MD5__", "__AAID__");
 
+	private static final Set<String> IOS_ID_PARAMETERS = Set.of("idfa", "idfa_md5", "caid", "caid_list", "caid1",
+			"caid2", "last_caid", "prev_caid");
+
+	private static final Set<String> ANDROID_ID_PARAMETERS = Set.of("oaid", "oaid_md5", "oaidmd5", "imei", "imei_md5",
+			"imeimd5", "androidid", "android_id", "androidid_md5", "android_id_md5", "androidmd5", "aaid", "sid",
+			"sid_md5", "sidmd5");
+
 	public Resolution expandQueryTemplate(String template, FeedbackReq feedback, String callback, String bizId) {
 		if (!StringUtils.hasText(template))
 			return Resolution.rejected("TEMPLATE_URL_MISSING");
@@ -80,7 +87,7 @@ public class MacroResolutionService {
 	}
 
 	public boolean hasInboundIdentity(FeedbackReq value) {
-		boolean fallback = StringUtils.hasText(value.getIp()) && StringUtils.hasText(value.getUa());
+		boolean fallback = text(value.getIp()) && text(value.getUa());
 		if (value.getOs() == OsTypeEnum.IOS) {
 			return text(value.getIdfa(), value.getIdfaMd5(), value.getCaid(), value.getCaidList(), value.getCaid1(),
 					value.getCaid2(), value.getLastCaid(), value.getPrevCaid()) || fallback;
@@ -103,19 +110,17 @@ public class MacroResolutionService {
 			Set<String> present = new LinkedHashSet<>();
 			for (String pair : query.split("&")) {
 				int separator = pair.indexOf('=');
-				if (separator > 0 && separator < pair.length() - 1) {
+				if (separator > 0 && text(URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8))) {
 					present.add(URLDecoder.decode(pair.substring(0, separator), StandardCharsets.UTF_8)
 						.toLowerCase(Locale.ROOT));
 				}
 			}
 			boolean fallback = (present.contains("ip") || present.contains("ipv4")) && present.contains("ua");
 			if (os == OsTypeEnum.IOS) {
-				return present.stream().anyMatch(name -> name.equals("idfa") || name.startsWith("caid")) || fallback;
+				return present.stream().anyMatch(IOS_ID_PARAMETERS::contains) || fallback;
 			}
 			if (os == OsTypeEnum.ANDROID) {
-				return present.stream()
-					.anyMatch(name -> Set.of("oaid", "imei", "androidid", "android_id", "aaid", "sid").contains(name))
-						|| fallback;
+				return present.stream().anyMatch(ANDROID_ID_PARAMETERS::contains) || fallback;
 			}
 			return fallback;
 		}
@@ -233,7 +238,7 @@ public class MacroResolutionService {
 
 	private boolean text(String... values) {
 		for (String v : values)
-			if (StringUtils.hasText(v))
+			if (StringUtils.hasText(v) && !MACRO.matcher(v).find())
 				return true;
 		return false;
 	}

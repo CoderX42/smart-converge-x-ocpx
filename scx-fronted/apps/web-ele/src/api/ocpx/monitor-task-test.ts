@@ -19,8 +19,9 @@ export type MonitorTaskTestPreview = {
   advertiserName: string;
   availableBalance?: number;
   blockers: string[];
-  callbackDisplayUrl: string;
-  callbackMode: 'FORMAL_UPSTREAM' | 'TEST_COLLECTOR';
+  callbackDisplayUrl: null | string;
+  callbackFeedbackLogId?: number;
+  callbackMode: 'FORMAL_UPSTREAM' | 'REAL_MEDIA';
   callbackToken: string;
   event: 'CLK';
   executable: boolean;
@@ -104,6 +105,7 @@ export type MonitorTaskTestResult = {
     | 'CALLBACK_FAILED'
     | 'CALLBACK_PROCESSING'
     | 'COMPLETED'
+    | 'DOWNSTREAM_FAILED'
     | 'DOWNSTREAM_PENDING'
     | 'REJECTED'
     | 'UPSTREAM_FAILED'
@@ -115,7 +117,12 @@ export type MonitorTaskTestResult = {
 
 export function generateMonitorTaskTestLink(
   taskId: string,
-  data: { os: MonitorTaskTestOs; parameters?: string[] },
+  data: {
+    feedbackLogId?: number;
+    os: MonitorTaskTestOs;
+    parameters?: string[];
+    parameterValues?: Record<string, string>;
+  },
 ) {
   return requestClient.post<MonitorTaskTestPreview>(
     `/ocpx/monitor-tasks/${taskId}/test-links:generate`,
@@ -127,6 +134,7 @@ export function executeMonitorTaskTestLink(
   taskId: string,
   data: {
     callbackToken: string;
+    feedbackLogId?: number;
     os: MonitorTaskTestOs;
     parameters: Record<string, string>;
     requestId: string;

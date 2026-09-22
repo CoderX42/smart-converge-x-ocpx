@@ -18,6 +18,8 @@ import com.yzytech.scx.ocpx.entity.OcpxPromotionLink;
 import com.yzytech.scx.ocpx.protocol.OcpxUpstreamProtocol;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -81,6 +83,10 @@ class OcpxMonitorTaskTestServiceTest {
 						+ "&os=__OS__&model=__MODEL__&clickid=__CLICKID__");
 		when(jdbcTemplate.query(contains("available_balance"), any(RowMapper.class), eq("adv-1")))
 			.thenReturn(List.of(new BigDecimal("100.000000")));
+		when(jdbcTemplate.query(contains("callback_url"), any(RowMapper.class),
+				any(Object[].class)))
+			.thenReturn(List.of(new OcpxMonitorTaskTestSqlMapper.SelectCallbackFeedbackRow(101L,
+					"https://8.8.8.8/real-media-callback?clickid=previous", "adv-1", "link-1", "media-1", "task-1")));
 	}
 
 	@Test
@@ -99,7 +105,7 @@ class OcpxMonitorTaskTestServiceTest {
 			assertThat(parameter.getKey()).isEqualTo("callback_url");
 			assertThat(parameter.isRequired()).isTrue();
 			assertThat(parameter.isEditable()).isFalse();
-			assertThat(parameter.getValue()).contains("/ocpx/test-callback?request_id=" + preview.getRequestId());
+			assertThat(parameter.getValue()).isEqualTo("https://8.8.8.8/real-media-callback?clickid=previous");
 		});
 		Map<String, String> values = preview.getParameters()
 			.stream()
@@ -112,6 +118,20 @@ class OcpxMonitorTaskTestServiceTest {
 		assertThat(values.get("oaid_md5")).isEqualTo(md5(values.get("oaid")));
 		assertThat(preview.getExpectedCharge()).isEqualByComparingTo("5");
 		verify(advertiserScope).requireSystemAdministrator();
+	}
+
+	@Test
+	void blocksCompleteTestWhenNoRealMediaCallbackSnapshotExists() {
+		when(jdbcTemplate.query(contains("callback_url"), any(RowMapper.class), any(Object[].class)))
+			.thenReturn(List.of());
+
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+
+		assertThat(preview.isExecutable()).isFalse();
+		assertThat(preview.getTestUrl()).isEmpty();
+		assertThat(preview.getBlockers()).anyMatch(message -> message.contains("没有真实媒体 callback_url"));
+		verify(httpClient, never()).get(any());
 	}
 
 	@Test
@@ -130,14 +150,193 @@ class OcpxMonitorTaskTestServiceTest {
 		MonitorTaskTestViews.Preview mismatch = service.generate("task-1",
 				new MonitorTaskTestRequests.Generate("IOS", List.of("idfa")));
 		assertThat(mismatch.isExecutable()).isFalse();
+		assertThat(mismatch.getTestUrl()).isEmpty();
 		assertThat(mismatch.getBlockers()).anyMatch(message -> message.contains("Android 任务"));
 
 		stubContext(4, "request_id=__REQUEST_ID__&oaid=__OAID__", "ip=__IP__");
 		MonitorTaskTestViews.Preview quickApp = service.generate("task-1",
 				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid")));
 		assertThat(quickApp.isExecutable()).isFalse();
+		assertThat(quickApp.getTestUrl()).isEmpty();
 		assertThat(quickApp.getBlockers()).anyMatch(message -> message.contains("快应用"));
 		assertThat(quickApp.getBlockers()).anyMatch(message -> message.contains("上游模板"));
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = OcpxUpstreamProtocol.class, names = { "AERIM", "WEIFENG" })
+	void linkProtocolsGenerateAndExecuteWithNoAdvertiserTemplate(OcpxUpstreamProtocol protocol) {
+		OcpxAdvertiser advertiser = advertiserMapper.selectById("adv-1");
+		advertiser.setUpstreamProtocol(protocol);
+		advertiser.setBidUrl(null);
+		advertiser.setMacroParams(null);
+		linkMapper.selectById("link-1")
+			.setLinkUrl("https://partner.example/click?aid=1&did=2&oaid=__OAID__"
+					+ "&ip=__IP__&ua=__UA__&model=__MODEL__&ts=__TS__&os=__OS__&callback=__CALLBACK__");
+
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+
+		assertThat(preview.isExecutable()).as("%s blockers: %s", protocol, preview.getBlockers()).isTrue();
+		assertThat(preview.getTestUrl()).contains("oaid=", "ip=", "ua=", "model=", "ts=").doesNotContain("__");
+		Map<String, String> values = editableValues(preview);
+		when(jdbcTemplate.queryForObject(contains("COUNT(*)"), eq(Long.class), eq("task-1"),
+				eq(preview.getRequestId())))
+			.thenReturn(0L);
+		when(httpClient.get(any())).thenReturn(new OcpxMonitorTaskTestHttpClient.Response(200, "{}", null, 1L));
+		MonitorTaskTestViews.Execution execution = service.execute("task-1", new MonitorTaskTestRequests.Execute(
+				preview.getRequestId(), "ANDROID", preview.getCallbackToken(), values));
+		assertThat(execution.getTestUrl()).isEqualTo(preview.getTestUrl());
+		verify(httpClient).get(any());
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = OcpxUpstreamProtocol.class, names = { "AERIM", "WEIFENG" })
+	void ignoresConflictingAdvertiserFieldsAndNeverFallsBackWhenLinkIsMissing(OcpxUpstreamProtocol protocol) {
+		OcpxAdvertiser advertiser = advertiserMapper.selectById("adv-1");
+		advertiser.setUpstreamProtocol(protocol);
+		advertiser.setBidUrl("https://old.example/click?imei=__IMEI__");
+		advertiser.setMacroParams("imei=__IMEI__&callback=__CALLBACK__");
+		OcpxPromotionLink link = linkMapper.selectById("link-1");
+		link.setLinkUrl("https://partner.example/click?oaid=__OAID__&model=__MODEL__&ts=__TS__&callback=__CALLBACK__");
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getTestUrl()).contains("oaid=").doesNotContain("imei=");
+
+		link.setLinkUrl(null);
+		MonitorTaskTestViews.Preview missing = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("imei")));
+		assertThat(missing.isExecutable()).isFalse();
+		assertThat(missing.getTestUrl()).isEmpty();
+		assertThat(missing.getBlockers()).anyMatch(value -> value.contains("推广链接"));
+		verify(httpClient, never()).get(any());
+	}
+
+	@Test
+	void recognizesAerimAliasesWithoutRequiringOldAdvertiserMacros() {
+		advertiserMapper.selectById("adv-1").setUpstreamProtocol(OcpxUpstreamProtocol.AERIM);
+		linkMapper.selectById("link-1")
+			.setLinkUrl("https://partner.example/click?oaid_md5=__OAIDMD5__"
+					+ "&ip=__IPV4__&ua=__UA__&ts=__TSMS__&callback=__CALLBACK__&clickid=__CLICK_ID__&os=__OS_TYPE__");
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid_md5", "ip", "ua", "mts")));
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getTestUrl()).contains("oaid_md5=", "mts=", "ip=", "ua=");
+		assertThat(preview.getParameters()).filteredOn(MonitorTaskTestViews.Parameter::isSelected)
+			.allSatisfy(parameter -> {
+				if (!parameter.getKey().equals("request_id"))
+					assertThat(parameter.isForwardedUpstream()).isTrue();
+			});
+	}
+
+	@Test
+	void aerimIosHashOnlyUsesLinkTemplateAndPreservesEditedEncoding() {
+		advertiserMapper.selectById("adv-1").setUpstreamProtocol(OcpxUpstreamProtocol.AERIM);
+		advertiserMapper.selectById("adv-1").setBidUrl(null);
+		advertiserMapper.selectById("adv-1").setMacroParams(null);
+		OcpxPromotionLink link = linkMapper.selectById("link-1");
+		link.setPlatform(2);
+		link.setLinkUrl("https://partner.example/click?idfa_md5=__IDFA_MD5__&ua=__UA__&callback=__CALLBACK__");
+		Map<String, String> values = Map.of("idfa_md5", "0123456789abcdef0123456789abcdef", "ua",
+				"Test UA/1.0 (iPhone; x=1&y=2+3)");
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("IOS", List.of("idfa_md5", "ua"), values));
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getTestUrl()).contains("idfa_md5=", "%26y%3D2%2B3").doesNotContain("ip=");
+		when(jdbcTemplate.queryForObject(contains("COUNT(*)"), eq(Long.class), eq("task-1"),
+				eq(preview.getRequestId())))
+			.thenReturn(0L);
+		when(httpClient.get(any())).thenReturn(new OcpxMonitorTaskTestHttpClient.Response(200, "{}", null, 1L));
+		assertThat(service
+			.execute("task-1",
+					new MonitorTaskTestRequests.Execute(preview.getRequestId(), "IOS", preview.getCallbackToken(),
+							values))
+			.getTestUrl()).isEqualTo(preview.getTestUrl());
+		MonitorTaskTestViews.Preview hashOnly = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("IOS", List.of("idfa_md5")));
+		assertThat(hashOnly.isExecutable()).isTrue();
+		assertThat(hashOnly.getTestUrl()).doesNotContain("ua=", "ip=");
+	}
+
+	@Test
+	void gravityUsesDynamicDeviceCapabilitiesFromBaseLink() {
+		advertiserMapper.selectById("adv-1").setUpstreamProtocol(OcpxUpstreamProtocol.GRAVITY);
+		OcpxPromotionLink link = linkMapper.selectById("link-1");
+		link.setPlatform(3);
+		link.setLinkUrl("https://partner.example/click?campaign=business-id");
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getTestUrl()).contains("oaid=", "ip=", "ua=");
+		MonitorTaskTestViews.Preview missing = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid")));
+		assertThat(missing.getBlockers()).anyMatch(value -> value.contains("ip"))
+			.anyMatch(value -> value.contains("ua"));
+		assertThat(missing.getTestUrl()).isEmpty();
+		link.setPlatform(1);
+		MonitorTaskTestViews.Preview wrongPlatform = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+		assertThat(wrongPlatform.isExecutable()).isFalse();
+		assertThat(wrongPlatform.getBlockers()).contains("引力推广链接必须配置为 Android+IOS 平台");
+	}
+
+	@Test
+	void templateGetUsesEffectiveQueryInsteadOfConcatenatedMacroNames() {
+		OcpxAdvertiser advertiser = advertiserMapper.selectById("adv-1");
+		advertiser.setBidUrl("https://partner.example/click?oaid=fixed-value");
+		advertiser.setMacroParams("oaid=__OAID__");
+		MonitorTaskTestViews.Preview preview = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid")));
+		assertThat(preview.isExecutable()).isFalse();
+		assertThat(preview.getTestUrl()).isEmpty();
+		advertiser.setMacroParams("__OAID__,__IP__,__UA__");
+		assertThat(service.generate("task-1", new MonitorTaskTestRequests.Generate("ANDROID", null)).isExecutable())
+			.isFalse();
+	}
+
+	@Test
+	void cannotGenerateExecutableLinksWithNoProtocolOrNoSelectedIdentity() {
+		MonitorTaskTestViews.Preview empty = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of()));
+		assertThat(empty.isExecutable()).isFalse();
+		assertThat(empty.getTestUrl()).isEmpty();
+		advertiserMapper.selectById("adv-1").setUpstreamProtocol(null);
+		MonitorTaskTestViews.Preview unconfigured = service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", null));
+		assertThat(unconfigured.getBlockers()).contains("广告主尚未选择上游协议");
+		assertThat(unconfigured.getTestUrl()).isEmpty();
+		assertThatThrownBy(() -> service.execute("task-1", new MonitorTaskTestRequests.Execute(empty.getRequestId(),
+				"ANDROID", empty.getCallbackToken(), Map.of())))
+			.isInstanceOf(BootBusinessException.class);
+		verify(httpClient, never()).get(any());
+	}
+
+	@Test
+	void editedParameterPreviewValidatesValuesAndPreservesThemWithoutCallingEngine() {
+		Map<String, String> values = Map.of("oaid", "0123456789abcdef0123456789abcdef");
+		MonitorTaskTestRequests.Generate request = new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid"),
+				values);
+		MonitorTaskTestViews.Preview preview = service.generate("task-1", request);
+		assertThat(preview.isExecutable()).isTrue();
+		assertThat(preview.getTestUrl()).contains("oaid=" + values.get("oaid"));
+		assertThat(editableValues(preview)).isEqualTo(values);
+		assertThat(service.generate("task-1", request).getRequestId()).isNotEqualTo(preview.getRequestId());
+		assertThatThrownBy(() -> service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid"), Map.of("oaid", ""))))
+			.isInstanceOf(BootBusinessException.class);
+		assertThatThrownBy(() -> service.generate("task-1",
+				new MonitorTaskTestRequests.Generate("ANDROID", List.of("oaid", "ip"), values)))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("不一致");
+		verify(httpClient, never()).get(any());
+	}
+
+	private Map<String, String> editableValues(MonitorTaskTestViews.Preview preview) {
+		return preview.getParameters()
+			.stream()
+			.filter(parameter -> parameter.isSelected() && !parameter.isRequired())
+			.collect(java.util.stream.Collectors.toMap(MonitorTaskTestViews.Parameter::getKey,
+					MonitorTaskTestViews.Parameter::getValue));
 	}
 
 	@Test
@@ -148,8 +347,8 @@ class OcpxMonitorTaskTestServiceTest {
 				new MonitorTaskTestRequests.Generate("ANDROID", null));
 		assertThat(defaultPreview.isExecutable()).isTrue();
 		assertThat(defaultPreview.getCallbackMode()).isEqualTo("FORMAL_UPSTREAM");
-		assertThat(defaultPreview.getCallbackDisplayUrl()).contains("/ocpx/renren-video/callback?kid=");
-		assertThat(defaultPreview.getTestUrl()).doesNotContain("callback_url=", "/test-callback");
+		assertThat(defaultPreview.getCallbackDisplayUrl()).isEqualTo("https://8.8.8.8/real-media-callback?clickid=previous");
+		assertThat(defaultPreview.getTestUrl()).contains("callback_url=").doesNotContain("/test-callback");
 		assertThat(defaultPreview.getParameters()).anySatisfy(parameter -> {
 			assertThat(parameter.getKey()).isEqualTo("callback");
 			assertThat(parameter.getMacro()).isEqualTo("__CALLBACK__");
@@ -265,7 +464,7 @@ class OcpxMonitorTaskTestServiceTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void reportsCompleteLoopOnlyAfterTheControlledCollectorReceivesCallback() {
+	void reportsCompleteLoopOnlyAfterRealMediaReceivesCallback() {
 		String requestId = "SCX-UAT-20260817183000-abcdef123456";
 		LocalDateTime now = LocalDateTime.now();
 		MonitorTaskTestViews.Fact fact = new MonitorTaskTestViews.Fact("CLK", "NOT_APPLICABLE", "BILLING_DISABLED",
@@ -276,7 +475,7 @@ class OcpxMonitorTaskTestServiceTest {
 				null, new BigDecimal("5.000000"), BigDecimal.ZERO, "PASSED", BigDecimal.ONE, now, now);
 		MonitorTaskTestViews.Flow callback = new MonitorTaskTestViews.Flow("SUCCESS", null,
 				"DOWNSTREAM_DELIVERY_SUBMITTED", 0L, now);
-		MonitorTaskTestViews.Flow downstream = new MonitorTaskTestViews.Flow("SUCCESS", null, "TEST_CALLBACK_RECEIVED",
+		MonitorTaskTestViews.Flow downstream = new MonitorTaskTestViews.Flow("SUCCESS", null, "MEDIA_DELIVERED",
 				0L, now);
 		when(jdbcTemplate.query(contains("flow_type='FEEDBACK'"), any(RowMapper.class), eq("task-1"), eq("adv-1"),
 				eq(requestId)))
@@ -290,26 +489,26 @@ class OcpxMonitorTaskTestServiceTest {
 		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
 				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of(callback));
-		when(jdbcTemplate.query(contains("message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class), eq("task-1"),
+		when(jdbcTemplate.query(contains("message LIKE 'MEDIA_%'"), any(RowMapper.class), eq("task-1"),
 				eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of(downstream));
 
 		MonitorTaskTestViews.Result result = service.result("task-1", requestId);
 
 		assertThat(result.getState()).isEqualTo("COMPLETED");
-		assertThat(result.getConclusion()).contains("测试回调接收器已收到").contains("不代表真实媒体");
+		assertThat(result.getConclusion()).contains("真实媒体 callback_url 已收到");
 		assertThat(result.getTimeline()).extracting(MonitorTaskTestViews.TimelineItem::getStage)
 			.containsExactly("ENGINE_INGRESS", "BILLING", "UPSTREAM", "ADVERTISER_CALLBACK", "CALLBACK_BILLING",
 					"MEDIA_DEDUCTION", "DOWNSTREAM_CALLBACK");
 		verify(jdbcTemplate).query(contains("AND message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
 				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId));
-		verify(jdbcTemplate).query(contains("AND message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class),
+		verify(jdbcTemplate).query(contains("AND message LIKE 'MEDIA_%'"), any(RowMapper.class),
 				eq("task-1"), eq("adv-1"), eq(requestId));
 	}
 
 	@Test
 	@SuppressWarnings("unchecked")
-	void reportsRenrenFormalCallbackCompleteWithoutInjectingTheTestCollector() {
+	void reportsRenrenFormalCallbackCompleteWithRealMediaCallback() {
 		stubRenrenVideoContext();
 		String requestId = "SCX-UAT-20260817183000-abcdef123456";
 		LocalDateTime now = LocalDateTime.now();
@@ -334,18 +533,18 @@ class OcpxMonitorTaskTestServiceTest {
 		when(jdbcTemplate.query(contains("message NOT IN ('TEST_CALLBACK_ARMED','TEST_CALLBACK_RECEIVED')"),
 				any(RowMapper.class), eq("task-1"), eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of(callback));
-		when(jdbcTemplate.query(contains("message = 'TEST_CALLBACK_RECEIVED'"), any(RowMapper.class), eq("task-1"),
+		when(jdbcTemplate.query(contains("message LIKE 'MEDIA_%'"), any(RowMapper.class), eq("task-1"),
 				eq("adv-1"), eq(requestId)))
 			.thenReturn(List.of());
 
 		MonitorTaskTestViews.Result result = service.result("task-1", requestId);
 
-		assertThat(result.getState()).isEqualTo("COMPLETED");
-		assertThat(result.getConclusion()).contains("人人视频正式 Callback 已成功处理").contains("未注入测试 callback_url");
+		assertThat(result.getState()).isEqualTo("DOWNSTREAM_PENDING");
+		assertThat(result.getConclusion()).contains("等待真实媒体确认");
 		assertThat(result.getTimeline()).last().satisfies(item -> {
 			assertThat(item.getStage()).isEqualTo("DOWNSTREAM_CALLBACK");
-			assertThat(item.getStatus()).isEqualTo("SKIPPED");
-			assertThat(item.getDetail()).contains("未配置下游媒体 callback_url");
+			assertThat(item.getStatus()).isEqualTo("WAITING");
+			assertThat(item.getDetail()).contains("等待真实媒体");
 		});
 	}
 
@@ -364,12 +563,14 @@ class OcpxMonitorTaskTestServiceTest {
 		OcpxAdvertiser advertiser = new OcpxAdvertiser();
 		advertiser.setId("adv-1");
 		advertiser.setAdvertiserName("广告主一");
+		advertiser.setUpstreamProtocol(OcpxUpstreamProtocol.TEMPLATE_GET);
 		advertiser.setBidUrl("https://partner.example/click");
 		advertiser.setMacroParams(advertiserMacros);
 		when(advertiserMapper.selectById("adv-1")).thenReturn(advertiser);
 
 		OcpxPromotionLink link = new OcpxPromotionLink();
 		link.setId("link-1");
+		link.setAdvertiserId("adv-1");
 		link.setLinkName("链接一");
 		link.setPlatform(platform);
 		when(linkMapper.selectById("link-1")).thenReturn(link);

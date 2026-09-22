@@ -65,6 +65,8 @@ public final class MonitorTaskTestViews {
 
 		private String testUrl;
 
+		private Long callbackFeedbackLogId;
+
 		private String callbackToken;
 
 		private String callbackMode;

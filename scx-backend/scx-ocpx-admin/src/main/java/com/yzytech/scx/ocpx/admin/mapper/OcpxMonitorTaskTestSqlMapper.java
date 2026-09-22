@@ -20,12 +20,21 @@ public interface OcpxMonitorTaskTestSqlMapper {
 
 	Long selectFactExistsEventFact(@Param("taskId") String taskId, @Param("requestId") String requestId);
 
+	java.util.List<SelectCallbackFeedbackRow> selectCallbackFeedback(@Param("feedbackLogId") Long feedbackLogId,
+			@Param("taskId") String taskId);
+
+	java.util.List<SelectCallbackFeedbackRow> selectLatestCallbackFeedback(@Param("taskId") String taskId);
+
 	record SelectResultEventFactRow(String eventCode, String billingStatus, String billingReasonCode,
 			java.math.BigDecimal spendAmount, java.sql.Timestamp receivedAt) {
 	}
 
 	record SelectResultFlowLogRow(String resultStatus, Integer partnerHttpStatus, String message, long durationMs,
 			java.sql.Timestamp eventTime) {
+	}
+
+	record SelectCallbackFeedbackRow(long id, String callbackUrl, String advertiserId, String promotionLinkId, String mediaId,
+			String monitorTaskId) {
 	}
 
 	record SelectResultEventFact2Row(String eventCode, String billingStatus, String billingReasonCode,

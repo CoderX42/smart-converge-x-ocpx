@@ -1200,7 +1200,7 @@ paths:
     post:
       operationId: generateMonitorTaskClickTestLink
       summary: 生成随机且可编辑的完整 CLK 测试链接预览
-      description: 仅拥有 ocpx:monitor-task:test 的真实 ROLE_ADMIN 可用；callback_url 自动指向固定 Engine 的受控测试接收端，浏览器不能编辑目标地址。
+      description: 仅拥有 ocpx:monitor-task:test 的真实 ROLE_ADMIN 可用；callback_url 复用当前任务真实媒体 Feedback 快照，浏览器不能编辑目标地址；没有真实公网快照时阻断。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -1239,7 +1239,7 @@ paths:
     get:
       operationId: getMonitorTaskClickTestResult
       summary: 查询点击、广告主 Callback、计费、扣量和最后一跳时间线
-      description: 上游 HTTP 200 只代表点击接口已响应；测试接收端成功只证明 SCX 最后一跳可达，均不代表真实合作方或媒体业务入库。
+      description: 上游 HTTP 200 只代表点击接口已响应；真实媒体 HTTP 2xx 只证明网络接口响应，媒体业务入库仍需核对。
       security: [{ saToken: [] }]
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, maxLength: 32 } }
@@ -2084,6 +2084,8 @@ components:
           maxItems: 24
           uniqueItems: true
           items: { type: string, pattern: '^[a-z][a-z0-9_]{0,31}$' }
+        parameterValues: { type: object, maxProperties: 24, additionalProperties: { type: string, maxLength: 1024 } }
+        feedbackLogId: { type: integer, format: int64, minimum: 1, description: 真实媒体 Feedback 快照主键；省略时服务端取最近一条 }
     MonitorTaskTestExecuteRequest:
       type: object
       additionalProperties: false
@@ -2092,6 +2094,7 @@ components:
         requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
         os: { type: string, enum: [ANDROID, IOS] }
         callbackToken: { type: string, pattern: '^[0-9a-f]{32}$' }
+        feedbackLogId: { type: integer, format: int64, minimum: 1, description: 真实媒体 Feedback 快照主键；省略时服务端取最近一条 }
         parameters:
           type: object
           maxProperties: 24
@@ -2113,7 +2116,7 @@ components:
         value: { type: [string, 'null'] }
     MonitorTaskTestPreview:
       type: object
-      required: [requestId, event, os, taskId, monitorName, advertiserName, mediaName, promotionLinkName, platform, testUrl, callbackToken, expectedCharge, executable, blockers, warnings, parameters]
+      required: [requestId, event, os, taskId, monitorName, advertiserName, mediaName, promotionLinkName, platform, testUrl, callbackFeedbackLogId, callbackToken, callbackMode, callbackDisplayUrl, expectedCharge, executable, blockers, warnings, parameters]
       properties:
         requestId: { type: string, pattern: '^SCX-UAT-[0-9]{14}-[0-9a-f]{12}$' }
         event: { type: string, const: CLK }
@@ -2125,7 +2128,10 @@ components:
         promotionLinkName: { type: string }
         platform: { type: integer, enum: [1, 2, 3, 4] }
         testUrl: { type: string, format: uri }
+        callbackFeedbackLogId: { type: [integer, 'null'], format: int64, minimum: 1 }
         callbackToken: { type: string, pattern: '^[0-9a-f]{32}$' }
+        callbackMode: { type: string, enum: [FORMAL_UPSTREAM, REAL_MEDIA] }
+        callbackDisplayUrl: { type: [string, 'null'], format: uri }
         expectedCharge: { type: number, minimum: 0 }
         availableBalance: { type: [number, 'null'] }
         executable: { type: boolean }

@@ -75,9 +75,11 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		}
 		String requestUrl = null;
 		try {
-			requestUrl = buildRequestUrl(feedback);
+			RequestResolution resolution = resolveRequest(feedback);
+			requestUrl = resolution.url();
 			if (requestUrl == null) {
-				flowLogWriter.upstreamDelivery(feedback, false, null, "AERIM_REQUEST_REJECTED", 0L);
+				flowLogWriter.upstreamDelivery(feedback, false, null, resolution.rejectionCode(), 0L, null, null,
+						macroAudit(feedback, null));
 				return;
 			}
 			requestUrl = endpointPolicy.requireAllowedHttpUrl(requestUrl);
@@ -108,24 +110,28 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 
 	/** 构造不带签名、缺失宏参数已移除的 AERIM 正式请求地址。 */
 	public String buildRequestUrl(FeedbackReq feedback) {
+		return resolveRequest(feedback).url();
+	}
+
+	private RequestResolution resolveRequest(FeedbackReq feedback) {
 		if (feedback == null) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 		if (!macroResolutionService.hasInboundIdentity(feedback)) {
-			return null;
+			return RequestResolution.rejected("AERIM_ATTRIBUTION_IDENTITY_MISSING");
 		}
 		OcpxPromotionLink promotionLink = promotionLinkIndex.get(feedback.getLId());
 		if (promotionLink == null || !feedback.getAId().equals(promotionLink.getAdvertiserId())
 				|| !StringUtils.hasText(promotionLink.getLinkUrl())) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 		String template = promotionLink.getLinkUrl().trim();
 		if (!template.contains("__CALLBACK__") && !template.contains("__CALLBACK_URL__")) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 		String callback = buildCallbackUrl(feedback);
 		if (!StringUtils.hasText(callback)) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 
 		Map<String, String> macros = macros(feedback, callback);
@@ -134,7 +140,7 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		int queryIndex = withoutFragment.indexOf('?');
 		String path = queryIndex < 0 ? withoutFragment : withoutFragment.substring(0, queryIndex);
 		if (RESIDUAL_MACRO.matcher(path).find()) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 
 		List<String> queryPairs = new ArrayList<>();
@@ -148,12 +154,18 @@ public class AerimUpstreamDeliveryService extends UpstreamDeliveryService {
 		}
 		String requestUrl = path + (queryPairs.isEmpty() ? "" : "?" + String.join("&", queryPairs));
 		if (RESIDUAL_MACRO.matcher(requestUrl).find() || !hasCallbackParameter(requestUrl)) {
-			return null;
+			return RequestResolution.rejected("AERIM_REQUEST_REJECTED");
 		}
 		if (!macroResolutionService.hasForwardedIdentity(requestUrl, feedback.getOs())) {
-			return null;
+			return RequestResolution.rejected("AERIM_ATTRIBUTION_IDENTITY_MISSING");
 		}
-		return requestUrl;
+		return new RequestResolution(requestUrl, null);
+	}
+
+	private record RequestResolution(String url, String rejectionCode) {
+		private static RequestResolution rejected(String rejectionCode) {
+			return new RequestResolution(null, rejectionCode);
+		}
 	}
 
 	public String buildCallbackUrl(FeedbackReq feedback) {
