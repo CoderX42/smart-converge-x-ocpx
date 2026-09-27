@@ -410,8 +410,8 @@ onMounted(async () => {
       :close-on-click-modal="false"
       class="media-dialog"
       :title="editing ? '编辑媒体' : '新增媒体'"
-      top="4vh"
-      width="900px"
+      top="5vh"
+      width="1000px"
       @close="handleDialogClose"
     >
       <el-form
@@ -537,11 +537,11 @@ onMounted(async () => {
 .media-base-grid {
   display: grid;
   grid-template-columns: 1.25fr 1fr 1fr;
-  gap: 0 16px;
+  gap: 0 12px;
 }
 
 .media-base-grid :deep(.el-form-item) {
-  margin-bottom: 14px;
+  margin-bottom: 9px;
 }
 
 .media-dialog-form > :deep(.el-form-item:last-child) {
@@ -556,9 +556,9 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
+  gap: 3px 8px;
+  padding: 5px 8px;
+  margin-bottom: 6px;
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
@@ -574,15 +574,15 @@ onMounted(async () => {
 }
 
 .macro-group-card {
-  padding: 10px 12px 8px;
-  margin-top: 10px;
+  padding: 7px 9px 5px;
+  margin-top: 6px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
 }
 
 .macro-group-title {
-  margin-bottom: 8px;
-  font-size: 12px;
+  margin-bottom: 5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
@@ -590,12 +590,12 @@ onMounted(async () => {
 .macro-group {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 18px;
+  gap: 2px 10px;
 }
 
 .macro-variant-item {
   min-width: 0;
-  padding: 4px 6px;
+  padding: 3px 5px;
   background: var(--el-fill-color-lighter);
   border-radius: 5px;
 }
@@ -603,8 +603,8 @@ onMounted(async () => {
 .macro-variant-label {
   display: flex;
   align-items: center;
-  min-height: 24px;
-  font-size: 13px;
+  min-height: 21px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -619,7 +619,7 @@ onMounted(async () => {
   display: flex;
   min-width: 0;
   align-items: flex-start;
-  padding: 5px 6px;
+  padding: 3px 4px;
   margin: 0;
   border-radius: 5px;
 }
@@ -634,22 +634,22 @@ onMounted(async () => {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  gap: 2px 7px;
+  gap: 1px 5px;
   align-items: baseline;
   padding-left: 6px;
   line-height: 1.4;
 }
 
 .macro-compat {
-  margin-top: 10px;
+  margin-top: 6px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
 }
 
 .macro-compat :deep(.el-collapse-item__header) {
-  height: 36px;
-  padding: 0 12px;
-  font-size: 12px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   border-bottom: 0;
 }
@@ -659,11 +659,11 @@ onMounted(async () => {
 }
 
 .macro-compat :deep(.el-collapse-item__content) {
-  padding: 0 12px 10px;
+  padding: 0 10px 6px;
 }
 
 .macro-compat-group {
-  gap: 4px 18px;
+  gap: 2px 10px;
 }
 
 .macro-label {
@@ -671,18 +671,18 @@ onMounted(async () => {
 }
 
 .macro-value {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--el-text-color-secondary);
   overflow-wrap: anywhere;
 }
 
 .macro-preview {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: baseline;
-  padding: 8px 10px;
-  margin: 10px 0 8px;
-  font-size: 12px;
+  padding: 5px 8px;
+  margin: 6px 0 5px;
+  font-size: 11px;
   line-height: 1.6;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
@@ -696,28 +696,28 @@ onMounted(async () => {
 }
 
 .macro-preview-text {
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: 10px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .macro-custom-input {
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 :deep(.media-dialog .el-dialog__body) {
-  max-height: calc(100vh - 190px);
-  padding: 8px 22px 4px;
+  max-height: calc(100vh - 170px);
+  padding: 5px 18px 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 :deep(.media-dialog .el-dialog__header) {
-  padding: 18px 22px 10px;
+  padding: 14px 18px 7px;
 }
 
 :deep(.media-dialog .el-dialog__footer) {
-  padding: 12px 22px 18px;
+  padding: 8px 18px 12px;
 }
 
 @media (max-width: 820px) {
