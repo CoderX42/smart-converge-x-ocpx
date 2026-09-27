@@ -40,6 +40,7 @@ class FeedbackIngressAdapterTest {
 		assertThat(result.getEvent()).isEqualTo(EventTypeEnum.CLICK);
 		assertThat(result.getOs()).isEqualTo(OsTypeEnum.ANDROID);
 		assertThat(result.getIdfaMd5()).isEqualTo("idfa-md5-1");
+		assertThat(result.getCaid()).isEqualTo("caid-list-1");
 		assertThat(result.getCaidList()).isEqualTo("caid-list-1");
 		assertThat(result.getCaid2()).isEqualTo("old-caid-1");
 		assertThat(result.getLastCaid()).isEqualTo("last-caid-1");
@@ -50,6 +51,21 @@ class FeedbackIngressAdapterTest {
 		assertThat(result.getIpv6()).isEqualTo("2408:1::1");
 		assertThat(result.getOsv()).isEqualTo("13.1.1");
 		assertThat(result.getCallbackUrl()).isEqualTo("https%3A%2F%2Fmedia.example%2Fcallback%3Fa%3D1");
+	}
+
+	@Test
+	void fillsMissingLegacyCaidSlotsFromCanonicalCaid() {
+		FeedbackIngressRequest request = new FeedbackIngressRequest();
+		request.setCaid("canonical-caid");
+
+		FeedbackReq result = new FeedbackIngressAdapter().toFeedback(request);
+
+		assertThat(result.getCaid()).isEqualTo("canonical-caid");
+		assertThat(result.getCaidList()).isEqualTo("canonical-caid");
+		assertThat(result.getCaid1()).isEqualTo("canonical-caid");
+		assertThat(result.getCaid2()).isNull();
+		assertThat(result.getLastCaid()).isNull();
+		assertThat(result.getPrevCaid()).isNull();
 	}
 
 	@Test

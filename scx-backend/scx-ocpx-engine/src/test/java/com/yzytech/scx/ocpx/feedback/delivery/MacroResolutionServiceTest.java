@@ -56,6 +56,23 @@ class MacroResolutionServiceTest {
 	}
 
 	@Test
+	void canonicalCaidCanFeedLegacyUpstreamAliases() {
+		FeedbackReq feedback = FeedbackReq.builder()
+			.os(OsTypeEnum.IOS)
+			.caid("canonical-caid")
+			.build();
+
+		MacroResolutionService.Resolution resolution = service.expandQueryTemplate(
+				"https://partner.example/click?caid=__CAID__&caid_list=__CAID_LIST__&caid1=__CAID1__"
+						+ "&callback_url=__CALLBACK_URL__",
+				feedback, "https://scx.example/callback", "biz-1");
+
+		assertThat(resolution.success()).isTrue();
+		assertThat(resolution.url()).contains("caid=canonical-caid", "caid_list=canonical-caid",
+				"caid1=canonical-caid");
+	}
+
+	@Test
 	void rejectsMalformedAndMissingQueryStrings() {
 		assertThat(service.hasForwardedIdentity("https://partner.example/click?oaid_md5=%zz", OsTypeEnum.ANDROID))
 			.isFalse();

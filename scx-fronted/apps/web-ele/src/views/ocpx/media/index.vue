@@ -1,6 +1,8 @@
 <script lang="ts" setup>
 import type { FormInstance, FormRules } from 'element-plus';
 
+import type { MediaMacroGroup, MediaMacroOption } from './media-macros';
+
 import type { EntityOption, Media } from '#/api/ocpx';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
@@ -29,62 +31,24 @@ import {
   PAGE_SIZES,
   resetPage,
 } from '../table';
+import {
+  AUTO_MACRO,
+  AUTO_MACRO_KEY,
+  buildMediaMacroGroups,
+  CAID_ADVANCED_KEYS,
+  CAID_ALIAS_KEYS,
+  compatibilityMacroItems,
+  parseMediaMacroParams,
+  serializeMediaMacroParams,
+} from './media-macros';
 
 import '../table.scss';
 
 defineOptions({ name: 'OcpxMediaManagement' });
 const router = useRouter();
 
-const MACRO_GROUPS = ref([
-  {
-    name: '设备标识',
-    items: [
-      { key: 'imei', macro: '__IMEI__', label: 'IMEI' },
-      { key: 'imei_md5', macro: '__IMEI_MD5__', label: 'IMEI MD5' },
-      { key: 'oaid', macro: '__OAID__', label: 'OAID' },
-      { key: 'oaid_md5', macro: '__OAID_MD5__', label: 'OAID MD5' },
-      { key: 'idfa', macro: '__IDFA__', label: 'IDFA' },
-      { key: 'idfa_md5', macro: '__IDFA_MD5__', label: 'IDFA MD5' },
-      { key: 'aaid', macro: '__AAID__', label: 'AAID' },
-      { key: 'androidid', macro: '__ANDROIDID__', label: 'Android ID' },
-      { key: 'mac', macro: '__MAC__', label: 'MAC' },
-    ],
-  },
-  {
-    name: '网络/终端',
-    items: [
-      { key: 'ip', macro: '__IP__', label: 'IP' },
-      { key: 'ua', macro: '__UA__', label: 'User-Agent' },
-      { key: 'os', macro: '__OS__', label: '操作系统' },
-      { key: 'model', macro: '__MODEL__', label: '机型' },
-      { key: 'ts', macro: '__TS__', label: '时间戳' },
-    ],
-  },
-  {
-    name: '平台路由',
-    items: [
-      { key: 'request_id', macro: '__REQUEST_ID__', label: '请求 ID' },
-      { key: 'callback_url', macro: '__CALLBACK_URL__', label: '回调地址' },
-      { key: 'clickid', macro: '__CLICKID__', label: '点击 ID' },
-    ],
-  },
-  {
-    name: '广告维度',
-    items: [
-      { key: 'plan_id', macro: '__ORDER_PLAN_ID__', label: '广告计划' },
-      { key: 'group_id', macro: '__ORDER_GROUP_ID__', label: '广告组' },
-      { key: 'creative_id', macro: '__CREATIVE_ID__', label: '创意' },
-      { key: 'adv_id', macro: '__ADVERTISER_ID__', label: '广告主' },
-    ],
-  },
-]);
-
-const COMMON_MACROS = computed(() =>
-  MACRO_GROUPS.value.flatMap((group) => group.items),
-);
-const ALL_MACRO_KEYS = computed(() =>
-  COMMON_MACROS.value.map((item) => item.key),
-);
+const MACRO_GROUPS = ref<MediaMacroGroup[]>(buildMediaMacroGroups());
+const COMPAT_MACRO_ITEMS = ref<MediaMacroOption[]>(compatibilityMacroItems());
 
 const columns = [
   { key: 'id', label: '渠道 ID' },
@@ -110,6 +74,7 @@ const formRef = ref<FormInstance>();
 const form = reactive({
   credentialConfigKey: '',
   customMacros: '',
+  legacyMacros: [] as string[],
   mediaName: '',
   selectedMacros: [] as string[],
   uri: '/feedback',
@@ -125,37 +90,71 @@ const canOperate = computed(() =>
 const loadGuard = createLatestRequestGuard();
 
 const macroParams = computed(() => {
-  const selected = new Set(form.selectedMacros);
-  const pairs = COMMON_MACROS.value
-    .filter((item) => selected.has(item.key))
-    .map((item) => `${item.key}=${item.macro}`);
-  const custom = form.customMacros.trim();
-  if (custom) pairs.push(custom);
-  return pairs.join('&');
+  return serializeMediaMacroParams(
+    MACRO_GROUPS.value,
+    form.selectedMacros,
+    form.legacyMacros,
+    form.customMacros,
+    COMPAT_MACRO_ITEMS.value,
+  );
 });
+const macroPreviewParams = computed(() =>
+  [`${AUTO_MACRO_KEY}=${AUTO_MACRO}`, macroParams.value]
+    .filter(Boolean)
+    .join('&'),
+);
 
 function parseMacroParams(raw?: null | string) {
-  const commonKeys = new Set(COMMON_MACROS.value.map((item) => item.key));
-  const selected: string[] = [];
-  const custom: string[] = [];
-  if (raw) {
-    for (const segment of raw.split('&')) {
-      const pair = segment.trim();
-      if (!pair) continue;
-      const eq = pair.indexOf('=');
-      const key = (eq === -1 ? pair : pair.slice(0, eq)).trim();
-      if (!key) continue;
-      if (commonKeys.has(key)) {
-        if (!selected.includes(key)) selected.push(key);
-      } else {
-        custom.push(pair);
-      }
-    }
-  }
-  return { custom: custom.join('&'), selected };
+  return parseMediaMacroParams(raw, MACRO_GROUPS.value);
 }
 
-const allMacroKeys = () => [...ALL_MACRO_KEYS.value];
+const newMacroKeys = () => ['callback_url'];
+
+function isMacroSelected(key: string) {
+  if (form.selectedMacros.includes(key)) return true;
+  return form.legacyMacros.some((pair) => {
+    const separator = pair.indexOf('=');
+    const legacyKey = (
+      separator === -1 ? pair : pair.slice(0, separator)
+    ).trim();
+    return (
+      legacyKey === key || (key === 'caid' && CAID_ALIAS_KEYS.has(legacyKey))
+    );
+  });
+}
+
+function toggleMacro(key: string, value: unknown) {
+  const checked = value === true;
+  const selected = new Set(form.selectedMacros);
+  if (checked) selected.add(key);
+  else selected.delete(key);
+
+  // Touching the canonical CAID field upgrades old aliases to the canonical
+  // key. Until the user touches it, old media keeps its exact alias pair.
+  if (key === 'caid') {
+    form.legacyMacros = form.legacyMacros.filter((pair) => {
+      const separator = pair.indexOf('=');
+      const legacyKey = (
+        separator === -1 ? pair : pair.slice(0, separator)
+      ).trim();
+      return !CAID_ALIAS_KEYS.has(legacyKey);
+    });
+  }
+  if (CAID_ADVANCED_KEYS.has(key)) {
+    form.legacyMacros = form.legacyMacros.filter((pair) => {
+      const separator = pair.indexOf('=');
+      const legacyKey = (
+        separator === -1 ? pair : pair.slice(0, separator)
+      ).trim();
+      return legacyKey !== key;
+    });
+  }
+  form.selectedMacros = [...selected];
+}
+
+function selectVariant(item: MediaMacroOption, value: unknown) {
+  toggleMacro(item.key, value);
+}
 
 function hasColumn(key: string) {
   return visibleColumns.value.includes(key);
@@ -190,8 +189,9 @@ function edit(row?: Media) {
   Object.assign(form, {
     credentialConfigKey: row?.credentialConfigKey || '',
     customMacros: row ? parsed.custom : '',
+    legacyMacros: row ? parsed.legacy : [],
     mediaName: row?.mediaName || '',
-    selectedMacros: row ? parsed.selected : allMacroKeys(),
+    selectedMacros: row ? parsed.selected : newMacroKeys(),
     uri: row?.uri || '/feedback',
   });
   dialogOpen.value = true;
@@ -200,10 +200,6 @@ function edit(row?: Media) {
 
 async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
-  if (!macroParams.value) {
-    ElMessage.warning('请至少选择一个宏参数，或填写自定义宏参数');
-    return;
-  }
   saving.value = true;
   try {
     const editingId = editing.value?.id;
@@ -231,8 +227,9 @@ function handleDialogClose() {
   Object.assign(form, {
     credentialConfigKey: '',
     customMacros: '',
+    legacyMacros: [],
     mediaName: '',
-    selectedMacros: allMacroKeys(),
+    selectedMacros: newMacroKeys(),
     uri: '/feedback',
   });
 }
@@ -260,13 +257,8 @@ async function remove(row: Media) {
 
 onMounted(async () => {
   const macros = await getMediaMacros();
-  const groups = new Map<string, (typeof MACRO_GROUPS.value)[number]>();
-  for (const item of macros) {
-    const group = groups.get(item.group) || { items: [], name: item.group };
-    group.items.push({ key: item.key, label: item.label, macro: item.macro });
-    groups.set(item.group, group);
-  }
-  MACRO_GROUPS.value = [...groups.values()];
+  MACRO_GROUPS.value = buildMediaMacroGroups(macros);
+  COMPAT_MACRO_ITEMS.value = compatibilityMacroItems(macros);
   mediaSelects.value = await mediaOptions();
   await load();
 });
@@ -440,14 +432,74 @@ onMounted(async () => {
         /></el-form-item>
         <el-form-item label="宏参数">
           <div class="macro-picker">
-            <el-checkbox-group v-model="form.selectedMacros">
-              <template v-for="group in MACRO_GROUPS" :key="group.name">
-                <div class="macro-group-title">{{ group.name }}</div>
+            <div class="macro-system-row">
+              <el-checkbox :model-value="true" disabled>
+                <span class="macro-label">请求 ID（系统自动）</span>
+                <code class="macro-value"
+                  >{{ AUTO_MACRO_KEY }}={{ AUTO_MACRO }}</code
+                >
+              </el-checkbox>
+              <span class="macro-hint"
+                >平台会自动生成并追加，无需手动配置。</span
+              >
+            </div>
+            <template v-for="group in MACRO_GROUPS" :key="group.name">
+              <div class="macro-group-title">{{ group.name }}</div>
+              <div class="macro-group">
+                <template v-for="item in group.items" :key="item.key">
+                  <div v-if="item.variants" class="macro-variant-item">
+                    <div class="macro-variant-label">
+                      <span class="macro-label">{{ item.label }}</span>
+                      <span class="macro-hint">原值 / MD5</span>
+                    </div>
+                    <div class="macro-variants">
+                      <el-checkbox
+                        v-for="variant in item.variants"
+                        :key="variant.key"
+                        :model-value="isMacroSelected(variant.key)"
+                        @change="selectVariant(variant, $event)"
+                      >
+                        <span class="macro-label">{{ variant.label }}</span>
+                        <code class="macro-value"
+                          >{{ variant.key }}={{ variant.macro }}</code
+                        >
+                      </el-checkbox>
+                    </div>
+                  </div>
+                  <el-checkbox
+                    v-else
+                    :model-value="isMacroSelected(item.key)"
+                    @change="toggleMacro(item.key, $event)"
+                  >
+                    <span class="macro-label">{{ item.label }}</span>
+                    <code class="macro-value"
+                      >{{ item.key }}={{ item.macro }}</code
+                    >
+                    <span v-if="item.key === 'caid'" class="macro-hint"
+                      >兼容 CAID_LIST / CAID1</span
+                    >
+                  </el-checkbox>
+                </template>
+              </div>
+            </template>
+            <el-collapse
+              v-if="COMPAT_MACRO_ITEMS.length > 0"
+              class="macro-compat"
+            >
+              <el-collapse-item
+                title="高级兼容字段（仅旧媒体协议需要）"
+                name="compat"
+              >
+                <div class="macro-compat-help">
+                  新配置只输出统一 CAID。CAID2、历史 CAID
+                  只有在下游明确要求时才勾选；存量媒体会保留原字段。
+                </div>
                 <div class="macro-group">
                   <el-checkbox
-                    v-for="item in group.items"
+                    v-for="item in COMPAT_MACRO_ITEMS"
                     :key="item.key"
-                    :value="item.key"
+                    :model-value="isMacroSelected(item.key)"
+                    @change="toggleMacro(item.key, $event)"
                   >
                     <span class="macro-label">{{ item.label }}</span>
                     <code class="macro-value"
@@ -455,12 +507,12 @@ onMounted(async () => {
                     >
                   </el-checkbox>
                 </div>
-              </template>
-            </el-checkbox-group>
+              </el-collapse-item>
+            </el-collapse>
           </div>
           <div class="macro-preview">
             预览：<code class="macro-preview-text">{{
-              macroParams || '（未选择任何宏参数）'
+              macroPreviewParams || '（未选择任何宏参数）'
             }}</code>
           </div>
           <el-input
@@ -488,6 +540,17 @@ onMounted(async () => {
   width: 100%;
 }
 
+.macro-system-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
 .macro-group-title {
   margin: 10px 0 6px;
   font-size: 12px;
@@ -505,8 +568,42 @@ onMounted(async () => {
   gap: 2px 16px;
 }
 
+.macro-variant-item {
+  min-width: 0;
+}
+
+.macro-variant-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.macro-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  padding-left: 12px;
+}
+
+.macro-compat {
+  margin-top: 10px;
+}
+
+.macro-compat-help {
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
 .macro-label {
   margin-right: 4px;
+}
+
+.macro-hint {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
 
 .macro-value {

@@ -54,13 +54,111 @@ class OcpxMediaServiceTest {
 		when(mediaMapper.selectById("media-1")).thenAnswer(invocation -> stored.get());
 
 		MediaViews.Item result = service
-			.create(new MediaRequests.Create(" 示例媒体 ", " generic-media-ref ", "/feedback", " __OAID__ "));
+			.create(new MediaRequests.Create(" 示例媒体 ", " generic-media-ref ", "/feedback", " oaid=__OAID__ "));
 
 		assertThat(result.getMediaName()).isEqualTo("示例媒体");
 		assertThat(result.getCredentialConfigKey()).isEqualTo("generic-media-ref");
 		assertThat(result.getUri()).isEqualTo("/feedback");
-		assertThat(result.getMacroParams()).isEqualTo("__OAID__");
+		assertThat(result.getMacroParams()).isEqualTo("oaid=__OAID__");
 		verify(refreshPublisher).mark();
+	}
+
+	@Test
+	void createAcceptsCanonicalCaidAndRejectsLegacyAlias() {
+		when(mediaMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxMedia> stored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxMedia media = invocation.getArgument(0);
+			media.setId("media-caid");
+			stored.set(media);
+			return 1;
+		}).when(mediaMapper).insert(any(OcpxMedia.class));
+		when(mediaMapper.selectById("media-caid")).thenAnswer(invocation -> stored.get());
+
+		MediaViews.Item result = service
+			.create(new MediaRequests.Create("CAID 媒体", null, "/feedback", "caid=__CAID__"));
+
+		assertThat(result.getMacroParams()).isEqualTo("caid=__CAID__");
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("旧字段媒体", null, "/feedback", "caid_list=__CAID_LIST__")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("兼容字段");
+		when(mediaMapper.selectById("media-caid")).thenAnswer(invocation -> stored.get());
+		MediaViews.Item advanced = service.create(
+				new MediaRequests.Create("高级 CAID 媒体", null, "/feedback", "caid2=__CAID2__"));
+		assertThat(advanced.getMacroParams()).isEqualTo("caid2=__CAID2__");
+	}
+
+	@Test
+	void catalogKeepsLegacyCaidEntriesForReadOnlyCompatibilityButRemovesSystemRequestId() {
+		MediaMacroCatalog catalog = new MediaMacroCatalog();
+
+		assertThat(catalog.list()).extracting(MediaMacroCatalog.Macro::key)
+			.contains("caid", "caid_list", "caid1", "caid2", "last_caid", "prev_caid", "tagid")
+			.doesNotContain("request_id");
+	}
+
+	@Test
+	void createRejectsDuplicateMalformedAndSystemManagedMacroKeys() {
+		when(mediaMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxMedia> customStored = new AtomicReference<>();
+		doAnswer(invocation -> {
+			OcpxMedia media = invocation.getArgument(0);
+			media.setId("custom-media");
+			customStored.set(media);
+			return 1;
+		}).when(mediaMapper).insert(any(OcpxMedia.class));
+		when(mediaMapper.selectById("custom-media")).thenAnswer(invocation -> customStored.get());
+
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("无 key 媒体", null, "/feedback", "__CAID__")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("key=宏值");
+		MediaViews.Item custom = service.create(
+				new MediaRequests.Create("自定义媒体", null, "/feedback", "partner_token=__PARTNER_TOKEN__"));
+		assertThat(custom.getMacroParams()).isEqualTo("partner_token=__PARTNER_TOKEN__");
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("重复媒体", null, "/feedback", "caid=__CAID__&caid=__CAID__")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("重复");
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("自定义重复媒体", null, "/feedback", "foo=1&foo=2")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("重复");
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("系统媒体", null, "/feedback", "request_id=__REQUEST_ID__")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("系统自动");
+	}
+
+	@Test
+	void editingLegacyMediaPreservesItsMacroParams() {
+		OcpxMedia current = new OcpxMedia();
+		current.setId("legacy-media");
+		current.setMediaName("旧媒体");
+		current.setUri("/feedback");
+		current.setMacroParams("caid_list=__CAID_LIST__&caid1=__CAID1__");
+		when(mediaMapper.selectById("legacy-media")).thenReturn(current);
+		when(mediaMapper.selectCount(any())).thenReturn(0L);
+		AtomicReference<OcpxMedia> updated = new AtomicReference<>();
+		doAnswer(invocation -> {
+			updated.set(invocation.getArgument(0));
+			return 1;
+		}).when(mediaMapper).updateById(any(OcpxMedia.class));
+		when(mediaMapper.selectById("legacy-media")).thenAnswer(invocation -> {
+			OcpxMedia value = updated.get();
+			if (value == null) {
+				return current;
+			}
+			value.setMediaName("旧媒体");
+			value.setUri("/feedback");
+			return value;
+		});
+
+		MediaViews.Item result = service.update("legacy-media",
+				new MediaRequests.Update("旧媒体", null, "/feedback", current.getMacroParams()));
+
+		assertThat(result.getMacroParams()).isEqualTo(current.getMacroParams());
 	}
 
 	@Test

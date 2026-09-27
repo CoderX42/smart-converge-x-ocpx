@@ -2,13 +2,19 @@ package com.yzytech.scx.ocpx.admin.service;
 
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /** Feedback v2 的单一媒体快捷宏目录。 */
 @Component
 public class MediaMacroCatalog {
 
 	private static final List<Macro> MACROS = List.of(macro("caid", "__CAID__", "CAID", "设备标识", "IOS", true),
+			// Compatibility entries stay in the read-only directory so old media can be
+			// rendered and preserved. The management UI hides aliases from new presets.
 			macro("caid_list", "__CAID_LIST__", "CAID 列表", "设备标识", "IOS", true),
 			macro("caid1", "__CAID1__", "CAID1", "设备标识", "IOS", true),
 			macro("caid2", "__CAID2__", "CAID2", "设备标识", "IOS", true),
@@ -33,7 +39,7 @@ public class MediaMacroCatalog {
 			macro("model", "__MODEL__", "机型", "网络/终端", "BOTH", false),
 			macro("ts", "__TS__", "秒时间戳", "网络/终端", "BOTH", false),
 			macro("mts", "__MTS__", "毫秒时间戳", "网络/终端", "BOTH", false),
-			macro("request_id", "__REQUEST_ID__", "请求 ID", "平台路由", "BOTH", false),
+			macro("tagid", "__TAGID__", "版位 TAGID", "平台路由", "BOTH", false),
 			macro("callback_url", "__CALLBACK_URL__", "回调地址", "平台路由", "BOTH", false),
 			macro("clickid", "__CLICKID__", "点击 ID", "平台路由", "BOTH", false),
 			macro("impresss_id", "__IMPRESSS_ID__", "曝光 ID", "平台路由", "BOTH", false),
@@ -42,8 +48,68 @@ public class MediaMacroCatalog {
 			macro("creative_id", "__CREATIVE_ID__", "创意", "广告维度", "BOTH", false),
 			macro("adv_id", "__ADVERTISER_ID__", "广告主", "广告维度", "BOTH", false));
 
+	/**
+	 * Legacy fields stay in this read-only catalog so old media can be rendered and
+	 * preserved. The management UI hides aliases from new presets and exposes the
+	 * non-derivable CAID slots only as explicit advanced extensions. The Engine resolves
+	 * all aliases for upstream protocols.
+	 */
+	private static final Map<String, String> LEGACY_MACROS = Map.of("caid_list", "__CAID_LIST__", "caid1",
+			"__CAID1__", "caid2", "__CAID2__", "last_caid", "__LAST_CAID__", "prev_caid", "__PREV_CAID__");
+
+	private static final Set<String> RESERVED_KEYS = Set.of("request_id", "event", "mid", "tid", "aid", "lid");
+
+	private static final Set<String> OPTIONAL_LEGACY_KEYS = Set.of("caid2", "last_caid", "prev_caid");
+
+	private static final Map<String, String> CANONICAL_MACROS;
+
+	static {
+		Map<String, String> values = new LinkedHashMap<>();
+		for (Macro macro : MACROS) {
+			if (!LEGACY_MACROS.containsKey(macro.key())) {
+				values.put(macro.key(), macro.macro());
+			}
+		}
+		CANONICAL_MACROS = Map.copyOf(values);
+	}
+
 	public List<Macro> list() {
 		return MACROS;
+	}
+
+	public static boolean isCanonicalKey(String key) {
+		return key != null && CANONICAL_MACROS.containsKey(key.toLowerCase(Locale.ROOT));
+	}
+
+	public static boolean isLegacyKey(String key) {
+		return key != null && LEGACY_MACROS.containsKey(key.toLowerCase(Locale.ROOT));
+	}
+
+	/** Legacy slots that cannot be derived from canonical CAID but may be explicitly
+	 * requested by a downstream protocol. They are never part of a new default preset. */
+	public static boolean isAdvancedLegacyKey(String key) {
+		return key != null && OPTIONAL_LEGACY_KEYS.contains(key.toLowerCase(Locale.ROOT));
+	}
+
+	public static boolean isReservedKey(String key) {
+		return key != null && RESERVED_KEYS.contains(key.toLowerCase(Locale.ROOT));
+	}
+
+	public static boolean isKnownKey(String key) {
+		return isCanonicalKey(key) || isLegacyKey(key) || isReservedKey(key);
+	}
+
+	public static boolean isKnownMacro(String macro) {
+		return CANONICAL_MACROS.containsValue(macro) || LEGACY_MACROS.containsValue(macro);
+	}
+
+	public static String expectedMacro(String key) {
+		if (key == null) {
+			return null;
+		}
+		String normalized = key.toLowerCase(Locale.ROOT);
+		String canonical = CANONICAL_MACROS.get(normalized);
+		return canonical != null ? canonical : LEGACY_MACROS.get(normalized);
 	}
 
 	private static Macro macro(String key, String macro, String label, String group, String os, boolean identity) {

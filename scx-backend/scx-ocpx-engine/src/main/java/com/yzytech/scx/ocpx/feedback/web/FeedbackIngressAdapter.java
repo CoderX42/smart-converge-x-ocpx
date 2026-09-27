@@ -25,6 +25,12 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 	public FeedbackReq toFeedback(FeedbackIngressRequest request) {
 		// 在字段清洗前序列化完整请求，保证缺失 request_id 时的回退值稳定可复现。
 		String json = JSON.toJSONString(request);
+		// CAID is the canonical internal identity. Explicit legacy slots retain their
+		// values, while a missing slot is filled from the canonical value so each
+		// upstream protocol can continue to use its historical name.
+		String caid = first(request.getCaid(), request.getCaid_list(), request.getCaid1());
+		String caidList = first(request.getCaid_list(), caid);
+		String caid1 = first(request.getCaid1(), caid);
 		FeedbackReq data = FeedbackReq.builder()
 			.mId(request.getMId())
 			.tId(request.getTId())
@@ -35,9 +41,9 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			.rtaRequestId(request.getRtaRequestId())
 			.tagId(request.resolvedTagId())
 			.callbackUrl(request.getCallback_url())
-			.caid(request.getCaid())
-			.caidList(request.getCaid_list())
-			.caid1(request.getCaid1())
+			.caid(caid)
+			.caidList(caidList)
+			.caid1(caid1)
 			.caid2(request.getCaid2())
 			.lastCaid(request.getLast_caid())
 			.prevCaid(request.getPrev_caid())
@@ -76,6 +82,15 @@ public class FeedbackIngressAdapter implements FeedbackRequestAdapter {
 			data.setCallbackUrl(NetUtil.strictUrlEncode(data.getCallbackUrl(), StandardCharsets.UTF_8));
 		}
 		return data;
+	}
+
+	private static String first(String... values) {
+		for (String value : values) {
+			if (StringUtils.hasText(value)) {
+				return value;
+			}
+		}
+		return null;
 	}
 
 	private static OsTypeEnum matchOs(String os) {

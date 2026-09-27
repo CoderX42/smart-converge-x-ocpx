@@ -15,7 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -74,12 +78,12 @@ public class OcpxMediaService {
 	@Transactional
 	public MediaViews.Item update(String id, MediaRequests.Update request) {
 		advertiserScope.requireAdministrator();
-		require(id);
+		OcpxMedia current = require(id);
 		ensureUnique(id, request.getMediaName());
 		OcpxMedia update = new OcpxMedia();
 		update.setId(id);
 		apply(update, request.getMediaName(), request.getCredentialConfigKey(), request.getUri(),
-				request.getMacroParams());
+				request.getMacroParams(), current.getMacroParams());
 		mediaMapper.updateById(update);
 		configRefreshPublisher.mark();
 		return detail(id);
@@ -100,10 +104,151 @@ public class OcpxMediaService {
 	}
 
 	private void apply(OcpxMedia media, String name, String key, String uri, String macros) {
+		apply(media, name, key, uri, macros, null);
+	}
+
+	private void apply(OcpxMedia media, String name, String key, String uri, String macros,
+			String previousMacros) {
 		media.setMediaName(name.trim());
 		media.setCredentialConfigKey(trim(key));
 		media.setUri(uri.trim());
-		media.setMacroParams(trim(macros));
+		String normalized = trim(macros);
+		validateMacroParams(normalized, previousMacros);
+		media.setMacroParams(normalized);
+	}
+
+	private static final Pattern MACRO_KEY = Pattern.compile("[a-z][a-z0-9_]{0,63}");
+
+	/**
+	 * Validate the compact query-string representation used by media links. New media use
+	 * canonical catalog keys and exact macro values; non-derivable CAID slots are allowed
+	 * only as explicit advanced extensions. Alias fields are accepted only when already
+	 * present on the media being edited, keeping old production links byte-for-byte
+	 * compatible while preventing new duplicate fields. Keys outside the catalog remain
+	 * valid custom downstream parameters as long as they use the safe key=value syntax.
+	 */
+	private void validateMacroParams(String value, String previousValue) {
+		if (!StringUtils.hasText(value)) {
+			return;
+		}
+		Map<String, Integer> previousSegments = segmentCounts(previousValue);
+		Map<String, Integer> previousKeys = keyCounts(previousValue);
+		Map<String, Integer> seenKeys = new HashMap<>();
+		for (String raw : value.split("&", -1)) {
+			String segment = raw.trim();
+			if (!StringUtils.hasText(segment)) {
+				continue;
+			}
+			boolean exactPrevious = consume(previousSegments, segment);
+			if (containsControlCharacter(segment)) {
+				if (!exactPrevious) {
+					throw invalidMacro("宏参数包含控制字符");
+				}
+				continue;
+			}
+			int separator = segment.indexOf('=');
+			if (separator < 0) {
+				if (!exactPrevious) {
+					throw invalidMacro("宏参数必须使用 key=宏值 格式：" + segment);
+				}
+				continue;
+			}
+			String key = segment.substring(0, separator).trim();
+			String macro = segment.substring(separator + 1).trim();
+			String normalizedKey = key.toLowerCase(Locale.ROOT);
+			if (!MACRO_KEY.matcher(normalizedKey).matches()) {
+				if (!exactPrevious) {
+					throw invalidMacro("宏参数 key 无效：" + key);
+				}
+				continue;
+			}
+			if (!key.equals(normalizedKey) && !exactPrevious) {
+				throw invalidMacro("宏参数 key 必须使用小写：" + key);
+			}
+			if (MediaMacroCatalog.isReservedKey(normalizedKey)) {
+				if (!exactPrevious) {
+					throw invalidMacro("宏参数由系统自动维护，不能配置：" + key);
+				}
+				continue;
+			}
+			if (MediaMacroCatalog.isLegacyKey(normalizedKey)) {
+				if (!MediaMacroCatalog.isAdvancedLegacyKey(normalizedKey) && !exactPrevious) {
+					throw invalidMacro("新媒体不能配置兼容字段：" + key);
+				}
+				String expectedLegacy = MediaMacroCatalog.expectedMacro(normalizedKey);
+				if (!expectedLegacy.equals(macro) && !exactPrevious) {
+					throw invalidMacro("宏参数值与 key 不匹配：" + key);
+				}
+				int seen = seenKeys.merge(normalizedKey, 1, Integer::sum);
+				if (seen > 1 && previousKeys.getOrDefault(normalizedKey, 0) < seen) {
+					throw invalidMacro("宏参数 key 重复：" + key);
+				}
+				continue;
+			}
+			if (!MediaMacroCatalog.isCanonicalKey(normalizedKey)) {
+				int seen = seenKeys.merge(normalizedKey, 1, Integer::sum);
+				if (seen > 1 && previousKeys.getOrDefault(normalizedKey, 0) < seen) {
+					throw invalidMacro("宏参数 key 重复：" + key);
+				}
+				continue;
+			}
+			String expected = MediaMacroCatalog.expectedMacro(normalizedKey);
+			if (!expected.equals(macro) && !exactPrevious) {
+				throw invalidMacro("宏参数值与 key 不匹配：" + key);
+			}
+			int seen = seenKeys.merge(normalizedKey, 1, Integer::sum);
+			if (seen > 1 && previousKeys.getOrDefault(normalizedKey, 0) < seen) {
+				throw invalidMacro("宏参数 key 重复：" + key);
+			}
+		}
+	}
+
+	private Map<String, Integer> segmentCounts(String value) {
+		Map<String, Integer> counts = new HashMap<>();
+		if (!StringUtils.hasText(value)) {
+			return counts;
+		}
+		for (String segment : value.split("&", -1)) {
+			String normalized = segment.trim();
+			if (StringUtils.hasText(normalized)) {
+				counts.merge(normalized, 1, Integer::sum);
+			}
+		}
+		return counts;
+	}
+
+	private Map<String, Integer> keyCounts(String value) {
+		Map<String, Integer> counts = new HashMap<>();
+		Map<String, Integer> segments = segmentCounts(value);
+		for (String segment : segments.keySet()) {
+			int separator = segment.indexOf('=');
+			String key = (separator < 0 ? segment : segment.substring(0, separator)).trim()
+				.toLowerCase(Locale.ROOT);
+			counts.merge(key, segments.get(segment), Integer::sum);
+		}
+		return counts;
+	}
+
+	private boolean consume(Map<String, Integer> counts, String key) {
+		Integer count = counts.get(key);
+		if (count == null) {
+			return false;
+		}
+		if (count <= 1) {
+			counts.remove(key);
+		}
+		else {
+			counts.put(key, count - 1);
+		}
+		return true;
+	}
+
+	private boolean containsControlCharacter(String value) {
+		return value.chars().anyMatch(character -> character < 0x20 || character == 0x7f);
+	}
+
+	private BootBusinessException invalidMacro(String message) {
+		return new BootBusinessException("媒体宏参数校验失败：" + message);
 	}
 
 	private void ensureUnique(String id, String name) {

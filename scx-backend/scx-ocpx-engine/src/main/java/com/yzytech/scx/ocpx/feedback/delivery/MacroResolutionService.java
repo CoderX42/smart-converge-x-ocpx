@@ -200,7 +200,9 @@ public class MacroResolutionService {
 		m.put("__OAID_MD5__", f.getOaidMd5());
 		m.put("__IDFA__", f.getIdfa());
 		m.put("__IDFA_MD5__", f.getIdfaMd5());
-		m.put("__CAID__", f.getCaid());
+		// CAID is the canonical media field. Legacy upstream slots remain available
+		// through the same normalized value when a media only supplied caid.
+		m.put("__CAID__", first(f.getCaid(), f.getCaidList(), f.getCaid1()));
 		m.put("__CAID_LIST__", first(f.getCaidList(), f.getCaid()));
 		m.put("__CAID1__", first(f.getCaid1(), f.getCaid()));
 		m.put("__CAID2__", f.getCaid2());
