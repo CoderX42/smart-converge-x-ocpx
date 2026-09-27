@@ -171,6 +171,12 @@ public class OcpxMediaService {
 				}
 				continue;
 			}
+			if (MediaMacroCatalog.isRetiredKey(normalizedKey)) {
+				if (!exactPrevious) {
+					throw invalidMacro("宏参数已下线，请使用秒时间戳 ts：" + key);
+				}
+				continue;
+			}
 			if (MediaMacroCatalog.isLegacyKey(normalizedKey)) {
 				if (!MediaMacroCatalog.isAdvancedLegacyKey(normalizedKey) && !exactPrevious) {
 					throw invalidMacro("新媒体不能配置兼容字段：" + key);

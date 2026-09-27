@@ -408,96 +408,92 @@ onMounted(async () => {
     <el-dialog
       v-model="dialogOpen"
       :close-on-click-modal="false"
+      class="media-dialog"
       :title="editing ? '编辑媒体' : '新增媒体'"
-      width="720px"
+      top="4vh"
+      width="900px"
       @close="handleDialogClose"
     >
       <el-form
         ref="formRef"
-        class="ocpx-dialog-form"
+        class="ocpx-dialog-form media-dialog-form"
         :model="form"
         :rules="rules"
-        label-width="110px"
+        label-position="top"
       >
-        <el-form-item label="渠道名称" prop="mediaName"
-          ><el-input v-model="form.mediaName" placeholder="请输入渠道名称"
-        /></el-form-item>
-        <el-form-item label="URI" prop="uri"
-          ><el-input v-model="form.uri" placeholder="请输入URI"
-        /></el-form-item>
-        <el-form-item label="凭据引用" prop="credentialConfigKey"
-          ><el-input
-            v-model="form.credentialConfigKey"
-            placeholder="请输入凭据引用"
-        /></el-form-item>
+        <div class="media-base-grid">
+          <el-form-item label="渠道名称" prop="mediaName">
+            <el-input v-model="form.mediaName" placeholder="请输入渠道名称" />
+          </el-form-item>
+          <el-form-item label="URI" prop="uri">
+            <el-input v-model="form.uri" placeholder="请输入 URI" />
+          </el-form-item>
+          <el-form-item label="凭据引用" prop="credentialConfigKey">
+            <el-input
+              v-model="form.credentialConfigKey"
+              placeholder="请输入凭据引用"
+            />
+          </el-form-item>
+        </div>
         <el-form-item label="宏参数">
           <div class="macro-picker">
             <div class="macro-system-row">
               <el-checkbox :model-value="true" disabled>
-                <span class="macro-label">请求 ID（系统自动）</span>
+                <span class="macro-label">请求 ID</span>
                 <code class="macro-value"
                   >{{ AUTO_MACRO_KEY }}={{ AUTO_MACRO }}</code
                 >
               </el-checkbox>
-              <span class="macro-hint"
-                >平台会自动生成并追加，无需手动配置。</span
-              >
+              <span class="macro-system-badge">系统自动</span>
             </div>
             <template v-for="group in MACRO_GROUPS" :key="group.name">
-              <div class="macro-group-title">{{ group.name }}</div>
-              <div class="macro-group">
-                <template v-for="item in group.items" :key="item.key">
-                  <div v-if="item.variants" class="macro-variant-item">
-                    <div class="macro-variant-label">
-                      <span class="macro-label">{{ item.label }}</span>
-                      <span class="macro-hint">原值 / MD5</span>
-                    </div>
-                    <div class="macro-variants">
-                      <el-checkbox
-                        v-for="variant in item.variants"
-                        :key="variant.key"
-                        :model-value="isMacroSelected(variant.key)"
-                        @change="selectVariant(variant, $event)"
-                      >
-                        <span class="macro-label">{{ variant.label }}</span>
-                        <code class="macro-value"
-                          >{{ variant.key }}={{ variant.macro }}</code
+              <section class="macro-group-card">
+                <div class="macro-group-title">{{ group.name }}</div>
+                <div class="macro-group">
+                  <template v-for="item in group.items" :key="item.key">
+                    <div v-if="item.variants" class="macro-variant-item">
+                      <div class="macro-variant-label">
+                        <span class="macro-label">{{ item.label }}</span>
+                      </div>
+                      <div class="macro-variants">
+                        <el-checkbox
+                          v-for="variant in item.variants"
+                          :key="variant.key"
+                          :model-value="isMacroSelected(variant.key)"
+                          @change="selectVariant(variant, $event)"
                         >
-                      </el-checkbox>
+                          <span class="macro-label">{{ variant.label }}</span>
+                          <code class="macro-value"
+                            >{{ variant.key }}={{ variant.macro }}</code
+                          >
+                        </el-checkbox>
+                      </div>
                     </div>
-                  </div>
-                  <el-checkbox
-                    v-else
-                    :model-value="isMacroSelected(item.key)"
-                    @change="toggleMacro(item.key, $event)"
-                  >
-                    <span class="macro-label">{{ item.label }}</span>
-                    <code class="macro-value"
-                      >{{ item.key }}={{ item.macro }}</code
+                    <el-checkbox
+                      v-else
+                      class="macro-option"
+                      :model-value="isMacroSelected(item.key)"
+                      @change="toggleMacro(item.key, $event)"
                     >
-                    <span v-if="item.key === 'caid'" class="macro-hint"
-                      >兼容 CAID_LIST / CAID1</span
-                    >
-                  </el-checkbox>
-                </template>
-              </div>
+                      <span class="macro-label">{{ item.label }}</span>
+                      <code class="macro-value"
+                        >{{ item.key }}={{ item.macro }}</code
+                      >
+                    </el-checkbox>
+                  </template>
+                </div>
+              </section>
             </template>
             <el-collapse
               v-if="COMPAT_MACRO_ITEMS.length > 0"
               class="macro-compat"
             >
-              <el-collapse-item
-                title="高级兼容字段（仅旧媒体协议需要）"
-                name="compat"
-              >
-                <div class="macro-compat-help">
-                  新配置只输出统一 CAID。CAID2、历史 CAID
-                  只有在下游明确要求时才勾选；存量媒体会保留原字段。
-                </div>
-                <div class="macro-group">
+              <el-collapse-item title="更多兼容字段" name="compat">
+                <div class="macro-group macro-compat-group">
                   <el-checkbox
                     v-for="item in COMPAT_MACRO_ITEMS"
                     :key="item.key"
+                    class="macro-option"
                     :model-value="isMacroSelected(item.key)"
                     @change="toggleMacro(item.key, $event)"
                   >
@@ -511,14 +507,16 @@ onMounted(async () => {
             </el-collapse>
           </div>
           <div class="macro-preview">
-            预览：<code class="macro-preview-text">{{
+            <span class="macro-preview-label">预览</span>
+            <code class="macro-preview-text">{{
               macroPreviewParams || '（未选择任何宏参数）'
             }}</code>
           </div>
           <el-input
             v-model="form.customMacros"
+            class="macro-custom-input"
             autosize
-            placeholder="自定义宏参数（可选）：key=__MACRO__ 形式，多个用 & 连接"
+            placeholder="自定义参数：key=__MACRO__，多个用 & 连接"
             type="textarea"
           />
         </el-form-item>
@@ -536,6 +534,20 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.media-base-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 0 16px;
+}
+
+.media-base-grid :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.media-dialog-form > :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
 .macro-picker {
   width: 100%;
 }
@@ -545,84 +557,191 @@ onMounted(async () => {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  background: var(--el-fill-color-light);
-  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+}
+
+.macro-system-badge {
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 3px;
+}
+
+.macro-group-card {
+  padding: 10px 12px 8px;
+  margin-top: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
 }
 
 .macro-group-title {
-  margin: 10px 0 6px;
+  margin-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
 
-.macro-group-title:first-child {
-  margin-top: 0;
-}
-
 .macro-group {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 2px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 18px;
 }
 
 .macro-variant-item {
   min-width: 0;
+  padding: 4px 6px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 5px;
 }
 
 .macro-variant-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
+  min-height: 24px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .macro-variants {
+  display: grid;
+  gap: 2px;
+  padding-left: 2px;
+}
+
+.macro-option,
+.macro-variants :deep(.el-checkbox) {
   display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  padding: 5px 6px;
+  margin: 0;
+  border-radius: 5px;
+}
+
+.macro-option:hover,
+.macro-variants :deep(.el-checkbox:hover) {
+  background: var(--el-fill-color-light);
+}
+
+.macro-option :deep(.el-checkbox__label),
+.macro-variants :deep(.el-checkbox__label) {
+  display: flex;
+  min-width: 0;
   flex-wrap: wrap;
-  gap: 0 12px;
-  padding-left: 12px;
+  gap: 2px 7px;
+  align-items: baseline;
+  padding-left: 6px;
+  line-height: 1.4;
 }
 
 .macro-compat {
   margin-top: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
 }
 
-.macro-compat-help {
-  margin-bottom: 6px;
+.macro-compat :deep(.el-collapse-item__header) {
+  height: 36px;
+  padding: 0 12px;
   font-size: 12px;
-  line-height: 1.5;
   color: var(--el-text-color-secondary);
+  border-bottom: 0;
+}
+
+.macro-compat :deep(.el-collapse-item__wrap) {
+  border-bottom: 0;
+}
+
+.macro-compat :deep(.el-collapse-item__content) {
+  padding: 0 12px 10px;
+}
+
+.macro-compat-group {
+  gap: 4px 18px;
 }
 
 .macro-label {
-  margin-right: 4px;
-}
-
-.macro-hint {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
+  white-space: nowrap;
 }
 
 .macro-value {
   font-size: 11px;
   color: var(--el-text-color-secondary);
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .macro-preview {
-  padding: 6px 8px;
-  margin: 10px 0;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 10px;
+  margin: 10px 0 8px;
   font-size: 12px;
   line-height: 1.6;
-  word-break: break-all;
   background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
+}
+
+.macro-preview-label {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 
 .macro-preview-text {
   font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.macro-custom-input {
+  margin-top: 2px;
+}
+
+:deep(.media-dialog .el-dialog__body) {
+  max-height: calc(100vh - 190px);
+  padding: 8px 22px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:deep(.media-dialog .el-dialog__header) {
+  padding: 18px 22px 10px;
+}
+
+:deep(.media-dialog .el-dialog__footer) {
+  padding: 12px 22px 18px;
+}
+
+@media (max-width: 820px) {
+  .media-base-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .media-base-grid :deep(.el-form-item:last-child) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .media-base-grid,
+  .macro-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .media-base-grid :deep(.el-form-item:last-child) {
+    grid-column: auto;
+  }
+
+  :deep(.media-dialog) {
+    width: calc(100vw - 24px) !important;
+  }
 }
 </style>

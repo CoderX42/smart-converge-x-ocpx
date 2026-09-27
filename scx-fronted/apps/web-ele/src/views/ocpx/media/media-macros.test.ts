@@ -80,7 +80,17 @@ const catalog: MediaMacro[] = [
 
 describe('media macro canonicalisation', () => {
   it('hides CAID aliases and groups original/MD5 variants', () => {
-    const groups = buildMediaMacroGroups(catalog);
+    const groups = buildMediaMacroGroups([
+      ...catalog,
+      {
+        attributionIdentity: false,
+        group: '网络/终端',
+        key: 'mts',
+        label: '毫秒时间戳',
+        macro: '__MTS__',
+        osSupport: 'BOTH',
+      },
+    ]);
     const options = flattenMediaMacroItems(groups);
 
     expect(options.map((item) => item.key)).toEqual([
@@ -89,6 +99,7 @@ describe('media macro canonicalisation', () => {
       'idfa_md5',
       'callback_url',
     ]);
+    expect(options.some((item) => item.key === 'mts')).toBe(false);
     expect(
       groups[0]?.items.find((item) => item.key === 'idfa')?.variants,
     ).toHaveLength(2);
@@ -107,6 +118,16 @@ describe('media macro canonicalisation', () => {
       'caid1=__CAID1__',
     ]);
     expect(parsed.custom).toBe('foo=__FOO__');
+  });
+
+  it('preserves the retired millisecond timestamp only for old media', () => {
+    const groups = buildMediaMacroGroups(catalog);
+    const parsed = parseMediaMacroParams('mts=__MTS__', groups);
+
+    expect(parsed.legacy).toEqual(['mts=__MTS__']);
+    expect(serializeMediaMacroParams(groups, [], parsed.legacy, '')).toBe(
+      'mts=__MTS__',
+    );
   });
 
   it('emits one canonical CAID and an automatic request id for new media', () => {

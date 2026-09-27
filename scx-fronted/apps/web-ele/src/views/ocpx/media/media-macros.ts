@@ -11,6 +11,9 @@ export const CAID_ALIAS_KEYS = new Set(['caid1', 'caid_list']);
  * opt-in compatibility extension and are preserved when editing old media. */
 export const CAID_ADVANCED_KEYS = new Set(['caid2', 'last_caid', 'prev_caid']);
 
+/** Deprecated aliases stay readable in old media but are hidden from new choices. */
+export const RETIRED_MACRO_KEYS = new Set(['mts']);
+
 export const AUTO_MACRO_KEY = 'request_id';
 export const AUTO_MACRO = '__REQUEST_ID__';
 
@@ -75,7 +78,6 @@ const DEFAULT_MACROS: MediaMacro[] = [
   ['osv', '__OSV__', '系统版本', '网络/终端', 'BOTH', false],
   ['model', '__MODEL__', '机型', '网络/终端', 'BOTH', false],
   ['ts', '__TS__', '秒时间戳', '网络/终端', 'BOTH', false],
-  ['mts', '__MTS__', '毫秒时间戳', '网络/终端', 'BOTH', false],
   ['callback_url', '__CALLBACK_URL__', '回调地址', '平台路由', 'BOTH', false],
   ['clickid', '__CLICKID__', '点击 ID', '平台路由', 'BOTH', false],
   ['impresss_id', '__IMPRESSS_ID__', '曝光 ID', '平台路由', 'BOTH', false],
@@ -115,6 +117,7 @@ export function buildMediaMacroGroups(
   for (const item of source) {
     if (
       item.key === AUTO_MACRO_KEY ||
+      RETIRED_MACRO_KEYS.has(item.key) ||
       CAID_ALIAS_KEYS.has(item.key) ||
       CAID_ADVANCED_KEYS.has(item.key) ||
       added.has(item.key)
@@ -187,7 +190,11 @@ export function parseMediaMacroParams(
     if (!key || key === AUTO_MACRO_KEY) continue;
     if (known.has(key)) {
       if (!selected.includes(key)) selected.push(key);
-    } else if (CAID_ALIAS_KEYS.has(key) || CAID_ADVANCED_KEYS.has(key)) {
+    } else if (
+      CAID_ALIAS_KEYS.has(key) ||
+      CAID_ADVANCED_KEYS.has(key) ||
+      RETIRED_MACRO_KEYS.has(key)
+    ) {
       legacy.push(pair);
     } else {
       custom.push(pair);

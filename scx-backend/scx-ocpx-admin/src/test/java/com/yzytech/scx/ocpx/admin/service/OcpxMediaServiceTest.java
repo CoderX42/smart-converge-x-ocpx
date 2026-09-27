@@ -95,7 +95,17 @@ class OcpxMediaServiceTest {
 
 		assertThat(catalog.list()).extracting(MediaMacroCatalog.Macro::key)
 			.contains("caid", "caid_list", "caid1", "caid2", "last_caid", "prev_caid", "tagid")
-			.doesNotContain("request_id");
+			.doesNotContain("request_id", "mts");
+	}
+
+	@Test
+	void createRejectsRetiredMillisecondTimestampForNewMedia() {
+		when(mediaMapper.selectCount(any())).thenReturn(0L);
+
+		assertThatThrownBy(() -> service.create(
+				new MediaRequests.Create("毫秒时间戳媒体", null, "/feedback", "mts=__MTS__")))
+			.isInstanceOf(BootBusinessException.class)
+			.hasMessageContaining("秒时间戳 ts");
 	}
 
 	@Test
@@ -137,7 +147,7 @@ class OcpxMediaServiceTest {
 		current.setId("legacy-media");
 		current.setMediaName("旧媒体");
 		current.setUri("/feedback");
-		current.setMacroParams("caid_list=__CAID_LIST__&caid1=__CAID1__");
+		current.setMacroParams("caid_list=__CAID_LIST__&caid1=__CAID1__&mts=__MTS__");
 		when(mediaMapper.selectById("legacy-media")).thenReturn(current);
 		when(mediaMapper.selectCount(any())).thenReturn(0L);
 		AtomicReference<OcpxMedia> updated = new AtomicReference<>();

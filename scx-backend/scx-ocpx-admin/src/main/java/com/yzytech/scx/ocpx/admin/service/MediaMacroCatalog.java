@@ -38,7 +38,6 @@ public class MediaMacroCatalog {
 			macro("osv", "__OSV__", "系统版本", "网络/终端", "BOTH", false),
 			macro("model", "__MODEL__", "机型", "网络/终端", "BOTH", false),
 			macro("ts", "__TS__", "秒时间戳", "网络/终端", "BOTH", false),
-			macro("mts", "__MTS__", "毫秒时间戳", "网络/终端", "BOTH", false),
 			macro("tagid", "__TAGID__", "版位 TAGID", "平台路由", "BOTH", false),
 			macro("callback_url", "__CALLBACK_URL__", "回调地址", "平台路由", "BOTH", false),
 			macro("clickid", "__CLICKID__", "点击 ID", "平台路由", "BOTH", false),
@@ -58,6 +57,11 @@ public class MediaMacroCatalog {
 			"__CAID1__", "caid2", "__CAID2__", "last_caid", "__LAST_CAID__", "prev_caid", "__PREV_CAID__");
 
 	private static final Set<String> RESERVED_KEYS = Set.of("request_id", "event", "mid", "tid", "aid", "lid");
+
+	/** Historical fields remain readable in existing media strings but cannot be
+	 * selected for a newly created media. Protocol-specific test adapters may still
+	 * accept them when their upstream contract explicitly requires them. */
+	private static final Set<String> RETIRED_KEYS = Set.of("mts");
 
 	private static final Set<String> OPTIONAL_LEGACY_KEYS = Set.of("caid2", "last_caid", "prev_caid");
 
@@ -93,6 +97,10 @@ public class MediaMacroCatalog {
 
 	public static boolean isReservedKey(String key) {
 		return key != null && RESERVED_KEYS.contains(key.toLowerCase(Locale.ROOT));
+	}
+
+	public static boolean isRetiredKey(String key) {
+		return key != null && RETIRED_KEYS.contains(key.toLowerCase(Locale.ROOT));
 	}
 
 	public static boolean isKnownKey(String key) {
