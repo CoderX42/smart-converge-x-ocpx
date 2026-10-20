@@ -1,0 +1,19 @@
+erDiagram
+  ADVERTISER ||--|| ACCOUNT : has
+  ADVERTISER ||--o{ PROMOTION_LINK : owns
+  ADVERTISER ||--o{ CREATIVE : owns
+  PROMOTION_LINK ||--o{ CREATIVE_LINK : bound
+  CREATIVE ||--o{ CREATIVE_LINK : bound
+  SYS_MATERIAL ||--o{ CREATIVE : source
+  ADVERTISER ||--o{ MONITOR_TASK : owns
+  PROMOTION_LINK ||--o{ MONITOR_TASK : routes
+  MEDIA ||--o{ MONITOR_TASK : sends
+  PROMOTION_LINK ||--o{ DEDUCTION_RULE : controls
+  MEDIA ||--o{ DEDUCTION_RULE : controls
+  MONITOR_TASK ||--o{ EVENT_FACT : receives
+  EVENT_FACT o|--o{ BILLING_ENTRY : may_charge
+  ADVERTISER ||--o{ BILLING_ENTRY : account_history
+  MONITOR_TASK ||--o{ HOURLY_METRIC : aggregates
+  MONITOR_TASK ||--o| RTA_BINDING : enables
+  RTA_UPSTREAM ||--o{ RTA_BINDING : provides
+  MEDIA ||--o| RTA_MEDIA_ACCESS : configures

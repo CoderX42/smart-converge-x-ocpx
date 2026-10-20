@@ -57,7 +57,7 @@
         WHERE media_id=#{media} AND version=#{version}
     </update>
     <select id="selectSaveRtaMediaAccess" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">
-        SELECT media_id
+        SELECT media_id, protocol
         FROM scx_ocpx_rta_media_access
         WHERE media_id=#{value1} FOR UPDATE
     </select>
@@ -468,5 +468,70 @@
         LEFT JOIN scx_ocpx_rta_media_access ma ON ma.media_id=t.media_id
         LEFT JOIN scx_ocpx_rta_upstream u ON u.id=b.upstream_id AND u.advertiser_id=t.advertiser_id
         WHERE t.id=#{id} AND t.is_delete=0
+    </select>
+    <delete id="deleteRtaBinding">
+        DELETE FROM scx_ocpx_rta_binding WHERE monitor_task_id=#{task} AND version=#{version}
+    </delete>
+    <delete id="deleteRtaUpstream">
+        DELETE FROM scx_ocpx_rta_upstream WHERE id=#{id} AND version=#{version}
+    </delete>
+    <delete id="deleteRtaMediaAccess">
+        DELETE FROM scx_ocpx_rta_media_access WHERE media_id=#{media} AND version=#{version}
+    </delete>
+    <select id="countUpstreamBindings" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*) FROM scx_ocpx_rta_binding WHERE upstream_id=#{id}
+    </select>
+    <select id="countMediaBindings" resultType="java.lang.Long" useCache="false" flushCache="true">
+        SELECT COUNT(*)
+        FROM scx_ocpx_rta_binding b
+        JOIN scx_ocpx_monitor_task t ON t.id=b.monitor_task_id
+        WHERE t.media_id=#{media}
+    </select>
+    <select id="selectReadinessRoutes" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">
+        SELECT t.id AS task_id, t.monitor_name AS task_name, t.rta_enabled,
+        t.advertiser_id, a.advertiser_name, t.media_id, m.media_name, l.link_url,
+        b.monitor_task_id AS binding_task_id, b.enabled AS binding_enabled, b.version AS binding_version,
+        b.upstream_id, b.product_id, b.external_task_id, b.strategy_id, b.oppo_pkg,
+        ma.media_id AS access_media_id, ma.enabled AS media_enabled, ma.protocol AS media_protocol, ma.notify_url,
+        u.id AS upstream_ref_id, u.name AS upstream_name, u.enabled AS upstream_enabled,
+        u.protocol AS upstream_protocol, u.endpoint AS upstream_endpoint, u.protocol_config AS upstream_config
+        FROM scx_ocpx_monitor_task t
+        JOIN scx_ocpx_advertiser a ON a.id=t.advertiser_id
+        JOIN scx_ocpx_media m ON m.id=t.media_id
+        LEFT JOIN scx_ocpx_promotion_link l ON l.id=t.promotion_link_id AND l.is_delete=0
+        LEFT JOIN scx_ocpx_rta_binding b ON b.monitor_task_id=t.id
+        LEFT JOIN scx_ocpx_rta_media_access ma ON ma.media_id=t.media_id
+        LEFT JOIN scx_ocpx_rta_upstream u ON u.id=b.upstream_id AND u.advertiser_id=t.advertiser_id
+        WHERE t.is_delete=0
+        <if test="advertiserId != null">
+            AND t.advertiser_id=#{advertiserId}
+        </if>
+        <if test="mediaId != null">
+            AND t.media_id=#{mediaId}
+        </if>
+        <if test="keyword != null">
+            AND (t.monitor_name LIKE CONCAT('%', #{keyword}, '%') OR t.id=#{keyword})
+        </if>
+        <choose>
+            <when test="taskIds != null and !taskIds.isEmpty()">
+                AND t.id IN
+                <foreach collection="taskIds" item="id" open="(" separator="," close=")">
+                    #{id}
+                </foreach>
+            </when>
+            <otherwise>
+                AND (b.monitor_task_id IS NOT NULL OR ma.media_id IS NOT NULL)
+            </otherwise>
+        </choose>
+        ORDER BY t.update_time DESC, t.id LIMIT 2000
+    </select>
+    <select id="selectRecentTaskStats" resultType="java.util.LinkedHashMap" useCache="false" flushCache="true">
+        SELECT task_id, SUM(request_count) AS request_count, SUM(allow_count) AS allow_count
+        FROM scx_ocpx_rta_hour_stat
+        WHERE time_hour&gt;=#{since} AND task_id IN
+        <foreach collection="taskIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        GROUP BY task_id
     </select>
 </mapper>

@@ -1,0 +1,26 @@
+sequenceDiagram
+  participant O as OPPO媒体
+  participant E as OppoRtaService
+  participant R as Redis/RTA Worker
+  participant W as 微风RTA
+  participant C as OPPO点击入口
+  participant F as 正式Feedback/Callback
+  O->>E: 签名JSON request_id + strategy列表
+  E->>E: owner/MD5/时间窗/策略校验
+  loop 每个策略仅创建内部请求
+    E->>R: relay.accept 创建独立内部oppo状态
+  end
+  par 后台并发询量
+    R->>W: Worker受并发限制执行WEIFENG_RTA
+    W-->>R: id/code 决策
+  and 响应线程统一等待
+    E->>R: 有界轮询各策略状态
+  end
+  E->>R: 对可返回策略写SYNC_RETURNED
+  E-->>O: agree_type_list
+  O->>C: code/strategy + request_id + OAID
+  C->>R: 校验ALLOW/SYNC_RETURNED/设备hash/有效期
+  C->>F: 转为Feedback进入事实 计费 上游点击
+  Note over F: 后续上游Callback到达 正式计费/扣量
+  F->>O: PASSED后签名POST uploadActiveData
+  O-->>F: HTTP2xx且ret=0才记成功

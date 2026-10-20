@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { queryRta, saveRta } from './rta';
+import { deleteRta, queryRta, rtaOverview, rtaReadiness, saveRta } from './rta';
 
-const client = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const client = vi.hoisted(() => ({
+  delete: vi.fn(),
+  get: vi.fn(),
+  post: vi.fn(),
+}));
 vi.mock('#/api/request', () => ({ requestClient: client }));
 describe('async RTA management contracts', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -22,6 +26,20 @@ describe('async RTA management contracts', () => {
       enabled: false,
       credentialRef: 'media-a-key',
       version: 2,
+    });
+  });
+  it('reads route readiness and deletes with optimistic versions', async () => {
+    await rtaOverview({ monitorTaskIds: 't1,t2', onlyIssues: 'true' });
+    expect(client.get).toHaveBeenCalledWith('/ocpx/rta/overview', {
+      params: { monitorTaskIds: 't1,t2', onlyIssues: 'true' },
+    });
+    await rtaReadiness('t1');
+    expect(client.get).toHaveBeenCalledWith('/ocpx/rta/readiness', {
+      params: { monitorTaskId: 't1' },
+    });
+    await deleteRta('bindings', 't1', 3);
+    expect(client.delete).toHaveBeenCalledWith('/ocpx/rta/bindings/t1', {
+      params: { version: 3 },
     });
   });
 });

@@ -13,6 +13,7 @@ import type {
   MonitorTaskTestPreview,
   MonitorTaskTestResult,
 } from '#/api/ocpx';
+import type { RtaRoute } from '#/api/ocpx/rta';
 
 import {
   computed,
@@ -46,10 +47,12 @@ import {
   sendMonitorTaskIntegrationCallback,
   updateMonitorTask,
 } from '#/api/ocpx';
+import { rtaOverview } from '#/api/ocpx/rta';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
 import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
+import { routeStatus, tagOf } from '../rta/labels';
 import RtaTestDialog from '../rta/test-dialog.vue';
 import {
   allColumnKeys,
@@ -258,6 +261,8 @@ const simulatedMediaTest = computed(
   () => testPreview.value?.mediaCallbackMode === 'SIMULATED_MEDIA',
 );
 const loadGuard = createLatestRequestGuard();
+const rtaRouteGuard = createLatestRequestGuard();
+const rtaRoutes = ref<Record<string, RtaRoute>>({});
 const monitorOptionGuard = createLatestRequestGuard();
 const promotionOptionGuard = createLatestRequestGuard();
 const testGenerationGuard = createLatestRequestGuard();
@@ -279,10 +284,47 @@ async function load() {
     if (loadGuard.isLatest(requestSequence)) {
       rows.value = result.records;
       total.value = result.total;
+      void loadRtaRoutes(result.records.map((row) => row.id));
     }
   } finally {
     if (loadGuard.isLatest(requestSequence)) loading.value = false;
   }
+}
+
+async function loadRtaRoutes(ids: string[]) {
+  const requestSequence = rtaRouteGuard.begin();
+  if (!canManageRta.value || ids.length === 0) {
+    rtaRoutes.value = {};
+    return;
+  }
+  try {
+    const overview = await rtaOverview({
+      monitorTaskIds: ids.join(','),
+      size: ids.length,
+    });
+    if (rtaRouteGuard.isLatest(requestSequence))
+      rtaRoutes.value = Object.fromEntries(
+        overview.records.map((route) => [route.monitorTaskId, route]),
+      );
+  } catch {
+    if (rtaRouteGuard.isLatest(requestSequence)) rtaRoutes.value = {};
+  }
+}
+
+function rtaIssues(route?: RtaRoute) {
+  return (route?.checks || [])
+    .filter((check) => check.level !== 'OK')
+    .map((check) => `${check.label}${check.hint ? `：${check.hint}` : ''}`)
+    .join('\n');
+}
+
+function canTestRta(route?: RtaRoute) {
+  return (
+    canTest.value &&
+    route?.binding.state !== 'MISSING' &&
+    route?.mediaProtocol === 'OPPO' &&
+    route?.upstreamProtocol === 'WEIFENG_RTA'
+  );
 }
 
 async function loadMonitorSelects(reset = true) {
@@ -955,29 +997,48 @@ onBeforeUnmount(closeTestDialog);
           min-width="170"
           prop="updateTime"
         />
-        <el-table-column label="RTA" width="210">
+        <el-table-column fixed="right" label="RTA 配置" width="108">
           <template #default="{ row }">
-            <el-tag :type="row.rtaEnabled ? 'success' : 'info'">{{
-              row.rtaEnabled ? '已启用' : '已停用'
-            }}</el-tag>
-            <el-button
-              v-if="canManageRta"
-              link
-              type="primary"
-              @click="
-                router.push({
-                  query: { rtaTaskId: row.id },
-                })
-              "
-              >配置</el-button
-            >
-            <el-button
-              v-if="canTest"
-              link
-              type="success"
-              @click="rtaTestTaskId = row.id"
-              >RTA 测试</el-button
-            >
+            <div class="monitor-rta">
+              <el-tooltip
+                v-if="rtaRoutes[row.id]"
+                :disabled="!rtaIssues(rtaRoutes[row.id])"
+                :content="rtaIssues(rtaRoutes[row.id])"
+                placement="top"
+              >
+                <el-tag
+                  size="small"
+                  :type="tagOf(routeStatus, rtaRoutes[row.id]?.status).type"
+                  >{{
+                    tagOf(routeStatus, rtaRoutes[row.id]?.status).text
+                  }}</el-tag
+                >
+              </el-tooltip>
+              <el-tag
+                v-else
+                size="small"
+                :type="row.rtaEnabled ? 'success' : 'info'"
+                >{{ row.rtaEnabled ? '已启用' : '已停用' }}</el-tag
+              >
+              <el-button
+                v-if="canManageRta"
+                link
+                type="primary"
+                @click="
+                  router.push({
+                    query: { rtaTaskId: row.id },
+                  })
+                "
+                >配置</el-button
+              >
+              <el-button
+                v-if="canTestRta(rtaRoutes[row.id])"
+                link
+                type="success"
+                @click="rtaTestTaskId = row.id"
+                >RTA 测试</el-button
+              >
+            </div>
           </template>
         </el-table-column>
         <el-table-column
@@ -985,8 +1046,9 @@ onBeforeUnmount(closeTestDialog);
           fixed="right"
           label="操作"
           width="250"
-          ><template #default="{ row }"
-            ><el-button
+        >
+          <template #default="{ row }">
+            <el-button
               v-if="canTest"
               v-access:code="'ocpx:monitor-task:test'"
               :disabled="saving || Boolean(deletingId)"
@@ -994,7 +1056,8 @@ onBeforeUnmount(closeTestDialog);
               type="success"
               @click="openTest(row)"
               >测试链接</el-button
-            ><el-button
+            >
+            <el-button
               v-if="canIntegrate"
               v-access:code="'ocpx:monitor-task:integration'"
               :disabled="saving || Boolean(deletingId)"
@@ -1002,14 +1065,16 @@ onBeforeUnmount(closeTestDialog);
               type="warning"
               @click="openIntegration(row)"
               >联调</el-button
-            ><el-button
+            >
+            <el-button
               v-access:code="'ocpx:monitor-task:edit'"
               :disabled="saving || Boolean(deletingId)"
               link
               type="primary"
               @click="edit(row)"
               >编辑</el-button
-            ><el-button
+            >
+            <el-button
               v-access:code="'ocpx:monitor-task:delete'"
               :disabled="saving || Boolean(deletingId)"
               :loading="deletingId === row.id"
@@ -1017,9 +1082,9 @@ onBeforeUnmount(closeTestDialog);
               type="danger"
               @click="remove(row)"
               >删除</el-button
-            ></template
-          ></el-table-column
-        >
+            >
+          </template>
+        </el-table-column>
       </el-table>
       <el-pagination
         v-model:current-page="query.current"
@@ -1885,7 +1950,11 @@ onBeforeUnmount(closeTestDialog);
         </el-form-item>
         <el-form-item label="RTA 配置">
           <span v-if="editing" class="mr-3">{{
-            editing.rtaEnabled ? '已启用' : '已停用'
+            rtaRoutes[editing.id]
+              ? tagOf(routeStatus, rtaRoutes[editing.id]?.status).text
+              : editing.rtaEnabled
+                ? '已启用'
+                : '已停用'
           }}</span>
           <el-button
             v-if="editing && canManageRta"
@@ -1931,7 +2000,7 @@ onBeforeUnmount(closeTestDialog);
         ></template
       >
     </el-dialog>
-    <RtaConfigurationDrawer kind="bindings" @saved="load" />
+    <RtaConfigurationDrawer @saved="load" />
     <RtaTestDialog :task-id="rtaTestTaskId" @close="rtaTestTaskId = ''" />
   </Page>
 </template>
@@ -2076,6 +2145,17 @@ onBeforeUnmount(closeTestDialog);
   grid-template-columns: minmax(300px, 1.2fr) minmax(220px, 1fr) auto auto;
   gap: 10px;
   margin-top: 16px;
+}
+
+.monitor-rta {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.monitor-rta :deep(.el-button),
+.monitor-rta :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .rta-binding-editor {

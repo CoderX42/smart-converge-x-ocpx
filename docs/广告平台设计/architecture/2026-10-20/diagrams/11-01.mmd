@@ -1,0 +1,25 @@
+sequenceDiagram
+  participant M as 通用媒体
+  participant E as SCX Engine
+  participant R as Redis
+  participant W as RelayWorker
+  participant U as 通用异步上游
+  participant F as Feedback 事实与计费
+  M->>E: POST /ocpx/rta/requests（签名 JSON）
+  E->>E: 验签、路由校验、快照、加密设备
+  E->>R: INIT（幂等、状态、send/deadline、指标）
+  E-->>M: 202 + relayRequestId + deadline
+  W->>R: claim send（5秒租约）
+  W->>U: 签名候选请求 + callbackUrl
+  Note over W,U: 独立回调可能早于上游202响应
+  U-->>W: 202受理
+  W->>R: SUBMITTED（等待回调、删除暂存设备）
+  U->>E: POST /ocpx/rta/callbacks/accessCode
+  E->>R: FINISH（原子终态、候选指标、notify）
+  E-->>U: 200（重复一致结果幂等）
+  W->>M: 签名通知（决策及命中任务）
+  M-->>W: 2xx签收
+  W->>R: DELIVERY = DELIVERED
+  M->>E: Feedback + rtaRequestId
+  E->>E: RtaGate校验ALLOW、时效、路由、版本
+  E->>F: 通过后进入正式事件处理

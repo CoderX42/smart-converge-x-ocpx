@@ -138,6 +138,71 @@ export function saveRta(
   return requestClient.post(`/ocpx/rta/${kind}`, body);
 }
 
+export type RtaFixTarget = 'binding' | 'media' | 'upstream';
+export type RtaCheck = {
+  code: string;
+  fixTarget?: RtaFixTarget;
+  hint?: string;
+  label: string;
+  level: 'BLOCK' | 'OK' | 'WARN';
+};
+export type RtaSegment = {
+  label: string;
+  state: 'DISABLED' | 'ENABLED' | 'MISSING';
+};
+export type RtaRouteStatus =
+  'DISABLED' | 'INCOMPLETE' | 'NOT_CONFIGURED' | 'READY';
+export type RtaRoute = {
+  advertiserId: string;
+  advertiserName: string;
+  allowCount24h: number;
+  binding: RtaSegment;
+  checks: RtaCheck[];
+  media: RtaSegment;
+  mediaId: string;
+  mediaName: string;
+  mediaProtocol?: string;
+  monitorName: string;
+  monitorTaskId: string;
+  requestCount24h: number;
+  status: RtaRouteStatus;
+  strategyId?: number;
+  upstream: RtaSegment;
+  upstreamId?: string;
+  upstreamName?: string;
+  upstreamProtocol?: string;
+};
+export type RtaOverview = {
+  current: number;
+  notices: RtaCheck[];
+  records: RtaRoute[];
+  size: number;
+  summary: {
+    disabled: number;
+    incomplete: number;
+    notConfigured: number;
+    ready: number;
+  };
+  total: number;
+};
+export function rtaOverview(params: Record<string, number | string>) {
+  return requestClient.get<RtaOverview>('/ocpx/rta/overview', { params });
+}
+export function rtaReadiness(monitorTaskId: string) {
+  return requestClient.get<{ notices: RtaCheck[]; route: RtaRoute }>(
+    '/ocpx/rta/readiness',
+    { params: { monitorTaskId } },
+  );
+}
+export function deleteRta(
+  kind: 'bindings' | 'media' | 'upstreams',
+  id: string,
+  version: number,
+) {
+  return requestClient.delete(`/ocpx/rta/${kind}/${encodeURIComponent(id)}`, {
+    params: { version },
+  });
+}
 export function rtaOptions(
   kind: 'advertisers' | 'media' | 'tasks' | 'upstreams',
   params: Record<string, string> = {},

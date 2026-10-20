@@ -264,15 +264,6 @@ onMounted(async () => {
 <template>
   <Page auto-content-height title="上游转化记录">
     <el-card shadow="never">
-      <el-alert class="mb-3" :closable="false" type="info" show-icon>
-        <template #title>
-          <strong>这里展示上游 Callback 已进入 SCX 的唯一转化事实。</strong>
-          相同广告主、监测任务、请求 ID
-          和事件的重试不会重复计数；重试过程请查看完整流程。 “下游回传提交”表示
-          SCX 已提交投递，不代表媒体已经签收或入库。
-        </template>
-      </el-alert>
-
       <div v-show="showSearch" class="ocpx-query">
         <el-date-picker
           v-model="filters.dates"

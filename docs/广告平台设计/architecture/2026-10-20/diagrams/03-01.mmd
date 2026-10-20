@@ -1,0 +1,31 @@
+flowchart LR
+  Form[浏览器表单 string ID / number / 日期 / File] --> Convert[空值归一 枚举校验 百分比除100 日期编码]
+  Convert --> API[JSON / form-urlencoded / multipart]
+  API --> Wrap[api/boot + satoken + locale]
+  Wrap --> DTO[Boot DTO或Map Bean校验 主体授权]
+  DTO --> SQL[(MySQL主数据 账户 配置审计)]
+  SQL -.刷新标记与轮询.-> Cache[Engine内存配置索引]
+  Wire[媒体Feedback Query] --> Normal[FeedbackReq规范化]
+  CallbackWire[广告主Callback] --> CB[CallbackReq解密与动作金额映射]
+  Cache --> Adapter[上游协议选择 宏替换 密文上下文]
+  Normal --> Tx[Feedback唯一事实 计费 小时指标事务]
+  Tx --> Truth[(MySQL event_fact / billing_entry / hourly_metric)]
+  Tx -->|首次已提交且允许| Adapter
+  Adapter --> UpConsumer[外部广告主HTTP]
+  CB --> CTx[Callback唯一事实 首次计费及原始指标 提交]
+  CTx --> Truth
+  CTx -->|仍PENDING| Ratio[(Redis扣量Hash / decision key)]
+  Ratio --> FinalTx[MySQL条件判定与扣量指标提交]
+  FinalTx --> Truth
+  FinalTx -->|PASSED且更新获胜| Down[媒体协议转换与HTTP提交]
+  Down --> DownConsumer[外部媒体HTTP]
+  RtaWire[RTA签名JSON / OPPO JSON] --> Rta[(Redis state JSON / ZSET / Stream / metric Hash)]
+  Rta --> RtaConsumer[上游询量 / 媒体通知 / 点击准入]
+  Rta -.XXL批量写入.-> RtaSql[(MySQL rta_log / rta_hour_stat)]
+  DTO --> Obj[(文件字节 本地或对象存储)]
+  Obj --> Meta[(sys_material / creative / binding)]
+  Truth --> Read[Admin按范围查询 DTO或CSV]
+  RtaSql --> Read
+  Rta --> Read
+  Meta --> Read
+  Read --> Display[页面 指标 账单 下载 图片]

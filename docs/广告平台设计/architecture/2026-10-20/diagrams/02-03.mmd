@@ -1,0 +1,24 @@
+sequenceDiagram
+  participant V as 管理表单
+  participant A as Admin Service
+  participant D as MySQL
+  participant R as Redis
+  participant E as Engine配置索引
+  V->>A: 保存广告主/链接/媒体/任务
+  A->>A: 权限 归属 字段 模板校验
+  A->>D: BEGIN 主数据及必要计费配置审计
+  D-->>A: COMMIT
+  A->>R: afterCommit 写 r:da:refresh
+  A-->>V: 保存结果
+  loop 每分钟 / 有标记时等待5秒
+    E->>R: 检测刷新标记
+    E->>D: 广告主 链接 媒体 任务 白名单顺序读取
+    E->>E: 更新本机配置Map
+    E->>R: 删除刷新标记
+  end
+  Note over E: 启动和每日00:10也全量加载 非原子快照
+  V->>A: 保存扣量规则
+  A->>D: BEGIN 写规则
+  A->>R: 提交前Lua重置路由ratio与计数
+  A->>D: COMMIT
+  A->>R: afterCommit刷新标记

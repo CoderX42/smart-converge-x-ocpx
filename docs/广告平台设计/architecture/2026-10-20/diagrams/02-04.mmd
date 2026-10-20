@@ -1,0 +1,22 @@
+flowchart TD
+  M[媒体 GET feedback] --> Normalize[路由与宏检查 OS/设备归一 时间原样传递 callback编码]
+  Normalize --> Gate{任务开启RTA?}
+  Gate -->|是| Admit[查独立RTA决策及配置版本 ALLOW且未过期]
+  Gate -->|否| Fact[MySQL唯一事实事务]
+  Admit -->|满足| Fact
+  Admit -->|不满足| Reject[拒绝 403或503 不进正式事实]
+  Fact --> Duplicate{是否首次事件?}
+  Duplicate -->|否| Done[幂等结束 不重复计费/投递]
+  Duplicate -->|是| Billing{CLK且点击计费开启?}
+  Billing -->|是| Lock[账户FOR UPDATE]
+  Lock --> Funds{余额足够?}
+  Funds -->|否| Denied[REJECTED流水 拒绝点击指标 提交后不投递]
+  Funds -->|是| Charge[扣余额 POSTED流水 小时指标]
+  Billing -->|否| Metric[曝光或未计费点击 小时指标]
+  Charge --> Commit[MySQL COMMIT]
+  Metric --> Commit
+  Commit --> Pool[上游有界内存线程池]
+  Pool --> Protocol[按广告主协议做时间转换/模板/身份/URL检查]
+  Protocol -->|支持事件且检查通过| HTTP[外部广告主HTTP GET]
+  Protocol -->|模板/凭据/协议不满足| Failed[写失败流程日志]
+  HTTP --> Result[各协议成功判定与采样流程日志]

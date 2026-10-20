@@ -1,0 +1,24 @@
+flowchart LR
+  User[内部用户或广告主账号] --> UI[Vue 3 web-ele]
+  UI -->|JSON / Form / multipart + satoken| Proxy[Vite / 管理站 Nginx]
+  Proxy -->|去 api 前缀 保留 boot| Boot[scx-boot 管理应用 9999 /boot]
+  Boot --> Auth[scx-auth 身份与会话]
+  Boot --> System[scx-system-biz 用户权限及基础内容]
+  Boot --> Admin[scx-ocpx-admin 主数据 资金 查询 测试]
+  Boot --> Gen[scx-generator 后端生成器]
+  Admin --> Core[scx-ocpx-core 实体与协议契约]
+  Engine[独立 scx-ocpx-engine 10000 /ocpx] --> Core
+  Media[外部媒体] -->|Feedback / OPPO点击 / RTA请求| Engine
+  Adv[外部广告主或DSP] -->|Callback / RTA决策| Engine
+  Engine -->|上游事件HTTP / RTA请求| Adv
+  Engine -->|转化回传 / RTA通知| Media
+  Admin --> DB[(MySQL 主数据 事实 账务 汇总)]
+  System --> DB
+  Engine --> DB
+  Auth --> Redis[(Redis 会话 配置标记 扣量 RTA)]
+  Admin --> Redis
+  Engine --> Redis
+  Admin --> Store[(对象存储或本地文件)]
+  System --> Store
+  Job[独立 XXL-JOB中心] -.定时触发 RtaJobs.-> Admin
+  Admin -.测试按钮 固定HTTP目标.-> Engine

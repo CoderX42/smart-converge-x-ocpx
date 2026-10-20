@@ -11,8 +11,23 @@ public class RtaManagementController {
 
 	private final RtaManagement service;
 
-	public RtaManagementController(RtaManagement service) {
+	private final RtaReadinessService readiness;
+
+	public RtaManagementController(RtaManagement service, RtaReadinessService readiness) {
 		this.service = service;
+		this.readiness = readiness;
+	}
+
+	@GetMapping("/overview")
+	@SaCheckPermission("ocpx:rta:bindings:view")
+	public Result<RtaReadinessService.Overview> overview(@RequestParam Map<String, String> query) {
+		return Result.success(readiness.overview(query));
+	}
+
+	@GetMapping("/readiness")
+	@SaCheckPermission("ocpx:rta:bindings:view")
+	public Result<RtaReadinessService.Readiness> readiness(@RequestParam String monitorTaskId) {
+		return Result.success(readiness.readiness(monitorTaskId));
 	}
 
 	@GetMapping("/protocols")
@@ -86,6 +101,27 @@ public class RtaManagementController {
 	@SaCheckPermission("ocpx:rta:bindings:edit")
 	public Result<Boolean> saveBindings(@RequestBody Map<String, Object> body) {
 		service.save("bindings", body);
+		return Result.success(true);
+	}
+
+	@DeleteMapping("/bindings/{monitorTaskId}")
+	@SaCheckPermission("ocpx:rta:bindings:edit")
+	public Result<Boolean> deleteBinding(@PathVariable String monitorTaskId, @RequestParam long version) {
+		service.deleteBinding(monitorTaskId, version);
+		return Result.success(true);
+	}
+
+	@DeleteMapping("/upstreams/{id}")
+	@SaCheckPermission("ocpx:rta:upstreams:edit")
+	public Result<Boolean> deleteUpstream(@PathVariable String id, @RequestParam long version) {
+		service.deleteUpstream(id, version);
+		return Result.success(true);
+	}
+
+	@DeleteMapping("/media/{mediaId}")
+	@SaCheckPermission("ocpx:rta:media:edit")
+	public Result<Boolean> deleteMedia(@PathVariable String mediaId, @RequestParam long version) {
+		service.deleteMediaAccess(mediaId, version);
 		return Result.success(true);
 	}
 

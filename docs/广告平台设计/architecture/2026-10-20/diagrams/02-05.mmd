@@ -1,0 +1,38 @@
+sequenceDiagram
+  participant A as 上游广告主
+  participant C as 协议Callback适配器
+  participant F as Fact与Callback Service
+  participant D as MySQL
+  participant R as Redis扣量Lua
+  participant P as 下游内存线程池
+  participant M as 外部媒体
+  A->>C: ext/kid 或 ctx + 动作/金额
+  C->>C: 上下文解密 动作/金额/路由校验
+  C->>F: 标准CallbackReq
+  F->>D: BEGIN 尝试唯一事实写入
+  alt 首次事实
+    opt 目标转化且转化计费开启
+      F->>D: 读取当前计费配置 锁账户 扣费或REJECTED流水
+    end
+    F->>D: 原始Callback与小时指标 COMMIT
+  else 已有事实
+    D-->>F: 原事实 不重复计费/原始计数
+  end
+  alt 已有最终扣量判定
+    F-->>C: 幂等结束 不再次提交出站
+  else 新事实或仍PENDING
+    F->>R: factId幂等 + 路由动作累计比例判定
+    R-->>F: PASSED或DEDUCTED + ratio
+    F->>D: BEGIN 条件更新PENDING + 扣量指标 COMMIT
+    opt 条件更新获胜且PASSED
+      F->>P: 提交普通GET或OPPO POST
+    end
+  end
+  par 控制器响应
+    C-->>A: 协议规定的空响应或JSON
+  and 已提交任务的异步最后一跳
+    P->>M: 标准事件/金额 或 OPPO签名JSON
+    M-->>P: HTTP及协议业务结果
+    P->>D: 流程日志及受限详情
+  end
+  Note over F,P: 队列满时CallerRuns可由调用线程执行 出站与响应时序会改变

@@ -202,11 +202,14 @@ public class RtaManagement {
 				throw new BootBusinessException("任务不可用");
 			var t = tasks.get(0);
 			scope.requireOwner(t.get("advertiser_id").toString());
-			sqlMapper.selectSaveRtaMediaAccess(t.get("media_id"));
+			var mediaAccess = sqlMapper.selectSaveRtaMediaAccess(t.get("media_id"));
 			var access = sqlMapper.findUpstream(upstream);
 			if (access == null || !Objects.equals(access.get("advertiser_id"), t.get("advertiser_id")))
 				throw new BootBusinessException("广告主接入不可用");
 			var protocol = RtaProtocols.require(access.get("protocol").toString());
+			if (mediaAccess != null && mediaAccess.stream().anyMatch(m -> "OPPO".equals(m.get("protocol")))
+					&& !"WEIFENG_RTA".equals(protocol.code()))
+				throw new BootBusinessException("OPPO 媒体只能绑定微风 RTA 接入");
 			if (protocol.bindingFields().isEmpty()) {
 				product = null;
 				external = null;
@@ -240,6 +243,39 @@ public class RtaManagement {
 		}
 		else
 			throw new BootBusinessException("不支持的写操作");
+	}
+
+	/** 解绑后任务不再要求 RTA 准入；重新绑定会分配新的 OPPO 策略 ID。 */
+	@Transactional
+	public void deleteBinding(String monitorTaskId, long version) {
+		List<Map<String, Object>> tasks = sqlMapper.lockTask(monitorTaskId);
+		if (tasks.size() != 1)
+			throw new BootBusinessException("任务不可用");
+		scope.requireOwner(tasks.get(0).get("advertiser_id").toString());
+		changed(sqlMapper.deleteRtaBinding(monitorTaskId, version));
+		sqlMapper.updateSaveMonitorTask(false, monitorTaskId);
+	}
+
+	@Transactional
+	public void deleteUpstream(String id, long version) {
+		scope.requireSystemAdministrator();
+		if (sqlMapper.findUpstream(id) == null)
+			throw new BootBusinessException("接入不可用");
+		Long used = sqlMapper.countUpstreamBindings(id);
+		if (used != null && used > 0)
+			throw new BootBusinessException("仍被 " + used + " 个任务使用，请先解绑");
+		changed(sqlMapper.deleteRtaUpstream(id, version));
+	}
+
+	@Transactional
+	public void deleteMediaAccess(String mediaId, long version) {
+		scope.requireSystemAdministrator();
+		if (sqlMapper.selectSaveRtaMediaAccess(mediaId).isEmpty())
+			throw new BootBusinessException("媒体接入不可用");
+		Long used = sqlMapper.countMediaBindings(mediaId);
+		if (used != null && used > 0)
+			throw new BootBusinessException("仍被 " + used + " 个任务使用，请先解绑");
+		changed(sqlMapper.deleteRtaMediaAccess(mediaId, version));
 	}
 
 	public Page records(Map<String, String> query) {

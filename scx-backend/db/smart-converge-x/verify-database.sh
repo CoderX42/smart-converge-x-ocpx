@@ -99,7 +99,9 @@ invalid_rta_bindings="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_binding b
 invalid_rta_media="$(scalar "SELECT COUNT(*) FROM scx_ocpx_rta_media_access r LEFT JOIN scx_ocpx_media m ON m.id=r.media_id WHERE m.id IS NULL")"
 [[ "$invalid_rta_media" -eq 0 ]] || fail "RTA media configuration references missing media"
 rta_menu_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE parent_id='menu_ocpx_rta' AND type='0' AND del_flag='0'")"
-[[ "$rta_menu_count" -eq 3 ]] || fail "RTA management requires three operational pages"
+[[ "$rta_menu_count" -eq 4 ]] || fail "RTA management requires overview, records, logs and reports pages"
+rta_overview_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE id='menu_ocpx_rta_overview' AND parent_id='menu_ocpx_rta' AND permission='ocpx:rta:bindings:view' AND component='ocpx/rta/overview/index' AND del_flag='0'")"
+[[ "$rta_overview_count" -eq 1 ]] || fail "RTA overview menu missing"
 rta_config_permission_count="$(scalar "SELECT COUNT(*) FROM sys_menu WHERE type='1' AND del_flag='0' AND
  ((id='menu_ocpx_rta_upstreams' AND parent_id='menu_ocpx_advertiser') OR
   (id='menu_ocpx_rta_media' AND parent_id='menu_ocpx_media') OR

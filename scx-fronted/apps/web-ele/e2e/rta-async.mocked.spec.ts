@@ -313,7 +313,9 @@ test('RTA test entry is hidden without monitor test permission', async ({
 }) => {
   await setup(page, resources, false);
   await page.goto('/#/ocpx/monitor-task');
-  await expect(page.getByRole('button', { name: '复制：A', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: '复制：A', exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'RTA 测试', exact: true }),
   ).toHaveCount(0);

@@ -4,6 +4,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { MediaMacroGroup, MediaMacroOption } from './media-macros';
 
 import type { EntityOption, Media } from '#/api/ocpx';
+import type { RtaRow } from '#/api/ocpx/rta';
 
 import { computed, nextTick, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -21,10 +22,12 @@ import {
   mediaOptions,
   updateMedia,
 } from '#/api/ocpx';
+import { queryRta } from '#/api/ocpx/rta';
 import RightToolbar from '#/components/right-toolbar/index.vue';
 
 import LongText from '../long-text.vue';
 import RtaConfigurationDrawer from '../rta/configuration-drawer.vue';
+import { protocols as rtaProtocols, tagOf } from '../rta/labels';
 import {
   allColumnKeys,
   createLatestRequestGuard,
@@ -61,6 +64,7 @@ const columns = [
 ];
 const visibleColumns = ref(allColumnKeys(columns));
 const rows = ref<Media[]>([]);
+const rtaAccess = ref<Record<string, RtaRow>>({});
 const mediaSelects = ref<EntityOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -172,9 +176,22 @@ async function load() {
     if (loadGuard.isLatest(requestSequence)) {
       rows.value = result.records;
       total.value = result.total;
+      void loadRtaAccess();
     }
   } finally {
     if (loadGuard.isLatest(requestSequence)) loading.value = false;
+  }
+}
+
+async function loadRtaAccess() {
+  if (!hasAccessByCodes(['ocpx:rta:media:view'])) return;
+  try {
+    const page = await queryRta('media', { current: 1, size: 100 });
+    rtaAccess.value = Object.fromEntries(
+      page.records.map((row) => [row.mediaId, row]),
+    );
+  } catch {
+    rtaAccess.value = {};
   }
 }
 
@@ -304,12 +321,6 @@ onMounted(async () => {
           @search="showSearch = !showSearch"
         />
       </div>
-      <el-alert
-        class="mb-4"
-        :closable="false"
-        title="管理端只维护服务端凭据引用，不显示或提交明文密钥。"
-        type="info"
-      />
       <el-table
         v-loading="loading"
         class="ocpx-table"
@@ -324,9 +335,20 @@ onMounted(async () => {
         <el-table-column
           v-if="hasColumn('name')"
           label="渠道名称"
-          min-width="150"
-          prop="mediaName"
-        />
+          min-width="170"
+          ><template #default="{ row }"
+            >{{ row.mediaName }}
+            <el-tag
+              v-if="rtaAccess[row.id]"
+              size="small"
+              :type="rtaAccess[row.id]?.enabled ? 'success' : 'info'"
+              >RTA ·
+              {{
+                tagOf(rtaProtocols, rtaAccess[row.id]?.protocol).text
+              }}</el-tag
+            ></template
+          ></el-table-column
+        >
         <el-table-column v-if="hasColumn('uri')" label="URI" min-width="200"
           ><template #default="{ row }"><LongText :value="row.uri" /></template
         ></el-table-column>
@@ -411,7 +433,7 @@ onMounted(async () => {
       class="media-dialog"
       :title="editing ? '编辑媒体' : '新增媒体'"
       top="5vh"
-      width="1000px"
+      width="920px"
       @close="handleDialogClose"
     >
       <el-form
@@ -421,21 +443,24 @@ onMounted(async () => {
         :rules="rules"
         label-position="top"
       >
-        <div class="media-base-grid">
-          <el-form-item label="渠道名称" prop="mediaName">
-            <el-input v-model="form.mediaName" placeholder="请输入渠道名称" />
-          </el-form-item>
-          <el-form-item label="URI" prop="uri">
-            <el-input v-model="form.uri" placeholder="请输入 URI" />
-          </el-form-item>
-          <el-form-item label="凭据引用" prop="credentialConfigKey">
-            <el-input
-              v-model="form.credentialConfigKey"
-              placeholder="请输入凭据引用"
-            />
-          </el-form-item>
+        <div class="media-section media-base-section">
+          <div class="media-section-title">基础配置</div>
+          <div class="media-base-grid">
+            <el-form-item label="渠道名称" prop="mediaName">
+              <el-input v-model="form.mediaName" placeholder="请输入渠道名称" />
+            </el-form-item>
+            <el-form-item label="URI" prop="uri">
+              <el-input v-model="form.uri" placeholder="请输入 URI" />
+            </el-form-item>
+            <el-form-item label="凭据引用" prop="credentialConfigKey">
+              <el-input
+                v-model="form.credentialConfigKey"
+                placeholder="请输入凭据引用"
+              />
+            </el-form-item>
+          </div>
         </div>
-        <el-form-item label="宏参数">
+        <el-form-item class="macro-form-item" label="宏参数">
           <div class="macro-picker">
             <div class="macro-system-row">
               <el-checkbox :model-value="true" disabled>
@@ -459,6 +484,10 @@ onMounted(async () => {
                         <el-checkbox
                           v-for="variant in item.variants"
                           :key="variant.key"
+                          class="macro-option"
+                          :class="{
+                            'is-selected': isMacroSelected(variant.key),
+                          }"
                           :model-value="isMacroSelected(variant.key)"
                           @change="selectVariant(variant, $event)"
                         >
@@ -472,6 +501,7 @@ onMounted(async () => {
                     <el-checkbox
                       v-else
                       class="macro-option"
+                      :class="{ 'is-selected': isMacroSelected(item.key) }"
                       :model-value="isMacroSelected(item.key)"
                       @change="toggleMacro(item.key, $event)"
                     >
@@ -494,6 +524,7 @@ onMounted(async () => {
                     v-for="item in COMPAT_MACRO_ITEMS"
                     :key="item.key"
                     class="macro-option"
+                    :class="{ 'is-selected': isMacroSelected(item.key) }"
                     :model-value="isMacroSelected(item.key)"
                     @change="toggleMacro(item.key, $event)"
                   >
@@ -529,11 +560,37 @@ onMounted(async () => {
         ></template
       >
     </el-dialog>
-    <RtaConfigurationDrawer kind="media" @saved="load" />
+    <RtaConfigurationDrawer @saved="load" />
   </Page>
 </template>
 
 <style scoped>
+.media-section-title {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.media-section-title::before {
+  width: 3px;
+  height: 14px;
+  content: '';
+  background: var(--el-color-primary);
+  border-radius: 2px;
+}
+
+.media-base-section {
+  padding: 10px 12px 2px;
+  margin-bottom: 12px;
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+
 .media-base-grid {
   display: grid;
   grid-template-columns: 1.25fr 1fr 1fr;
@@ -548,6 +605,27 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
+.macro-form-item > :deep(.el-form-item__label) {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding-bottom: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--el-text-color-primary);
+}
+
+.macro-form-item > :deep(.el-form-item__label)::before {
+  width: 3px;
+  height: 14px;
+  margin-right: 7px;
+  content: '';
+  background: var(--el-color-primary);
+  border-radius: 2px;
+}
+
 .macro-picker {
   width: 100%;
 }
@@ -555,12 +633,12 @@ onMounted(async () => {
 .macro-system-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 3px 8px;
+  align-items: center;
   padding: 5px 8px;
   margin-bottom: 6px;
-  background: var(--el-fill-color-lighter);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-8);
   border-radius: 6px;
 }
 
@@ -576,6 +654,7 @@ onMounted(async () => {
 .macro-group-card {
   padding: 7px 9px 5px;
   margin-top: 6px;
+  background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
 }
@@ -589,7 +668,7 @@ onMounted(async () => {
 
 .macro-group {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px 10px;
 }
 
@@ -617,8 +696,8 @@ onMounted(async () => {
 .macro-option,
 .macro-variants :deep(.el-checkbox) {
   display: flex;
-  min-width: 0;
   align-items: flex-start;
+  min-width: 0;
   padding: 3px 4px;
   margin: 0;
   border-radius: 5px;
@@ -629,13 +708,18 @@ onMounted(async () => {
   background: var(--el-fill-color-light);
 }
 
+.macro-option.is-selected,
+.macro-variants :deep(.el-checkbox.is-selected) {
+  background: var(--el-color-primary-light-9);
+}
+
 .macro-option :deep(.el-checkbox__label),
 .macro-variants :deep(.el-checkbox__label) {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 1px 5px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 5px;
   align-items: baseline;
+  min-width: 0;
   padding-left: 6px;
   line-height: 1.4;
 }
@@ -671,9 +755,13 @@ onMounted(async () => {
 }
 
 .macro-value {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   color: var(--el-text-color-secondary);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .macro-preview {
@@ -684,7 +772,7 @@ onMounted(async () => {
   margin: 6px 0 5px;
   font-size: 11px;
   line-height: 1.6;
-  background: var(--el-fill-color-light);
+  background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
 }
@@ -696,13 +784,22 @@ onMounted(async () => {
 }
 
 .macro-preview-text {
+  display: block;
+  min-width: 0;
+  overflow-x: auto;
   font-size: 10px;
   line-height: 1.45;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .macro-custom-input {
   margin-top: 0;
+}
+
+.macro-custom-input :deep(.el-textarea__inner) {
+  min-height: 42px !important;
+  max-height: 48px;
+  resize: none;
 }
 
 :deep(.media-dialog .el-dialog__body) {
@@ -712,12 +809,28 @@ onMounted(async () => {
   overscroll-behavior: contain;
 }
 
+:deep(.media-dialog) {
+  max-width: calc(100vw - 32px);
+}
+
 :deep(.media-dialog .el-dialog__header) {
-  padding: 14px 18px 7px;
+  padding: 14px 18px 9px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+:deep(.media-dialog .el-dialog__title) {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 
 :deep(.media-dialog .el-dialog__footer) {
   padding: 8px 18px 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+:deep(.media-dialog .el-dialog__footer .el-button) {
+  min-width: 76px;
 }
 
 @media (max-width: 820px) {
@@ -727,6 +840,12 @@ onMounted(async () => {
 
   .media-base-grid :deep(.el-form-item:last-child) {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 960px) {
+  .macro-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

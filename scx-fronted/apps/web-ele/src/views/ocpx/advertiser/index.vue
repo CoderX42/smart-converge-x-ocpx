@@ -853,7 +853,7 @@ onMounted(async () => {
               link
               type="primary"
               @click="router.push({ query: { rtaAdvertiserId: row.id } })"
-              >RTA 配置</el-button
+              >RTA 接入</el-button
             >
             <el-button
               v-access:code="'ocpx:advertiser:edit'"
@@ -1393,7 +1393,7 @@ onMounted(async () => {
         @change="loadLedger"
       />
     </el-drawer>
-    <RtaConfigurationDrawer kind="upstreams" @saved="load" />
+    <RtaConfigurationDrawer @saved="load" />
   </Page>
 </template>
 

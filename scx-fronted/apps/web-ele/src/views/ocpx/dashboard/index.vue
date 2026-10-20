@@ -238,13 +238,6 @@ onMounted(async () => {
   <Page auto-content-height title="经营总览">
     <div class="dashboard-shell">
       <section class="dashboard-header">
-        <div>
-          <p class="eyebrow">PERFORMANCE OVERVIEW</p>
-          <div class="title-line">
-            <h2>广告数据</h2>
-            <span class="period-label">{{ periodLabel }}</span>
-          </div>
-        </div>
         <el-button :disabled="loading" :icon="Refresh" plain @click="load">
           刷新数据
         </el-button>

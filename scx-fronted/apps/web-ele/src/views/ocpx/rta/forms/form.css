@@ -1,0 +1,64 @@
+.rta-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.rta-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.rta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  color: var(--el-text-color-regular);
+  text-align: left;
+  cursor: pointer;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+
+.rta-card span {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.rta-card:hover,
+.rta-card--active {
+  border-color: var(--el-color-primary);
+}
+
+.rta-card--active {
+  box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+}
+
+.rta-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.rta-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.rta-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.rta-section-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}

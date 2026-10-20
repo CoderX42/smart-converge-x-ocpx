@@ -276,9 +276,6 @@ onMounted(async () => {
             例如设置 30%：上游回传 10 个 Callback，SCX 将向下游提交约 3
             个，并扣量拦截约 7 个。这里填写的不是“扣除率”。
           </p>
-          <p class="deduction-explainer__boundary">
-            扣量只控制下游回传数量，不删除上游真实转化，也不撤销广告主计费；提交下游不等于媒体已经签收。
-          </p>
         </div>
       </section>
       <el-table

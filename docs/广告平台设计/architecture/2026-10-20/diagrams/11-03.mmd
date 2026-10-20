@@ -1,0 +1,13 @@
+flowchart LR
+  A[OPPO POST /rta/oppo/code] --> B[验签 / owner / 时间窗 / 父请求指纹]
+  B --> C[逐策略找到监测任务]
+  C --> D[每策略创建一条内部RTA状态]
+  D --> E[Worker并发向微风询量]
+  D --> F[等待线程轮询Redis终态]
+  E --> F
+  F --> G[有效ALLOW加入agree_type_list]
+  G --> H[先写SYNC_RETURNED再返回HTTP]
+  H --> I[OPPO后续专用点击请求]
+  I --> J[核对策略 / OAID hash / 时效 / ALLOW]
+  J --> K[构造Feedback并再次经过RtaGate]
+  K --> L[正式点击事实 / 计费 / 上游投递]

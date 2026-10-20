@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import RtaWorkspace from '../workspace.vue';
+import RtaQueryTable from '../query/rta-query-table.vue';
 
 defineOptions({ name: 'RtaLogs' });
 </script>
-<template><RtaWorkspace kind="logs" /></template>
+<template><RtaQueryTable kind="logs" /></template>

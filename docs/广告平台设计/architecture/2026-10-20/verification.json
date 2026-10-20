@@ -1,0 +1,686 @@
+{
+  "date": "2026-10-20",
+  "head": "6d4088d6c5a4bf3e0d0cb80d4792616c09662d7c",
+  "method": "Static source and document verification only; no business services or external infrastructure started",
+  "checks": {
+    "contractCheck": "PASS: OCPX contracts validated",
+    "schemaLedgerCheck": "PASS",
+    "mappingAnnotationCount": "PASS: 271 method mappings, zero per-controller discrepancies",
+    "markdownLocalLinksChecked": 827,
+    "sourceLineLinksChecked": 786,
+    "unchangedMainJavaHashes": 716,
+    "mermaidSvgRender": "PASS: 13 diagrams, local headless Chrome",
+    "canvasTypeScript": "PASS: standalone tsc with cursor/canvas SDK declarations; host runtime not exercised",
+    "gitDiffCheck": "PASS"
+  },
+  "scope": {
+    "scxControllers": 60,
+    "scxMappedMethods": 228,
+    "xxlAdminControllers": 8,
+    "xxlAdminMappedMethods": 38,
+    "sampleControllers": 1,
+    "sampleMappedMethods": 5,
+    "currentTables": 58,
+    "vueFiles": 145
+  },
+  "diagrams": [
+    {
+      "path": "diagrams/02-01.svg",
+      "viewBox": "4 4 2303.6875 623.0416259765625",
+      "bytes": 43987
+    },
+    {
+      "path": "diagrams/02-02.svg",
+      "viewBox": "-50 -10 1637 1302",
+      "bytes": 37652
+    },
+    {
+      "path": "diagrams/02-03.svg",
+      "viewBox": "-50 -10 1316 1141",
+      "bytes": 35471
+    },
+    {
+      "path": "diagrams/02-04.svg",
+      "viewBox": "4 4 649.0573120117188 2574",
+      "bytes": 41235
+    },
+    {
+      "path": "diagrams/02-05.svg",
+      "viewBox": "-50 -10 1982.5 1530",
+      "bytes": 43499
+    },
+    {
+      "path": "diagrams/02-06.svg",
+      "viewBox": "4 4 542.9114990234375 2264.625732421875",
+      "bytes": 43508
+    },
+    {
+      "path": "diagrams/02-07.svg",
+      "viewBox": "-50 -10 1882.5 1137",
+      "bytes": 37087
+    },
+    {
+      "path": "diagrams/02-08.svg",
+      "viewBox": "4 4 1120 804.2614135742188",
+      "bytes": 29922
+    },
+    {
+      "path": "diagrams/03-01.svg",
+      "viewBox": "4 3.9999923706054688 1931.734375 878.9466552734375",
+      "bytes": 51197
+    },
+    {
+      "path": "diagrams/03-02.svg",
+      "viewBox": "4 4 1388.18359375 941.1015625",
+      "bytes": 42926
+    },
+    {
+      "path": "diagrams/11-01.svg",
+      "viewBox": "-50 -10 1869 1202",
+      "bytes": 37019
+    },
+    {
+      "path": "diagrams/11-02.svg",
+      "viewBox": "4 4 847.640625 1299.5999755859375",
+      "bytes": 36339
+    },
+    {
+      "path": "diagrams/11-03.svg",
+      "viewBox": "4 4 2302.25 128",
+      "bytes": 22402
+    }
+  ],
+  "frontendHashes": [
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/about/index.vue",
+      "sha256": "66b49937331b02978bbb1b91872d4c139771cc9ceee8bb0960d98ce1a11e8c2d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/authentication/code-login.vue",
+      "sha256": "8438670755491e3c26289e186a75e61108d2a5aca1e91f9accdd4148aee80d23"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/authentication/forget-password.vue",
+      "sha256": "c1d2cb6edbd50c47f43f59fdc0ff1883c7551933ecb85b5e197be178dbfacc31"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/authentication/login.vue",
+      "sha256": "99c83cccdb43cf231efa2c7be36e171b065195a74f58594fa5126d5d02d56064"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/authentication/qrcode-login.vue",
+      "sha256": "e8e25c9e9efcbe6b3fea9ea818d4cf539ef52159fa6e96e58ed0f18969961bd1"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/fallback/coming-soon.vue",
+      "sha256": "a1ca4fec5de18d1b0b1de7727a7396c01b34ae9d1a1f925e9756e838f11a27ee"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/fallback/forbidden.vue",
+      "sha256": "e7137d05f473a75eb2f75cfae1dd96e0713a4c02cd30d345c233c9e7539fc1e9"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/fallback/internal-error.vue",
+      "sha256": "3588fc015f3618a6648f6ef89b6cb0b8e197839c0f296e5c8a84d24fd81a37dd"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/fallback/not-found.vue",
+      "sha256": "c4a721ec6fc1ea1df06d9159589c4795500a04189e4b662f655034cccc9efc7a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/_core/fallback/offline.vue",
+      "sha256": "fe32450e41038d23ea1f33125e8cc5c3291ced654cba2af26441fd07145386d2"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/demos/element/index.vue",
+      "sha256": "bfcca296f3a5478353dd4ca91163f966de4cf3c9af0b3b2f050737d9d45b1225"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/demos/form/basic.vue",
+      "sha256": "17902cb67fc27f6de7cbbb69cee5e9ebc2bae5a40b2478e7a94a71cbf54f60be"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/gen/datasource/form.vue",
+      "sha256": "1899be67c979fb44c3c5367a553800b992ac2c6167c685a703cd8c8fe2433426"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/gen/datasource/index.vue",
+      "sha256": "3c77871f7040d71a68e2dda5f4829e05c68997cc9bc7e7c3ed4e46d87f4a7489"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/gen/gen-table/generate.vue",
+      "sha256": "de3557df1a66050e7fb0265e70c5379f5f2f4ddeaf38bfe96875b0bb99336315"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/gen/gen-table/index.vue",
+      "sha256": "02a61127e2ea6aa807f0f8cefde0087581d0a14d01a804de44b4353c6d954101"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/AuthTab.vue",
+      "sha256": "8b3d333adafa826377ca3810e658df0152a678b03c0425e31db3f4ed123ac268"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/BasicInfoTab.vue",
+      "sha256": "59c580298a4f07b0cf7937a14f0c45ddf43cc0f8801cfe0fd04ce3c677a5ff1d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/DetailInfoTab.vue",
+      "sha256": "be935874d94dce66698e04c049c2599efc13e5d74a25275d39688167f19af60a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/DomainTab.vue",
+      "sha256": "6de624e1df22cf3263efdeb279639dd9cdb44f5fce8ef421e2fcb07760c5d8fb"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/IcpTab.vue",
+      "sha256": "7cb97cee0f65af7f57346cf412b163e930b1636f61eec46ab72eaf157cedebfa"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/ViewModeToggle.vue",
+      "sha256": "0d79983192e92c3355c41b5fe0ecfc5816bcd8fce491bb85904fd5c383facf63"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/WxappCardList.vue",
+      "sha256": "5fa50d0330cf93bd3f22057876100ab0b7cf84040c4e479ae80ed9654d84eed5"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/WxappTable.vue",
+      "sha256": "7374aed5a1dc554c503f934b6f49c0b982b7ca4485be728bc8142760d0d2db9c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/AppletsInfo.vue",
+      "sha256": "e880335153197ff44ef23550ffc17348fc044643d1c17212e699d5886ba3f98c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/FaceVerify.vue",
+      "sha256": "77d1860f467e08eff9261ad27f9ce6c129e1e003212e1bd195b7db92dbc37db6"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/Materials.vue",
+      "sha256": "6354efe0160535bd145aee12b06eb78f1e4b8c2f3a7857383450cd98f6b50534"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/PrincipalInfo.vue",
+      "sha256": "a958d8e2044c76fa007ab9fad69f28f7ac60350f59a3f1ea867b6f9451e703e5"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/SubjectInfo.vue",
+      "sha256": "fceaf16dee0cc0ed118accb78ddb8e4380d4d6ea96cd2a1f6acc4f14d20af88c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/components/icp/Upload.vue",
+      "sha256": "7948a72e04db10216df1f3572cbb6e83ea577d10b4864c3ced8b7e51795c6150"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/form.vue",
+      "sha256": "dd7dff07ff5356c3257dac39f63aad95a2b7fd9977f4960d41cc40ef67b62e5a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/miniapp/wxapp/index.vue",
+      "sha256": "2097ebb9d24f5e2ad2098f0d563dea8da0d493a80a45acd8c97648e70bf138b3"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/components/MpAppCardList.vue",
+      "sha256": "475e15126fc85fa82582e5e6fad9958557cad7815c14e2d70dc092423dfb76c0"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/components/MpAppQr.vue",
+      "sha256": "e99f4df9fa9f1d09e709b5a5e670d89f2f8a5b212f11b8ad38b2bb46ed0cb106"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/components/MpAppTable.vue",
+      "sha256": "8425a4158b682492c302a4686055129db40436b6cc1fe1d6bb3c62f7fc444a84"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/components/ViewModeToggle.vue",
+      "sha256": "0d79983192e92c3355c41b5fe0ecfc5816bcd8fce491bb85904fd5c383facf63"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/form.vue",
+      "sha256": "2e9ac1123a63644d92251f18d35a2d243e4c114e9d41fa7e4a2d79d339829bc4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/mp/mp-app/index.vue",
+      "sha256": "1f4828dc8cdfeb38845b91c7660a72706910ca962829af080bfc334b11de6af9"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/advertiser/index.vue",
+      "sha256": "5c6cdba70495304607d27d5c9a99f6b9f59728421ed6a7519d4b9b997b909663"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/callback-record/index.vue",
+      "sha256": "917d5bdd737a786eccf045765f13c0ab535c6a24560a4e6ef3b99c14de1f55d1"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/creative/index.vue",
+      "sha256": "8be13b3abfe9f388685a80ca6d4d043b575e6c33bffb8d3d4e36a04567be19fe"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/dashboard/index.vue",
+      "sha256": "166cdb1265f07ac38ee37712fd2f2c2799f69c686c6c42e7576f2c7daf4e1a58"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/deduction/index.vue",
+      "sha256": "1e5f50c44b6e12058fcbfcb0f95ba39e121ecd555f15a4c46a5135ee0c6ebca7"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/flow-log/index.vue",
+      "sha256": "c841c6bff3199801c4f7d198d6bd0eb0d37325fee5e9a5d3e35516cd512871e5"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/long-text.vue",
+      "sha256": "afb5d7cfd515c590b9f4bfddcecb7b09ed133f94c6f8c8460a848469b3f36b0a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/media/index.vue",
+      "sha256": "19c1ec5946cf22f020a01661f0c8d46eff18b5150e482f79a5acfbed427b2cd2"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/monitor-task/index.vue",
+      "sha256": "52e7238ffb631535877eb7aecc02012521f6ee60a6007a36406709f9fd2ba83d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/promotion-link/index.vue",
+      "sha256": "8a3e1b325726da213854d882fc1754598f73a18861a45867bd5c32f09a1c5c97"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/report/index.vue",
+      "sha256": "64572758a483ddd2561b5e511103260428d60a676ee9660d47f26259ea1cdc95"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/configuration-drawer.vue",
+      "sha256": "709865bbda5208fa95afb6ced5c452d2046bde97f2e560ac1297ab2cc6497be8"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/logs/index.vue",
+      "sha256": "6f64c0ff012cf3ef715934e6d151d884fe9e2c4d087d5e9ed1fd9fe5fc227e89"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/records/index.vue",
+      "sha256": "6af3d365f75815404a956b56e0f01fadb0d3c4895a6665646e06b9774dde86a3"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/reports/index.vue",
+      "sha256": "5c0c68168b44374581088417f5bdf890ec6a2a51fc25c0123f25496262b87015"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/test-dialog.vue",
+      "sha256": "5dfe484388662d45c0285a52d7a9fe7dc53b9ba7b77752fb4b692be929d92dbf"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/ocpx/rta/workspace.vue",
+      "sha256": "0f640bae4d12d1594ce54a554f87af52ab9374118eb7e003f197ad322b84ca79"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/code-audit/components/QrCodeDialog.vue",
+      "sha256": "ec144ee6a417e2657504f752fc05106e8ddb0a9dfb4ef37b9a59c24924a49509"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/code-audit/index.vue",
+      "sha256": "128b851c5acd8a42227a3d13ec2d189d481912605d638da4bb6d6af25e068694"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/companent-info/form.vue",
+      "sha256": "828a2884af0fe4bc1dda3cdc99cb2aac929d6688e3988a84fadafcf61d0a2ce6"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/companent-info/index.vue",
+      "sha256": "80858ab928f64ea039559632f5bd72b5bfcd2d096f9d4940b489334549dbfa78"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/mini-auth/components/upload.vue",
+      "sha256": "a2bc04c0c28aeb6f0f39c22e93e7d80440671fb89dce7bbfbb0bbea7b303c846"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/mini-auth/detail.vue",
+      "sha256": "95e17df81af164ed9ca0e6651825248ed97a6f34754f8a54d7b9002277856505"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/mini-auth/index.vue",
+      "sha256": "fe78c2965d29185132aed0b3237b8fdd6c2b9dc1bf07369c1cc8b6f8b49afcc7"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/miniapp-register/form.vue",
+      "sha256": "9f60838840063a701ec53ec74e22f37c169cca1e934356bf72ed5ecde274e6f6"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/miniapp-register/index.vue",
+      "sha256": "a9df2ae964460ba5c5b2c5a72508f4ba4749b2f9130ab4276b2b5a128bc1cb98"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/template-draft/index.vue",
+      "sha256": "050679288129bdcd539e7725744737c51e03a817f408d4c64d425b9f1e58dc44"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/open/template-info/index.vue",
+      "sha256": "66ae96a1be88181ac9832903d73420cba913b21f8f784d3a5babc8abddc776d6"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/config/form.vue",
+      "sha256": "45e080a992b8344e6e659b5e475ae86f72418fddf7f009177815771ecf465274"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/config/index.vue",
+      "sha256": "b4d21bcae0bd64e703d6a4d8d4a291522243aec0885f1a68c09f3238aa83c940"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/order-info/index.vue",
+      "sha256": "7951e310d71b47f20f81c1fb423a40aa595108d23d13409ac0659868c85c4d4c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/order-info/info/index.vue",
+      "sha256": "73f85689cc835d9fdadae1a8bdecd12d32c6abb62cd9add3488b27c343be1f91"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/order-refund/index.vue",
+      "sha256": "0f6c787df30851011abff8e714d1f4c486c34d5dde78606b8c332946e3a1bc45"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/recharge/index.vue",
+      "sha256": "7de4d874b3b42236dc0bba0f23cd3d732baa3d565f2d0ce82f5235a99bc753a0"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/refund-reason/form.vue",
+      "sha256": "9229e82e37299e14a0036dcea5ada1c3ada6ea6d8f437d8e5e19647396a1a438"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/refund-reason/index.vue",
+      "sha256": "26d9ef73d68170f9f1eaf22c76115b5097ffa396009e44c5cd94ff1f800a4075"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/order/self-order/index.vue",
+      "sha256": "5a4492a2592967c5b3c66ac2ab080abb43976c3b92af3d791b62f71b148fb37e"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/site/navigation/index.vue",
+      "sha256": "552e4fa0b471293e3e8e4e15a56c29426e7aaa20237f6fc8c943d5760ca6d552"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/site/page-design/index.vue",
+      "sha256": "39fdd7ee1958c46c9a03d860ea13f42468acb053e9942070cce61a4da3abb947"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/site/theme/index.vue",
+      "sha256": "9cec73c03bfbd456efcf15818e3865167903e92651ee8d69e83f0770902d6cf8"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/ad-launch/index.vue",
+      "sha256": "b2db3635a4bcf6dc845cc1f5396ab3716751e9f8e201d7c3a448172ee25a7283"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/agreement/form.vue",
+      "sha256": "8dd636a8bbfb63068f67fb1ef06adcb8a532c8d36e22a77f2d65484a6b5fbc8c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/agreement/index.vue",
+      "sha256": "537027bc7a5ac1a328d4361d8915aa1603826292877edd3500a1cb958a78ef69"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/article/form.vue",
+      "sha256": "e6d573aef1d0e6526e534d87b386b7ed9c390988731c01126fbf55883cf6b13d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/article/index.vue",
+      "sha256": "94a46fbc2d1768227e21e1d52d76eaca1046f8402d2bb9955656804b31924efd"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/article-category/form.vue",
+      "sha256": "0b9eb345be28220682c72ef88b6df9702e9d4687bf4f0cc313a680be0e703e38"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/article-category/index.vue",
+      "sha256": "627b439b38e3890e706fc556125286c19abded8690221f0af5558d8ee0971840"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/config/form.vue",
+      "sha256": "6d48a0e9d1f46e5f538a7f6c3b6c79d493d6b1fc30a47a3bd093b751d8953d03"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/config/index.vue",
+      "sha256": "4b042a4b5ce4f9b9820b3ca96b052c664ccc4da53d2867873ad4e94fd9ba218a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dept/form.vue",
+      "sha256": "3616a7ec3196b1ba32f4150171cbfdcf612b52ef69d976fbda30bee1b3cfa23c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dept/index.vue",
+      "sha256": "03246631b2cb939c7beb865f31c52a9db38e86fdaaa6b7502326d9596181932a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dict/form.vue",
+      "sha256": "a66023d41e9c8956142800f0e42eeabd87f2a2bc39545789c8aa876cff13d275"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dict/index.vue",
+      "sha256": "157c16081d3f761d2b77953e11d4c11408c9cd7bf3e061e336e8b2d3d26a294d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dict-value/form.vue",
+      "sha256": "72b40245d216c036ed58030d6408ba362882a1a54557639b768ec8c41b0f13a1"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/dict-value/index.vue",
+      "sha256": "709fbe89779964f3fbedbea516c083bb8c0f0c98ba09499ce82fedb57786c001"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/log/detail.vue",
+      "sha256": "fe3486217cbc85f1bc02d9183358e3f822827d5e965440846d804c5cba74e269"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/log/index.vue",
+      "sha256": "f3fdf8fa68d564695e571b71ab2b3a3e74f35974cfb2abd0e7dce1cced531a7d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/login-log/index.vue",
+      "sha256": "2e98617bf845f5c7ab4f1ebead7a282bdb7a52b4a04da29cb4040a1c1a427857"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/material/image-tab/index.vue",
+      "sha256": "f611e7e9d5da74678ee3850b07ca0baf46b5f6b0b484e9666e41efec6f271e6d"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/material/index.vue",
+      "sha256": "e1e9e20de9d0b0ce300ef2a58cf8295085ed30c7f65a021080de5849a961dcf4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/material-group/index.vue",
+      "sha256": "bae4344adb650380408b7b53a05d869ac98372ed607d3712d2b2b0fb65fbe035"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/menu/index.vue",
+      "sha256": "daed7dc32b6fe29fc4cc33093676c2593b170296eba96e80c470e90c15785704"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/menu/modules/form.vue",
+      "sha256": "4cc0d8800fe15af87f31f2ca6158b3041b56cf542ff13bf3032551aa0627a546"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/online-user/index.vue",
+      "sha256": "da323a9c6d95377155d202607f4d9f8915ea4c6b0d035429c724a488c931cb88"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/region/form.vue",
+      "sha256": "82c127d3cd71f30ac5009bc9d4829e2be0f0598720b985a8c947f22e1caac50b"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/region/index.vue",
+      "sha256": "fe9929ee1bf8090eff9fd0d2f32148f69b574325c530730c54f05a1b78d0a4bb"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/role/form.vue",
+      "sha256": "5b8edb3c9c0e63469f41232b2aab8aed2be8f91121825b9f76abf65f4e472c36"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/role/index.vue",
+      "sha256": "cb503f529308563aae1fa1a04b660ad7d84d317916473150f1910954ad479f08"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/role/rolemenu.vue",
+      "sha256": "4206feccc72dfd40c492415173ee673fe80bdc00a630f78959aab2b1b4c024c4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/sboot-server/index.vue",
+      "sha256": "5093284db86e9626904ee6e38a2f8efe30561a900741f18232cc42cefcd9e055"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/sms-config/form.vue",
+      "sha256": "45c294c17173ecffc1c20370cf75444fc8c7f56e3569c0313365b35fd28975cf"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/sms-config/index.vue",
+      "sha256": "959173ce42e4c4583bb13db99be424c9299ebdd0964bed381b806fd4cc8ef56e"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/sms-send-record/index.vue",
+      "sha256": "3943e7fcf69d85d5016071ad0a1c05a5f3a7c67d1c9d8f9373e98e2629a99a39"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/social-account/form.vue",
+      "sha256": "5c9e4b2d976ea85aa3a71eb90a9527c35c7ea0c76cc72c0a96d5947eb8f020eb"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/social-account/index.vue",
+      "sha256": "7cc5934d15e0369ee3fb3c2b0f65b023befb9e85355dc4c6c805e9110f8f2830"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/storage-config/form.vue",
+      "sha256": "c6ce0b666cd565dfa9db2ba3eac16a36d360b33ca3815d4ebe51b2503a347cc8"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/storage-config/index.vue",
+      "sha256": "f84aeb95bc9dfdb8f5974b140863cbced14c03c4ca3ce95fef10e90f4a6ec1a4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/components/avatar-picker.vue",
+      "sha256": "3c1551a79a64f76a36f2f74c6929fe4e42ed57cecba8d77d3486c5307067cc9b"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/form.vue",
+      "sha256": "8f550b2a6c4d4a83b1d8996e1dabb4224bd4fde4c65fbf79d42011ed173fba4b"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/index.vue",
+      "sha256": "9aaf18d807a5911ba018e0ec7b6ee262881a36e077bc57339e97333be7ed6494"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/loginlog.vue",
+      "sha256": "021b4109778d5a070df4b8f6466c03230344c3a3569330d1859011044cc7eb94"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/operatelog.vue",
+      "sha256": "9bafe347d9129a81a8c3edda9e8adaad85a2a0019a156b4c2ace16281e284050"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/profile.vue",
+      "sha256": "27cb3560cef46ff26642b2b91f4967d4b79cb085299cd1c6609a9f47e461ff16"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/reset-password.vue",
+      "sha256": "429d1febc0893a2a9824cf9dd8f03b430f01b4932507b08b5a6319e006d11b42"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/third-party-success.vue",
+      "sha256": "404d0abb2ac5c218aacc91eb04b2ee63bfabffee179093fb77f74284f18b5747"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/system/user/info/update-password.vue",
+      "sha256": "0578e6212240125a0445f76cf9ae4506760c97c2d60d279d56dca267b24918fe"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/balance-config/form.vue",
+      "sha256": "0899cf7f1a83217eb5ef5dccfcfab43e4704f173d1e9ae5c5c900adac1d6285b"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/balance-config/index.vue",
+      "sha256": "88134e8343a0d8278c45de128c5f43e72910a1279b3af2db1966086a29c9515b"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/point-config/index.vue",
+      "sha256": "87220ee165bff7b8b29baf047d5b521bb96f3c625f0c8b9e98699474acfaa43f"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/point-record/index.vue",
+      "sha256": "acc99453731f0762911925f1e8f750e1e959ef104f8c9b8274173298566b69c4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/signin-config/index.vue",
+      "sha256": "0a24b2fe13695e31ce0e8a33f02d1ee1badf7aec1844175f5b2ba0405423196e"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/signin-record/index.vue",
+      "sha256": "c32e1685db5714e758bffe3e3111b0e4369fbc11d65495ce2ab7e4123f096bbb"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/signin-streak-reward/form.vue",
+      "sha256": "599b28f58e9ef14212083513e3babfab417a9f9f1e21a1d344c6a36ea534cdc6"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/signin-streak-reward/index.vue",
+      "sha256": "19fef420f34820d738a95e4097e3e5c28760507cfaa6d6affb8070248b6eea18"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/balance-record.vue",
+      "sha256": "2ff4bf5d104df901397871b0e3af0fe4939e64d9bf8f9043d00e033199f0d762"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/growth-record.vue",
+      "sha256": "2f28450bbd1864667f8dd61b7e3a19ce7aecb8e9fddb140011cf2a9c7cf674f2"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/order-record.vue",
+      "sha256": "f5e283ddb4e92745ec29d6d2be13e2f861c3268449451a83a32de86c538a68aa"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/point-record.vue",
+      "sha256": "0cd622af820e12bc58d378c246c14ec1e7b1fd623d20449fee70ddbcb4e26eb3"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/recharge-order-record.vue",
+      "sha256": "6a925d79503b159873902c503fc34954c6ecb5e4fbfbe7c95762c4d378be0725"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/components/signin-record.vue",
+      "sha256": "6df880bf4da2d0ea331b873db6050ac2e3d5282c34f7990dddce05063c234761"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/detail.vue",
+      "sha256": "d44d2a0ae3183699bae7d477e6c1864ffd5577604ea00e420b9a8ae8fa75e35c"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/form.vue",
+      "sha256": "d921d4d92f1bbd7d628527019f8b8041d43da72844479dfe9aaa6dc6d2f3ffeb"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-info/index.vue",
+      "sha256": "d104ba526a036275cbf54cb09b9af34d97fd2aad80eeb37279fe870778382b39"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-level/form.vue",
+      "sha256": "916561c9e439d1d771891e0004e2504da901eff7005978e7ef1a28d5012d7ae4"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-level/index.vue",
+      "sha256": "567ce8b372a139dd5f0f5de24235ce970fa74876f7af52969a4057f2001f68ff"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-mission/form.vue",
+      "sha256": "b08fccf58be9d5ac1326502aee79431ecc9d93eae8cbb28b39cd4791cb05ff1a"
+    },
+    {
+      "path": "scx-fronted/apps/web-ele/src/views/user/user-mission/index.vue",
+      "sha256": "e1861f7d98478db01eef8226c2a4eeb3de45a9d3eb3960b1ef5b88573b4454f5"
+    }
+  ],
+  "notRun": [
+    "business service startup",
+    "database access/migration",
+    "live partner traffic",
+    "backend suite",
+    "frontend full type/lint/unit/build",
+    "performance load tests",
+    "business browser UAT",
+    "production deployment"
+  ],
+  "issues": []
+}

@@ -1,0 +1,25 @@
+sequenceDiagram
+  actor U as 用户
+  participant V as Vue前端
+  participant B as Boot认证与管理
+  participant S as System服务
+  participant D as MySQL
+  participant R as Redis会话
+  U->>V: 账号密码 / 前端可视验证码
+  V->>B: POST auth/token/login 表单 AES密码
+  Note over B: 图形验证码Filter路径静态不匹配 见风险记录
+  B->>S: 查用户 / 角色 / 权限
+  S->>D: sys_user + role + role_menu + menu
+  B->>B: AES解密 BCrypt比对 状态检查
+  B->>R: 建立Sa-Token会话
+  B-->>V: Result.data.tokenValue
+  V->>B: GET system/user/info 与 system/menu
+  B-->>V: 用户权限 + 菜单树
+  V->>V: pageMap白名单匹配 生成路由 按钮权限
+  U->>V: 提交业务表单
+  V->>B: JSON + satoken
+  B->>B: 登录 动作权限 主体范围 字段与关联校验
+  B->>D: Service事务 + MyBatis SQL
+  D-->>B: 实体/分页/业务结果
+  B-->>V: Result code=0 data
+  V->>V: 取data 回填/关闭弹框/重查列表

@@ -76,4 +76,21 @@ public interface RtaManagementSqlMapper {
 
 	java.util.Map<String, Object> selectRtaTestRoute(@Param("id") String id);
 
+	int deleteRtaBinding(@Param("task") String task, @Param("version") long version);
+
+	int deleteRtaUpstream(@Param("id") String id, @Param("version") long version);
+
+	int deleteRtaMediaAccess(@Param("media") String media, @Param("version") long version);
+
+	Long countUpstreamBindings(@Param("id") String id);
+
+	Long countMediaBindings(@Param("media") String media);
+
+	java.util.List<java.util.Map<String, Object>> selectReadinessRoutes(@Param("advertiserId") String advertiserId,
+			@Param("mediaId") String mediaId, @Param("keyword") String keyword,
+			@Param("taskIds") java.util.List<String> taskIds);
+
+	java.util.List<java.util.Map<String, Object>> selectRecentTaskStats(@Param("since") java.sql.Timestamp since,
+			@Param("taskIds") java.util.List<String> taskIds);
+
 }

@@ -290,18 +290,6 @@ function callbackRatio(value: null | string) {
   return `${Math.round(ratio * 10_000) / 100}%`;
 }
 
-const coverageMessage = computed(() => {
-  if (deductionCoverageStatus.value === 'NONE') {
-    return '所选范围无新口径扣量事实；历史数据不使用当前比例反推。';
-  }
-  const start = deductionCoverageStart.value
-    ? dayjs(deductionCoverageStart.value).format('YYYY-MM-DD HH:mm:ss')
-    : '-';
-  return deductionCoverageStatus.value === 'PARTIAL'
-    ? `扣量数据部分覆盖，真实统计从 ${start} 开始；此前数据未估算。`
-    : `扣量数据已覆盖所选范围，统计起始时间：${start}。`;
-});
-
 function tableSummary({
   columns: renderedColumns,
   data,
@@ -461,9 +449,6 @@ onMounted(async () => {
             <i class="report-direction-legend__dot is-downstream"></i>
             下游回传提交
           </span>
-          <span class="report-direction-legend__note">
-            下游数表示 SCX 已提交投递，不代表媒体签收
-          </span>
         </div>
         <RightToolbar
           v-model:visible-columns="visibleColumns"
@@ -477,13 +462,6 @@ onMounted(async () => {
           @search="showSearch = !showSearch"
         />
       </div>
-      <el-alert
-        class="mb-3"
-        :closable="false"
-        :title="coverageMessage"
-        :type="deductionCoverageStatus === 'FULL' ? 'success' : 'warning'"
-        show-icon
-      />
       <el-table
         v-loading="loading"
         class="ocpx-table"

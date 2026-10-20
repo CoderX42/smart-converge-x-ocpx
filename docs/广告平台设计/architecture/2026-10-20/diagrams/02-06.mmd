@@ -1,0 +1,23 @@
+flowchart TD
+  Media[通用媒体 POST rta/requests JSON + HMAC] --> Sec[时间窗 nonce 签名 体积与schema检查]
+  Sec --> Init[同媒体requestId幂等 配置快照 AES-GCM设备payload]
+  Init --> State[(Redis Lua INIT state + send + deadline + 索引/指标)]
+  State --> Accepted[HTTP202 relayRequestId/deadline]
+  State -.50ms tick.-> Worker[RelayWorker 先超时 再notify/send]
+  Worker --> Adapt{上游协议}
+  Adapt -->|GENERIC_ASYNC| Async[签名POST上游 202后等待独立Callback]
+  Async --> Callback[认证决策Callback 校验原候选]
+  Adapt -->|WEIFENG_RTA| Sync[单候选同步HTTP响应 不安全重试关闭]
+  Callback --> Final[Lua一次终态 ALLOW/DENY/ERROR/TIMEOUT]
+  Sync --> Final
+  Worker -->|deadline到期| Final
+  Final --> Notify[媒体签名通知 最多4次 1/3/10秒退避]
+  Notify --> Media2[媒体获得决策]
+  Media2 --> Feedback[媒体带rtaRequestId发送IMP/CLK]
+  Feedback --> Admission[RtaGate检查ALLOW/期限/任务/媒体/配置版本]
+  Admission -->|仅ALLOW且匹配所有条件| Formal[正式Feedback链路]
+  Admission -->|拒绝或基础设施故障| Denied[403或503 不写正式事实]
+  Final --> Audit[(Redis Stream日志 + Hash指标 + dirty集合)]
+  Audit -.XXL-JOB触发Admin RtaJobs.-> SQL[(MySQL RTA日志与小时统计)]
+  State --> Realtime[管理实时记录]
+  SQL --> History[管理日志和统计]

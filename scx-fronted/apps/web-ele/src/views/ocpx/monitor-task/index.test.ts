@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
 const confirm = vi.hoisted(() => vi.fn());
 
 vi.mock('#/api/ocpx', () => api);
+vi.mock('#/api/ocpx/rta', () => ({ rtaOverview: vi.fn() }));
 vi.mock('@boot/access', () => ({
   useAccess: () => ({ hasAccessByCodes: () => false }),
 }));
